@@ -10,9 +10,9 @@ What else can be stripped out reused?
 
 And then what? Make a FPS? Fuck level editor for now just use Blender to make basic playgrounds.
 
-    Port MeshGroup rendering and Assimp loading from Q/PS1-Renderer projects
-    Port GJK collision code from Q 
     Port 3D camera code from Q
+
+    use flat faces for collision? instead of meshes? GJK EPA code accepts 2D meshes
 
 */
 
@@ -23,7 +23,6 @@ And then what? Make a FPS? Fuck level editor for now just use Blender to make ba
 #include <fstream>
 #include <string>
 #include <chrono>
-#include <unordered_map>
 
 #include "BUILDINFO.H"
 
@@ -53,6 +52,8 @@ And then what? Make a FPS? Fuck level editor for now just use Blender to make ba
 
 #include <gmath.h>
 
+#include <unordered_map>
+#include <array>
 
 
 
@@ -414,7 +415,8 @@ static void CreateGPUTextureFromBitmap(GPUTexture        *texture,
                                        u32               bitmap_height,
                                        GLenum            target_format,
                                        GLenum            source_format,
-                                       GLenum            filter_mode = GL_NEAREST)
+                                       GLenum            min_filter_mode = GL_NEAREST,
+                                       GLenum            mag_filter_mode = GL_NEAREST)
 {
     ASSERT(texture->id == 0);
 
@@ -426,8 +428,8 @@ static void CreateGPUTextureFromBitmap(GPUTexture        *texture,
     glBindTexture(GL_TEXTURE_2D, texture->id);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT); // wrapping
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filter_mode); // filtering (e.g. GL_NEAREST)
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter_mode);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, min_filter_mode); // filtering (e.g. GL_NEAREST)
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, mag_filter_mode);
     glTexImage2D(
             GL_TEXTURE_2D,            // texture target type
             0,                        // level-of-detail number n = n-th mipmap reduction image
@@ -448,13 +450,11 @@ static void CreateGPUTextureFromDisk(GPUTexture *texture, const char* filePath, 
     if (textureBitmapHandle.memory == nullptr)
         return;
 
-    bool bUseNearest = true; // TODO get from somewhere else
     CreateGPUTextureFromBitmap(texture,
                                (unsigned char*) textureBitmapHandle.memory,
                                textureBitmapHandle.width,textureBitmapHandle.height,
                                targetFormat,
-                               (textureBitmapHandle.bitDepth == 3 ? GL_RGB : GL_RGBA),
-                               (bUseNearest ? GL_NEAREST : GL_LINEAR_MIPMAP_LINEAR));
+                               (textureBitmapHandle.bitDepth == 3 ? GL_RGB : GL_RGBA));
     GLHasErrors();
     FreeImage(textureBitmapHandle); // texture data has been copied to GPU memory, so we can free image from memory
 }
@@ -581,7 +581,7 @@ static GPUMesh __assimpLoadMeshHelper(aiMesh* meshNode)
     return mesh;
 }
 
-MeshGroup MeshGroupLoad(const char* fileName)
+static MeshGroup MeshGroupLoad(const char* fileName)
 {
     Assimp::Importer importer;
     /*  NOTE: To create smooth normals respecting edges sharper than a given angle,
@@ -657,7 +657,7 @@ MeshGroup MeshGroupLoad(const char* fileName)
     return meshGroupToLoadTo;
 }
 
-void MeshGroupDelete(MeshGroup *modelToDelete)
+static void MeshGroupDelete(MeshGroup *modelToDelete)
 {
     for (auto& mesh : modelToDelete->meshes)
     {
@@ -672,9 +672,613 @@ void MeshGroupDelete(MeshGroup *modelToDelete)
 }
 
 
+struct FaceBatch
+{
+    /** Set of triangles that all use the same texture. The position values 
+        of each triangle vertex are defined in world space. 
 
+        data layout:
+            position x y z, texture u v, normal i j k, ...
+    */
+
+    GPUTexture sharedTexture;
+    u32 idVAO = 0;
+    u32 idVBO = 0;
+    u32 verticesCount = 0;
+};
+
+static void CreateFaceBatchMeshOnGPU(u32 *idVAO, u32 *idVBO)
+{
+    glGenVertexArrays(1, idVAO);
+    glBindVertexArray(*idVAO);
+    glGenBuffers(1, idVBO);
+    glBindBuffer(GL_ARRAY_BUFFER, *idVBO);
+    glBufferData(GL_ARRAY_BUFFER, 0, nullptr, GL_DYNAMIC_DRAW);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 8, nullptr);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(float) * 8, (void*)(sizeof(float) * 3));
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 8, (void*)(sizeof(float) * (3 + 2)));
+    glEnableVertexAttribArray(2);
+    glBindVertexArray(0);
+}
+
+static void DeleteFaceBatchMeshOnGPU(u32 idVAO, u32 idVBO)
+{
+    glDeleteBuffers(1, &idVBO);
+    glDeleteVertexArrays(1, &idVAO);
+}
+
+static void RebindFaceBatchBufferObject(FaceBatch *faceBatch, u32 sizeInBytes, float *data)
+{
+    glBindVertexArray(faceBatch->idVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, faceBatch->idVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeInBytes, data, GL_DYNAMIC_DRAW);
+    faceBatch->verticesCount = sizeInBytes / (sizeof(float) * 8);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
+    // NOTE(Kevin): What even is the point of unbinding...I'm going to be careful about always binding before doing anything with VAOs anyways...
+}
+
+static void RenderFaceBatch(FaceBatch faceBatch)
+{
+    glBindVertexArray(faceBatch.idVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, faceBatch.idVBO);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, faceBatch.sharedTexture.id);
+    glDrawArrays(GL_TRIANGLES, 0, faceBatch.verticesCount);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
+}
+
+
+
+///////////////////////////////
+// GJK + EPA
+///////////////////////////////
+
+
+struct Collider
+{
+    /* Returns the furthest point on the collider along a given direction */
+    virtual vec3 FindFurthestPoint(vec3 direction) const = 0;
+};
+
+struct MeshCollider : Collider
+{
+    vec3 FindFurthestPoint(vec3 direction) const override
+    {
+        vec3 maxVertexSoFar;
+        float maxDistanceSoFar = -FLT_MAX;
+        for (auto pointWCS : pointCloud)
+        {
+            float distance = Dot(pointWCS, direction);
+            if (distance > maxDistanceSoFar)
+            {
+                maxVertexSoFar = pointWCS;
+                maxDistanceSoFar = distance;
+            }
+        }
+        return maxVertexSoFar;
+    }
+
+    std::vector<vec3> pointCloud;
+};
+
+struct SphereCollider : Collider
+{
+    vec3 FindFurthestPoint(vec3 direction) const override
+    {
+        vec3 offset = Normalize(direction) * radius;
+        return position + offset;
+    }
+
+    vec3 position;
+    float radius;
+};
+
+struct LineCollider : Collider
+{
+    vec3 FindFurthestPoint(vec3 direction) const override
+    {
+        float distanceA = Dot(a, direction);
+        float distanceB = Dot(b, direction);
+        return (distanceA > distanceB ? a : b);
+    }
+
+    vec3 a;
+    vec3 b;
+};
+
+
+struct GJKSimplex
+{
+private:
+    std::array<vec3, 4> points = {};
+    u8 count = 0;
+
+public:
+    GJKSimplex& operator=(std::initializer_list<vec3> list)
+    {
+        count = 0;
+        for (auto v : list)
+        {
+            points[count] = v;
+            ++count;
+        }
+        return *this;
+    }
+
+    vec3& operator[](int i)
+    {
+        return points[i];
+    }
+
+    void pushFront(vec3 point)
+    {
+        points = { point, points[0], points[1], points[2] };
+        count = GM_min(count + 1, 4u);
+    }
+
+    u8 size() const
+    {
+        return count;
+    }
+};
+
+static vec3 GJKSupport(const Collider *colA, const Collider *colB, const vec3& direction)
+{
+    // https://en.wikipedia.org/wiki/Support_function
+    return colA->FindFurthestPoint(direction) - colB->FindFurthestPoint(-direction);
+}
+
+#define GJKSameDirection(dir, ao) (Dot(dir, ao) > 0.f)
+
+static bool GJKLine(GJKSimplex& capture, vec3& direction)
+{
+    vec3 a = capture[0];
+    vec3 b = capture[1];
+    vec3 ab = b - a;
+    // Note that vec3 ao (a to origin) is just -a
+
+    if (GJKSameDirection(ab, -a))
+    {
+        // NOTE(Kevin): If initial search direction aligns with the collision vector between two spheres, then it doesn't work.
+        direction = Cross(Cross(ab, -a), ab);
+    }
+    else
+    {
+        capture = { a };
+        direction = -a;
+        // THIS PATH WILL SIGNAL THAT THERE IS NO COLLISION, but it might waste a support call
+        // Is there a way to stop the algorithm here?
+        // if origin is past point A, then it's impossible to be included in the simplex.
+        // I need to figure out how to stop the algorithm here and return that they are not intersecting.
+    }
+
+    return false;
+}
+
+static bool GJKTriangle(GJKSimplex& capture, vec3& direction)
+{
+    vec3 a = capture[0];
+    vec3 b = capture[1];
+    vec3 c = capture[2];
+    vec3 ab = b - a;
+    vec3 ac = c - a;
+    vec3 triangleNormal = Cross(ab, ac);
+
+    if (GJKSameDirection(Cross(triangleNormal, ac), -a))
+    {
+        if (GJKSameDirection(ac, -a))
+        {
+            capture = { a, c };
+            direction = Cross(Cross(ac, -a), ac);
+        }
+        else
+        {
+            capture = { a };
+            direction = -a;
+        }
+    }
+    else
+    {
+        if (GJKSameDirection(Cross(ab, triangleNormal), -a))
+        {
+            if (GJKSameDirection(ab, -a))
+            {
+                capture = { a, b };
+                direction = Cross(Cross(ab, -a), ab);
+            }
+            else
+            {
+                capture = { a };
+                direction = -a;
+            }
+        }
+        else
+        {
+            // The origin must be above or below this triangle
+            if (GJKSameDirection(triangleNormal, -a))
+            {
+                capture = { a, b, c };
+                direction = triangleNormal;
+            }
+            else
+            {
+                capture = { a, c, b };
+                direction = -triangleNormal;
+            }
+        }
+    }
+
+    return false;
+}
+
+static bool GJKTetrahedron(GJKSimplex& capture, vec3& direction)
+{
+    vec3 a = capture[0];
+    vec3 b = capture[1];
+    vec3 c = capture[2];
+    vec3 d = capture[3];
+    vec3 ab = b - a;
+    vec3 ac = c - a;
+    vec3 ad = d - a;
+    vec3 abcNormal = Cross(ab, ac);
+    vec3 acdNormal = Cross(ac, ad);
+    vec3 adbNormal = Cross(ad, ab);
+
+    /*
+     * ORDER NEEDS TO BE ABC first, ACD second, ADB third OR IT MIGHT INFINITELY
+     * LOOP THE TETRAHEDRON AND TRIANGLE CASES BUT I DON'T UNDERSTAND WHY
+     * */
+
+    if (GJKSameDirection(abcNormal, -a))
+    {
+        capture = { a, b, c };
+        return GJKTriangle(capture, direction);
+    }
+    if (GJKSameDirection(acdNormal, -a))
+    {
+        capture = { a, c, d };
+        return GJKTriangle(capture, direction);
+    }
+    if (GJKSameDirection(adbNormal, -a))
+    {
+        capture = { a, d, b };
+        return GJKTriangle(capture, direction);
+    }
+
+    // IN THIS CASE: The origin is not in the direction of the normals of the three triangles formed with a.
+    // AND we know that the origin is not "below" the triangle (if bcd forms the base) because we just added
+    // the point a i.e. the origin is in direction of direction given to this function.
+    // THEREFORE, the origin MUST be inside the tetrahedron
+    return true;
+}
+
+static bool GJKNextSimplex(GJKSimplex& capture, vec3& direction)
+{
+    /* We need a series of different checks for each shape of simplex
+     * to see what the new simplex should be and what direction we'll
+     * search in next */
+    switch (capture.size()) {
+    case 2: return GJKLine(capture, direction);
+    case 3: return GJKTriangle(capture, direction);
+    case 4: return GJKTetrahedron(capture, direction);
+    }
+
+    ASSERT(false) // should never happen
+        return false;
+}
+
+struct GJKEPACollisionInfo
+{
+    vec3 normal;
+    float penetrationDepth = 0.f;
+    bool hasCollision = false;
+};
+
+static std::pair<std::vector<vec4>, int> EPAGetFaceNormals(
+    const std::vector<vec3>& polytope,
+    const std::vector<int>& faces)
+{
+    /* Returns the normal of every face in the polytope, their distances
+     * from the origin, and the index of the face closest to the origin. */
+
+    std::vector<vec4> normals;
+    int minTriangle = 0;
+    float minDistance = FLT_MAX;
+
+    for (int i = 0; i < faces.size(); i += 3)
+    {
+        vec3 a = polytope[faces[i]];
+        vec3 b = polytope[faces[(size_t) i + 1]];
+        vec3 c = polytope[faces[(size_t) i + 2]];
+        vec3 normal = Normalize(Cross((b - a), (c - a)));
+        float distance = Dot(normal, a); // the distance is the component of vector a projected onto the normal
+
+        if (distance < 0.f)
+        {
+            normal *= -1.f;
+            distance *= -1.f;
+        }
+
+        normals.emplace_back(normal, distance);
+
+        if (distance < minDistance)
+        {
+            minDistance = distance;
+            minTriangle = i / 3;
+        }
+    }
+
+    return { normals, minTriangle };
+}
+
+static void EPAAddIfUniqueEdge(
+    std::vector<std::pair<int, int>>& edges,
+    const std::vector<int>& faces,
+    int a,
+    int b)
+{
+    auto reverse = std::find(edges.begin(), edges.end(),
+        std::make_pair(faces[b], faces[a]));
+    if (reverse != edges.end())
+    {
+        edges.erase(reverse);
+    }
+    else
+    {
+        edges.emplace_back(faces[a], faces[b]);
+    }
+}
+
+#ifndef EPA_MAX_ITERATIONS
+#define EPA_MAX_ITERATIONS 10
+#endif
+static GJKEPACollisionInfo EPA(GJKSimplex& simplex, const Collider* colA, const Collider* colB)
+{
+    std::vector<vec3> polytope;
+    ASSERT(simplex.size() == 4)
+        for (int i = 0; i < simplex.size(); ++i)
+        {
+            polytope.push_back(simplex[i]);
+        }
+    std::vector<int> faces = {
+            0, 1, 2,
+            0, 3, 1,
+            0, 2, 3,
+            1, 3, 2
+    };
+
+    auto normalsResult = EPAGetFaceNormals(polytope, faces);
+    auto normals = normalsResult.first;
+    auto minFace = normalsResult.second;
+
+    vec3 minNormal;
+    float minDistance = FLT_MAX;
+
+    u8 epaIterations = 0; // the EPA loop can be infinite if we have curved edges - just return whatever it has after X iterations.
+    while (minDistance == FLT_MAX)
+    {
+        minNormal = normals[minFace].xyz;
+        minDistance = normals[minFace].w;
+
+        if (epaIterations++ > EPA_MAX_ITERATIONS)
+        {
+            break;
+        }
+
+        vec3 support = GJKSupport(colA, colB, minNormal); // i.e. is there a point to be added in this direction?
+        float sDistance = Dot(minNormal, support);
+
+        if (GM_abs(sDistance - minDistance) > 0.001f)
+        {
+            // then we must expand the polytope
+            std::vector<std::pair<int, int>> uniqueEdges;
+            for (int i = 0; i < normals.size(); ++i)
+            {
+                if (GJKSameDirection(normals[i].xyz, support))
+                {
+                    // for each face, if the face is in the same direction as support, remove
+                    int f = i * 3;
+                    EPAAddIfUniqueEdge(uniqueEdges, faces, f, f + 1);
+                    EPAAddIfUniqueEdge(uniqueEdges, faces, f + 1, f + 2);
+                    EPAAddIfUniqueEdge(uniqueEdges, faces, f + 2, f);
+                    // reconstruction
+                    faces[(size_t) f + 2] = faces.back();
+                    faces.pop_back();
+                    faces[(size_t) f + 1] = faces.back();
+                    faces.pop_back();
+                    faces[f] = faces.back();
+                    faces.pop_back();
+                    normals[i] = normals.back();
+                    normals.pop_back();
+                    --i;
+                }
+            }
+
+            if (uniqueEdges.size() == 0)
+            {
+                minNormal = vec3(0.f, 0.f, 0.f);
+                minDistance = 0.f;
+                break;
+            }
+
+            std::vector<int> newFaces;
+            for (auto edge : uniqueEdges)
+            {
+                newFaces.push_back(edge.first);
+                newFaces.push_back(edge.second);
+                newFaces.push_back((int)polytope.size());
+            }
+            polytope.push_back(support);
+
+            normalsResult = EPAGetFaceNormals(polytope, newFaces);
+            auto newNormals = normalsResult.first;
+            auto newMinFace = normalsResult.second;
+
+            float oldMinDistance = FLT_MAX;
+            for (int i = 0; i < normals.size(); ++i)
+            {
+                if (normals[i].w < oldMinDistance)
+                {
+                    oldMinDistance = normals[i].w;
+                    minFace = i;
+                }
+            }
+
+            if (newNormals[newMinFace].w < oldMinDistance)
+            {
+                minFace = newMinFace + (int)normals.size();
+            }
+
+            faces.insert(faces.end(), newFaces.begin(), newFaces.end());
+            normals.insert(normals.end(), newNormals.begin(), newNormals.end());
+
+            minDistance = FLT_MAX;
+        }
+    }
+
+    GJKEPACollisionInfo points;
+    points.normal = minNormal;
+    points.penetrationDepth = minDistance + 0.001f;
+    points.hasCollision = true;
+    return points;
+}
+
+// static GJKEPACollisionInfo CheckSphereCollision(SphereCollider* a, SphereCollider* b)
+// {
+//     vec3 aPos = a->GetPosition();
+//     vec3 bPos = b->GetPosition();
+//     float aRad = a->GetScaledRadius();
+//     float bRad = b->GetScaledRadius();
+//     float baLen = Magnitude(bPos - aPos);
+//     if (baLen < aRad + bRad)
+//     {
+//         return { Normalize(bPos - aPos), aRad + bRad - baLen, true };
+//     }
+//     else
+//     {
+//         return { vec3(), 0.f, false };
+//     }
+// }
+
+static GJKEPACollisionInfo GJK(Collider* colA, Collider* colB)
+{
+    // colA->TransformCollider();
+    // colB->TransformCollider();
+
+    // if (colA->colliderType == ColliderType::Sphere && colB->colliderType == ColliderType::Sphere)
+    // {
+    //     return CheckSphereCollision((SphereCollider*)colA, (SphereCollider*)colB);
+    // }
+
+    //NOTE(Kevin): start direction could be origin - (colA owning object position - colB owning object position)
+    vec3 support = GJKSupport(colA, colB, { 1.f,1.f,1.f });
+    GJKSimplex capture;
+    capture.pushFront(support);
+    vec3 direction = -support;
+
+    for (;;)
+    {
+        support = GJKSupport(colA, colB, direction);
+        if (Dot(support, direction) <= 0)
+        {
+            // previous support point was already the furthest along direction
+            GJKEPACollisionInfo collisionInfo;
+            collisionInfo.hasCollision = false;
+            return collisionInfo;
+        }
+
+        capture.pushFront(support);
+        if (GJKNextSimplex(capture, direction))
+        {
+            GJKEPACollisionInfo collisionInfo = EPA(capture, colA, colB);
+            collisionInfo.hasCollision = true;
+            return collisionInfo;
+        }
+    }
+}
+
+
+
+
+
+
+std::vector<FaceBatch> activeFaceBatches;
 MeshGroup mg_Cube;
 GPUTexture tex_Default;
+
+static void Stuff()
+{
+    CreateGPUTextureFromDisk(&tex_Default, wd_path("default.png").c_str());
+    mg_Cube = MeshGroupLoad(wd_path("testscene.obj").c_str());
+
+    FaceBatch fb0;
+    CreateFaceBatchMeshOnGPU(&fb0.idVAO, &fb0.idVBO);
+
+    std::vector<float> fb0data { 
+        0, 0, 0, 0, 0, 1, 0, 0,
+        0, 32, 32, 1, 1, 1, 0, 0,
+        0, 0, 32, 0, 1, 1, 0, 0,
+        0, 0, 0, 0, 0, 1, 0, 0,
+        0, 32, 0, 1, 0, 1, 0, 0,
+        0, 32, 32, 1, 1, 1, 0, 0,
+
+        -320, 0, -320, 0, 0, 0, 1, 0,
+        -320, 0, 320, 0, 20, 0, 1, 0,
+        320, 0, 320, 20, 20, 0, 1, 0,
+        -320, 0, -320, 0, 0, 0, 1, 0,
+        320, 0, 320, 20, 20, 0, 1, 0,
+        320, 0, -320, 20, 0, 0, 1, 0,
+    };
+
+    RebindFaceBatchBufferObject(&fb0, (u32)fb0data.size()*sizeof(float), fb0data.data());
+    fb0.sharedTexture = tex_Default;
+
+    activeFaceBatches.push_back(fb0);
+}
+
+static void TickGame()
+{
+    // SphereCollider s0;
+    // SphereCollider s1;
+
+    // s0.position = vec3(0,0,0);
+    // s0.radius = 2.f;
+
+    // s1.position = vec3(3.8,0,0);
+    // s1.radius = 2.f;
+
+    // GJKEPACollisionInfo col = GJK(&s0, &s1);
+    // if (col.hasCollision)
+    // {
+    //     printf("yes\n");
+    // }
+    // else
+    // {
+    //     printf("no\n");
+    // }
+
+    MeshCollider m0;
+    m0.pointCloud = { vec3(-1,0,-1), vec3(-1,0,1), vec3(1,0,-1), vec3(1,0,1) };
+
+    SphereCollider s0;
+    s0.position = vec3(0,1.96f,0);
+    s0.radius = 2.f;
+
+    GJKEPACollisionInfo col = GJK(&m0, &s0);
+    if (col.hasCollision)
+    {
+        printf("yes\n");
+    }
+    else
+    {
+        printf("no\n");
+    }
+}
+
 
 
 GPUShader sceneShader;
@@ -701,8 +1305,8 @@ static void RenderGameLayer()
     glEnable(GL_CULL_FACE);
 
     mat4 perspectiveMatrix = ProjectionMatrixPerspective((90.f/2.f)*GM_DEG2RAD, 
-        float(backBufferWidth)/float(backBufferHeight), 0.1f, 256000.f);
-    mat4 viewMatrix = ViewMatrixLookAt(vec3(4000,500,4000), vec3(0,500,0), vec3(0,1,0));
+        float(backBufferWidth)/float(backBufferHeight), 0.1f, 32000.f);
+    mat4 viewMatrix = ViewMatrixLookAt(vec3(100,32,100), vec3(0,32,0), vec3(0,1,0));
 
     GLBindMatrix4fv(sceneShader, "projMatrix", 1, perspectiveMatrix.ptr());
     GLBindMatrix4fv(sceneShader, "viewMatrix", 1, viewMatrix.ptr());
@@ -710,8 +1314,15 @@ static void RenderGameLayer()
     mat4 modelMatrix = mat4();
 
     GLBindMatrix4fv(sceneShader, "modelMatrix", 1, modelMatrix.ptr());
-    GLActiveTextureUnit0(tex_Default.id);
-    MeshGroupRender(&mg_Cube);
+
+    for(size_t i = 0; i < activeFaceBatches.size(); ++i)
+    {
+        FaceBatch fb = activeFaceBatches.at(i);
+        RenderFaceBatch(fb);
+    }
+
+    // GLActiveTextureUnit0(tex_Default.id);
+    // MeshGroupRender(&mg_Cube);
 }
 
 static void RenderGUILayer()
@@ -796,7 +1407,7 @@ static void InitGameRenderer()
     CreateGPUMesh(&__final_render_output_quad, refQuadVertices, refQuadIndices, 16, 6, 2, 2, 0, GL_STATIC_DRAW);
 }
 
-static void DrawGameRenderer()
+static void DrawGame()
 {
     RenderGameLayer();
     RenderGUILayer();
@@ -912,8 +1523,7 @@ int main(int argc, char* argv[])
 
     InitGameRenderer();
 
-    CreateGPUTextureFromDisk(&tex_Default, wd_path("default.png").c_str());
-    mg_Cube = MeshGroupLoad(wd_path("testscene.obj").c_str());
+    Stuff();
 
     while (!g_ProgramShouldShutdown)
     {
@@ -923,7 +1533,8 @@ int main(int argc, char* argv[])
         // Gui::NewFrame();
         ProcessSDLEvents();
 
-        DrawGameRenderer();
+        TickGame();
+        DrawGame();
 
         SDL_GL_SwapWindow(g_MainSDLWindow);
 
