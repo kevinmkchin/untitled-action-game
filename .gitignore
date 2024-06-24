@@ -1,0 +1,15 @@
+build/
+xbuild/
+bin/
+out/
+cmake-build-*/
+
+.sln
+.vs/
+.idea/
+.obsidian/
+*.DS_Store
+*.sublime-workspace
+
+CMakeSettings.json
+code/BUILDINFO.H
