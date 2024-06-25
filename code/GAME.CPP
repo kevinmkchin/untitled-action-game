@@ -4,15 +4,19 @@
 Just fucking around stripping out core engine stuff from Mesa/Pip. 
 What else can be stripped out reused?
     GUI
-    MemoryAllocator
     Input??? my existing version is way too complex for making a basic PC game tbh...    
     Console front and backend
 
 And then what? Make a FPS? Fuck level editor for now just use Blender to make basic playgrounds.
 
     Port 3D camera code from Q
+    first person controller
+    enemy colliders, visual (maybe billboard), walk towards player
+    shoot hitscan, kill enemy
 
     use flat faces for collision? instead of meshes? GJK EPA code accepts 2D meshes
+
+    
 
 */
 
@@ -95,6 +99,65 @@ float g_UnscaledDeltaTime = 0.f;
 float g_GameTimeScale = 1.f;
 float g_CurrentTime = 0.f;
 float g_TimeSinceStart = 0.f;
+vec2 mousedelta;
+ivec2 mousepos;
+u8 keyscurrent[256] = {0};
+u8 keyspressed[256] = {0};
+u8 keysreleased[256] = {0};
+
+struct MemoryLinearBuffer
+{
+    // Linear allocator works best when we don't support freeing memory at the pointer level
+    // Carve allocations out of a pre alloced buffer
+
+    // There is no per allocation overhead.
+    // The buffer memory is not modified by the allocator.
+    // The allocator is not thread-safe.
+
+    u8* buffer = nullptr;
+    size_t arenaOffset = 0;
+    size_t bufferSize = 0;
+};
+
+// returns pointer aligned forward to given alignment
+static u8 *__PointerAlignForward(u8* ptr, size_t align)
+{
+    ASSERT((align & (align-1)) == 0) // power of 2  
+    size_t p = (size_t)ptr;
+    size_t modulo = p & (align-1); // cuz power of 2, faster than modulo
+    if(modulo != 0)
+    {
+        return ptr + (align - modulo);
+    }
+    return ptr;
+}
+
+void MemoryLinearInitialize(MemoryLinearBuffer *buffer, size_t sizeBytes)
+{
+    buffer->buffer = (u8*) calloc(sizeBytes, 1);
+    buffer->bufferSize = sizeBytes;
+    buffer->arenaOffset = 0;
+}
+
+void *MemoryLinearAllocate(MemoryLinearBuffer *buffer, size_t wantedBytes, size_t align)
+{
+    u8 *current_ptr = buffer->buffer + buffer->arenaOffset;
+    u8 *aligned_ptr = __PointerAlignForward(current_ptr, align);
+    size_t offset = aligned_ptr - buffer->buffer;
+
+    if(offset + wantedBytes <= buffer->bufferSize)
+    {
+        void* ptr = buffer->buffer + offset;
+        buffer->arenaOffset = offset + wantedBytes;
+        return ptr;
+    }
+    
+    printf("Out of memory in given MemoryLinearBuffer");
+    return nullptr;
+}
+
+#define MEMORY_LINEAR_ALLOCATE(buffer, type) MemoryLinearAllocate(buffer, sizeof(type), alignof(type))
+
 
 
 struct BinaryFileHandle
@@ -1203,12 +1266,15 @@ static GJKEPACollisionInfo GJK(Collider* colA, Collider* colB)
 
 
 
-
-
-
-std::vector<FaceBatch> activeFaceBatches;
 MeshGroup mg_Cube;
 GPUTexture tex_Default;
+std::vector<FaceBatch> activeFaceBatches;
+mat4 activeViewMatrix;
+vec3 cameraPosition = vec3(100,32,100);
+vec3 cameraRotation;
+vec3 cameraDirection;
+vec3 cameraRight;
+vec3 cameraUp;
 
 static void Stuff()
 {
@@ -1242,6 +1308,44 @@ static void Stuff()
 
 static void TickGame()
 {
+    float moveSpeed = 250.f;
+
+    float camYawDelta = mousedelta.x*0.1f;
+    float camPitchDelta = mousedelta.y*0.1f;
+    cameraRotation.y -= camYawDelta;
+    cameraRotation.z -= camPitchDelta;
+    if (cameraRotation.z > 89.f)
+        cameraRotation.z = 89.f;
+    if (cameraRotation.z < -89.f)
+        cameraRotation.z = -89.f;
+    cameraDirection = Normalize(OrientationToDirection(EulerToQuat(cameraRotation * GM_DEG2RAD)));
+    cameraRight = Normalize(Cross(cameraDirection, GM_UP_VECTOR));
+    cameraUp = Normalize(Cross(cameraRight, cameraDirection));
+    vec3 camPosDelta;
+    if (keyscurrent[SDL_SCANCODE_W])
+        camPosDelta += cameraDirection * moveSpeed * g_DeltaTime;
+    if (keyscurrent[SDL_SCANCODE_A])
+        camPosDelta += -cameraRight * moveSpeed * g_DeltaTime;
+    if (keyscurrent[SDL_SCANCODE_S])
+        camPosDelta += -cameraDirection * moveSpeed * g_DeltaTime;
+    if (keyscurrent[SDL_SCANCODE_D])
+        camPosDelta += cameraRight * moveSpeed * g_DeltaTime;
+    if (keyscurrent[SDL_SCANCODE_Q])
+        camPosDelta.y += -moveSpeed * g_DeltaTime;
+    if (keyscurrent[SDL_SCANCODE_E])
+        camPosDelta.y += moveSpeed * g_DeltaTime;
+    cameraPosition += camPosDelta;
+    activeViewMatrix = ViewMatrixLookAt(cameraPosition, cameraPosition + cameraDirection, cameraUp);
+
+    if (keyspressed[SDL_SCANCODE_H])
+        printf("press\n");
+    if (keysreleased[SDL_SCANCODE_H])
+        printf("release\n");
+    if (keyspressed[SDL_SCANCODE_J])
+        SDL_SetRelativeMouseMode(SDL_TRUE);
+    if (keyspressed[SDL_SCANCODE_K])
+        SDL_SetRelativeMouseMode(SDL_FALSE);
+
     // SphereCollider s0;
     // SphereCollider s1;
 
@@ -1261,22 +1365,23 @@ static void TickGame()
     //     printf("no\n");
     // }
 
-    MeshCollider m0;
-    m0.pointCloud = { vec3(-1,0,-1), vec3(-1,0,1), vec3(1,0,-1), vec3(1,0,1) };
+    // MeshCollider m0;
+    // m0.pointCloud = { vec3(-320,0,-320), vec3(-320,0,320), vec3(320,0,-320), vec3(320,0,320) };
 
-    SphereCollider s0;
-    s0.position = vec3(0,1.96f,0);
-    s0.radius = 2.f;
+    // SphereCollider s0;
+    // s0.position = vec3(200,1.96f,200);
+    // s0.radius = 2.f;
 
-    GJKEPACollisionInfo col = GJK(&m0, &s0);
-    if (col.hasCollision)
-    {
-        printf("yes\n");
-    }
-    else
-    {
-        printf("no\n");
-    }
+    // GJKEPACollisionInfo col = GJK(&m0, &s0);
+    // if (col.hasCollision)
+    // {
+    //     printf("yes\n");
+    //     vec3 moveby = col.normal * col.penetrationDepth;
+    // }
+    // else
+    // {
+    //     // printf("no\n");
+    // }
 }
 
 
@@ -1306,7 +1411,7 @@ static void RenderGameLayer()
 
     mat4 perspectiveMatrix = ProjectionMatrixPerspective((90.f/2.f)*GM_DEG2RAD, 
         float(backBufferWidth)/float(backBufferHeight), 0.1f, 32000.f);
-    mat4 viewMatrix = ViewMatrixLookAt(vec3(100,32,100), vec3(0,32,0), vec3(0,1,0));
+    mat4 viewMatrix = activeViewMatrix;
 
     GLBindMatrix4fv(sceneShader, "projMatrix", 1, perspectiveMatrix.ptr());
     GLBindMatrix4fv(sceneShader, "viewMatrix", 1, viewMatrix.ptr());
@@ -1465,13 +1570,25 @@ static bool InitializeEverything()
 
     SDL_SetWindowMinimumSize(g_MainSDLWindow, 200, 100);
     SDL_GL_SetSwapInterval(0);
-    //SDL_SetWindowFullscreen(g_MainSDLWindow, SDL_WINDOW_FULLSCREEN);
+    // SDL_SetWindowMouseGrab(g_MainSDLWindow, SDL_TRUE);
 
     return true;
 }
 
 static void ProcessSDLEvents()
 {
+    mousedelta = vec2(0.f,0.f);
+    const u8 *keystate = SDL_GetKeyboardState(NULL);
+    u8 keyschanged[256];
+    for (int i=0;i<256;++i)
+    {
+        keyschanged[i] = keyscurrent[i] ^ keystate[i];
+        keyspressed[i] = keyschanged[i] & keystate[i];
+        keysreleased[i] = keyschanged[i] & keyscurrent[i];
+        keyscurrent[i] = keystate[i];
+    }
+
+
     SDL_Event event;
     while (SDL_PollEvent(&event))
     {
@@ -1492,14 +1609,18 @@ static void ProcessSDLEvents()
                 }
                 break;
             }
+
             case SDL_QUIT:
             {
                 g_ProgramShouldShutdown = true;
                 break;
             }
+
             case SDL_KEYDOWN:
             {
-                if (event.key.keysym.sym == SDLK_RETURN && SDL_GetModState() & KMOD_LALT)
+                SDL_Keycode sdlkey = event.key.keysym.sym;
+
+                if (sdlkey == SDLK_RETURN && SDL_GetModState() & KMOD_LALT)
                 {
                     if (SDL_GetWindowFlags(g_MainSDLWindow) & SDL_WINDOW_FULLSCREEN_DESKTOP)
                         SDL_SetWindowFullscreen(g_MainSDLWindow, 0);
@@ -1509,10 +1630,14 @@ static void ProcessSDLEvents()
                 }
                 break;
             }
+
+            case SDL_MOUSEMOTION: 
+            {
+                mousedelta = vec2((float)event.motion.xrel, (float)event.motion.yrel);
+                mousepos = ivec2(event.motion.x, event.motion.y);
+            }
         }
 
-        // Send SDL events to other systems
-        // Input.ProcessSDLEvent(event);
         // Gui::ProcessSDLEvent(event);
     }
 }
