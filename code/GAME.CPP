@@ -1335,7 +1335,24 @@ static void TickGame()
     if (keyscurrent[SDL_SCANCODE_E])
         camPosDelta.y += moveSpeed * g_DeltaTime;
     cameraPosition += camPosDelta;
-    activeViewMatrix = ViewMatrixLookAt(cameraPosition, cameraPosition + cameraDirection, cameraUp);
+
+    static float camLean = 0.f;
+    static float desiredCamLean = 0.f;
+    desiredCamLean = 0.f;
+    if(keyscurrent[SDL_SCANCODE_D])
+        desiredCamLean += 0.07f;
+    if(keyscurrent[SDL_SCANCODE_A])
+        desiredCamLean += -0.07f;
+    camLean = Lerp(camLean, desiredCamLean, g_DeltaTime*10);
+
+    quat fromto = RotationFromTo(cameraUp, cameraRight);
+    quat sle = Slerp(quat(), fromto, camLean);
+    vec3 cameraUpWithSway = RotateVector(cameraUp, sle);
+    float dot = Dot(Normalize(Cross(cameraUpWithSway, cameraRight)), cameraDirection);
+    if (dot < 0.99f)
+        printf("bad cam up %f\n", dot);
+    activeViewMatrix = ViewMatrixLookAt(cameraPosition, cameraPosition + cameraDirection, cameraUpWithSway);
+
 
     if (keyspressed[SDL_SCANCODE_H])
         printf("press\n");
@@ -1346,24 +1363,6 @@ static void TickGame()
     if (keyspressed[SDL_SCANCODE_K])
         SDL_SetRelativeMouseMode(SDL_FALSE);
 
-    // SphereCollider s0;
-    // SphereCollider s1;
-
-    // s0.position = vec3(0,0,0);
-    // s0.radius = 2.f;
-
-    // s1.position = vec3(3.8,0,0);
-    // s1.radius = 2.f;
-
-    // GJKEPACollisionInfo col = GJK(&s0, &s1);
-    // if (col.hasCollision)
-    // {
-    //     printf("yes\n");
-    // }
-    // else
-    // {
-    //     printf("no\n");
-    // }
 
     // MeshCollider m0;
     // m0.pointCloud = { vec3(-320,0,-320), vec3(-320,0,320), vec3(320,0,-320), vec3(320,0,320) };
