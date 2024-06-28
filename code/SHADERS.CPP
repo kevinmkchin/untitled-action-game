@@ -1,3 +1,4 @@
+bool GLHasErrors(); // UTILITY.CPP
 
 static const char* __scene_shader_vs =
     "#version 330\n"

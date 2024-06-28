@@ -1,16 +1,11 @@
 /*
 
-2024-06-23
-Just fucking around stripping out core engine stuff from Mesa/Pip. 
 What else can be stripped out reused?
     GUI
-    Input??? my existing version is way too complex for making a basic PC game tbh...    
     Console front and backend
 
 And then what? Make a FPS? Fuck level editor for now just use Blender to make basic playgrounds.
 
-    Port 3D camera code from Q
-    first person controller
     enemy colliders, visual (maybe billboard), walk towards player
     shoot hitscan, kill enemy
 
@@ -293,9 +288,8 @@ void ReadImage(BitmapHandle& image_handle, const char* image_file_path)
 
 
 
-#include "UTILITY.CPP"
 #include "SHADERS.CPP"
-
+#include "UTILITY.CPP"
 
 
 
@@ -1276,7 +1270,7 @@ static void Stuff()
     SDL_SetRelativeMouseMode(SDL_TRUE);
 
     CreateGPUTextureFromDisk(&tex_Default, wd_path("default.png").c_str());
-    mg_Cube = MeshGroupLoad(wd_path("testscene.obj").c_str());
+    mg_Cube = MeshGroupLoad(wd_path("enemy_bodyguard.obj").c_str());
 
     FaceBatch fb0;
     CreateFaceBatchMeshOnGPU(&fb0.idVAO, &fb0.idVBO);
@@ -1396,9 +1390,15 @@ static void TickGame()
     if (dot < 0.99f)
         printf("bad cam up %f\n", dot);
     activeViewMatrix = ViewMatrixLookAt(cameraPosition, cameraPosition + cameraDirection, cameraUpWithSway);
+
+
+    // AXIS LINES
+    PrimitiveDrawLine(vec3(320000.f, 0.f, 0.f), vec3(-320000.f, 0.f, 0.f), vec4(RGB255TO1(205, 56, 9), 0.8f));
+    PrimitiveDrawLine(vec3(0.f, 320000.f, 0.f), vec3(0.f, -320000.f, 0.f), vec4(RGB255TO1(67, 123, 9), 0.8f));
+    PrimitiveDrawLine(vec3(0.f, 0.f, 320000.f), vec3(0.f, 0.f, -320000.f), vec4(RGB255TO1(21, 129, 205), 0.8f));
+
+    PrimitiveDrawSolidDisc(vec3(10,0,10), -cameraDirection, 2.f);
 }
-
-
 
 GPUShader sceneShader;
 GPUShader finalPassShader;
@@ -1407,6 +1407,7 @@ GPUFrameBuffer renderTargetGUI;
 GPUMesh __final_render_output_quad;
 i32 backBufferWidth = -1;
 i32 backBufferHeight = -1;
+bool primitivesDepthTest = false;
 
 static void RenderGameLayer()
 {
@@ -1419,13 +1420,13 @@ static void RenderGameLayer()
     glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_SRC_ALPHA, GL_ONE);
     glEnable(GL_DEPTH_TEST);
 
-    UseShader(sceneShader);
 
-    glEnable(GL_CULL_FACE);
-
-    mat4 perspectiveMatrix = ProjectionMatrixPerspective((90.f/2.f)*GM_DEG2RAD, 
+    mat4 perspectiveMatrix = ProjectionMatrixPerspective((90.f/2.f)*GM_DEG2RAD,
         float(backBufferWidth)/float(backBufferHeight), 0.1f, 32000.f);
     mat4 viewMatrix = activeViewMatrix;
+
+    UseShader(sceneShader);
+    glEnable(GL_CULL_FACE);
 
     GLBindMatrix4fv(sceneShader, "projMatrix", 1, perspectiveMatrix.ptr());
     GLBindMatrix4fv(sceneShader, "viewMatrix", 1, viewMatrix.ptr());
@@ -1434,14 +1435,24 @@ static void RenderGameLayer()
 
     GLBindMatrix4fv(sceneShader, "modelMatrix", 1, modelMatrix.ptr());
 
-    for(size_t i = 0; i < activeFaceBatches.size(); ++i)
+    for (size_t i = 0; i < activeFaceBatches.size(); ++i)
     {
         FaceBatch fb = activeFaceBatches.at(i);
         RenderFaceBatch(fb);
     }
 
-    // GLActiveTextureUnit0(tex_Default.id);
-    // MeshGroupRender(&mg_Cube);
+    GLActiveTextureUnit0(tex_Default.id);
+    MeshGroupRender(&mg_Cube);
+
+    // PRIMITIVES
+    if (keyspressed[SDL_SCANCODE_X])
+        primitivesDepthTest = !primitivesDepthTest;
+    if (primitivesDepthTest)
+        glEnable(GL_DEPTH_TEST);
+    else
+        glDisable(GL_DEPTH_TEST);
+    glDisable(GL_CULL_FACE);
+    PrimitiveDrawAll(&perspectiveMatrix, &viewMatrix);
 }
 
 static void RenderGUILayer()
@@ -1524,6 +1535,8 @@ static void InitGameRenderer()
         0, 3, 2
     };
     CreateGPUMesh(&__final_render_output_quad, refQuadVertices, refQuadIndices, 16, 6, 2, 2, 0, GL_STATIC_DRAW);
+
+    PrimitiveInitAll();
 }
 
 static void DrawGame()
