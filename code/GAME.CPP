@@ -1270,14 +1270,11 @@ MeshGroup mg_Cube;
 GPUTexture tex_Default;
 std::vector<FaceBatch> activeFaceBatches;
 mat4 activeViewMatrix;
-vec3 cameraPosition = vec3(100,32,100);
-vec3 cameraRotation;
-vec3 cameraDirection;
-vec3 cameraRight;
-vec3 cameraUp;
 
 static void Stuff()
 {
+    SDL_SetRelativeMouseMode(SDL_TRUE);
+
     CreateGPUTextureFromDisk(&tex_Default, wd_path("default.png").c_str());
     mg_Cube = MeshGroupLoad(wd_path("testscene.obj").c_str());
 
@@ -1306,10 +1303,30 @@ static void Stuff()
     activeFaceBatches.push_back(fb0);
 }
 
+vec3 playerControllerRoot = vec3(100,100,100);
+vec3 cameraRotation;
+vec3 cameraDirection;
+vec3 cameraRight;
+vec3 cameraUp;
+vec3 playerWalkDirectionForward;
+vec3 playerWalkDirectionRight;
+vec3 playerColliderPoints[] = { 
+    vec3(8,0,8), vec3(8,0,-8), vec3(-8,0,8), vec3(-8,0,-8),
+    vec3(8,48,8), vec3(8,48,-8), vec3(-8,48,8), vec3(-8,48,-8)
+};
+MeshCollider playerCollider;
+MeshCollider *PlayerColliderAtPos(vec3 playerWorldPosition)
+{
+    playerCollider.pointCloud.resize(8);
+    for (int i = 0; i < 8; ++i)
+        playerCollider.pointCloud[i] = playerWorldPosition + playerColliderPoints[i];
+    return &playerCollider;
+}
+float playeryvel = 0.f;
+
 static void TickGame()
 {
-    float moveSpeed = 250.f;
-
+    // CALCULATE PLAYER FACING DIRECTION
     float camYawDelta = mousedelta.x*0.1f;
     float camPitchDelta = mousedelta.y*0.1f;
     cameraRotation.y -= camYawDelta;
@@ -1321,20 +1338,47 @@ static void TickGame()
     cameraDirection = Normalize(OrientationToDirection(EulerToQuat(cameraRotation * GM_DEG2RAD)));
     cameraRight = Normalize(Cross(cameraDirection, GM_UP_VECTOR));
     cameraUp = Normalize(Cross(cameraRight, cameraDirection));
-    vec3 camPosDelta;
+    playerWalkDirectionRight = cameraRight;
+    playerWalkDirectionForward = Normalize(Cross(GM_UP_VECTOR, playerWalkDirectionRight));
+
+    // PLAYER MOVE
+    float moveSpeed = 250.f;
+    vec3 playerPositionDelta;
     if (keyscurrent[SDL_SCANCODE_W])
-        camPosDelta += cameraDirection * moveSpeed * g_DeltaTime;
+        playerPositionDelta += playerWalkDirectionForward * moveSpeed * g_DeltaTime;
     if (keyscurrent[SDL_SCANCODE_A])
-        camPosDelta += -cameraRight * moveSpeed * g_DeltaTime;
+        playerPositionDelta += -playerWalkDirectionRight * moveSpeed * g_DeltaTime;
     if (keyscurrent[SDL_SCANCODE_S])
-        camPosDelta += -cameraDirection * moveSpeed * g_DeltaTime;
+        playerPositionDelta += -playerWalkDirectionForward * moveSpeed * g_DeltaTime;
     if (keyscurrent[SDL_SCANCODE_D])
-        camPosDelta += cameraRight * moveSpeed * g_DeltaTime;
-    if (keyscurrent[SDL_SCANCODE_Q])
-        camPosDelta.y += -moveSpeed * g_DeltaTime;
-    if (keyscurrent[SDL_SCANCODE_E])
-        camPosDelta.y += moveSpeed * g_DeltaTime;
-    cameraPosition += camPosDelta;
+        playerPositionDelta += playerWalkDirectionRight * moveSpeed * g_DeltaTime;
+    playerControllerRoot += playerPositionDelta;
+    
+    if (keyspressed[SDL_SCANCODE_SPACE])
+        playeryvel = 160.f;
+    playeryvel -= 314.f * g_DeltaTime; // 9.81 m/s * 32 units/m ~= 314 units/s
+    playerControllerRoot.y += playeryvel * g_DeltaTime;
+
+    // PLAYER RESOLVE COLLISIONS
+    MeshCollider floor;
+    floor.pointCloud = {
+        vec3(-320,0,-320), vec3(-320,0,320), vec3(320,0,-320), vec3(320,0,320),
+        vec3(-320,-100,-320), vec3(-320,-100,320), vec3(320,-100,-320), vec3(320,-100,320),
+    };
+    MeshCollider *pcol = PlayerColliderAtPos(playerControllerRoot);
+    GJKEPACollisionInfo colinfo = GJK(&floor, pcol);
+
+    if (colinfo.hasCollision)
+    {
+        vec3 moveby = colinfo.normal * colinfo.penetrationDepth;
+        playerControllerRoot += moveby;
+        if (Dot(colinfo.normal, GM_UP_VECTOR) > 0.1f)
+            playeryvel = 0.f;
+    }
+
+    // PLAYER CAMERA 
+    vec3 cameraPosOffsetFromRoot = vec3(0,40,0);
+    vec3 cameraPosition = playerControllerRoot + cameraPosOffsetFromRoot;
 
     static float camLean = 0.f;
     static float desiredCamLean = 0.f;
@@ -1352,35 +1396,6 @@ static void TickGame()
     if (dot < 0.99f)
         printf("bad cam up %f\n", dot);
     activeViewMatrix = ViewMatrixLookAt(cameraPosition, cameraPosition + cameraDirection, cameraUpWithSway);
-
-
-    if (keyspressed[SDL_SCANCODE_H])
-        printf("press\n");
-    if (keysreleased[SDL_SCANCODE_H])
-        printf("release\n");
-    if (keyspressed[SDL_SCANCODE_J])
-        SDL_SetRelativeMouseMode(SDL_TRUE);
-    if (keyspressed[SDL_SCANCODE_K])
-        SDL_SetRelativeMouseMode(SDL_FALSE);
-
-
-    // MeshCollider m0;
-    // m0.pointCloud = { vec3(-320,0,-320), vec3(-320,0,320), vec3(320,0,-320), vec3(320,0,320) };
-
-    // SphereCollider s0;
-    // s0.position = vec3(200,1.96f,200);
-    // s0.radius = 2.f;
-
-    // GJKEPACollisionInfo col = GJK(&m0, &s0);
-    // if (col.hasCollision)
-    // {
-    //     printf("yes\n");
-    //     vec3 moveby = col.normal * col.penetrationDepth;
-    // }
-    // else
-    // {
-    //     // printf("no\n");
-    // }
 }
 
 
