@@ -24,7 +24,7 @@ static const char* __scene_shader_vs =
     "    const vec4 sunlightWCS = vec4(0.5, -0.9, -0.8, 0.0);\n"
     "    vec3 normalWCS = transpose(inverse(mat3(modelMatrix))) * vertex_normal;\n"
     "    \n"
-    "    float ambientIntensity = 0.3;\n"
+    "    float ambientIntensity = 0.4;\n"
     "    float diffuseIntensity = max(0.0, dot(normalize(normalWCS), normalize(-vec3(sunlightWCS))));\n"
     "    vec3 lightAMB = vec3(1.0) * ambientIntensity;\n"
     "    vec3 lightDIFF = vec3(1.0) * diffuseIntensity;\n"
