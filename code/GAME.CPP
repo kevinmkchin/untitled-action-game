@@ -40,6 +40,7 @@ And then what? Make a FPS? Fuck level editor for now just use Blender to make ba
 #endif
 
 #include <SDL.h>
+#include <SDL_mixer.h>
 
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
@@ -1258,19 +1259,39 @@ static GJKEPACollisionInfo GJK(Collider* colA, Collider* colB)
     }
 }
 
+// MIXER
+Mix_Chunk *Mixer_LoadChunk(const char *filepath)
+{
+    Mix_Chunk *chunk = Mix_LoadWAV(filepath);
+    if (chunk == NULL)
+        printf("Failed to load sound effect! SDL_mixer error: %s\n", Mix_GetError());
+    return chunk;
+}
 
 
-MeshGroup mg_Cube;
+
 GPUTexture tex_Default;
 std::vector<FaceBatch> activeFaceBatches;
-mat4 activeViewMatrix;
+Mix_Chunk *sfx_Jump;
+
+MeshGroup mg_Enemy_Bodyguard;
+
+struct BodyguardEnemy
+{
+    vec3 root;
+    vec3 facing;
+};
+BodyguardEnemy enemy0;
 
 static void Stuff()
 {
     SDL_SetRelativeMouseMode(SDL_TRUE);
 
     CreateGPUTextureFromDisk(&tex_Default, wd_path("default.png").c_str());
-    mg_Cube = MeshGroupLoad(wd_path("enemy_bodyguard.obj").c_str());
+    mg_Enemy_Bodyguard = MeshGroupLoad(wd_path("enemy_bodyguard.obj").c_str());
+    enemy0.root = vec3(-320, 0, -320);
+
+    sfx_Jump = Mixer_LoadChunk(wd_path("gunshot-37055.ogg").c_str());
 
     FaceBatch fb0;
     CreateFaceBatchMeshOnGPU(&fb0.idVAO, &fb0.idVBO);
@@ -1297,11 +1318,12 @@ static void Stuff()
     activeFaceBatches.push_back(fb0);
 }
 
-vec3 playerControllerRoot = vec3(100,100,100);
-vec3 cameraRotation;
+vec3 playerControllerRoot = vec3(100,10,100);
+vec3 cameraRotation = vec3(0,130,0);
 vec3 cameraDirection;
 vec3 cameraRight;
 vec3 cameraUp;
+mat4 activeViewMatrix;
 vec3 playerWalkDirectionForward;
 vec3 playerWalkDirectionRight;
 vec3 playerColliderPoints[] = { 
@@ -1318,8 +1340,26 @@ MeshCollider *PlayerColliderAtPos(vec3 playerWorldPosition)
 }
 float playeryvel = 0.f;
 
+vec3 bodyguardEnemyColliderPoints[] = { 
+    vec3(8,0,8), vec3(8,0,-8), vec3(-8,0,8), vec3(-8,0,-8),
+    vec3(8,48,8), vec3(8,48,-8), vec3(-8,48,8), vec3(-8,48,-8)
+};
+MeshCollider bodyguardEnemyCollider;
+MeshCollider *BodyguardEnemyColliderAtPos(vec3 worldPos)
+{
+    bodyguardEnemyCollider.pointCloud.resize(8);
+    for (int i = 0; i < 8; ++i)
+        bodyguardEnemyCollider.pointCloud[i] = worldPos + bodyguardEnemyColliderPoints[i];
+    return &bodyguardEnemyCollider;
+}
+
 static void TickGame()
 {
+    // ENEMY 0
+    vec3 toPlayer = playerControllerRoot - enemy0.root;
+    enemy0.facing = Normalize(vec3(toPlayer.x, 0.f, toPlayer.z));
+    enemy0.root += enemy0.facing * 32.f * g_DeltaTime;
+
     // CALCULATE PLAYER FACING DIRECTION
     float camYawDelta = mousedelta.x*0.1f;
     float camPitchDelta = mousedelta.y*0.1f;
@@ -1348,8 +1388,13 @@ static void TickGame()
         playerPositionDelta += playerWalkDirectionRight * moveSpeed * g_DeltaTime;
     playerControllerRoot += playerPositionDelta;
     
+    static int channelrotationtesting = 0;
     if (keyspressed[SDL_SCANCODE_SPACE])
+    {
         playeryvel = 160.f;
+        Mix_VolumeChunk(sfx_Jump, 48);
+        Mix_PlayChannel(channelrotationtesting++%3, sfx_Jump, 0);
+    }
     playeryvel -= 314.f * g_DeltaTime; // 9.81 m/s * 32 units/m ~= 314 units/s
     playerControllerRoot.y += playeryvel * g_DeltaTime;
 
@@ -1376,12 +1421,14 @@ static void TickGame()
 
     static float camLean = 0.f;
     static float desiredCamLean = 0.f;
+    const float camLeanSpeed = 15;
+    const float maxCamLean = 0.07f;
     desiredCamLean = 0.f;
     if(keyscurrent[SDL_SCANCODE_D])
-        desiredCamLean += 0.07f;
+        desiredCamLean += maxCamLean;
     if(keyscurrent[SDL_SCANCODE_A])
-        desiredCamLean += -0.07f;
-    camLean = Lerp(camLean, desiredCamLean, g_DeltaTime*10);
+        desiredCamLean += -maxCamLean;
+    camLean = Lerp(camLean, desiredCamLean, g_DeltaTime*camLeanSpeed);
 
     quat fromto = RotationFromTo(cameraUp, cameraRight);
     quat sle = Slerp(quat(), fromto, camLean);
@@ -1442,7 +1489,10 @@ static void RenderGameLayer()
     }
 
     GLActiveTextureUnit0(tex_Default.id);
-    MeshGroupRender(&mg_Cube);
+
+    modelMatrix = TranslationMatrix(enemy0.root) * RotationMatrix(DirectionToOrientation(enemy0.facing));
+    GLBindMatrix4fv(sceneShader, "modelMatrix", 1, modelMatrix.ptr());
+    MeshGroupRender(&mg_Enemy_Bodyguard);
 
     // PRIMITIVES
     if (keyspressed[SDL_SCANCODE_X])
@@ -1599,6 +1649,9 @@ static bool InitializeEverything()
     SDL_GL_SetSwapInterval(0);
     // SDL_SetWindowMouseGrab(g_MainSDLWindow, SDL_TRUE);
 
+    if (Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 2, 2048) < 0 || Mix_Init(MIX_INIT_OGG) < 0)
+        return false;
+
     return true;
 }
 
@@ -1690,7 +1743,7 @@ int main(int argc, char* argv[])
 
         SDL_GL_SwapWindow(g_MainSDLWindow);
 
-        // Input.ResetInputStatesAtEndOfFrame();
+        // printf("LAST FRAME TIME: %.2fms   FPS: %dhz\n", 1000.f * g_UnscaledDeltaTime, (i16)(1.f / g_UnscaledDeltaTime));
     }
 
     SDL_DestroyWindow(g_MainSDLWindow);

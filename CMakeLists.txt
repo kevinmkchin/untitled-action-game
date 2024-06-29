@@ -53,6 +53,10 @@ if(WIN32)
     set(SDL2_LIBRARIES "${CMAKE_CURRENT_SOURCE_DIR}/ext/sdl/lib/x64/SDL2.lib;${CMAKE_CURRENT_SOURCE_DIR}/ext/sdl/lib/x64/SDL2main.lib")
     set(SDL_DLL "${CMAKE_CURRENT_SOURCE_DIR}/ext/sdl/lib/x64/SDL2.dll")
 
+    set(SDL2MIXER_INCLUDE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/ext/sdl2_mixer/include")
+    set(SDL2MIXER_LIBRARIES "${CMAKE_CURRENT_SOURCE_DIR}/ext/sdl2_mixer/lib/x64/SDL2_mixer.lib")
+    set(SDL2MIXER_DLL "${CMAKE_CURRENT_SOURCE_DIR}/ext/sdl2_mixer/lib/x64/SDL2_mixer.dll")
+
     set(ASSIMP_INCLUDE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/ext/assimp/include;")
     set(ASSIMP_LIBRARIES "${CMAKE_CURRENT_SOURCE_DIR}/ext/assimp/lib/assimp-vc142-mt.lib")
     set(ASSIMP_DLL "${CMAKE_CURRENT_SOURCE_DIR}/ext/assimp/lib/assimp-vc142-mt.dll")
@@ -64,17 +68,23 @@ if(WIN32)
         "$<TARGET_FILE_DIR:${PROJECT_NAME}>/SDL2.dll")
     add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${SDL2MIXER_DLL}"
+        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/SDL2_mixer.dll")
+    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "${ASSIMP_DLL}"
         "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assimp-vc142-mt.dll")
 
     target_include_directories(${PROJECT_NAME} 
         PUBLIC 
-        ${SDL2_INCLUDE_DIRS} 
+        ${SDL2_INCLUDE_DIRS}
+        ${SDL2MIXER_INCLUDE_DIRS}
         ext/gl3w 
         ${ASSIMP_INCLUDE_DIRS})
     target_link_libraries(${PROJECT_NAME} 
         PUBLIC 
         ${SDL2_LIBRARIES} 
+        ${SDL2MIXER_LIBRARIES}
         ${ASSIMP_LIBRARIES} 
         dwmapi.lib)
 
