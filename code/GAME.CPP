@@ -1,10 +1,20 @@
 /*
 
+Finish implementing Editable Volumes and Atomics
+(cube draw) Super simple create volume tool where you just drag mouse once? and then click once and raise mouse for height?
+(poly draw) Draw on plane then raise to create volume tool
+Move volume tool (maybe this is select all vertices and move?)
+Multiselect vertices and move them
+Multiselect edges and move them
+Multiselect faces and move them
+Multiselect volumes and edit them all at the same time
+
+
 What else can be stripped out reused?
+And then what? Make a FPS? Fuck level editor for now just use Blender to make basic playgrounds.
     GUI
     Console front and backend
 
-And then what? Make a FPS? Fuck level editor for now just use Blender to make basic playgrounds.
 
     enemy colliders, visual (maybe billboard), walk towards player
     shoot hitscan, kill enemy
@@ -22,6 +32,7 @@ And then what? Make a FPS? Fuck level editor for now just use Blender to make ba
 #include <fstream>
 #include <string>
 #include <chrono>
+#include <iterator>
 
 #include "BUILDINFO.H"
 
@@ -291,7 +302,7 @@ void ReadImage(BitmapHandle& image_handle, const char* image_file_path)
 
 #include "SHADERS.CPP"
 #include "UTILITY.CPP"
-
+#include "MAP.CPP"
 
 
 
@@ -1283,6 +1294,8 @@ struct BodyguardEnemy
 };
 BodyguardEnemy enemy0;
 
+std::vector<vec3> testpoints;
+
 static void Stuff()
 {
     SDL_SetRelativeMouseMode(SDL_TRUE);
@@ -1316,6 +1329,18 @@ static void Stuff()
     fb0.sharedTexture = tex_Default;
 
     activeFaceBatches.push_back(fb0);
+
+
+    EditableVolumes::Volume vol;
+    EditableVolumes::MakeRectangularVolume(&vol);
+
+    EditableVolumes::Face *f = vol.faces[0];
+    EditableVolumes::Loop *l = f->loopbase;
+    do {
+        vec3 p = l->v->pos;
+        testpoints.push_back(p);
+        l = l->loopNext;
+    } while (l != f->loopbase && l != NULL);
 }
 
 vec3 playerControllerRoot = vec3(100,10,100);
@@ -1444,7 +1469,10 @@ static void TickGame()
     PrimitiveDrawLine(vec3(0.f, 320000.f, 0.f), vec3(0.f, -320000.f, 0.f), vec4(RGB255TO1(67, 123, 9), 0.8f));
     PrimitiveDrawLine(vec3(0.f, 0.f, 320000.f), vec3(0.f, 0.f, -320000.f), vec4(RGB255TO1(21, 129, 205), 0.8f));
 
-    PrimitiveDrawSolidDisc(vec3(10,0,10), -cameraDirection, 2.f);
+    // PrimitiveDrawSolidDisc(vec3(10,0,10), -cameraDirection, 2.f);
+
+    for (vec3 v : testpoints)
+        PrimitiveDrawSolidDisc(v, -cameraDirection, 2.f);
 }
 
 GPUShader sceneShader;
@@ -1485,7 +1513,7 @@ static void RenderGameLayer()
     for (size_t i = 0; i < activeFaceBatches.size(); ++i)
     {
         FaceBatch fb = activeFaceBatches.at(i);
-        RenderFaceBatch(fb);
+//        RenderFaceBatch(fb);
     }
 
     GLActiveTextureUnit0(tex_Default.id);
@@ -1629,8 +1657,8 @@ static bool InitializeEverything()
 
     g_MainSDLWindow = SDL_CreateWindow("game",
                                        SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-                                       1920,
-                                       1080,
+                                       3840,
+                                       2160,
                                        SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
 
     g_SDLGLContext = SDL_GL_CreateContext(g_MainSDLWindow);
