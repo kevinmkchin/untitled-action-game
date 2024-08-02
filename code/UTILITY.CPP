@@ -306,3 +306,35 @@ void PrimitiveDrawLine(vec3 p1, vec3 p2, vec4 color, float thickness, vec3 camer
     __vb.PushBack(pb.z);
 }
 
+bool FindIntersectionBetweenPlaneAndLine(vec3 pointOnPlane, vec3 normalOfPlane, vec3 pointOnLine, vec3 directionOfLine, vec3 *intersectionPoint)
+{
+    // vec3 pp = pointOnPlane;
+    // vec3 pn = normalOfPlane;
+    // vec3 lp = pointOnLine;
+    // vec3 lv = directionOfLine;
+    // line x = lp.x + lv.x * t, line y = lp.y + lv.y * t, line z = lp.z + lv.z * t
+    // plane(X, Y, Z) = pn.x * X + pn.y * Y + pn.z * Z - Dot(pn, pp)
+    // pn.x * (lp.x + lv.x * t) + pn.y * (lp.y + lv.y * t) + pn.z * (lp.z + lv.z * t) = Dot(pn, pp)
+    // pn.x*lp.x + pn.x*lv.x*t + pn.y*lp.y + pn.y*lv.y*t + pn.z*lp.z + pn.z*lv.z*t = Dot(pn, pp)
+    // pn.x*lv.x*t + pn.y*lv.y*t + pn.z*lv.z*t = Dot(pn, pp) - pn.x*lp.x - pn.y*lp.y - pn.z*lp.z
+    // t (pn.x*lv.x + pn.y*lv.y + pn.z*lv.z) = Dot(pn, pp) - pn.x*lp.x - pn.y*lp.y - pn.z*lp.z
+    // t = (Dot(pn, pp) - pn.x*lp.x - pn.y*lp.y - pn.z*lp.z) / (pn.x*lv.x + pn.y*lv.y + pn.z*lv.z)
+    // t = (Dot(pn, pp) - (pn.x*lp.x + pn.y*lp.y + pn.z*lp.z)) / (pn.x*lv.x + pn.y*lv.y + pn.z*lv.z)
+
+    float denominator = Dot(normalOfPlane, directionOfLine);
+    if (GM_abs(denominator) < 0.000001f)
+        return false;
+
+    float t = (Dot(normalOfPlane, pointOnPlane) - Dot(normalOfPlane, pointOnLine)) / denominator;
+    *intersectionPoint = pointOnLine + directionOfLine * t;
+    return true;
+}
+
+
+
+
+
+
+
+
+
