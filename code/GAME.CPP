@@ -1571,7 +1571,7 @@ void TickMapEditor()
     PrimitiveDrawLine(vec3(0.f, 320000.f, 0.f), vec3(0.f, -320000.f, 0.f), vec4(RGB255TO1(67, 123, 9), 0.8f));
     PrimitiveDrawLine(vec3(0.f, 0.f, 320000.f), vec3(0.f, 0.f, -320000.f), vec4(RGB255TO1(21, 129, 205), 0.8f));
 
-    // left click drag volume tool
+    // left click drag Simple Volume tool
     // in three states:
     // - not active
     // - drag drawing rectangle (esc -> cancel -> not active)
@@ -1613,10 +1613,10 @@ void TickMapEditor()
                 {
                     vec3 startToEndProjOnToZDirection = Dot(startToEndVector, GM_RIGHT_VECTOR) * GM_RIGHT_VECTOR;
                     vec3 startToEndProjOnToXDirection = Dot(startToEndVector, GM_FORWARD_VECTOR) * GM_FORWARD_VECTOR;
-                    PrimitiveDrawLine(rectstartpoint, rectstartpoint + startToEndProjOnToXDirection, vec4(0.0,1.0,1.0,1.0));
-                    PrimitiveDrawLine(rectstartpoint, rectstartpoint + startToEndProjOnToZDirection, vec4(0.0,1.0,1.0,1.0));
-                    PrimitiveDrawLine(endpoint, endpoint - startToEndProjOnToXDirection, vec4(0.0,1.0,1.0,1.0));
-                    PrimitiveDrawLine(endpoint, endpoint - startToEndProjOnToZDirection, vec4(0.0,1.0,1.0,1.0));
+                    PrimitiveDrawLine(rectstartpoint, rectstartpoint + startToEndProjOnToXDirection, vec4(RGBHEXTO1(0xff8000), 1.0));
+                    PrimitiveDrawLine(rectstartpoint, rectstartpoint + startToEndProjOnToZDirection, vec4(RGBHEXTO1(0xff8000), 1.0));
+                    PrimitiveDrawLine(endpoint, endpoint - startToEndProjOnToXDirection, vec4(RGBHEXTO1(0xff8000), 1.0));
+                    PrimitiveDrawLine(endpoint, endpoint - startToEndProjOnToZDirection, vec4(RGBHEXTO1(0xff8000), 1.0));
                 }
             }
             if (mousereleased & SDL_BUTTON(SDL_BUTTON_LEFT))
@@ -1638,12 +1638,15 @@ void TickMapEditor()
             break;
         case SimpleBrushToolState::DrawingHeight:
             vec3 startToEndVector = vec3(rectendpoint - rectstartpoint);
-            vec3 startToEndProjOnToZDirection = Dot(startToEndVector, GM_RIGHT_VECTOR) * GM_RIGHT_VECTOR;
-            vec3 startToEndProjOnToXDirection = Dot(startToEndVector, GM_FORWARD_VECTOR) * GM_FORWARD_VECTOR;
+            float zcomponent = Dot(startToEndVector, GM_RIGHT_VECTOR);
+            float xcomponent = Dot(startToEndVector, GM_FORWARD_VECTOR);
+            vec3 startToEndProjOnToZDirection = zcomponent * GM_RIGHT_VECTOR;
+            vec3 startToEndProjOnToXDirection = xcomponent * GM_FORWARD_VECTOR;
 
             // let plane be defined at point rectendpoint with normal -cameraDirection
             // then the point of intersection between mouse ray and the plane - endrectpoint and project it onto
             // the direction of translation e.g. GM_UP_VECTOR
+            vec3 drawingSurfaceNormal = GM_UP_VECTOR;
             static vec3 height = vec3();
             vec3 pn = -cameraDirection;
             vec3 pp = rectendpoint + height;
@@ -1651,35 +1654,110 @@ void TickMapEditor()
             vec3 wr = ScreenPointToWorldRay(mousepos);
             vec3 intersection;
             FindIntersectionBetweenPlaneAndLine(pp, pn, wp, wr, &intersection);
-            height = Dot((intersection - rectendpoint), GM_UP_VECTOR) * GM_UP_VECTOR;
+            float heightcomponent = Dot((intersection - rectendpoint), drawingSurfaceNormal);
+            height = heightcomponent * drawingSurfaceNormal;
 
             vec3 floorPointA = rectstartpoint;
             vec3 floorPointB = rectstartpoint + startToEndProjOnToXDirection;
             vec3 floorPointC = rectendpoint;
             vec3 floorPointD = rectendpoint - startToEndProjOnToXDirection;
+            // given how i've set up points ABCD:
+            //      if xcomponent < 0, swap A and B, swap C and D
+            //      if zcomponent < 0, swap B and C, swap A and D
+            if (xcomponent < 0)
+            {
+                auto temp = floorPointA;
+                floorPointA = floorPointB;
+                floorPointB = temp;
+                temp = floorPointC;
+                floorPointC = floorPointD;
+                floorPointD = temp;
+            }
+            if (zcomponent < 0)
+            {
+                auto temp = floorPointB;
+                floorPointB = floorPointC;
+                floorPointC = temp;
+                temp = floorPointA;
+                floorPointA = floorPointD;
+                floorPointD = temp;
+            }
             vec3 ceilPointA = floorPointA + height;
             vec3 ceilPointB = floorPointB + height;
             vec3 ceilPointC = floorPointC + height;
             vec3 ceilPointD = floorPointD + height;
 
-            PrimitiveDrawLine(floorPointA, floorPointB, vec4(0.0,1.0,1.0,1.0));
-            PrimitiveDrawLine(floorPointA, floorPointD, vec4(0.0,1.0,1.0,1.0));
-            PrimitiveDrawLine(floorPointC, floorPointB, vec4(0.0,1.0,1.0,1.0));
-            PrimitiveDrawLine(floorPointC, floorPointD, vec4(0.0,1.0,1.0,1.0));
+            PrimitiveDrawLine(floorPointA, floorPointB, vec4(RGBHEXTO1(0xff8000), 1.0));
+            PrimitiveDrawLine(floorPointA, floorPointD, vec4(RGBHEXTO1(0xff8000), 1.0));
+            PrimitiveDrawLine(floorPointC, floorPointB, vec4(RGBHEXTO1(0xff8000), 1.0));
+            PrimitiveDrawLine(floorPointC, floorPointD, vec4(RGBHEXTO1(0xff8000), 1.0));
 
-            PrimitiveDrawLine(floorPointA, ceilPointA, vec4(0.0,1.0,1.0,1.0));
-            PrimitiveDrawLine(floorPointB, ceilPointB, vec4(0.0,1.0,1.0,1.0));
-            PrimitiveDrawLine(floorPointC, ceilPointC, vec4(0.0,1.0,1.0,1.0));
-            PrimitiveDrawLine(floorPointD, ceilPointD, vec4(0.0,1.0,1.0,1.0));
+            PrimitiveDrawLine(floorPointA, ceilPointA, vec4(RGBHEXTO1(0xff8000), 1.0));
+            PrimitiveDrawLine(floorPointB, ceilPointB, vec4(RGBHEXTO1(0xff8000), 1.0));
+            PrimitiveDrawLine(floorPointC, ceilPointC, vec4(RGBHEXTO1(0xff8000), 1.0));
+            PrimitiveDrawLine(floorPointD, ceilPointD, vec4(RGBHEXTO1(0xff8000), 1.0));
 
-            PrimitiveDrawLine(ceilPointA, ceilPointB, vec4(0.0,1.0,1.0,1.0));
-            PrimitiveDrawLine(ceilPointA, ceilPointD, vec4(0.0,1.0,1.0,1.0));
-            PrimitiveDrawLine(ceilPointC, ceilPointB, vec4(0.0,1.0,1.0,1.0));
-            PrimitiveDrawLine(ceilPointC, ceilPointD, vec4(0.0,1.0,1.0,1.0));
+            PrimitiveDrawLine(ceilPointA, ceilPointB, vec4(RGBHEXTO1(0xff8000), 1.0));
+            PrimitiveDrawLine(ceilPointA, ceilPointD, vec4(RGBHEXTO1(0xff8000), 1.0));
+            PrimitiveDrawLine(ceilPointC, ceilPointB, vec4(RGBHEXTO1(0xff8000), 1.0));
+            PrimitiveDrawLine(ceilPointC, ceilPointD, vec4(RGBHEXTO1(0xff8000), 1.0));
 
             if (mousereleased & SDL_BUTTON(SDL_BUTTON_LEFT))
             {
                 // complete with drawn height
+                EditableVolumes::Vert *fv0 = EditableVolumes::CreateVert(floorPointA);
+                EditableVolumes::Vert *fv1 = EditableVolumes::CreateVert(floorPointB);
+                EditableVolumes::Vert *fv2 = EditableVolumes::CreateVert(floorPointC);
+                EditableVolumes::Vert *fv3 = EditableVolumes::CreateVert(floorPointD);
+                EditableVolumes::Vert *cv0 = EditableVolumes::CreateVert(ceilPointA);
+                EditableVolumes::Vert *cv1 = EditableVolumes::CreateVert(ceilPointB);
+                EditableVolumes::Vert *cv2 = EditableVolumes::CreateVert(ceilPointC);
+                EditableVolumes::Vert *cv3 = EditableVolumes::CreateVert(ceilPointD);
+                if (heightcomponent < 0)
+                {
+                    auto temp0 = fv0;
+                    auto temp1 = fv1;
+                    auto temp2 = fv2;
+                    auto temp3 = fv3;
+                    fv0 = cv0;
+                    fv1 = cv1;
+                    fv2 = cv2;
+                    fv3 = cv3;
+                    cv0 = temp0;
+                    cv1 = temp1;
+                    cv2 = temp2;
+                    cv3 = temp3;
+                }
+
+                EditableVolumes::Edge *f0_to_f1 = EditableVolumes::CreateEdge(fv0, fv1);
+                EditableVolumes::Edge *f1_to_f2 = EditableVolumes::CreateEdge(fv1, fv2);
+                EditableVolumes::Edge *f2_to_f3 = EditableVolumes::CreateEdge(fv2, fv3);
+                EditableVolumes::Edge *f3_to_f0 = EditableVolumes::CreateEdge(fv3, fv0);
+                EditableVolumes::Edge *c0_to_c1 = EditableVolumes::CreateEdge(cv0, cv1);
+                EditableVolumes::Edge *c1_to_c2 = EditableVolumes::CreateEdge(cv1, cv2);
+                EditableVolumes::Edge *c2_to_c3 = EditableVolumes::CreateEdge(cv2, cv3);
+                EditableVolumes::Edge *c3_to_c0 = EditableVolumes::CreateEdge(cv3, cv0);
+                EditableVolumes::Edge *f0_to_c0 = EditableVolumes::CreateEdge(fv0, cv0);
+                EditableVolumes::Edge *f1_to_c1 = EditableVolumes::CreateEdge(fv1, cv1);
+                EditableVolumes::Edge *f2_to_c2 = EditableVolumes::CreateEdge(fv2, cv2);
+                EditableVolumes::Edge *f3_to_c3 = EditableVolumes::CreateEdge(fv3, cv3);
+
+                EditableVolumes::Face *f0 = EditableVolumes::CreateFace({f0_to_f1, f1_to_f2, f2_to_f3, f3_to_f0});
+                TriangulateFace_QuickDumb(*f0, &MY_VERTEX_BUFFER);
+                f0 = EditableVolumes::CreateFace({c0_to_c1, c1_to_c2, c2_to_c3, c3_to_c0});
+                EditableVolumes::FaceLoopReverse(f0);
+                TriangulateFace_QuickDumb(*f0, &MY_VERTEX_BUFFER);
+                f0 = EditableVolumes::CreateFace({f0_to_f1, f0_to_c0, f1_to_c1, c0_to_c1});
+                TriangulateFace_QuickDumb(*f0, &MY_VERTEX_BUFFER);
+                f0 = EditableVolumes::CreateFace({f1_to_f2, f1_to_c1, c1_to_c2, f2_to_c2});
+                TriangulateFace_QuickDumb(*f0, &MY_VERTEX_BUFFER);
+                f0 = EditableVolumes::CreateFace({f2_to_f3, f2_to_c2, c2_to_c3, f3_to_c3});
+                TriangulateFace_QuickDumb(*f0, &MY_VERTEX_BUFFER);
+                f0 = EditableVolumes::CreateFace({f3_to_f0, f3_to_c3, c3_to_c0, f0_to_c0});
+                TriangulateFace_QuickDumb(*f0, &MY_VERTEX_BUFFER);
+
+                RebindFaceBatchBufferObject(&activeFaceBatches[0], (u32)MY_VERTEX_BUFFER.size()*sizeof(float), MY_VERTEX_BUFFER.data());
+
                 simpleBrushToolState = SimpleBrushToolState::NotActive;
             }
             if (keyspressed[SDL_SCANCODE_ESCAPE])
@@ -1689,9 +1767,6 @@ void TickMapEditor()
             }
             break;
     }
-
-//    PrimitiveDrawLine(ws, ws + wr * 1000.f, vec4(1.0, 1.0, 0.0, 1.0));
-//    PrimitiveDrawSolidDisc(testp, GM_UP_VECTOR, 8.f, vec4(1.0, 0.0, 1.0, 1.0));
 
 }
 

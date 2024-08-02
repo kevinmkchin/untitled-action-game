@@ -34,6 +34,8 @@ namespace EditableVolumes
             }
             return looplen;
         }
+
+        vec3 QuickNormal();
     };
 
     struct Edge
@@ -91,6 +93,13 @@ namespace EditableVolumes
             else
                 return NULL;
         }
+
+        // void SwitchAB()
+        // {
+        //     auto v = a;
+        //     b = a;
+        //     a = v;
+        // }
     };
 
     struct Vert
@@ -118,6 +127,16 @@ namespace EditableVolumes
         }
     };
 
+    // vec3 Face::QuickNormal()
+    // {
+    //     // just takes the first three verts and calculates a normal
+    //     // not accurate if verts past the first three are not coplanar
+    //     ASSERT(looplen > 2);
+    //     vec3 a = loopbase->v->pos;
+    //     vec3 b = loopbase->loopNext->v->pos;
+    //     vec3 c = loopbase->loopNext->loopNext->v->pos;
+    //     return Normalize(Cross(b-a, c-a));
+    // }
 
     /*
     Example usage:
@@ -258,7 +277,21 @@ namespace EditableVolumes
 
     void FaceLoopReverse(Face *face)
     {
+        ASSERT(face->looplen > 2);
+        Vert *ogloopbasev = face->loopbase->v;
+        Loop *l = face->loopbase;
 
+        while (l->loopNext != face->loopbase)
+        {
+            l->v = l->loopNext->v;
+            Loop *next = l->loopNext;
+            l->loopNext = l->loopPrev;
+            l->loopPrev = next;
+            l = next;
+        }
+        l->v = ogloopbasev;
+        l->loopNext = l->loopPrev;
+        l->loopPrev = face->loopbase;
     }
 
     Vert *Euler_SplitEdgeMakeVert(Edge *edge, float abLerp = 0.5f)
