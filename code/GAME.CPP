@@ -99,8 +99,9 @@ inline std::string data_path(const std::string& name) { return wd_path() + "data
 
 // let 1 unit = 1 inch, this approximates 32 units to 0.82 metres
 #define STANDARD_LENGTH_IN_GAME_UNITS 32
+// sqrt(32^2 + 32^2) = 45.254833996 ~= 45
+#define STANDARD_LENGTH_DIAGONAL 45
 #define THIRTYTWO STANDARD_LENGTH_IN_GAME_UNITS
-
 
 SDL_Window *g_MainSDLWindow;
 SDL_GLContext g_SDLGLContext;
@@ -1481,6 +1482,8 @@ static void TickGame()
     // PrimitiveDrawSolidDisc(vec3(10,0,10), -cameraDirection, 2.f);
 }
 
+float GRID_DIAGONAL_LENGTH = 11.f;
+
 enum class SimpleBrushToolState
 {
     NotActive,
@@ -1503,7 +1506,7 @@ vec3 ScreenPointToWorldRay(ivec2 screenspaceCoords)
     return ray_in_worldspace;
 }
 
-vec3 ScreenspaceToWorldspace(ivec2 screenspaceCoords, float z_NDC)
+vec3 ScreenPointToWorldPoint(ivec2 screenspaceCoords, float z_NDC)
 {
     float x_NDC = ((float)screenspaceCoords.x / (float)backBufferWidth) * 2.f - 1.f;
     float y_NDC = (float(backBufferHeight - screenspaceCoords.y) / (float)backBufferHeight) * 2.f - 1.f;
@@ -1513,6 +1516,12 @@ vec3 ScreenspaceToWorldspace(ivec2 screenspaceCoords, float z_NDC)
     vec4 point_in_viewspace = point_in_viewspace_before_perspective_divide / point_in_viewspace_before_perspective_divide.w;
     vec4 point_in_worldspace = activeViewMatrix.GetInverse() * point_in_viewspace;
     return point_in_worldspace.xyz;
+}
+
+vec3 SnapToMapEditorGrid(vec3 beforeSnap)
+{
+    // TODO snap
+    return beforeSnap;
 }
 
 void TickMapEditor()
@@ -1567,7 +1576,8 @@ void TickMapEditor()
     // - not active
     // - drag drawing rectangle (esc -> cancel -> not active)
     // - mouse move setting volume height (esc -> complete with default height of THIRTYTWO -> not active)
-    static vec3 startpoint;
+    static vec3 rectstartpoint;
+    static vec3 rectendpoint;
     static float desiredBrushY_in_world;
     switch (simpleBrushToolState)
     {
@@ -1581,57 +1591,84 @@ void TickMapEditor()
 
                 // We only want to draw within a certain radius from the camera. never too far from the camera.
                 desiredBrushY_in_world = 0.f;
-                vec3 ws = ScreenspaceToWorldspace(mousepos, 0.f);
+                vec3 ws = ScreenPointToWorldPoint(mousepos, 0.f);
                 vec3 wr = ScreenPointToWorldRay(mousepos);
                 float f = (desiredBrushY_in_world-ws.y)/wr.y;
                 if (f > 0.f) // should accept any f... since we want to draw brush in any direction
                 {
-                    startpoint = ws + wr * f;
+                    rectstartpoint = SnapToMapEditorGrid(ws + wr * f);
                 }
             }
             break;
         case SimpleBrushToolState::DrawingRectangle:
             if (mousecurrent & SDL_BUTTON(SDL_BUTTON_LEFT))
             {
-                vec3 ws = ScreenspaceToWorldspace(mousepos, 0.f);
+                vec3 ws = ScreenPointToWorldPoint(mousepos, 0.f);
                 vec3 wr = ScreenPointToWorldRay(mousepos);
                 float f = (desiredBrushY_in_world-ws.y)/wr.y;
-                vec3 endpoint = ws + wr * f;
-
-                vec3 startToEndVector = vec3(endpoint - startpoint);
-                vec3 startToEndProjOnToZDirection = Dot(startToEndVector, GM_RIGHT_VECTOR) * GM_RIGHT_VECTOR;
-                vec3 startToEndProjOnToXDirection = Dot(startToEndVector, GM_FORWARD_VECTOR) * GM_FORWARD_VECTOR;
-
-                PrimitiveDrawLine(startpoint, startpoint + startToEndProjOnToXDirection, vec4(0.0,1.0,1.0,1.0));
-                PrimitiveDrawLine(startpoint, startpoint + startToEndProjOnToZDirection, vec4(0.0,1.0,1.0,1.0));
-                PrimitiveDrawLine(endpoint, endpoint - startToEndProjOnToXDirection, vec4(0.0,1.0,1.0,1.0));
-                PrimitiveDrawLine(endpoint, endpoint - startToEndProjOnToZDirection, vec4(0.0,1.0,1.0,1.0));
-
+                vec3 endpoint = SnapToMapEditorGrid(ws + wr * f);
+                vec3 startToEndVector = vec3(endpoint - rectstartpoint);
+                float d = Magnitude(startToEndVector);
+                if (d > GRID_DIAGONAL_LENGTH) // TODO check X and Z values to see if theyre bigger than grid size
+                {
+                    vec3 startToEndProjOnToZDirection = Dot(startToEndVector, GM_RIGHT_VECTOR) * GM_RIGHT_VECTOR;
+                    vec3 startToEndProjOnToXDirection = Dot(startToEndVector, GM_FORWARD_VECTOR) * GM_FORWARD_VECTOR;
+                    PrimitiveDrawLine(rectstartpoint, rectstartpoint + startToEndProjOnToXDirection, vec4(0.0,1.0,1.0,1.0));
+                    PrimitiveDrawLine(rectstartpoint, rectstartpoint + startToEndProjOnToZDirection, vec4(0.0,1.0,1.0,1.0));
+                    PrimitiveDrawLine(endpoint, endpoint - startToEndProjOnToXDirection, vec4(0.0,1.0,1.0,1.0));
+                    PrimitiveDrawLine(endpoint, endpoint - startToEndProjOnToZDirection, vec4(0.0,1.0,1.0,1.0));
+                }
             }
             if (mousereleased & SDL_BUTTON(SDL_BUTTON_LEFT))
             {
-                // release drag
-                // check delta make sure its big enough
+                vec3 ws = ScreenPointToWorldPoint(mousepos, 0.f);
+                vec3 wr = ScreenPointToWorldRay(mousepos);
+                float f = (desiredBrushY_in_world-ws.y)/wr.y;
+                rectendpoint = SnapToMapEditorGrid(ws + wr * f);
+                vec3 startToEndVector = vec3(rectendpoint - rectstartpoint);
+                float d = Magnitude(startToEndVector);
+                if (d > GRID_DIAGONAL_LENGTH) // TODO check X and Z values to see if theyre bigger than grid size
+                    simpleBrushToolState = SimpleBrushToolState::DrawingHeight;
+                else
+                    simpleBrushToolState = SimpleBrushToolState::NotActive;
+            }
+            if (keyspressed[SDL_SCANCODE_ESCAPE])
+                simpleBrushToolState = SimpleBrushToolState::NotActive;
+
+            break;
+        case SimpleBrushToolState::DrawingHeight:
+            vec3 startToEndVector = vec3(rectendpoint - rectstartpoint);
+            vec3 startToEndProjOnToZDirection = Dot(startToEndVector, GM_RIGHT_VECTOR) * GM_RIGHT_VECTOR;
+            vec3 startToEndProjOnToXDirection = Dot(startToEndVector, GM_FORWARD_VECTOR) * GM_FORWARD_VECTOR;
+            PrimitiveDrawLine(rectstartpoint, rectstartpoint + startToEndProjOnToXDirection, vec4(0.0,1.0,1.0,1.0));
+            PrimitiveDrawLine(rectstartpoint, rectstartpoint + startToEndProjOnToZDirection, vec4(0.0,1.0,1.0,1.0));
+            PrimitiveDrawLine(rectendpoint, rectendpoint - startToEndProjOnToXDirection, vec4(0.0,1.0,1.0,1.0));
+            PrimitiveDrawLine(rectendpoint, rectendpoint - startToEndProjOnToZDirection, vec4(0.0,1.0,1.0,1.0));
+
+            // let plane be defined at point rectendpoint with normal -cameraDirection
+            // then the point of intersection between mouse ray and the plane - endrectpoint and project it onto
+            // the direction of translation e.g. GM_UP_VECTOR
+            static vec3 translate = vec3();
+            vec3 pn = -cameraDirection;
+            vec3 pp = rectendpoint + translate;
+            vec3 wp = ScreenPointToWorldPoint(mousepos, 0.f);
+            vec3 wr = ScreenPointToWorldRay(mousepos);
+            vec3 intersection;
+            FindIntersectionBetweenPlaneAndLine(pp, pn, wp, wr, &intersection);
+            translate = Dot((intersection - rectendpoint), GM_UP_VECTOR) * GM_UP_VECTOR;
+            PrimitiveDrawLine(rectendpoint, rectendpoint + translate, vec4(0.0,1.0,1.0,1.0));
+
+            if (mousereleased & SDL_BUTTON(SDL_BUTTON_LEFT))
+            {
+                // complete with drawn height
                 simpleBrushToolState = SimpleBrushToolState::NotActive;
             }
             if (keyspressed[SDL_SCANCODE_ESCAPE])
             {
-                // todo cancel
+                // complete with default height of THIRTYTWO
                 simpleBrushToolState = SimpleBrushToolState::NotActive;
             }
             break;
-//        case SimpleBrushToolState::DrawingHeight:
-//            if (mousereleased & SDL_BUTTON(SDL_BUTTON_LEFT))
-//            {
-//                // complete with drawn height
-//                simpleBrushToolState = SimpleBrushToolState::NotActive;
-//            }
-//            if (keyspressed[SDL_SCANCODE_ESCAPE])
-//            {
-//                // complete with default height of THIRTYTWO
-//                simpleBrushToolState = SimpleBrushToolState::NotActive;
-//            }
-//            break;
     }
 
 //    PrimitiveDrawLine(ws, ws + wr * 1000.f, vec4(1.0, 1.0, 0.0, 1.0));
