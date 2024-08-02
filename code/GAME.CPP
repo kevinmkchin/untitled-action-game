@@ -1597,7 +1597,16 @@ void TickMapEditor()
                 vec3 wr = ScreenPointToWorldRay(mousepos);
                 float f = (desiredBrushY_in_world-ws.y)/wr.y;
                 vec3 endpoint = ws + wr * f;
-                PrimitiveDrawLine(startpoint, endpoint, vec4(0.0,1.0,1.0,1.0));
+
+                vec3 startToEndVector = vec3(endpoint - startpoint);
+                vec3 startToEndProjOnToZDirection = Dot(startToEndVector, GM_RIGHT_VECTOR) * GM_RIGHT_VECTOR;
+                vec3 startToEndProjOnToXDirection = Dot(startToEndVector, GM_FORWARD_VECTOR) * GM_FORWARD_VECTOR;
+
+                PrimitiveDrawLine(startpoint, startpoint + startToEndProjOnToXDirection, vec4(0.0,1.0,1.0,1.0));
+                PrimitiveDrawLine(startpoint, startpoint + startToEndProjOnToZDirection, vec4(0.0,1.0,1.0,1.0));
+                PrimitiveDrawLine(endpoint, endpoint - startToEndProjOnToXDirection, vec4(0.0,1.0,1.0,1.0));
+                PrimitiveDrawLine(endpoint, endpoint - startToEndProjOnToZDirection, vec4(0.0,1.0,1.0,1.0));
+
             }
             if (mousereleased & SDL_BUTTON(SDL_BUTTON_LEFT))
             {
