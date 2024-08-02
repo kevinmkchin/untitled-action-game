@@ -97,6 +97,10 @@ inline std::string wd_path(const std::string& name) { return wd_path() + std::st
 inline std::string data_path() { return wd_path() + "data/"; }
 inline std::string data_path(const std::string& name) { return wd_path() + "data/" + name; }
 
+// let 1 unit = 1 inch, this approximates 32 units to 0.82 metres
+#define STANDARD_LENGTH_IN_GAME_UNITS 32
+#define THIRTYTWO STANDARD_LENGTH_IN_GAME_UNITS
+
 
 SDL_Window *g_MainSDLWindow;
 SDL_GLContext g_SDLGLContext;
@@ -106,6 +110,9 @@ float g_UnscaledDeltaTime = 0.f;
 float g_GameTimeScale = 1.f;
 float g_CurrentTime = 0.f;
 float g_TimeSinceStart = 0.f;
+u32 mousecurrent;
+u32 mousepressed;
+u32 mousereleased;
 vec2 mousedelta;
 ivec2 mousepos;
 u8 keyscurrent[256] = {0};
@@ -1283,6 +1290,7 @@ Mix_Chunk *Mixer_LoadChunk(const char *filepath)
 
 GPUTexture tex_Default;
 std::vector<FaceBatch> activeFaceBatches;
+std::vector<float> MY_VERTEX_BUFFER;
 Mix_Chunk *sfx_Jump;
 
 MeshGroup mg_Enemy_Bodyguard;
@@ -1293,8 +1301,6 @@ struct BodyguardEnemy
     vec3 facing;
 };
 BodyguardEnemy enemy0;
-
-std::vector<vec3> testpoints;
 
 static void Stuff()
 {
@@ -1330,17 +1336,14 @@ static void Stuff()
 
     activeFaceBatches.push_back(fb0);
 
-
     EditableVolumes::Volume vol;
     EditableVolumes::MakeRectangularVolume(&vol);
+    for (EditableVolumes::Face *f : vol.faces)
+    {
+        TriangulateFace_QuickDumb(*f, &MY_VERTEX_BUFFER);
+    }
 
-    EditableVolumes::Face *f = vol.faces[0];
-    EditableVolumes::Loop *l = f->loopbase;
-    do {
-        vec3 p = l->v->pos;
-        testpoints.push_back(p);
-        l = l->loopNext;
-    } while (l != f->loopbase && l != NULL);
+    RebindFaceBatchBufferObject(&fb0, (u32)MY_VERTEX_BUFFER.size()*sizeof(float), MY_VERTEX_BUFFER.data());
 }
 
 vec3 playerControllerRoot = vec3(100,10,100);
@@ -1418,7 +1421,7 @@ static void TickGame()
     {
         playeryvel = 160.f;
         Mix_VolumeChunk(sfx_Jump, 48);
-        Mix_PlayChannel(channelrotationtesting++%3, sfx_Jump, 0);
+//        Mix_PlayChannel(channelrotationtesting++%3, sfx_Jump, 0);
     }
     playeryvel -= 314.f * g_DeltaTime; // 9.81 m/s * 32 units/m ~= 314 units/s
     playerControllerRoot.y += playeryvel * g_DeltaTime;
@@ -1463,16 +1466,57 @@ static void TickGame()
         printf("bad cam up %f\n", dot);
     activeViewMatrix = ViewMatrixLookAt(cameraPosition, cameraPosition + cameraDirection, cameraUpWithSway);
 
+    // PrimitiveDrawSolidDisc(vec3(10,0,10), -cameraDirection, 2.f);
+}
+
+void TickMapEditor()
+{
+    SDL_SetRelativeMouseMode(mousecurrent & SDL_BUTTON(SDL_BUTTON_RIGHT) ? SDL_TRUE : SDL_FALSE);
+
+    // EDITOR CAMERA MOVE
+    if (mousecurrent & SDL_BUTTON(SDL_BUTTON_RIGHT))
+    {
+        float camYawDelta = mousedelta.x*0.1f;
+        float camPitchDelta = mousedelta.y*0.1f;
+        cameraRotation.y -= camYawDelta;
+        cameraRotation.z -= camPitchDelta;
+        if (cameraRotation.z > 89.f)
+            cameraRotation.z = 89.f;
+        if (cameraRotation.z < -89.f)
+            cameraRotation.z = -89.f;
+    }
+    cameraDirection = Normalize(OrientationToDirection(EulerToQuat(cameraRotation * GM_DEG2RAD)));
+    cameraRight = Normalize(Cross(cameraDirection, GM_UP_VECTOR));
+    cameraUp = Normalize(Cross(cameraRight, cameraDirection));
+    float moveSpeed = 250.f;
+    if (keyscurrent[SDL_SCANCODE_LSHIFT])
+        moveSpeed *= 2.7f;
+    static vec3 editorCameraPosition = vec3(128, 128, 128);
+    vec3 playerPositionDelta;
+    if (mousecurrent & SDL_BUTTON(SDL_BUTTON_RIGHT))
+    {
+        if (keyscurrent[SDL_SCANCODE_W])
+            playerPositionDelta += cameraDirection * moveSpeed * g_DeltaTime;
+        if (keyscurrent[SDL_SCANCODE_A])
+            playerPositionDelta += -cameraRight * moveSpeed * g_DeltaTime;
+        if (keyscurrent[SDL_SCANCODE_S])
+            playerPositionDelta += -cameraDirection * moveSpeed * g_DeltaTime;
+        if (keyscurrent[SDL_SCANCODE_D])
+            playerPositionDelta += cameraRight * moveSpeed * g_DeltaTime;
+        if (keyscurrent[SDL_SCANCODE_Q])
+            playerPositionDelta += -GM_UP_VECTOR * moveSpeed * g_DeltaTime;
+        if (keyscurrent[SDL_SCANCODE_E])
+            playerPositionDelta += GM_UP_VECTOR * moveSpeed * g_DeltaTime;
+        editorCameraPosition += playerPositionDelta;
+    }
+    activeViewMatrix = ViewMatrixLookAt(editorCameraPosition, editorCameraPosition + cameraDirection, cameraUp);
 
     // AXIS LINES
     PrimitiveDrawLine(vec3(320000.f, 0.f, 0.f), vec3(-320000.f, 0.f, 0.f), vec4(RGB255TO1(205, 56, 9), 0.8f));
     PrimitiveDrawLine(vec3(0.f, 320000.f, 0.f), vec3(0.f, -320000.f, 0.f), vec4(RGB255TO1(67, 123, 9), 0.8f));
     PrimitiveDrawLine(vec3(0.f, 0.f, 320000.f), vec3(0.f, 0.f, -320000.f), vec4(RGB255TO1(21, 129, 205), 0.8f));
 
-    // PrimitiveDrawSolidDisc(vec3(10,0,10), -cameraDirection, 2.f);
-
-    for (vec3 v : testpoints)
-        PrimitiveDrawSolidDisc(v, -cameraDirection, 2.f);
+    // left click drag volume tool
 }
 
 GPUShader sceneShader;
@@ -1513,7 +1557,7 @@ static void RenderGameLayer()
     for (size_t i = 0; i < activeFaceBatches.size(); ++i)
     {
         FaceBatch fb = activeFaceBatches.at(i);
-//        RenderFaceBatch(fb);
+        RenderFaceBatch(fb);
     }
 
     GLActiveTextureUnit0(tex_Default.id);
@@ -1521,6 +1565,49 @@ static void RenderGameLayer()
     modelMatrix = TranslationMatrix(enemy0.root) * RotationMatrix(DirectionToOrientation(enemy0.facing));
     GLBindMatrix4fv(sceneShader, "modelMatrix", 1, modelMatrix.ptr());
     MeshGroupRender(&mg_Enemy_Bodyguard);
+
+    // PRIMITIVES
+    if (keyspressed[SDL_SCANCODE_X])
+        primitivesDepthTest = !primitivesDepthTest;
+    if (primitivesDepthTest)
+        glEnable(GL_DEPTH_TEST);
+    else
+        glDisable(GL_DEPTH_TEST);
+    glDisable(GL_CULL_FACE);
+    PrimitiveDrawAll(&perspectiveMatrix, &viewMatrix);
+}
+
+static void RenderMapEditorLayer()
+{
+    glBindFramebuffer(GL_FRAMEBUFFER, renderTargetGame.fbo);
+    glViewport(0, 0, renderTargetGame.width, renderTargetGame.height);
+    glClearColor(0.15f, 0.15f, 0.15f, 1.f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glEnable(GL_BLEND);
+    glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_SRC_ALPHA, GL_ONE);
+    glEnable(GL_DEPTH_TEST);
+
+    mat4 perspectiveMatrix = ProjectionMatrixPerspective((90.f/2.f)*GM_DEG2RAD,
+        float(backBufferWidth)/float(backBufferHeight), 0.1f, 32000.f);
+    mat4 viewMatrix = activeViewMatrix;
+
+    UseShader(sceneShader);
+    glEnable(GL_CULL_FACE);
+
+    GLBindMatrix4fv(sceneShader, "projMatrix", 1, perspectiveMatrix.ptr());
+    GLBindMatrix4fv(sceneShader, "viewMatrix", 1, viewMatrix.ptr());
+
+    mat4 modelMatrix = mat4();
+
+    GLBindMatrix4fv(sceneShader, "modelMatrix", 1, modelMatrix.ptr());
+
+    for (size_t i = 0; i < activeFaceBatches.size(); ++i)
+    {
+        FaceBatch fb = activeFaceBatches.at(i);
+        RenderFaceBatch(fb);
+    }
+
+    GLActiveTextureUnit0(tex_Default.id);
 
     // PRIMITIVES
     if (keyspressed[SDL_SCANCODE_X])
@@ -1624,6 +1711,12 @@ static void DrawGame()
     FinalRenderToBackBuffer();
 }
 
+static void DrawMapEditor()
+{
+    RenderMapEditorLayer();
+    RenderGUILayer();
+    FinalRenderToBackBuffer();
+}
 
 static void TickTime()
 {
@@ -1686,6 +1779,13 @@ static bool InitializeEverything()
 static void ProcessSDLEvents()
 {
     mousedelta = vec2(0.f,0.f);
+    ivec2 throwaway;
+    u32 mousestate = SDL_GetMouseState(&throwaway.x, &throwaway.y);
+    u32 mousechanged = mousecurrent ^ mousestate;
+    mousepressed = mousechanged & mousestate;
+    mousereleased = mousechanged & mousecurrent;
+    mousecurrent = mousestate;
+
     const u8 *keystate = SDL_GetKeyboardState(NULL);
     u8 keyschanged[256];
     for (int i=0;i<256;++i)
@@ -1695,7 +1795,6 @@ static void ProcessSDLEvents()
         keysreleased[i] = keyschanged[i] & keyscurrent[i];
         keyscurrent[i] = keystate[i];
     }
-
 
     SDL_Event event;
     while (SDL_PollEvent(&event))
@@ -1743,10 +1842,12 @@ static void ProcessSDLEvents()
             {
                 mousedelta = vec2((float)event.motion.xrel, (float)event.motion.yrel);
                 mousepos = ivec2(event.motion.x, event.motion.y);
+                break;
             }
         }
 
         // Gui::ProcessSDLEvent(event);
+        // MapEditorProcessSDLEvent(event);
     }
 }
 
@@ -1766,8 +1867,10 @@ int main(int argc, char* argv[])
         // Gui::NewFrame();
         ProcessSDLEvents();
 
-        TickGame();
-        DrawGame();
+//        TickGame();
+//        DrawGame();
+        TickMapEditor();
+        DrawMapEditor();
 
         SDL_GL_SwapWindow(g_MainSDLWindow);
 

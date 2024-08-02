@@ -219,7 +219,7 @@ namespace EditableVolumes
         lastLoop->loopNext = firstLoop;
 
         face->loopbase = firstLoop;
-        face->looplen = edges.size();
+        face->looplen = (int)edges.size();
 
         return face;
     }
@@ -293,10 +293,10 @@ namespace EditableVolumes
             delete f;
         vol->faces.clear();
 
-        Vert *v0 = CreateVert(vec3(-32,0,-32));
-        Vert *v1 = CreateVert(vec3(-32,0,32));
-        Vert *v2 = CreateVert(vec3(32,0,32));
-        Vert *v3 = CreateVert(vec3(32,0,-32));
+        Vert *v0 = CreateVert(vec3(-320,0,-320));
+        Vert *v1 = CreateVert(vec3(-320,0,320));
+        Vert *v2 = CreateVert(vec3(320,0,320));
+        Vert *v3 = CreateVert(vec3(320,0,-320));
 
         Edge *e0 = CreateEdge(v0, v1);
         Edge *e1 = CreateEdge(v1, v2);
@@ -312,6 +312,94 @@ namespace EditableVolumes
     {
 
     }
+
+    void TriangulateFace_QuickDumb(const Face f, std::vector<float> *vb)
+    {
+        // TODO Figure out a good way for triangulating arbitrary simple polygons in 3d space which
+        // may not have coplanar vertices...and then do delaunay and flipping for nicer triangles...
+        // https://swaminathanj.github.io/cg/PolygonTriangulation.html#:~:text=Let%20v%20be%20a%20vertex,has%20at%20least%20two%20ears.
+
+        ASSERT(f.looplen > 2);
+        std::vector<vec3> verticesInOrder;
+        Loop *l = f.loopbase;
+        do {
+            vec3 p = l->v->pos;
+            verticesInOrder.push_back(p);
+            l = l->loopNext;
+        } while (l != f.loopbase && l != NULL);
+
+        for (int i = 1; i < verticesInOrder.size() - 1; ++i)
+        {
+            vec3 a = verticesInOrder[0];
+            vec3 b = verticesInOrder[i];
+            vec3 c = verticesInOrder[i+1];
+            vec3 n = Normalize(Cross(b-a, c-a));
+
+            float uvScale = (1.f / (float)THIRTYTWO); // [0,1] being scaled to 32 units
+            float xf = GM_abs(Dot(n, vec3(1.f, 0.f, 0.f)));
+            float yf = GM_abs(Dot(n, vec3(0.f, 1.f, 0.f)));
+            float zf = GM_abs(Dot(n, vec3(0.f, 0.f, 1.f)));
+            float au;
+            float av;
+            float bu;
+            float bv;
+            float cu;
+            float cv;
+            if(xf >= yf && xf >= zf)
+            {
+                au = a.z * uvScale;
+                av = a.y * uvScale;
+                bu = b.z * uvScale;
+                bv = b.y * uvScale;
+                cu = c.z * uvScale;
+                cv = c.y * uvScale;
+            }
+            else if(yf >= xf && yf >= zf)
+            {
+                au = a.x * uvScale;
+                av = a.z * uvScale;
+                bu = b.x * uvScale;
+                bv = b.z * uvScale;
+                cu = c.x * uvScale;
+                cv = c.z * uvScale;
+            }
+            else if(zf >= xf && zf >= yf)
+            {
+                au = a.x * uvScale;
+                av = a.y * uvScale;
+                bu = b.x * uvScale;
+                bv = b.y * uvScale;
+                cu = c.x * uvScale;
+                cv = c.y * uvScale;
+            }
+
+            vb->push_back(a.x);
+            vb->push_back(a.y);
+            vb->push_back(a.z);
+            vb->push_back(au);
+            vb->push_back(av);
+            vb->push_back(n.x);
+            vb->push_back(n.y);
+            vb->push_back(n.z);
+            vb->push_back(b.x);
+            vb->push_back(b.y);
+            vb->push_back(b.z);
+            vb->push_back(bu);
+            vb->push_back(bv);
+            vb->push_back(n.x);
+            vb->push_back(n.y);
+            vb->push_back(n.z);
+            vb->push_back(c.x);
+            vb->push_back(c.y);
+            vb->push_back(c.z);
+            vb->push_back(cu);
+            vb->push_back(cv);
+            vb->push_back(n.x);
+            vb->push_back(n.y);
+            vb->push_back(n.z);
+        }
+
+    }
 }
 
 
@@ -319,5 +407,7 @@ struct EditableMapData
 {
 
 };
+
+
 
 
