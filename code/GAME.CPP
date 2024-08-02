@@ -1518,10 +1518,16 @@ vec3 ScreenPointToWorldPoint(ivec2 screenspaceCoords, float z_NDC)
     return point_in_worldspace.xyz;
 }
 
+float SnapToMapEditorGrid(float beforeSnap)
+{
+    int adjustedBeforeSnap = int(roundf(beforeSnap) + ((beforeSnap < 0.f ? -0.5f : 0.5f) * 8));
+    int snapped = adjustedBeforeSnap - adjustedBeforeSnap % 8;
+    return snapped;
+}
+
 vec3 SnapToMapEditorGrid(vec3 beforeSnap)
 {
-    // TODO snap
-    return beforeSnap;
+    return vec3(SnapToMapEditorGrid(beforeSnap.x), SnapToMapEditorGrid(beforeSnap.y), SnapToMapEditorGrid(beforeSnap.z));
 }
 
 void TickMapEditor()
@@ -1571,11 +1577,8 @@ void TickMapEditor()
     PrimitiveDrawLine(vec3(0.f, 320000.f, 0.f), vec3(0.f, -320000.f, 0.f), vec4(RGB255TO1(67, 123, 9), 0.8f));
     PrimitiveDrawLine(vec3(0.f, 0.f, 320000.f), vec3(0.f, 0.f, -320000.f), vec4(RGB255TO1(21, 129, 205), 0.8f));
 
-    // left click drag Simple Volume tool
-    // in three states:
-    // - not active
-    // - drag drawing rectangle (esc -> cancel -> not active)
-    // - mouse move setting volume height (esc -> complete with default height of THIRTYTWO -> not active)
+
+    // Simple Volume tool
     static vec3 rectstartpoint;
     static vec3 rectendpoint;
     static float desiredBrushY_in_world;
@@ -1609,15 +1612,12 @@ void TickMapEditor()
                 vec3 endpoint = SnapToMapEditorGrid(ws + wr * f);
                 vec3 startToEndVector = vec3(endpoint - rectstartpoint);
                 float d = Magnitude(startToEndVector);
-                if (d > GRID_DIAGONAL_LENGTH) // TODO check X and Z values to see if theyre bigger than grid size
-                {
-                    vec3 startToEndProjOnToZDirection = Dot(startToEndVector, GM_RIGHT_VECTOR) * GM_RIGHT_VECTOR;
-                    vec3 startToEndProjOnToXDirection = Dot(startToEndVector, GM_FORWARD_VECTOR) * GM_FORWARD_VECTOR;
-                    PrimitiveDrawLine(rectstartpoint, rectstartpoint + startToEndProjOnToXDirection, vec4(RGBHEXTO1(0xff8000), 1.0));
-                    PrimitiveDrawLine(rectstartpoint, rectstartpoint + startToEndProjOnToZDirection, vec4(RGBHEXTO1(0xff8000), 1.0));
-                    PrimitiveDrawLine(endpoint, endpoint - startToEndProjOnToXDirection, vec4(RGBHEXTO1(0xff8000), 1.0));
-                    PrimitiveDrawLine(endpoint, endpoint - startToEndProjOnToZDirection, vec4(RGBHEXTO1(0xff8000), 1.0));
-                }
+                vec3 startToEndProjOnToZDirection = Dot(startToEndVector, GM_RIGHT_VECTOR) * GM_RIGHT_VECTOR;
+                vec3 startToEndProjOnToXDirection = Dot(startToEndVector, GM_FORWARD_VECTOR) * GM_FORWARD_VECTOR;
+                PrimitiveDrawLine(rectstartpoint, rectstartpoint + startToEndProjOnToXDirection, vec4(RGBHEXTO1(0xff8000), 1.0));
+                PrimitiveDrawLine(rectstartpoint, rectstartpoint + startToEndProjOnToZDirection, vec4(RGBHEXTO1(0xff8000), 1.0));
+                PrimitiveDrawLine(endpoint, endpoint - startToEndProjOnToXDirection, vec4(RGBHEXTO1(0xff8000), 1.0));
+                PrimitiveDrawLine(endpoint, endpoint - startToEndProjOnToZDirection, vec4(RGBHEXTO1(0xff8000), 1.0));
             }
             if (mousereleased & SDL_BUTTON(SDL_BUTTON_LEFT))
             {
@@ -1654,7 +1654,7 @@ void TickMapEditor()
             vec3 wr = ScreenPointToWorldRay(mousepos);
             vec3 intersection;
             FindIntersectionBetweenPlaneAndLine(pp, pn, wp, wr, &intersection);
-            float heightcomponent = Dot((intersection - rectendpoint), drawingSurfaceNormal);
+            float heightcomponent = SnapToMapEditorGrid(Dot((intersection - rectendpoint), drawingSurfaceNormal));
             height = heightcomponent * drawingSurfaceNormal;
 
             vec3 floorPointA = rectstartpoint;
@@ -1762,7 +1762,7 @@ void TickMapEditor()
             }
             if (keyspressed[SDL_SCANCODE_ESCAPE])
             {
-                // complete with default height of THIRTYTWO
+                // TODO complete with default height of THIRTYTWO
                 simpleBrushToolState = SimpleBrushToolState::NotActive;
             }
             break;
