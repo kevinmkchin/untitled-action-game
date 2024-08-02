@@ -1562,24 +1562,32 @@ void TickMapEditor()
     PrimitiveDrawLine(vec3(0.f, 320000.f, 0.f), vec3(0.f, -320000.f, 0.f), vec4(RGB255TO1(67, 123, 9), 0.8f));
     PrimitiveDrawLine(vec3(0.f, 0.f, 320000.f), vec3(0.f, 0.f, -320000.f), vec4(RGB255TO1(21, 129, 205), 0.8f));
 
+    static vec3 testp;
     // left click drag volume tool
     // in three states:
     // - not active
     // - drag drawing rectangle (esc -> cancel -> not active)
     // - mouse move setting volume height (esc -> complete with default height of THIRTYTWO -> not active)
-    static vec3 ws;
-    static vec3 wr;
     switch (simpleBrushToolState)
     {
         case SimpleBrushToolState::NotActive:
             if (mousepressed & SDL_BUTTON(SDL_BUTTON_LEFT))
             {
                 simpleBrushToolState = SimpleBrushToolState::DrawingRectangle;
+
                 // todo with drawing brush ON other volumes, do picking first to see on which volume we are drawing,
                 // then do the mouse ray intersect...although this optimization might not be needed
 
-                ws = ScreenspaceToWorldspace(mousepos, 0.f);
-                wr = ScreenPointToWorldRay(mousepos);
+                // We only want to draw within a certain radius from the camera. never too far from the camera.
+                float desiredBrushY_in_world = 0.f;
+                vec3 ws = ScreenspaceToWorldspace(mousepos, 0.f);
+                vec3 wr = ScreenPointToWorldRay(mousepos);
+                float f = (desiredBrushY_in_world-ws.y)/wr.y;
+                if (f > 0.f) // should accept any f... since we want to draw brush in any direction
+                {
+                    vec3 startpoint = ws + wr * f;
+                    testp = startpoint;
+                }
             }
             break;
         case SimpleBrushToolState::DrawingRectangle:
@@ -1609,8 +1617,8 @@ void TickMapEditor()
             break;
     }
 
-//    PrimitiveDrawSolidDisc(ws, -wr, 0.05f);
-    PrimitiveDrawLine(ws, ws + wr * 1000.f, vec4(1.0, 1.0, 0.0, 1.0));
+//    PrimitiveDrawLine(ws, ws + wr * 1000.f, vec4(1.0, 1.0, 0.0, 1.0));
+    PrimitiveDrawSolidDisc(testp, GM_UP_VECTOR, 8.f, vec4(1.0, 0.0, 1.0, 1.0));
 
 }
 

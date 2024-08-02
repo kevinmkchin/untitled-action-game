@@ -228,13 +228,13 @@ void PrimitiveDrawAll(const mat4* projectionMatrix, const mat4* viewMatrix)
     __vb.ResetCount();
 }
 
-void PrimitiveDrawSolidDisc(vec3 center, vec3 normal, float radius)
+void PrimitiveDrawSolidDisc(vec3 center, vec3 normal, float radius, vec4 color)
 {
-    __colors.PushBack(vec4(RGB255TO1(248, 230, 60), 1.f));
+    __colors.PushBack(color);
     __drawMode.PushBack(PrimitiveDrawMode::Triangles);
     __verticesCounts.PushBack(12 * 3);
 
-    vec3 tangent = Normalize(Cross(GM_UP_VECTOR, normal));
+    vec3 tangent = Normalize(Cross(normal == GM_UP_VECTOR ? GM_RIGHT_VECTOR : GM_UP_VECTOR, normal));
     quat q = quat(GM_DEG2RAD * 30.f, normal);
     for(int i = 0; i < 12; ++i)
     {
@@ -253,6 +253,11 @@ void PrimitiveDrawSolidDisc(vec3 center, vec3 normal, float radius)
         __vb.PushBack(c.y);
         __vb.PushBack(c.z);
     }
+}
+
+void PrimitiveDrawSolidDisc(vec3 center, vec3 normal, float radius)
+{
+    PrimitiveDrawSolidDisc(center, normal, radius, vec4(RGB255TO1(248, 230, 60), 1.f));
 }
 
 void PrimitiveDrawLine(vec3 p1, vec3 p2, vec4 color)
