@@ -1640,10 +1640,12 @@ void TickMapEditor()
             vec3 startToEndVector = vec3(rectendpoint - rectstartpoint);
             vec3 startToEndProjOnToZDirection = Dot(startToEndVector, GM_RIGHT_VECTOR) * GM_RIGHT_VECTOR;
             vec3 startToEndProjOnToXDirection = Dot(startToEndVector, GM_FORWARD_VECTOR) * GM_FORWARD_VECTOR;
-            PrimitiveDrawLine(rectstartpoint, rectstartpoint + startToEndProjOnToXDirection, vec4(0.0,1.0,1.0,1.0));
-            PrimitiveDrawLine(rectstartpoint, rectstartpoint + startToEndProjOnToZDirection, vec4(0.0,1.0,1.0,1.0));
-            PrimitiveDrawLine(rectendpoint, rectendpoint - startToEndProjOnToXDirection, vec4(0.0,1.0,1.0,1.0));
-            PrimitiveDrawLine(rectendpoint, rectendpoint - startToEndProjOnToZDirection, vec4(0.0,1.0,1.0,1.0));
+            vec3 rectstartforward = rectstartpoint + startToEndProjOnToXDirection;
+            vec3 rectstartright = rectstartpoint + startToEndProjOnToZDirection;
+            PrimitiveDrawLine(rectstartpoint, rectstartforward, vec4(0.0,1.0,1.0,1.0));
+            PrimitiveDrawLine(rectstartpoint, rectstartright, vec4(0.0,1.0,1.0,1.0));
+            PrimitiveDrawLine(rectendpoint, rectstartright, vec4(0.0,1.0,1.0,1.0));
+            PrimitiveDrawLine(rectendpoint, rectstartforward, vec4(0.0,1.0,1.0,1.0));
 
             // let plane be defined at point rectendpoint with normal -cameraDirection
             // then the point of intersection between mouse ray and the plane - endrectpoint and project it onto
@@ -1656,7 +1658,16 @@ void TickMapEditor()
             vec3 intersection;
             FindIntersectionBetweenPlaneAndLine(pp, pn, wp, wr, &intersection);
             translate = Dot((intersection - rectendpoint), GM_UP_VECTOR) * GM_UP_VECTOR;
+
             PrimitiveDrawLine(rectendpoint, rectendpoint + translate, vec4(0.0,1.0,1.0,1.0));
+            PrimitiveDrawLine(rectstartpoint, rectstartpoint + translate, vec4(0.0,1.0,1.0,1.0));
+            PrimitiveDrawLine(rectstartright, rectstartright + translate, vec4(0.0,1.0,1.0,1.0));
+            PrimitiveDrawLine(rectstartforward, rectstartforward + translate, vec4(0.0,1.0,1.0,1.0));
+
+            PrimitiveDrawLine(rectstartpoint + translate, rectstartforward + translate, vec4(0.0,1.0,1.0,1.0));
+            PrimitiveDrawLine(rectstartpoint + translate, rectstartright + translate, vec4(0.0,1.0,1.0,1.0));
+            PrimitiveDrawLine(rectendpoint + translate, rectstartright + translate, vec4(0.0,1.0,1.0,1.0));
+            PrimitiveDrawLine(rectendpoint + translate, rectstartforward + translate, vec4(0.0,1.0,1.0,1.0));
 
             if (mousereleased & SDL_BUTTON(SDL_BUTTON_LEFT))
             {
