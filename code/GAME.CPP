@@ -1562,12 +1562,13 @@ void TickMapEditor()
     PrimitiveDrawLine(vec3(0.f, 320000.f, 0.f), vec3(0.f, -320000.f, 0.f), vec4(RGB255TO1(67, 123, 9), 0.8f));
     PrimitiveDrawLine(vec3(0.f, 0.f, 320000.f), vec3(0.f, 0.f, -320000.f), vec4(RGB255TO1(21, 129, 205), 0.8f));
 
-    static vec3 testp;
     // left click drag volume tool
     // in three states:
     // - not active
     // - drag drawing rectangle (esc -> cancel -> not active)
     // - mouse move setting volume height (esc -> complete with default height of THIRTYTWO -> not active)
+    static vec3 startpoint;
+    static float desiredBrushY_in_world;
     switch (simpleBrushToolState)
     {
         case SimpleBrushToolState::NotActive:
@@ -1579,18 +1580,25 @@ void TickMapEditor()
                 // then do the mouse ray intersect...although this optimization might not be needed
 
                 // We only want to draw within a certain radius from the camera. never too far from the camera.
-                float desiredBrushY_in_world = 0.f;
+                desiredBrushY_in_world = 0.f;
                 vec3 ws = ScreenspaceToWorldspace(mousepos, 0.f);
                 vec3 wr = ScreenPointToWorldRay(mousepos);
                 float f = (desiredBrushY_in_world-ws.y)/wr.y;
                 if (f > 0.f) // should accept any f... since we want to draw brush in any direction
                 {
-                    vec3 startpoint = ws + wr * f;
-                    testp = startpoint;
+                    startpoint = ws + wr * f;
                 }
             }
             break;
         case SimpleBrushToolState::DrawingRectangle:
+            if (mousecurrent & SDL_BUTTON(SDL_BUTTON_LEFT))
+            {
+                vec3 ws = ScreenspaceToWorldspace(mousepos, 0.f);
+                vec3 wr = ScreenPointToWorldRay(mousepos);
+                float f = (desiredBrushY_in_world-ws.y)/wr.y;
+                vec3 endpoint = ws + wr * f;
+                PrimitiveDrawLine(startpoint, endpoint, vec4(0.0,1.0,1.0,1.0));
+            }
             if (mousereleased & SDL_BUTTON(SDL_BUTTON_LEFT))
             {
                 // release drag
@@ -1603,22 +1611,22 @@ void TickMapEditor()
                 simpleBrushToolState = SimpleBrushToolState::NotActive;
             }
             break;
-        case SimpleBrushToolState::DrawingHeight:
-            if (mousereleased & SDL_BUTTON(SDL_BUTTON_LEFT))
-            {
-                // complete with drawn height
-                simpleBrushToolState = SimpleBrushToolState::NotActive;
-            }
-            if (keyspressed[SDL_SCANCODE_ESCAPE])
-            {
-                // complete with default height of THIRTYTWO
-                simpleBrushToolState = SimpleBrushToolState::NotActive;
-            }
-            break;
+//        case SimpleBrushToolState::DrawingHeight:
+//            if (mousereleased & SDL_BUTTON(SDL_BUTTON_LEFT))
+//            {
+//                // complete with drawn height
+//                simpleBrushToolState = SimpleBrushToolState::NotActive;
+//            }
+//            if (keyspressed[SDL_SCANCODE_ESCAPE])
+//            {
+//                // complete with default height of THIRTYTWO
+//                simpleBrushToolState = SimpleBrushToolState::NotActive;
+//            }
+//            break;
     }
 
 //    PrimitiveDrawLine(ws, ws + wr * 1000.f, vec4(1.0, 1.0, 0.0, 1.0));
-    PrimitiveDrawSolidDisc(testp, GM_UP_VECTOR, 8.f, vec4(1.0, 0.0, 1.0, 1.0));
+//    PrimitiveDrawSolidDisc(testp, GM_UP_VECTOR, 8.f, vec4(1.0, 0.0, 1.0, 1.0));
 
 }
 
