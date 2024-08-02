@@ -1288,10 +1288,57 @@ Mix_Chunk *Mixer_LoadChunk(const char *filepath)
 
 
 
+GPUShader sceneShader;
+GPUShader finalPassShader;
+GPUFrameBuffer renderTargetGame;
+GPUFrameBuffer renderTargetGUI;
+GPUMesh __final_render_output_quad;
+i32 backBufferWidth = -1;
+i32 backBufferHeight = -1;
+float GAMEPROJECTION_NEARCLIP = 0.1f;
+float GAMEPROJECTION_FARCLIP = 32000.f;
+bool primitivesDepthTest = false;
+
 GPUTexture tex_Default;
 std::vector<FaceBatch> activeFaceBatches;
 std::vector<float> MY_VERTEX_BUFFER;
 Mix_Chunk *sfx_Jump;
+
+vec3 playerControllerRoot = vec3(100,10,100);
+vec3 cameraRotation = vec3(0,130,0);
+vec3 cameraDirection;
+vec3 cameraRight;
+vec3 cameraUp;
+mat4 activePerspectiveMatrix;
+mat4 activeViewMatrix;
+vec3 playerWalkDirectionForward;
+vec3 playerWalkDirectionRight;
+vec3 playerColliderPoints[] = {
+    vec3(8,0,8), vec3(8,0,-8), vec3(-8,0,8), vec3(-8,0,-8),
+    vec3(8,48,8), vec3(8,48,-8), vec3(-8,48,8), vec3(-8,48,-8)
+};
+MeshCollider playerCollider;
+MeshCollider *PlayerColliderAtPos(vec3 playerWorldPosition)
+{
+    playerCollider.pointCloud.resize(8);
+    for (int i = 0; i < 8; ++i)
+        playerCollider.pointCloud[i] = playerWorldPosition + playerColliderPoints[i];
+    return &playerCollider;
+}
+float playeryvel = 0.f;
+
+vec3 bodyguardEnemyColliderPoints[] = {
+    vec3(8,0,8), vec3(8,0,-8), vec3(-8,0,8), vec3(-8,0,-8),
+    vec3(8,48,8), vec3(8,48,-8), vec3(-8,48,8), vec3(-8,48,-8)
+};
+MeshCollider bodyguardEnemyCollider;
+MeshCollider *BodyguardEnemyColliderAtPos(vec3 worldPos)
+{
+    bodyguardEnemyCollider.pointCloud.resize(8);
+    for (int i = 0; i < 8; ++i)
+        bodyguardEnemyCollider.pointCloud[i] = worldPos + bodyguardEnemyColliderPoints[i];
+    return &bodyguardEnemyCollider;
+}
 
 MeshGroup mg_Enemy_Bodyguard;
 
@@ -1344,41 +1391,6 @@ static void Stuff()
     }
 
     RebindFaceBatchBufferObject(&fb0, (u32)MY_VERTEX_BUFFER.size()*sizeof(float), MY_VERTEX_BUFFER.data());
-}
-
-vec3 playerControllerRoot = vec3(100,10,100);
-vec3 cameraRotation = vec3(0,130,0);
-vec3 cameraDirection;
-vec3 cameraRight;
-vec3 cameraUp;
-mat4 activeViewMatrix;
-vec3 playerWalkDirectionForward;
-vec3 playerWalkDirectionRight;
-vec3 playerColliderPoints[] = { 
-    vec3(8,0,8), vec3(8,0,-8), vec3(-8,0,8), vec3(-8,0,-8),
-    vec3(8,48,8), vec3(8,48,-8), vec3(-8,48,8), vec3(-8,48,-8)
-};
-MeshCollider playerCollider;
-MeshCollider *PlayerColliderAtPos(vec3 playerWorldPosition)
-{
-    playerCollider.pointCloud.resize(8);
-    for (int i = 0; i < 8; ++i)
-        playerCollider.pointCloud[i] = playerWorldPosition + playerColliderPoints[i];
-    return &playerCollider;
-}
-float playeryvel = 0.f;
-
-vec3 bodyguardEnemyColliderPoints[] = { 
-    vec3(8,0,8), vec3(8,0,-8), vec3(-8,0,8), vec3(-8,0,-8),
-    vec3(8,48,8), vec3(8,48,-8), vec3(-8,48,8), vec3(-8,48,-8)
-};
-MeshCollider bodyguardEnemyCollider;
-MeshCollider *BodyguardEnemyColliderAtPos(vec3 worldPos)
-{
-    bodyguardEnemyCollider.pointCloud.resize(8);
-    for (int i = 0; i < 8; ++i)
-        bodyguardEnemyCollider.pointCloud[i] = worldPos + bodyguardEnemyColliderPoints[i];
-    return &bodyguardEnemyCollider;
 }
 
 static void TickGame()
@@ -1469,6 +1481,38 @@ static void TickGame()
     // PrimitiveDrawSolidDisc(vec3(10,0,10), -cameraDirection, 2.f);
 }
 
+enum class SimpleBrushToolState
+{
+    NotActive,
+    DrawingRectangle,
+    DrawingHeight
+};
+SimpleBrushToolState simpleBrushToolState = SimpleBrushToolState::NotActive;
+
+vec3 ScreenPointToWorldRay(ivec2 screenspaceCoords)
+{
+    // https://antongerdelan.net/opengl/raycasting.html
+    // assuming 3D world view is taking up the entire window
+    // Reversing perspective divide not necessary because this is a vector/direction.
+    // For points, reverse perspective divide after the inverse projection matrix transformation
+    // because it's easier that way.
+    float x_NDC = ((float)screenspaceCoords.x / (float)backBufferWidth) * 2.f - 1.f;
+    float y_NDC = (float(backBufferHeight - screenspaceCoords.y) / (float)backBufferHeight) * 2.f - 1.f;
+
+    return vec3();
+}
+
+vec3 ScreenspaceToWorldspace(ivec2 screenspaceCoords, float z_NDC)
+{
+    float x_NDC = ((float)screenspaceCoords.x / (float)backBufferWidth) * 2.f - 1.f;
+    float y_NDC = (float(backBufferHeight - screenspaceCoords.y) / (float)backBufferHeight) * 2.f - 1.f;
+    vec4 point_in_clipspace = vec4(x_NDC, y_NDC, z_NDC, 1.f);
+    vec4 point_in_viewspace_before_perspective_divide = activePerspectiveMatrix.GetInverse() * point_in_clipspace;
+    vec4 point_in_viewspace = point_in_viewspace_before_perspective_divide / point_in_viewspace_before_perspective_divide.w;
+    vec4 point_in_worldspace = activeViewMatrix.GetInverse() * point_in_viewspace;
+    return point_in_worldspace.xyz;
+}
+
 void TickMapEditor()
 {
     SDL_SetRelativeMouseMode(mousecurrent & SDL_BUTTON(SDL_BUTTON_RIGHT) ? SDL_TRUE : SDL_FALSE);
@@ -1517,16 +1561,55 @@ void TickMapEditor()
     PrimitiveDrawLine(vec3(0.f, 0.f, 320000.f), vec3(0.f, 0.f, -320000.f), vec4(RGB255TO1(21, 129, 205), 0.8f));
 
     // left click drag volume tool
-}
+    // in three states:
+    // - not active
+    // - drag drawing rectangle (esc -> cancel -> not active)
+    // - mouse move setting volume height (esc -> complete with default height of THIRTYTWO -> not active)
+    static vec3 ws;
+    switch (simpleBrushToolState)
+    {
+        case SimpleBrushToolState::NotActive:
+            if (mousepressed & SDL_BUTTON(SDL_BUTTON_LEFT))
+            {
+                simpleBrushToolState = SimpleBrushToolState::DrawingRectangle;
+                // todo with drawing brush ON other volumes, do picking first to see on which volume we are drawing,
+                // then do the mouse ray intersect...although this optimization might not be needed
 
-GPUShader sceneShader;
-GPUShader finalPassShader;
-GPUFrameBuffer renderTargetGame;
-GPUFrameBuffer renderTargetGUI;
-GPUMesh __final_render_output_quad;
-i32 backBufferWidth = -1;
-i32 backBufferHeight = -1;
-bool primitivesDepthTest = false;
+                ws = ScreenspaceToWorldspace(mousepos, 0.f);
+            }
+            break;
+        case SimpleBrushToolState::DrawingRectangle:
+            if (mousereleased & SDL_BUTTON(SDL_BUTTON_LEFT))
+            {
+                // release drag
+                // check delta make sure its big enough
+                simpleBrushToolState = SimpleBrushToolState::NotActive;
+            }
+            if (keyspressed[SDL_SCANCODE_ESCAPE])
+            {
+                // todo cancel
+                simpleBrushToolState = SimpleBrushToolState::NotActive;
+            }
+            break;
+        case SimpleBrushToolState::DrawingHeight:
+            if (mousereleased & SDL_BUTTON(SDL_BUTTON_LEFT))
+            {
+                // complete with drawn height
+                simpleBrushToolState = SimpleBrushToolState::NotActive;
+            }
+            if (keyspressed[SDL_SCANCODE_ESCAPE])
+            {
+                // complete with default height of THIRTYTWO
+                simpleBrushToolState = SimpleBrushToolState::NotActive;
+            }
+            break;
+    }
+
+    PrimitiveDrawSolidDisc(ws, -cameraDirection, 0.05f);
+
+
+
+}
 
 static void RenderGameLayer()
 {
@@ -1539,9 +1622,9 @@ static void RenderGameLayer()
     glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_SRC_ALPHA, GL_ONE);
     glEnable(GL_DEPTH_TEST);
 
-
-    mat4 perspectiveMatrix = ProjectionMatrixPerspective((90.f/2.f)*GM_DEG2RAD,
-        float(backBufferWidth)/float(backBufferHeight), 0.1f, 32000.f);
+    activePerspectiveMatrix = ProjectionMatrixPerspective((90.f/2.f)*GM_DEG2RAD,
+        float(backBufferWidth)/float(backBufferHeight), GAMEPROJECTION_NEARCLIP, GAMEPROJECTION_FARCLIP);
+    mat4 perspectiveMatrix = activePerspectiveMatrix;
     mat4 viewMatrix = activeViewMatrix;
 
     UseShader(sceneShader);
@@ -1587,8 +1670,9 @@ static void RenderMapEditorLayer()
     glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_SRC_ALPHA, GL_ONE);
     glEnable(GL_DEPTH_TEST);
 
-    mat4 perspectiveMatrix = ProjectionMatrixPerspective((90.f/2.f)*GM_DEG2RAD,
-        float(backBufferWidth)/float(backBufferHeight), 0.1f, 32000.f);
+    activePerspectiveMatrix = ProjectionMatrixPerspective((90.f/2.f)*GM_DEG2RAD,
+        float(backBufferWidth)/float(backBufferHeight), GAMEPROJECTION_NEARCLIP, GAMEPROJECTION_FARCLIP);
+    mat4 perspectiveMatrix = activePerspectiveMatrix;
     mat4 viewMatrix = activeViewMatrix;
 
     UseShader(sceneShader);
@@ -1750,8 +1834,8 @@ static bool InitializeEverything()
 
     g_MainSDLWindow = SDL_CreateWindow("game",
                                        SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-                                       3840,
-                                       2160,
+                                       1920,
+                                       1080,
                                        SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
 
     g_SDLGLContext = SDL_GL_CreateContext(g_MainSDLWindow);
