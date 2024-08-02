@@ -1493,13 +1493,14 @@ vec3 ScreenPointToWorldRay(ivec2 screenspaceCoords)
 {
     // https://antongerdelan.net/opengl/raycasting.html
     // assuming 3D world view is taking up the entire window
-    // Reversing perspective divide not necessary because this is a vector/direction.
-    // For points, reverse perspective divide after the inverse projection matrix transformation
-    // because it's easier that way.
+    // Reversing perspective divide not necessary because this is a vector/direction/ray with no intrinsic depth.
     float x_NDC = ((float)screenspaceCoords.x / (float)backBufferWidth) * 2.f - 1.f;
     float y_NDC = (float(backBufferHeight - screenspaceCoords.y) / (float)backBufferHeight) * 2.f - 1.f;
-
-    return vec3();
+    vec4 ray_in_clipspace = vec4(x_NDC, y_NDC, -1.f, 1.f);
+    vec4 ray_in_viewspace = activePerspectiveMatrix.GetInverse() * ray_in_clipspace;
+    ray_in_viewspace = vec4(ray_in_viewspace.x, ray_in_viewspace.y, -1.f, 0.f);
+    vec3 ray_in_worldspace = Normalize((activeViewMatrix.GetInverse() * ray_in_viewspace).xyz);
+    return ray_in_worldspace;
 }
 
 vec3 ScreenspaceToWorldspace(ivec2 screenspaceCoords, float z_NDC)
@@ -1507,6 +1508,7 @@ vec3 ScreenspaceToWorldspace(ivec2 screenspaceCoords, float z_NDC)
     float x_NDC = ((float)screenspaceCoords.x / (float)backBufferWidth) * 2.f - 1.f;
     float y_NDC = (float(backBufferHeight - screenspaceCoords.y) / (float)backBufferHeight) * 2.f - 1.f;
     vec4 point_in_clipspace = vec4(x_NDC, y_NDC, z_NDC, 1.f);
+    // For points, reverse perspective divide after the inverse projection matrix transformation because it's easier that way.
     vec4 point_in_viewspace_before_perspective_divide = activePerspectiveMatrix.GetInverse() * point_in_clipspace;
     vec4 point_in_viewspace = point_in_viewspace_before_perspective_divide / point_in_viewspace_before_perspective_divide.w;
     vec4 point_in_worldspace = activeViewMatrix.GetInverse() * point_in_viewspace;
@@ -1566,6 +1568,7 @@ void TickMapEditor()
     // - drag drawing rectangle (esc -> cancel -> not active)
     // - mouse move setting volume height (esc -> complete with default height of THIRTYTWO -> not active)
     static vec3 ws;
+    static vec3 wr;
     switch (simpleBrushToolState)
     {
         case SimpleBrushToolState::NotActive:
@@ -1576,6 +1579,7 @@ void TickMapEditor()
                 // then do the mouse ray intersect...although this optimization might not be needed
 
                 ws = ScreenspaceToWorldspace(mousepos, 0.f);
+                wr = ScreenPointToWorldRay(mousepos);
             }
             break;
         case SimpleBrushToolState::DrawingRectangle:
@@ -1605,9 +1609,8 @@ void TickMapEditor()
             break;
     }
 
-    PrimitiveDrawSolidDisc(ws, -cameraDirection, 0.05f);
-
-
+//    PrimitiveDrawSolidDisc(ws, -wr, 0.05f);
+    PrimitiveDrawLine(ws, ws + wr * 1000.f, vec4(1.0, 1.0, 0.0, 1.0));
 
 }
 
