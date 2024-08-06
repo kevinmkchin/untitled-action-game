@@ -1,5 +1,17 @@
 /*
 
+
+basic layout and structures of maps can be created, they are textured
+Save/load maps into fps game
+can navigate map with collisions
+enemy billboards two behaviour:
+    - walk towards player
+    - stop and shoot after split second to shoot projectile at player, projectile hurts player health
+player holds 3D gun model, shoot hitscan at enemies, hitscan hurts enemy health
+swap to a second 3D gun model, shoot shotgun hitscan at enemies
+swap to a third 3D gun model, shoot hitscan with different stats at enemies
+
+
 Finish implementing Editable Volumes and Atomics
 (cube draw) Super simple create volume tool where you just drag mouse once? and then click once and raise mouse for height?
 (poly draw) Draw on plane then raise to create volume tool
@@ -11,17 +23,11 @@ Multiselect volumes and edit them all at the same time
 
 
 What else can be stripped out reused?
-And then what? Make a FPS? Fuck level editor for now just use Blender to make basic playgrounds.
     GUI
     Console front and backend
 
-
-    enemy colliders, visual (maybe billboard), walk towards player
-    shoot hitscan, kill enemy
-
     use flat faces for collision? instead of meshes? GJK EPA code accepts 2D meshes
 
-    
 
 */
 
@@ -1522,7 +1528,7 @@ float SnapToMapEditorGrid(float beforeSnap)
 {
     int adjustedBeforeSnap = int(roundf(beforeSnap) + ((beforeSnap < 0.f ? -0.5f : 0.5f) * 8));
     int snapped = adjustedBeforeSnap - adjustedBeforeSnap % 8;
-    return snapped;
+    return (float)snapped;
 }
 
 vec3 SnapToMapEditorGrid(vec3 beforeSnap)
@@ -2110,8 +2116,8 @@ int main(int argc, char* argv[])
         // Gui::NewFrame();
         ProcessSDLEvents();
 
-//        TickGame();
-//        DrawGame();
+        // TickGame();
+        // DrawGame();
         TickMapEditor();
         DrawMapEditor();
 
