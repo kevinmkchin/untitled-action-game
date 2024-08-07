@@ -2,6 +2,7 @@
 
 
 basic layout and structures of maps can be created, they are textured
+    - handles (have render pick ID, reference a Vert, or Edge, or Face?)
 Save/load maps into fps game
 can navigate map with collisions
 enemy billboards two behaviour:
@@ -28,6 +29,8 @@ What else can be stripped out reused?
 
     use flat faces for collision? instead of meshes? GJK EPA code accepts 2D meshes
 
+
+Priorty #1 is building the game, not the engine/tech
 
 */
 
@@ -1312,7 +1315,7 @@ std::vector<float> MY_VERTEX_BUFFER;
 Mix_Chunk *sfx_Jump;
 
 vec3 playerControllerRoot = vec3(100,10,100);
-vec3 cameraRotation = vec3(0,130,0);
+vec3 cameraRotation = vec3(0,130,-30);
 vec3 cameraDirection;
 vec3 cameraRight;
 vec3 cameraUp;
@@ -1385,19 +1388,19 @@ static void Stuff()
         320, 0, -320, 20, 0, 0, 1, 0,
     };
 
-    RebindFaceBatchBufferObject(&fb0, (u32)fb0data.size()*sizeof(float), fb0data.data());
+    // RebindFaceBatchBufferObject(&fb0, (u32)fb0data.size()*sizeof(float), fb0data.data());
     fb0.sharedTexture = tex_Default;
 
     activeFaceBatches.push_back(fb0);
 
-    EditableVolumes::Volume vol;
-    EditableVolumes::MakeRectangularVolume(&vol);
-    for (EditableVolumes::Face *f : vol.faces)
-    {
-        TriangulateFace_QuickDumb(*f, &MY_VERTEX_BUFFER);
-    }
+    // EditableVolumes::Volume vol;
+    // EditableVolumes::MakeRectangularVolume(&vol);
+    // for (EditableVolumes::Face *f : vol.faces)
+    // {
+    //     TriangulateFace_QuickDumb(*f, &MY_VERTEX_BUFFER);
+    // }
 
-    RebindFaceBatchBufferObject(&fb0, (u32)MY_VERTEX_BUFFER.size()*sizeof(float), MY_VERTEX_BUFFER.data());
+    // RebindFaceBatchBufferObject(&fb0, (u32)MY_VERTEX_BUFFER.size()*sizeof(float), MY_VERTEX_BUFFER.data());
 }
 
 static void TickGame()
@@ -1777,6 +1780,29 @@ void TickMapEditor()
             break;
     }
 
+
+    // Selection handles
+
+    // vertex mode (no vertices selected):
+    // for every vertex in selected volume, associate an id (only valid this frame) with the vertex
+    // for each of these id-vertex associations, draw a disc at the vertex position
+    // upon mouse down, draw 4x4 view at mouse click where disc is drawn for each of these vertices with color rgb(id)
+    // also draw all the other volumes with a clickable rgb id so we can switch which volume displays their vertices
+    // draw the selected volume(s) with rgb(0) so it is ignored when clicked
+    // draw these discs on top of all the volumes, but the discs themselves must do depth test so a disc closer to camera
+    // is clicked first.
+    // after draw, retrieve id in middle of 4x4 view. set this id and associated vert as selected.
+    // start drag
+    // alt then move vertically, otherwise drag along the XZ plane anchored at drag/vertex/handle point
+    // in the next frames, if mouse is still down, calculate mouse intersection with drag plane, that's vertex target pos
+    // target pos - source pos = translation. apply translation to every selected vertex.
+    // on mouse up, disc remains selected
+
+    // on mouse down, if disc not selected, then if ctrl pressed then add to selection but don't start drag
+    //                                      if ctrl not pressed then start drag
+    // on mouse down, if disc was already selected, then if ctrl pressed then deselect that disc/vert, if ctrl not pressed
+    // then start checking for drag
+    
 }
 
 static void RenderGameLayer()
