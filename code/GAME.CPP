@@ -1654,14 +1654,17 @@ void TickMapEditor()
             // the direction of translation e.g. GM_UP_VECTOR
             vec3 drawingSurfaceNormal = GM_UP_VECTOR;
             static vec3 height = vec3();
+            static vec3 heightBeforeSnap = vec3();
             vec3 pn = -cameraDirection;
-            vec3 pp = rectendpoint + height;
+            vec3 pp = rectendpoint + heightBeforeSnap;
             vec3 wp = ScreenPointToWorldPoint(mousepos, 0.f);
             vec3 wr = ScreenPointToWorldRay(mousepos);
             vec3 intersection;
             FindIntersectionBetweenPlaneAndLine(pp, pn, wp, wr, &intersection);
-            float heightcomponent = SnapToMapEditorGrid(Dot((intersection - rectendpoint), drawingSurfaceNormal));
+            float trueHeightComp = Dot((intersection - rectendpoint), drawingSurfaceNormal);
+            float heightcomponent = SnapToMapEditorGrid(trueHeightComp);
             height = heightcomponent * drawingSurfaceNormal;
+            heightBeforeSnap = trueHeightComp * drawingSurfaceNormal;
 
             vec3 floorPointA = rectstartpoint;
             vec3 floorPointB = rectstartpoint + startToEndProjOnToXDirection;
