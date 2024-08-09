@@ -165,7 +165,7 @@ static const char* __handle_shader_fs =
     "    vec2 depthUV = gl_FragCoord.xy / framebufferSize;\n"
     "    float sceneDepth = texture(sceneDepthTexture, depthUV).r;\n"
     "    if (sceneDepth < gl_FragCoord.z) {  \n"
-    "        colour = vec4(handleColour.xyz, 0.3);\n"
+    "        colour = vec4(handleColour.xyz, 0.5);\n" // TODO let opacity be defined in immediate mode
     "    } else {\n"
     "        colour = handleColour;\n"
     "    }\n"
