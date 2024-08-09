@@ -1549,6 +1549,28 @@ vec3 SnapToMapEditorGrid(vec3 beforeSnap)
     return vec3(SnapToMapEditorGrid(beforeSnap.x), SnapToMapEditorGrid(beforeSnap.y), SnapToMapEditorGrid(beforeSnap.z));
 }
 
+vec3 WorldPointToScreenPoint(vec3 worldPosition)
+{
+    vec4 clipspaceCoordinates = activePerspectiveMatrix * activeViewMatrix * vec4(worldPosition, 1.f);
+    float screenspaceRatioX = ((clipspaceCoordinates.x / clipspaceCoordinates.w) + 1.f) / 2.f;
+    float screenspaceRatioY = 1.f - (((clipspaceCoordinates.y / clipspaceCoordinates.w) + 1.f) / 2.f);
+    float internalResolutionWidth = (float)renderTargetGame.width;
+    float internalResolutionHeight = (float)renderTargetGame.height;
+    float distanceFromCameraWCS = Dot(worldPosition - editorCameraPosition, cameraDirection);
+    return vec3(screenspaceRatioX * internalResolutionWidth, screenspaceRatioY * internalResolutionHeight, distanceFromCameraWCS);
+}
+
+float GetEditorHandleSize(vec3 worldPosition, float sizeInPixels)
+{
+    float distanceFromCamera = Dot(worldPosition - editorCameraPosition, cameraDirection);
+    quat camOrientation = EulerToQuat(cameraRotation * GM_DEG2RAD);
+    vec3 screenPos = WorldPointToScreenPoint(editorCameraPosition + RotateVector(vec3(distanceFromCamera, 0, 0), camOrientation));
+    vec3 screenPos2 = WorldPointToScreenPoint(editorCameraPosition + RotateVector(vec3(distanceFromCamera, 0, 32.f), camOrientation));
+    // scaled by 32 to avoid floating point imprecision
+    float screenDist = Magnitude(screenPos - screenPos2);
+    return (sizeInPixels*32.f / GM_max(screenDist, 0.0001f));
+}
+
 void TickMapEditor()
 {
     SDL_SetRelativeMouseMode(mousecurrent & SDL_BUTTON(SDL_BUTTON_RIGHT) ? SDL_TRUE : SDL_FALSE);
@@ -1725,6 +1747,8 @@ void TickMapEditor()
 
             if (mousereleased & SDL_BUTTON(SDL_BUTTON_LEFT))
             {
+                // if heigth component is zero or too small then just default to current grid increment
+
                 MapEdit::Volume createdVolume;
 
                 // complete with drawn height
@@ -1910,7 +1934,7 @@ static void RenderMapEditorLayer()
     // PRIMITIVES
     for (MapEdit::Vert *v : SELECTABLE_VERTICES)
     {
-        PrimitiveDrawSolidDisc(v->pos, editorCameraPosition - v->pos, 1.f, vec4(RGBHEXTO1(0xFF8000), 1.f));
+        PrimitiveDrawSolidDisc(v->pos, editorCameraPosition - v->pos, GetEditorHandleSize(v->pos, 8), vec4(RGBHEXTO1(0xFF8000), 1.f));
     }
     if (keyspressed[SDL_SCANCODE_X])
         primitivesDepthTest = !primitivesDepthTest;
