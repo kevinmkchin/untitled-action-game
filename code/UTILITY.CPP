@@ -158,9 +158,17 @@ static const char* __handle_shader_vs =
 static const char* __handle_shader_fs =
     "#version 330 core\n"
     "out vec4 colour;\n"
+    "uniform vec2 framebufferSize;\n"
     "uniform vec4 handleColour;\n"
+    "uniform sampler2D sceneDepthTexture;\n"
     "void main() {\n"
-    "    colour = handleColour;\n"
+    "    vec2 depthUV = gl_FragCoord.xy / framebufferSize;\n"
+    "    float sceneDepth = texture(sceneDepthTexture, depthUV).r;\n"
+    "    if (sceneDepth < gl_FragCoord.z) {  \n"
+    "        colour = vec4(handleColour.xyz, 0.3);\n"
+    "    } else {\n"
+    "        colour = handleColour;\n"
+    "    }\n"
     "}\n";
 
 enum class PrimitiveDrawMode
@@ -190,13 +198,19 @@ void PrimitiveInitAll()
     GLCreateShaderProgram(__handle_shader, __handle_shader_vs, __handle_shader_fs);
 }
 
-void PrimitiveDrawAll(const mat4* projectionMatrix, const mat4* viewMatrix)
+void PrimitiveDrawAll(const mat4* projectionMatrix, const mat4* viewMatrix, GLuint sceneDepthTextureId, vec2 framebufferSize)
 {
     if (__colors.count == 0) return;
 
     UseShader(__handle_shader);
     GLBindMatrix4fv(__handle_shader, "projectionMatrix", 1, projectionMatrix->ptr());
     GLBindMatrix4fv(__handle_shader, "viewMatrix", 1, viewMatrix->ptr());
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, sceneDepthTextureId);
+    GLBind1i(__handle_shader, "sceneDepthTexture", 0);
+
+    GLBind2f(__handle_shader, "framebufferSize", framebufferSize.x, framebufferSize.y);
 
     u32 __vbIndexer = 0;
     for (int i = 0; i < __colors.count; ++i)

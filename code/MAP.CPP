@@ -1,6 +1,6 @@
 
 
-namespace EditableVolumes
+namespace MapEdit
 {
     struct Edge;
     struct Vert;
@@ -127,6 +127,13 @@ namespace EditableVolumes
         }
     };
 
+    struct Volume
+    {
+        std::vector<Face*> faces;
+        std::vector<Edge*> edges;
+        std::vector<Vert*> verts;
+    };
+
     // vec3 Face::QuickNormal()
     // {
     //     // just takes the first three verts and calculates a normal
@@ -174,7 +181,7 @@ namespace EditableVolumes
     used to create Faces.
     */
 
-    Face *CreateFace(const std::vector<Edge*>& edges)
+    Face *CreateFace(const std::vector<Edge*>& edges, Volume *owner)
     {
         if (edges.size() < 2)
             return NULL;
@@ -240,39 +247,52 @@ namespace EditableVolumes
         face->loopbase = firstLoop;
         face->looplen = (int)edges.size();
 
+        owner->faces.push_back(face);
         return face;
     }
 
-    Edge *CreateEdge(Vert *v1, Vert *v2)
+    Edge *CreateEdge(Vert *v1, Vert *v2, Volume *owner)
     {
         Edge *edge = new Edge();
         edge->a = v1;
         edge->b = v2;
         v1->DiskLinkInsertEdge(edge);
         v2->DiskLinkInsertEdge(edge);
+
+        owner->edges.push_back(edge);
         return edge;
     }
 
-    Vert *CreateVert(vec3 pos)
+    Vert *CreateVert(vec3 pos, Volume *owner)
     {
         Vert *v = new Vert();
         v->pos = pos;
+
+        owner->verts.push_back(v);
         return v;
     }
 
-    void KillFace(Face *face)
+    void KillFace(Face *face, Volume *owner)
     {
-
+        // find remove face from owner->faces
+        // delete face and loops...i think
+        // maybe im missing some things
     }
 
-    void KillEdge(Edge *edge)
+    void KillEdge(Edge *edge, Volume *owner)
     {
-
+        // find remove edge from owner->edges
+        // kill faces that use this edge
+        // delete edge
+        // maybe im missing some things
     }
 
-    void KillVert(Vert *vert)
+    void KillVert(Vert *vert, Volume *owner)
     {
-
+        // find remove vert from owner->verts
+        // kill edges that use this vert
+        // delete vert
+        // maybe im missing some things
     }
 
     void FaceLoopReverse(Face *face)
@@ -315,10 +335,6 @@ namespace EditableVolumes
     }
 
 
-    struct Volume
-    {
-        std::vector<Face*> faces;
-    };
 
     void MakeRectangularVolume(Volume *vol)
     {
@@ -326,19 +342,17 @@ namespace EditableVolumes
             delete f;
         vol->faces.clear();
 
-        Vert *v0 = CreateVert(vec3(-320,0,-320));
-        Vert *v1 = CreateVert(vec3(-320,0,320));
-        Vert *v2 = CreateVert(vec3(320,0,320));
-        Vert *v3 = CreateVert(vec3(320,0,-320));
+        Vert *v0 = CreateVert(vec3(-320,0,-320), vol);
+        Vert *v1 = CreateVert(vec3(-320,0,320), vol);
+        Vert *v2 = CreateVert(vec3(320,0,320), vol);
+        Vert *v3 = CreateVert(vec3(320,0,-320), vol);
 
-        Edge *e0 = CreateEdge(v0, v1);
-        Edge *e1 = CreateEdge(v1, v2);
-        Edge *e2 = CreateEdge(v2, v3);
-        Edge *e3 = CreateEdge(v3, v0);
+        Edge *e0 = CreateEdge(v0, v1, vol);
+        Edge *e1 = CreateEdge(v1, v2, vol);
+        Edge *e2 = CreateEdge(v2, v3, vol);
+        Edge *e3 = CreateEdge(v3, v0, vol);
 
-        Face *f0 = CreateFace({e0, e1, e2, e3});
-
-        vol->faces.push_back(f0);
+        CreateFace({e0, e1, e2, e3}, vol);
     }
 
     void MakeCubeVolume(Volume *vol)

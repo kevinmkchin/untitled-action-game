@@ -327,7 +327,7 @@ struct GPUFrameBuffer
 {
     u32 fbo;
     u32 colorTexId;
-    u32 depthRBO;
+    u32 depthTexId;
     i32 width;
     i32 height;
 };
@@ -351,22 +351,27 @@ struct GPUTexture
 static void CreateGPUFrameBuffer(GPUFrameBuffer *buffer)
 {
     buffer->fbo = 0;
-    glGenFramebuffers(1, &buffer->fbo);
-    glBindFramebuffer(GL_FRAMEBUFFER, buffer->fbo);
 
     glGenTextures(1, &buffer->colorTexId);
     glBindTexture(GL_TEXTURE_2D, buffer->colorTexId);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, buffer->width, buffer->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, buffer->width, buffer->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 
-    glGenRenderbuffers(1, &buffer->depthRBO);
-    glBindRenderbuffer(GL_RENDERBUFFER, buffer->depthRBO);
+    glGenTextures(1, &buffer->depthTexId);
+    glBindTexture(GL_TEXTURE_2D, buffer->depthTexId);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, buffer->width, buffer->height, 0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+
+    glGenFramebuffers(1, &buffer->fbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, buffer->fbo);
     glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, buffer->colorTexId, 0);
-    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, buffer->width, buffer->height);
-    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, buffer->depthRBO);
+    glFramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, buffer->depthTexId, 0);
 
     ASSERT(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
 static void UpdateGPUFrameBufferSize(GPUFrameBuffer *buffer, i32 w, i32 h)
@@ -378,8 +383,8 @@ static void UpdateGPUFrameBufferSize(GPUFrameBuffer *buffer, i32 w, i32 h)
     glBindFramebuffer(GL_FRAMEBUFFER, buffer->fbo);
     glBindTexture(GL_TEXTURE_2D, buffer->colorTexId);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, buffer->width, buffer->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
-    glBindRenderbuffer(GL_RENDERBUFFER, buffer->depthRBO);
-    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, buffer->width, buffer->height);
+    glBindTexture(GL_TEXTURE_2D, buffer->depthTexId);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, buffer->width, buffer->height, 0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
     if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
     {
         fprintf(stderr, "Failed to change size of Internal FrameBuffer Object.");
@@ -1305,7 +1310,7 @@ GPUFrameBuffer renderTargetGUI;
 GPUMesh __final_render_output_quad;
 i32 backBufferWidth = -1;
 i32 backBufferHeight = -1;
-float GAMEPROJECTION_NEARCLIP = 0.1f;
+float GAMEPROJECTION_NEARCLIP = 4.f; // even 2 works fine to remove z fighting
 float GAMEPROJECTION_FARCLIP = 32000.f;
 bool primitivesDepthTest = false;
 
@@ -1491,7 +1496,12 @@ static void TickGame()
     // PrimitiveDrawSolidDisc(vec3(10,0,10), -cameraDirection, 2.f);
 }
 
+
+vec3 editorCameraPosition = vec3(128, 128, 128);
 float GRID_DIAGONAL_LENGTH = 11.f;
+NiceArray<MapEdit::Volume, 3200> LOADED_MAP_VOLUMES;
+NiceArray<int, 16> SELECTED_MAP_VOLUMES_INDICES;
+std::vector<MapEdit::Vert*> SELECTABLE_VERTICES;
 
 enum class SimpleBrushToolState
 {
@@ -1561,7 +1571,6 @@ void TickMapEditor()
     float moveSpeed = 250.f;
     if (keyscurrent[SDL_SCANCODE_LSHIFT])
         moveSpeed *= 2.7f;
-    static vec3 editorCameraPosition = vec3(128, 128, 128);
     vec3 playerPositionDelta;
     if (mousecurrent & SDL_BUTTON(SDL_BUTTON_RIGHT))
     {
@@ -1716,15 +1725,17 @@ void TickMapEditor()
 
             if (mousereleased & SDL_BUTTON(SDL_BUTTON_LEFT))
             {
+                MapEdit::Volume createdVolume;
+
                 // complete with drawn height
-                EditableVolumes::Vert *fv0 = EditableVolumes::CreateVert(floorPointA);
-                EditableVolumes::Vert *fv1 = EditableVolumes::CreateVert(floorPointB);
-                EditableVolumes::Vert *fv2 = EditableVolumes::CreateVert(floorPointC);
-                EditableVolumes::Vert *fv3 = EditableVolumes::CreateVert(floorPointD);
-                EditableVolumes::Vert *cv0 = EditableVolumes::CreateVert(ceilPointA);
-                EditableVolumes::Vert *cv1 = EditableVolumes::CreateVert(ceilPointB);
-                EditableVolumes::Vert *cv2 = EditableVolumes::CreateVert(ceilPointC);
-                EditableVolumes::Vert *cv3 = EditableVolumes::CreateVert(ceilPointD);
+                MapEdit::Vert *fv0 = MapEdit::CreateVert(floorPointA, &createdVolume);
+                MapEdit::Vert *fv1 = MapEdit::CreateVert(floorPointB, &createdVolume);
+                MapEdit::Vert *fv2 = MapEdit::CreateVert(floorPointC, &createdVolume);
+                MapEdit::Vert *fv3 = MapEdit::CreateVert(floorPointD, &createdVolume);
+                MapEdit::Vert *cv0 = MapEdit::CreateVert(ceilPointA, &createdVolume);
+                MapEdit::Vert *cv1 = MapEdit::CreateVert(ceilPointB, &createdVolume);
+                MapEdit::Vert *cv2 = MapEdit::CreateVert(ceilPointC, &createdVolume);
+                MapEdit::Vert *cv3 = MapEdit::CreateVert(ceilPointD, &createdVolume);
                 if (heightcomponent < 0)
                 {
                     auto temp0 = fv0;
@@ -1741,40 +1752,38 @@ void TickMapEditor()
                     cv3 = temp3;
                 }
 
-                EditableVolumes::Edge *f0_to_f1 = EditableVolumes::CreateEdge(fv0, fv1);
-                EditableVolumes::Edge *f1_to_f2 = EditableVolumes::CreateEdge(fv1, fv2);
-                EditableVolumes::Edge *f2_to_f3 = EditableVolumes::CreateEdge(fv2, fv3);
-                EditableVolumes::Edge *f3_to_f0 = EditableVolumes::CreateEdge(fv3, fv0);
-                EditableVolumes::Edge *c0_to_c1 = EditableVolumes::CreateEdge(cv0, cv1);
-                EditableVolumes::Edge *c1_to_c2 = EditableVolumes::CreateEdge(cv1, cv2);
-                EditableVolumes::Edge *c2_to_c3 = EditableVolumes::CreateEdge(cv2, cv3);
-                EditableVolumes::Edge *c3_to_c0 = EditableVolumes::CreateEdge(cv3, cv0);
-                EditableVolumes::Edge *f0_to_c0 = EditableVolumes::CreateEdge(fv0, cv0);
-                EditableVolumes::Edge *f1_to_c1 = EditableVolumes::CreateEdge(fv1, cv1);
-                EditableVolumes::Edge *f2_to_c2 = EditableVolumes::CreateEdge(fv2, cv2);
-                EditableVolumes::Edge *f3_to_c3 = EditableVolumes::CreateEdge(fv3, cv3);
+                MapEdit::Edge *f0_to_f1 = MapEdit::CreateEdge(fv0, fv1, &createdVolume);
+                MapEdit::Edge *f1_to_f2 = MapEdit::CreateEdge(fv1, fv2, &createdVolume);
+                MapEdit::Edge *f2_to_f3 = MapEdit::CreateEdge(fv2, fv3, &createdVolume);
+                MapEdit::Edge *f3_to_f0 = MapEdit::CreateEdge(fv3, fv0, &createdVolume);
+                MapEdit::Edge *c0_to_c1 = MapEdit::CreateEdge(cv0, cv1, &createdVolume);
+                MapEdit::Edge *c1_to_c2 = MapEdit::CreateEdge(cv1, cv2, &createdVolume);
+                MapEdit::Edge *c2_to_c3 = MapEdit::CreateEdge(cv2, cv3, &createdVolume);
+                MapEdit::Edge *c3_to_c0 = MapEdit::CreateEdge(cv3, cv0, &createdVolume);
+                MapEdit::Edge *f0_to_c0 = MapEdit::CreateEdge(fv0, cv0, &createdVolume);
+                MapEdit::Edge *f1_to_c1 = MapEdit::CreateEdge(fv1, cv1, &createdVolume);
+                MapEdit::Edge *f2_to_c2 = MapEdit::CreateEdge(fv2, cv2, &createdVolume);
+                MapEdit::Edge *f3_to_c3 = MapEdit::CreateEdge(fv3, cv3, &createdVolume);
 
-                EditableVolumes::Face *f0 = EditableVolumes::CreateFace({f0_to_f1, f1_to_f2, f2_to_f3, f3_to_f0});
-                TriangulateFace_QuickDumb(*f0, &MY_VERTEX_BUFFER);
-                f0 = EditableVolumes::CreateFace({c0_to_c1, c1_to_c2, c2_to_c3, c3_to_c0});
-                EditableVolumes::FaceLoopReverse(f0);
-                TriangulateFace_QuickDumb(*f0, &MY_VERTEX_BUFFER);
-                f0 = EditableVolumes::CreateFace({f0_to_f1, f0_to_c0, f1_to_c1, c0_to_c1});
-                TriangulateFace_QuickDumb(*f0, &MY_VERTEX_BUFFER);
-                f0 = EditableVolumes::CreateFace({f1_to_f2, f1_to_c1, c1_to_c2, f2_to_c2});
-                TriangulateFace_QuickDumb(*f0, &MY_VERTEX_BUFFER);
-                f0 = EditableVolumes::CreateFace({f2_to_f3, f2_to_c2, c2_to_c3, f3_to_c3});
-                TriangulateFace_QuickDumb(*f0, &MY_VERTEX_BUFFER);
-                f0 = EditableVolumes::CreateFace({f3_to_f0, f3_to_c3, c3_to_c0, f0_to_c0});
-                TriangulateFace_QuickDumb(*f0, &MY_VERTEX_BUFFER);
+                MapEdit::CreateFace({f0_to_f1, f1_to_f2, f2_to_f3, f3_to_f0}, &createdVolume);
+                MapEdit::Face *revthis = MapEdit::CreateFace({c0_to_c1, c1_to_c2, c2_to_c3, c3_to_c0}, &createdVolume);
+                MapEdit::FaceLoopReverse(revthis);
+                MapEdit::CreateFace({f0_to_f1, f0_to_c0, f1_to_c1, c0_to_c1}, &createdVolume);
+                MapEdit::CreateFace({f1_to_f2, f1_to_c1, c1_to_c2, f2_to_c2}, &createdVolume);
+                MapEdit::CreateFace({f2_to_f3, f2_to_c2, c2_to_c3, f3_to_c3}, &createdVolume);
+                MapEdit::CreateFace({f3_to_f0, f3_to_c3, c3_to_c0, f0_to_c0}, &createdVolume);
 
+                LOADED_MAP_VOLUMES.PushBack(createdVolume);
+                SELECTED_MAP_VOLUMES_INDICES.PushBack(LOADED_MAP_VOLUMES.count - 1);
+
+                for (auto face : createdVolume.faces)
+                    TriangulateFace_QuickDumb(*face, &MY_VERTEX_BUFFER);
                 RebindFaceBatchBufferObject(&activeFaceBatches[0], (u32)MY_VERTEX_BUFFER.size()*sizeof(float), MY_VERTEX_BUFFER.data());
 
                 simpleBrushToolState = SimpleBrushToolState::NotActive;
             }
             if (keyspressed[SDL_SCANCODE_ESCAPE])
             {
-                // TODO complete with default height of THIRTYTWO
                 simpleBrushToolState = SimpleBrushToolState::NotActive;
             }
             break;
@@ -1802,7 +1811,18 @@ void TickMapEditor()
     //                                      if ctrl not pressed then start drag
     // on mouse down, if disc was already selected, then if ctrl pressed then deselect that disc/vert, if ctrl not pressed
     // then start checking for drag
-    
+
+
+    SELECTABLE_VERTICES.clear();
+    for (int i = 0; i < SELECTED_MAP_VOLUMES_INDICES.count; ++i)
+    {
+        MapEdit::Volume volume = LOADED_MAP_VOLUMES.At(SELECTED_MAP_VOLUMES_INDICES.At(i));
+        for (int j = 0; j < volume.verts.size(); ++j)
+        {
+            SELECTABLE_VERTICES.push_back(volume.verts[j]);
+        }
+    }
+
 }
 
 static void RenderGameLayer()
@@ -1831,13 +1851,13 @@ static void RenderGameLayer()
 
     GLBindMatrix4fv(sceneShader, "modelMatrix", 1, modelMatrix.ptr());
 
+    GLActiveTextureUnit0(tex_Default.id);
+
     for (size_t i = 0; i < activeFaceBatches.size(); ++i)
     {
         FaceBatch fb = activeFaceBatches.at(i);
         RenderFaceBatch(fb);
     }
-
-    GLActiveTextureUnit0(tex_Default.id);
 
     modelMatrix = TranslationMatrix(enemy0.root) * RotationMatrix(DirectionToOrientation(enemy0.facing));
     GLBindMatrix4fv(sceneShader, "modelMatrix", 1, modelMatrix.ptr());
@@ -1851,7 +1871,7 @@ static void RenderGameLayer()
     else
         glDisable(GL_DEPTH_TEST);
     glDisable(GL_CULL_FACE);
-    PrimitiveDrawAll(&perspectiveMatrix, &viewMatrix);
+    PrimitiveDrawAll(&perspectiveMatrix, &viewMatrix, renderTargetGame.depthTexId, vec2((float)renderTargetGame.width,(float)renderTargetGame.height));
 }
 
 static void RenderMapEditorLayer()
@@ -1879,15 +1899,19 @@ static void RenderMapEditorLayer()
 
     GLBindMatrix4fv(sceneShader, "modelMatrix", 1, modelMatrix.ptr());
 
+    GLActiveTextureUnit0(tex_Default.id);
+
     for (size_t i = 0; i < activeFaceBatches.size(); ++i)
     {
         FaceBatch fb = activeFaceBatches.at(i);
         RenderFaceBatch(fb);
     }
 
-    GLActiveTextureUnit0(tex_Default.id);
-
     // PRIMITIVES
+    for (MapEdit::Vert *v : SELECTABLE_VERTICES)
+    {
+        PrimitiveDrawSolidDisc(v->pos, editorCameraPosition - v->pos, 1.f, vec4(RGBHEXTO1(0xFF8000), 1.f));
+    }
     if (keyspressed[SDL_SCANCODE_X])
         primitivesDepthTest = !primitivesDepthTest;
     if (primitivesDepthTest)
@@ -1895,7 +1919,7 @@ static void RenderMapEditorLayer()
     else
         glDisable(GL_DEPTH_TEST);
     glDisable(GL_CULL_FACE);
-    PrimitiveDrawAll(&perspectiveMatrix, &viewMatrix);
+    PrimitiveDrawAll(&perspectiveMatrix, &viewMatrix, renderTargetGame.depthTexId, vec2((float)renderTargetGame.width,(float)renderTargetGame.height));
 }
 
 static void RenderGUILayer()
