@@ -1393,9 +1393,9 @@ static void Stuff()
     };
 
     // RebindFaceBatchBufferObject(&fb0, (u32)fb0data.size()*sizeof(float), fb0data.data());
-//    tex_Default.id = mousePickingRenderTarget.colorTexId;
-//    tex_Default.width = mousePickingRenderTarget.width;
-//    tex_Default.height = mousePickingRenderTarget.height;
+    tex_Default.id = mousePickingRenderTarget.colorTexId;
+    tex_Default.width = mousePickingRenderTarget.width;
+    tex_Default.height = mousePickingRenderTarget.height;
     fb0.sharedTexture = tex_Default;
 
     activeFaceBatches.push_back(fb0);
@@ -1675,7 +1675,7 @@ void TickMapEditor()
             // draw 4x4 view at mouse click
             // draw disc for each vertex with color rgb(id)
             DoDiscHandle(255, vec3(), editorCameraPosition, GetEditorHandleSize(vec3(), 8));
-            u32 id = FlushHandles(mousepos, activeViewMatrix);
+            u32 id = FlushHandles(mousepos, activeViewMatrix, activePerspectiveMatrix);
             printf("%d\n", id);
 
             // flush draw, retrieve color/id in middle of 4x4 view, vertex of this id enters drag
@@ -1962,7 +1962,7 @@ static void RenderMapEditorLayer()
 
     activePerspectiveMatrix = ProjectionMatrixPerspective((90.f/2.f)*GM_DEG2RAD,
         float(backBufferWidth)/float(backBufferHeight), GAMEPROJECTION_NEARCLIP, GAMEPROJECTION_FARCLIP);
-    mat4 perspectiveMatrix = ScaleMatrix(1.f, 1.f, 1.f) * activePerspectiveMatrix;
+    mat4 perspectiveMatrix = activePerspectiveMatrix;
     mat4 viewMatrix = activeViewMatrix;
 
     UseShader(sceneShader);
