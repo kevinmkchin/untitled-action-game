@@ -234,8 +234,8 @@ void InitPrimitivesAndHandlesSystems()
     glBindVertexArray(0);
     GLCreateShaderProgram(HANDLES_SHADER, HANDLES_SHADER_VS, HANDLES_SHADER_FS);
 
-    mousePickingRenderTarget.width = 4;
-    mousePickingRenderTarget.height = 4;
+    mousePickingRenderTarget.width = 32;
+    mousePickingRenderTarget.height = 32;
     CreateGPUFrameBuffer(&mousePickingRenderTarget);
 }
 
@@ -407,7 +407,7 @@ void DoDiscHandle(u32 id, vec3 worldpos, vec3 normal, float radius)
 }
 
 // draw all handles, return id of clicked handle
-u32 FlushHandles(ivec2 clickat, mat4 viewMatrix)
+u32 FlushHandles(ivec2 clickat, mat4 viewMatrix, mat4 perspectiveMatrix)
 {
     if (HANDLES_VB.count == 0) return 0;
 
@@ -420,15 +420,15 @@ u32 FlushHandles(ivec2 clickat, mat4 viewMatrix)
 //                                                          -2, 2,
 //                                                          -32000.f, 32000.f);
 //    mat4 handlesProjMatrix = ProjectionMatrixPerspective(1.f, 1.f, 0.1f, 32000.f);
-    mat4 proj = ProjectionMatrixPerspective((90.f/2.f)*GM_DEG2RAD,float(1920)/float(1080), 4.f, 32000.f);
-    proj = ScaleMatrix(1920.f/4.f, 1080.f/4.f, 1.f) * proj;
+    mat4 proj = perspectiveMatrix;
+    proj = ScaleMatrix(1920.f/4.f, 1080.f/4.f, 1.f) * proj; // scales down frustrum
     const float offsetX = (clickat.x - 1920.f*0.5f) / (4.f * 0.5f);
     const float offsetY = (clickat.y - 1080.f*0.5f) / (4.f * 0.5f);
     proj[2][0] += offsetX;
-    proj[2][1] += offsetY;
+    proj[2][1] -= offsetY; // then the offset moves it around like light coming through a moving hole on the near plane
 
     glBindFramebuffer(GL_FRAMEBUFFER, mousePickingRenderTarget.fbo);
-    glViewport(0,0,4,4);
+    glViewport(0,0,mousePickingRenderTarget.width,mousePickingRenderTarget.height);
     glClearColor(0.f,0.f,0.f,1.f); // clear with rgb(id 0)
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glEnable(GL_DEPTH_TEST);
