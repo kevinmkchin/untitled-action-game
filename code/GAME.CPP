@@ -314,15 +314,6 @@ void ReadImage(BitmapHandle& image_handle, const char* image_file_path)
 
 
 
-
-
-
-#include "SHADERS.CPP"
-#include "UTILITY.CPP"
-#include "MAP.CPP"
-
-
-
 struct GPUFrameBuffer
 {
     u32 fbo;
@@ -347,6 +338,8 @@ struct GPUTexture
     i32 height = 0;
     GLenum  format = GL_NONE; // format / bitdepth of texture (GL_RGB would be 3 byte bit depth)
 };
+
+bool GLHasErrors();
 
 static void CreateGPUFrameBuffer(GPUFrameBuffer *buffer)
 {
@@ -821,6 +814,12 @@ static void RenderFaceBatch(FaceBatch faceBatch)
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
 }
+
+
+
+#include "SHADERS.CPP"
+#include "UTILITY.CPP"
+#include "MAP.CPP"
 
 
 
@@ -1394,6 +1393,9 @@ static void Stuff()
     };
 
     // RebindFaceBatchBufferObject(&fb0, (u32)fb0data.size()*sizeof(float), fb0data.data());
+//    tex_Default.id = mousePickingRenderTarget.colorTexId;
+//    tex_Default.width = mousePickingRenderTarget.width;
+//    tex_Default.height = mousePickingRenderTarget.height;
     fb0.sharedTexture = tex_Default;
 
     activeFaceBatches.push_back(fb0);
@@ -1503,13 +1505,25 @@ NiceArray<MapEdit::Volume, 3200> LOADED_MAP_VOLUMES;
 NiceArray<int, 16> SELECTED_MAP_VOLUMES_INDICES;
 std::vector<MapEdit::Vert*> SELECTABLE_VERTICES;
 
+
+enum class MapEditorTools
+{
+    SimpleBrushTool,
+    VertexManip,
+    EdgeManip,
+    FaceManip,
+};
+MapEditorTools editorActiveTool = MapEditorTools::SimpleBrushTool;
+
 enum class SimpleBrushToolState
 {
+    NotAvailable,
     NotActive,
     DrawingRectangle,
     DrawingHeight
 };
 SimpleBrushToolState simpleBrushToolState = SimpleBrushToolState::NotActive;
+
 
 vec3 ScreenPointToWorldRay(ivec2 screenspaceCoords)
 {
@@ -1537,6 +1551,17 @@ vec3 ScreenPointToWorldPoint(ivec2 screenspaceCoords, float z_NDC)
     return point_in_worldspace.xyz;
 }
 
+vec3 WorldPointToScreenPoint(vec3 worldPosition)
+{
+    vec4 clipspaceCoordinates = activePerspectiveMatrix * activeViewMatrix * vec4(worldPosition, 1.f);
+    float screenspaceRatioX = ((clipspaceCoordinates.x / clipspaceCoordinates.w) + 1.f) / 2.f;
+    float screenspaceRatioY = 1.f - (((clipspaceCoordinates.y / clipspaceCoordinates.w) + 1.f) / 2.f);
+    float internalResolutionWidth = (float)backBufferWidth;
+    float internalResolutionHeight = (float)backBufferHeight;
+    float distanceFromCameraWCS = Dot(worldPosition - editorCameraPosition, cameraDirection);
+    return vec3(screenspaceRatioX * internalResolutionWidth, screenspaceRatioY * internalResolutionHeight, distanceFromCameraWCS);
+}
+
 float SnapToMapEditorGrid(float beforeSnap)
 {
     int adjustedBeforeSnap = int(roundf(beforeSnap) + ((beforeSnap < 0.f ? -0.5f : 0.5f) * 8));
@@ -1547,17 +1572,6 @@ float SnapToMapEditorGrid(float beforeSnap)
 vec3 SnapToMapEditorGrid(vec3 beforeSnap)
 {
     return vec3(SnapToMapEditorGrid(beforeSnap.x), SnapToMapEditorGrid(beforeSnap.y), SnapToMapEditorGrid(beforeSnap.z));
-}
-
-vec3 WorldPointToScreenPoint(vec3 worldPosition)
-{
-    vec4 clipspaceCoordinates = activePerspectiveMatrix * activeViewMatrix * vec4(worldPosition, 1.f);
-    float screenspaceRatioX = ((clipspaceCoordinates.x / clipspaceCoordinates.w) + 1.f) / 2.f;
-    float screenspaceRatioY = 1.f - (((clipspaceCoordinates.y / clipspaceCoordinates.w) + 1.f) / 2.f);
-    float internalResolutionWidth = (float)renderTargetGame.width;
-    float internalResolutionHeight = (float)renderTargetGame.height;
-    float distanceFromCameraWCS = Dot(worldPosition - editorCameraPosition, cameraDirection);
-    return vec3(screenspaceRatioX * internalResolutionWidth, screenspaceRatioY * internalResolutionHeight, distanceFromCameraWCS);
 }
 
 float GetEditorHandleSize(vec3 worldPosition, float sizeInPixels)
@@ -1618,224 +1632,31 @@ void TickMapEditor()
     PrimitiveDrawLine(vec3(0.f, 0.f, 320000.f), vec3(0.f, 0.f, -320000.f), vec4(RGB255TO1(21, 129, 205), 0.8f));
 
 
-    // Simple Volume tool
-    static vec3 rectstartpoint;
-    static vec3 rectendpoint;
-    static float desiredBrushY_in_world;
-    switch (simpleBrushToolState)
+    if (keyspressed[SDL_SCANCODE_1])
     {
-        case SimpleBrushToolState::NotActive:
-            if (mousepressed & SDL_BUTTON(SDL_BUTTON_LEFT))
-            {
-                simpleBrushToolState = SimpleBrushToolState::DrawingRectangle;
-
-                // todo with drawing brush ON other volumes, do picking first to see on which volume we are drawing,
-                // then do the mouse ray intersect...although this optimization might not be needed
-
-                // We only want to draw within a certain radius from the camera. never too far from the camera.
-                desiredBrushY_in_world = 0.f;
-                vec3 ws = ScreenPointToWorldPoint(mousepos, 0.f);
-                vec3 wr = ScreenPointToWorldRay(mousepos);
-                float f = (desiredBrushY_in_world-ws.y)/wr.y;
-                if (f > 0.f) // should accept any f... since we want to draw brush in any direction
-                {
-                    rectstartpoint = SnapToMapEditorGrid(ws + wr * f);
-                }
-            }
-            break;
-        case SimpleBrushToolState::DrawingRectangle:
-            if (mousecurrent & SDL_BUTTON(SDL_BUTTON_LEFT))
-            {
-                vec3 ws = ScreenPointToWorldPoint(mousepos, 0.f);
-                vec3 wr = ScreenPointToWorldRay(mousepos);
-                float f = (desiredBrushY_in_world-ws.y)/wr.y;
-                vec3 endpoint = SnapToMapEditorGrid(ws + wr * f);
-                vec3 startToEndVector = vec3(endpoint - rectstartpoint);
-                float d = Magnitude(startToEndVector);
-                vec3 startToEndProjOnToZDirection = Dot(startToEndVector, GM_RIGHT_VECTOR) * GM_RIGHT_VECTOR;
-                vec3 startToEndProjOnToXDirection = Dot(startToEndVector, GM_FORWARD_VECTOR) * GM_FORWARD_VECTOR;
-                PrimitiveDrawLine(rectstartpoint, rectstartpoint + startToEndProjOnToXDirection, vec4(RGBHEXTO1(0xff8000), 1.0));
-                PrimitiveDrawLine(rectstartpoint, rectstartpoint + startToEndProjOnToZDirection, vec4(RGBHEXTO1(0xff8000), 1.0));
-                PrimitiveDrawLine(endpoint, endpoint - startToEndProjOnToXDirection, vec4(RGBHEXTO1(0xff8000), 1.0));
-                PrimitiveDrawLine(endpoint, endpoint - startToEndProjOnToZDirection, vec4(RGBHEXTO1(0xff8000), 1.0));
-            }
-            if (mousereleased & SDL_BUTTON(SDL_BUTTON_LEFT))
-            {
-                vec3 ws = ScreenPointToWorldPoint(mousepos, 0.f);
-                vec3 wr = ScreenPointToWorldRay(mousepos);
-                float f = (desiredBrushY_in_world-ws.y)/wr.y;
-                rectendpoint = SnapToMapEditorGrid(ws + wr * f);
-                vec3 startToEndVector = vec3(rectendpoint - rectstartpoint);
-                float d = Magnitude(startToEndVector);
-                if (d > GRID_DIAGONAL_LENGTH) // TODO check X and Z values to see if theyre bigger than grid size
-                    simpleBrushToolState = SimpleBrushToolState::DrawingHeight;
-                else
-                    simpleBrushToolState = SimpleBrushToolState::NotActive;
-            }
-            if (keyspressed[SDL_SCANCODE_ESCAPE])
-                simpleBrushToolState = SimpleBrushToolState::NotActive;
-
-            break;
-        case SimpleBrushToolState::DrawingHeight:
-            vec3 startToEndVector = vec3(rectendpoint - rectstartpoint);
-            float zcomponent = Dot(startToEndVector, GM_RIGHT_VECTOR);
-            float xcomponent = Dot(startToEndVector, GM_FORWARD_VECTOR);
-            vec3 startToEndProjOnToZDirection = zcomponent * GM_RIGHT_VECTOR;
-            vec3 startToEndProjOnToXDirection = xcomponent * GM_FORWARD_VECTOR;
-
-            // let plane be defined at point rectendpoint with normal -cameraDirection
-            // then the point of intersection between mouse ray and the plane - endrectpoint and project it onto
-            // the direction of translation e.g. GM_UP_VECTOR
-            vec3 drawingSurfaceNormal = GM_UP_VECTOR;
-            static vec3 height = vec3();
-            static vec3 heightBeforeSnap = vec3();
-            vec3 pn = -cameraDirection;
-            vec3 pp = rectendpoint + heightBeforeSnap;
-            vec3 wp = ScreenPointToWorldPoint(mousepos, 0.f);
-            vec3 wr = ScreenPointToWorldRay(mousepos);
-            vec3 intersection;
-            FindIntersectionBetweenPlaneAndLine(pp, pn, wp, wr, &intersection);
-            float trueHeightComp = Dot((intersection - rectendpoint), drawingSurfaceNormal);
-            float heightcomponent = SnapToMapEditorGrid(trueHeightComp);
-            height = heightcomponent * drawingSurfaceNormal;
-            heightBeforeSnap = trueHeightComp * drawingSurfaceNormal;
-
-            vec3 floorPointA = rectstartpoint;
-            vec3 floorPointB = rectstartpoint + startToEndProjOnToXDirection;
-            vec3 floorPointC = rectendpoint;
-            vec3 floorPointD = rectendpoint - startToEndProjOnToXDirection;
-            // given how i've set up points ABCD:
-            //      if xcomponent < 0, swap A and B, swap C and D
-            //      if zcomponent < 0, swap B and C, swap A and D
-            if (xcomponent < 0)
-            {
-                auto temp = floorPointA;
-                floorPointA = floorPointB;
-                floorPointB = temp;
-                temp = floorPointC;
-                floorPointC = floorPointD;
-                floorPointD = temp;
-            }
-            if (zcomponent < 0)
-            {
-                auto temp = floorPointB;
-                floorPointB = floorPointC;
-                floorPointC = temp;
-                temp = floorPointA;
-                floorPointA = floorPointD;
-                floorPointD = temp;
-            }
-            vec3 ceilPointA = floorPointA + height;
-            vec3 ceilPointB = floorPointB + height;
-            vec3 ceilPointC = floorPointC + height;
-            vec3 ceilPointD = floorPointD + height;
-
-            PrimitiveDrawLine(floorPointA, floorPointB, vec4(RGBHEXTO1(0xff8000), 1.0));
-            PrimitiveDrawLine(floorPointA, floorPointD, vec4(RGBHEXTO1(0xff8000), 1.0));
-            PrimitiveDrawLine(floorPointC, floorPointB, vec4(RGBHEXTO1(0xff8000), 1.0));
-            PrimitiveDrawLine(floorPointC, floorPointD, vec4(RGBHEXTO1(0xff8000), 1.0));
-
-            PrimitiveDrawLine(floorPointA, ceilPointA, vec4(RGBHEXTO1(0xff8000), 1.0));
-            PrimitiveDrawLine(floorPointB, ceilPointB, vec4(RGBHEXTO1(0xff8000), 1.0));
-            PrimitiveDrawLine(floorPointC, ceilPointC, vec4(RGBHEXTO1(0xff8000), 1.0));
-            PrimitiveDrawLine(floorPointD, ceilPointD, vec4(RGBHEXTO1(0xff8000), 1.0));
-
-            PrimitiveDrawLine(ceilPointA, ceilPointB, vec4(RGBHEXTO1(0xff8000), 1.0));
-            PrimitiveDrawLine(ceilPointA, ceilPointD, vec4(RGBHEXTO1(0xff8000), 1.0));
-            PrimitiveDrawLine(ceilPointC, ceilPointB, vec4(RGBHEXTO1(0xff8000), 1.0));
-            PrimitiveDrawLine(ceilPointC, ceilPointD, vec4(RGBHEXTO1(0xff8000), 1.0));
-
-            if (mousereleased & SDL_BUTTON(SDL_BUTTON_LEFT))
-            {
-                // if heigth component is zero or too small then just default to current grid increment
-
-                MapEdit::Volume createdVolume;
-
-                // complete with drawn height
-                MapEdit::Vert *fv0 = MapEdit::CreateVert(floorPointA, &createdVolume);
-                MapEdit::Vert *fv1 = MapEdit::CreateVert(floorPointB, &createdVolume);
-                MapEdit::Vert *fv2 = MapEdit::CreateVert(floorPointC, &createdVolume);
-                MapEdit::Vert *fv3 = MapEdit::CreateVert(floorPointD, &createdVolume);
-                MapEdit::Vert *cv0 = MapEdit::CreateVert(ceilPointA, &createdVolume);
-                MapEdit::Vert *cv1 = MapEdit::CreateVert(ceilPointB, &createdVolume);
-                MapEdit::Vert *cv2 = MapEdit::CreateVert(ceilPointC, &createdVolume);
-                MapEdit::Vert *cv3 = MapEdit::CreateVert(ceilPointD, &createdVolume);
-                if (heightcomponent < 0)
-                {
-                    auto temp0 = fv0;
-                    auto temp1 = fv1;
-                    auto temp2 = fv2;
-                    auto temp3 = fv3;
-                    fv0 = cv0;
-                    fv1 = cv1;
-                    fv2 = cv2;
-                    fv3 = cv3;
-                    cv0 = temp0;
-                    cv1 = temp1;
-                    cv2 = temp2;
-                    cv3 = temp3;
-                }
-
-                MapEdit::Edge *f0_to_f1 = MapEdit::CreateEdge(fv0, fv1, &createdVolume);
-                MapEdit::Edge *f1_to_f2 = MapEdit::CreateEdge(fv1, fv2, &createdVolume);
-                MapEdit::Edge *f2_to_f3 = MapEdit::CreateEdge(fv2, fv3, &createdVolume);
-                MapEdit::Edge *f3_to_f0 = MapEdit::CreateEdge(fv3, fv0, &createdVolume);
-                MapEdit::Edge *c0_to_c1 = MapEdit::CreateEdge(cv0, cv1, &createdVolume);
-                MapEdit::Edge *c1_to_c2 = MapEdit::CreateEdge(cv1, cv2, &createdVolume);
-                MapEdit::Edge *c2_to_c3 = MapEdit::CreateEdge(cv2, cv3, &createdVolume);
-                MapEdit::Edge *c3_to_c0 = MapEdit::CreateEdge(cv3, cv0, &createdVolume);
-                MapEdit::Edge *f0_to_c0 = MapEdit::CreateEdge(fv0, cv0, &createdVolume);
-                MapEdit::Edge *f1_to_c1 = MapEdit::CreateEdge(fv1, cv1, &createdVolume);
-                MapEdit::Edge *f2_to_c2 = MapEdit::CreateEdge(fv2, cv2, &createdVolume);
-                MapEdit::Edge *f3_to_c3 = MapEdit::CreateEdge(fv3, cv3, &createdVolume);
-
-                MapEdit::CreateFace({f0_to_f1, f1_to_f2, f2_to_f3, f3_to_f0}, &createdVolume);
-                MapEdit::Face *revthis = MapEdit::CreateFace({c0_to_c1, c1_to_c2, c2_to_c3, c3_to_c0}, &createdVolume);
-                MapEdit::FaceLoopReverse(revthis);
-                MapEdit::CreateFace({f0_to_f1, f0_to_c0, f1_to_c1, c0_to_c1}, &createdVolume);
-                MapEdit::CreateFace({f1_to_f2, f1_to_c1, c1_to_c2, f2_to_c2}, &createdVolume);
-                MapEdit::CreateFace({f2_to_f3, f2_to_c2, c2_to_c3, f3_to_c3}, &createdVolume);
-                MapEdit::CreateFace({f3_to_f0, f3_to_c3, c3_to_c0, f0_to_c0}, &createdVolume);
-
-                LOADED_MAP_VOLUMES.PushBack(createdVolume);
-                SELECTED_MAP_VOLUMES_INDICES.PushBack(LOADED_MAP_VOLUMES.count - 1);
-
-                for (auto face : createdVolume.faces)
-                    TriangulateFace_QuickDumb(*face, &MY_VERTEX_BUFFER);
-                RebindFaceBatchBufferObject(&activeFaceBatches[0], (u32)MY_VERTEX_BUFFER.size()*sizeof(float), MY_VERTEX_BUFFER.data());
-
-                simpleBrushToolState = SimpleBrushToolState::NotActive;
-            }
-            if (keyspressed[SDL_SCANCODE_ESCAPE])
-            {
-                simpleBrushToolState = SimpleBrushToolState::NotActive;
-            }
-            break;
+        editorActiveTool = MapEditorTools::VertexManip;
+    }
+    if (keyspressed[SDL_SCANCODE_2])
+    {
+        editorActiveTool = MapEditorTools::EdgeManip;
+    }
+    if (keyspressed[SDL_SCANCODE_3])
+    {
+        editorActiveTool = MapEditorTools::FaceManip;
+    }
+    if (keyspressed[SDL_SCANCODE_4])
+    {
+        editorActiveTool = MapEditorTools::SimpleBrushTool;
     }
 
 
     // Selection handles
 
-    // vertex mode (no vertices selected):
-    // for every vertex in selected volume, associate an id (only valid this frame) with the vertex
-    // for each of these id-vertex associations, draw a disc at the vertex position
-    // upon mouse down, draw 4x4 view at mouse click where disc is drawn for each of these vertices with color rgb(id)
-    // also draw all the other volumes with a clickable rgb id so we can switch which volume displays their vertices
-    // draw the selected volume(s) with rgb(0) so it is ignored when clicked
-    // draw these discs on top of all the volumes, but the discs themselves must do depth test so a disc closer to camera
-    // is clicked first.
-    // after draw, retrieve id in middle of 4x4 view. set this id and associated vert as selected.
-    // start drag
-    // alt then move vertically, otherwise drag along the XZ plane anchored at drag/vertex/handle point
-    // in the next frames, if mouse is still down, calculate mouse intersection with drag plane, that's vertex target pos
-    // target pos - source pos = translation. apply translation to every selected vertex.
     // on mouse up, disc remains selected
-
     // on mouse down, if disc not selected, then if ctrl pressed then add to selection but don't start drag
     //                                      if ctrl not pressed then start drag
     // on mouse down, if disc was already selected, then if ctrl pressed then deselect that disc/vert, if ctrl not pressed
     // then start checking for drag
-
 
     SELECTABLE_VERTICES.clear();
     for (int i = 0; i < SELECTED_MAP_VOLUMES_INDICES.count; ++i)
@@ -1844,6 +1665,234 @@ void TickMapEditor()
         for (int j = 0; j < volume.verts.size(); ++j)
         {
             SELECTABLE_VERTICES.push_back(volume.verts[j]);
+        }
+    }
+
+    if (editorActiveTool == MapEditorTools::VertexManip)
+    {
+        if (mousepressed & SDL_BUTTON(SDL_BUTTON_LEFT))
+        {
+            // draw 4x4 view at mouse click
+            // draw disc for each vertex with color rgb(id)
+            DoDiscHandle(255, vec3(), editorCameraPosition, GetEditorHandleSize(vec3(), 8));
+            u32 id = FlushHandles(mousepos, activeViewMatrix);
+            printf("%d\n", id);
+
+            // flush draw, retrieve color/id in middle of 4x4 view, vertex of this id enters drag
+            // hold down alt to move vertically, otherwise drag along XZ plane anchored at drag/vertex/handle point
+
+            // if id == 0 (nothing clicked) then check for click against volumes
+
+            // also draw all the other volumes with a clickable rgb id so we can switch which volume displays their vertices
+            // draw the selected volume(s) with rgb(0) so it is ignored when clicked
+            // draw these discs on top of all the volumes, but the discs themselves must do depth test so a disc closer to camera
+            // is clicked first.
+
+            // in the next frames, if mouse is still down, calculate mouse intersection with drag plane, that's vertex target pos
+            // target pos - source pos = translation. apply translation to every selected vertex.
+        }
+    }
+
+    if (editorActiveTool == MapEditorTools::SimpleBrushTool)
+    {
+        static vec3 rectstartpoint;
+        static vec3 rectendpoint;
+        static float desiredBrushY_in_world;
+        switch (simpleBrushToolState)
+        {
+            case SimpleBrushToolState::NotActive:
+                if (mousepressed & SDL_BUTTON(SDL_BUTTON_LEFT))
+                {
+                    simpleBrushToolState = SimpleBrushToolState::DrawingRectangle;
+
+                    // todo with drawing brush ON other volumes, do picking first to see on which volume we are drawing,
+                    // then do the mouse ray intersect...although this optimization might not be needed
+
+                    // We only want to draw within a certain radius from the camera. never too far from the camera.
+                    desiredBrushY_in_world = 0.f;
+                    vec3 ws = ScreenPointToWorldPoint(mousepos, 0.f);
+                    vec3 wr = ScreenPointToWorldRay(mousepos);
+                    float f = (desiredBrushY_in_world - ws.y) / wr.y;
+                    if (f > 0.f) // should accept any f... since we want to draw brush in any direction
+                    {
+                        rectstartpoint = SnapToMapEditorGrid(ws + wr * f);
+                    }
+                }
+                break;
+            case SimpleBrushToolState::DrawingRectangle:
+                if (mousecurrent & SDL_BUTTON(SDL_BUTTON_LEFT))
+                {
+                    vec3 ws = ScreenPointToWorldPoint(mousepos, 0.f);
+                    vec3 wr = ScreenPointToWorldRay(mousepos);
+                    float f = (desiredBrushY_in_world - ws.y) / wr.y;
+                    vec3 endpoint = SnapToMapEditorGrid(ws + wr * f);
+                    vec3 startToEndVector = vec3(endpoint - rectstartpoint);
+                    float d = Magnitude(startToEndVector);
+                    vec3 startToEndProjOnToZDirection = Dot(startToEndVector, GM_RIGHT_VECTOR) * GM_RIGHT_VECTOR;
+                    vec3 startToEndProjOnToXDirection = Dot(startToEndVector, GM_FORWARD_VECTOR) * GM_FORWARD_VECTOR;
+                    PrimitiveDrawLine(rectstartpoint, rectstartpoint + startToEndProjOnToXDirection,
+                                      vec4(RGBHEXTO1(0xff8000), 1.0));
+                    PrimitiveDrawLine(rectstartpoint, rectstartpoint + startToEndProjOnToZDirection,
+                                      vec4(RGBHEXTO1(0xff8000), 1.0));
+                    PrimitiveDrawLine(endpoint, endpoint - startToEndProjOnToXDirection,
+                                      vec4(RGBHEXTO1(0xff8000), 1.0));
+                    PrimitiveDrawLine(endpoint, endpoint - startToEndProjOnToZDirection,
+                                      vec4(RGBHEXTO1(0xff8000), 1.0));
+                }
+                if (mousereleased & SDL_BUTTON(SDL_BUTTON_LEFT))
+                {
+                    vec3 ws = ScreenPointToWorldPoint(mousepos, 0.f);
+                    vec3 wr = ScreenPointToWorldRay(mousepos);
+                    float f = (desiredBrushY_in_world - ws.y) / wr.y;
+                    rectendpoint = SnapToMapEditorGrid(ws + wr * f);
+                    vec3 startToEndVector = vec3(rectendpoint - rectstartpoint);
+                    float d = Magnitude(startToEndVector);
+                    if (d > GRID_DIAGONAL_LENGTH) // TODO check X and Z values to see if theyre bigger than grid size
+                        simpleBrushToolState = SimpleBrushToolState::DrawingHeight;
+                    else
+                        simpleBrushToolState = SimpleBrushToolState::NotActive;
+                }
+                if (keyspressed[SDL_SCANCODE_ESCAPE])
+                    simpleBrushToolState = SimpleBrushToolState::NotActive;
+
+                break;
+            case SimpleBrushToolState::DrawingHeight:
+                vec3 startToEndVector = vec3(rectendpoint - rectstartpoint);
+                float zcomponent = Dot(startToEndVector, GM_RIGHT_VECTOR);
+                float xcomponent = Dot(startToEndVector, GM_FORWARD_VECTOR);
+                vec3 startToEndProjOnToZDirection = zcomponent * GM_RIGHT_VECTOR;
+                vec3 startToEndProjOnToXDirection = xcomponent * GM_FORWARD_VECTOR;
+
+                // let plane be defined at point rectendpoint with normal -cameraDirection
+                // then the point of intersection between mouse ray and the plane - endrectpoint and project it onto
+                // the direction of translation e.g. GM_UP_VECTOR
+                vec3 drawingSurfaceNormal = GM_UP_VECTOR;
+                static vec3 height = vec3();
+                static vec3 heightBeforeSnap = vec3();
+                vec3 pn = -cameraDirection;
+                vec3 pp = rectendpoint + heightBeforeSnap;
+                vec3 wp = ScreenPointToWorldPoint(mousepos, 0.f);
+                vec3 wr = ScreenPointToWorldRay(mousepos);
+                vec3 intersection;
+                FindIntersectionBetweenPlaneAndLine(pp, pn, wp, wr, &intersection);
+                float trueHeightComp = Dot((intersection - rectendpoint), drawingSurfaceNormal);
+                float heightcomponent = SnapToMapEditorGrid(trueHeightComp);
+                height = heightcomponent * drawingSurfaceNormal;
+                heightBeforeSnap = trueHeightComp * drawingSurfaceNormal;
+
+                vec3 floorPointA = rectstartpoint;
+                vec3 floorPointB = rectstartpoint + startToEndProjOnToXDirection;
+                vec3 floorPointC = rectendpoint;
+                vec3 floorPointD = rectendpoint - startToEndProjOnToXDirection;
+                // given how i've set up points ABCD:
+                //      if xcomponent < 0, swap A and B, swap C and D
+                //      if zcomponent < 0, swap B and C, swap A and D
+                if (xcomponent < 0)
+                {
+                    auto temp = floorPointA;
+                    floorPointA = floorPointB;
+                    floorPointB = temp;
+                    temp = floorPointC;
+                    floorPointC = floorPointD;
+                    floorPointD = temp;
+                }
+                if (zcomponent < 0)
+                {
+                    auto temp = floorPointB;
+                    floorPointB = floorPointC;
+                    floorPointC = temp;
+                    temp = floorPointA;
+                    floorPointA = floorPointD;
+                    floorPointD = temp;
+                }
+                vec3 ceilPointA = floorPointA + height;
+                vec3 ceilPointB = floorPointB + height;
+                vec3 ceilPointC = floorPointC + height;
+                vec3 ceilPointD = floorPointD + height;
+
+                PrimitiveDrawLine(floorPointA, floorPointB, vec4(RGBHEXTO1(0xff8000), 1.0));
+                PrimitiveDrawLine(floorPointA, floorPointD, vec4(RGBHEXTO1(0xff8000), 1.0));
+                PrimitiveDrawLine(floorPointC, floorPointB, vec4(RGBHEXTO1(0xff8000), 1.0));
+                PrimitiveDrawLine(floorPointC, floorPointD, vec4(RGBHEXTO1(0xff8000), 1.0));
+
+                PrimitiveDrawLine(floorPointA, ceilPointA, vec4(RGBHEXTO1(0xff8000), 1.0));
+                PrimitiveDrawLine(floorPointB, ceilPointB, vec4(RGBHEXTO1(0xff8000), 1.0));
+                PrimitiveDrawLine(floorPointC, ceilPointC, vec4(RGBHEXTO1(0xff8000), 1.0));
+                PrimitiveDrawLine(floorPointD, ceilPointD, vec4(RGBHEXTO1(0xff8000), 1.0));
+
+                PrimitiveDrawLine(ceilPointA, ceilPointB, vec4(RGBHEXTO1(0xff8000), 1.0));
+                PrimitiveDrawLine(ceilPointA, ceilPointD, vec4(RGBHEXTO1(0xff8000), 1.0));
+                PrimitiveDrawLine(ceilPointC, ceilPointB, vec4(RGBHEXTO1(0xff8000), 1.0));
+                PrimitiveDrawLine(ceilPointC, ceilPointD, vec4(RGBHEXTO1(0xff8000), 1.0));
+
+                if (mousereleased & SDL_BUTTON(SDL_BUTTON_LEFT))
+                {
+                    // if heigth component is zero or too small then just default to current grid increment
+
+                    MapEdit::Volume createdVolume;
+
+                    // complete with drawn height
+                    MapEdit::Vert *fv0 = MapEdit::CreateVert(floorPointA, &createdVolume);
+                    MapEdit::Vert *fv1 = MapEdit::CreateVert(floorPointB, &createdVolume);
+                    MapEdit::Vert *fv2 = MapEdit::CreateVert(floorPointC, &createdVolume);
+                    MapEdit::Vert *fv3 = MapEdit::CreateVert(floorPointD, &createdVolume);
+                    MapEdit::Vert *cv0 = MapEdit::CreateVert(ceilPointA, &createdVolume);
+                    MapEdit::Vert *cv1 = MapEdit::CreateVert(ceilPointB, &createdVolume);
+                    MapEdit::Vert *cv2 = MapEdit::CreateVert(ceilPointC, &createdVolume);
+                    MapEdit::Vert *cv3 = MapEdit::CreateVert(ceilPointD, &createdVolume);
+                    if (heightcomponent < 0)
+                    {
+                        auto temp0 = fv0;
+                        auto temp1 = fv1;
+                        auto temp2 = fv2;
+                        auto temp3 = fv3;
+                        fv0 = cv0;
+                        fv1 = cv1;
+                        fv2 = cv2;
+                        fv3 = cv3;
+                        cv0 = temp0;
+                        cv1 = temp1;
+                        cv2 = temp2;
+                        cv3 = temp3;
+                    }
+
+                    MapEdit::Edge *f0_to_f1 = MapEdit::CreateEdge(fv0, fv1, &createdVolume);
+                    MapEdit::Edge *f1_to_f2 = MapEdit::CreateEdge(fv1, fv2, &createdVolume);
+                    MapEdit::Edge *f2_to_f3 = MapEdit::CreateEdge(fv2, fv3, &createdVolume);
+                    MapEdit::Edge *f3_to_f0 = MapEdit::CreateEdge(fv3, fv0, &createdVolume);
+                    MapEdit::Edge *c0_to_c1 = MapEdit::CreateEdge(cv0, cv1, &createdVolume);
+                    MapEdit::Edge *c1_to_c2 = MapEdit::CreateEdge(cv1, cv2, &createdVolume);
+                    MapEdit::Edge *c2_to_c3 = MapEdit::CreateEdge(cv2, cv3, &createdVolume);
+                    MapEdit::Edge *c3_to_c0 = MapEdit::CreateEdge(cv3, cv0, &createdVolume);
+                    MapEdit::Edge *f0_to_c0 = MapEdit::CreateEdge(fv0, cv0, &createdVolume);
+                    MapEdit::Edge *f1_to_c1 = MapEdit::CreateEdge(fv1, cv1, &createdVolume);
+                    MapEdit::Edge *f2_to_c2 = MapEdit::CreateEdge(fv2, cv2, &createdVolume);
+                    MapEdit::Edge *f3_to_c3 = MapEdit::CreateEdge(fv3, cv3, &createdVolume);
+
+                    MapEdit::CreateFace({f0_to_f1, f1_to_f2, f2_to_f3, f3_to_f0}, &createdVolume);
+                    MapEdit::Face *revthis = MapEdit::CreateFace({c0_to_c1, c1_to_c2, c2_to_c3, c3_to_c0},
+                                                                 &createdVolume);
+                    MapEdit::FaceLoopReverse(revthis);
+                    MapEdit::CreateFace({f0_to_f1, f0_to_c0, f1_to_c1, c0_to_c1}, &createdVolume);
+                    MapEdit::CreateFace({f1_to_f2, f1_to_c1, c1_to_c2, f2_to_c2}, &createdVolume);
+                    MapEdit::CreateFace({f2_to_f3, f2_to_c2, c2_to_c3, f3_to_c3}, &createdVolume);
+                    MapEdit::CreateFace({f3_to_f0, f3_to_c3, c3_to_c0, f0_to_c0}, &createdVolume);
+
+                    LOADED_MAP_VOLUMES.PushBack(createdVolume);
+                    SELECTED_MAP_VOLUMES_INDICES.PushBack(LOADED_MAP_VOLUMES.count - 1);
+
+                    for (auto face: createdVolume.faces)
+                        TriangulateFace_QuickDumb(*face, &MY_VERTEX_BUFFER);
+                    RebindFaceBatchBufferObject(&activeFaceBatches[0], (u32) MY_VERTEX_BUFFER.size() * sizeof(float),
+                                                MY_VERTEX_BUFFER.data());
+
+                    simpleBrushToolState = SimpleBrushToolState::NotActive;
+                }
+                if (keyspressed[SDL_SCANCODE_ESCAPE])
+                {
+                    simpleBrushToolState = SimpleBrushToolState::NotActive;
+                }
+                break;
         }
     }
 
@@ -1901,7 +1950,10 @@ static void RenderGameLayer()
 static void RenderMapEditorLayer()
 {
     glBindFramebuffer(GL_FRAMEBUFFER, renderTargetGame.fbo);
-    glViewport(0, 0, renderTargetGame.width, renderTargetGame.height);
+    if (keyscurrent[SDL_SCANCODE_SPACE])
+        glViewport(0, 0, 320, 320);
+    else
+        glViewport(0, 0, renderTargetGame.width, renderTargetGame.height);
     glClearColor(0.15f, 0.15f, 0.15f, 1.f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glEnable(GL_BLEND);
@@ -1910,20 +1962,29 @@ static void RenderMapEditorLayer()
 
     activePerspectiveMatrix = ProjectionMatrixPerspective((90.f/2.f)*GM_DEG2RAD,
         float(backBufferWidth)/float(backBufferHeight), GAMEPROJECTION_NEARCLIP, GAMEPROJECTION_FARCLIP);
-    mat4 perspectiveMatrix = activePerspectiveMatrix;
+    mat4 perspectiveMatrix = ScaleMatrix(1.f, 1.f, 1.f) * activePerspectiveMatrix;
     mat4 viewMatrix = activeViewMatrix;
 
     UseShader(sceneShader);
     glEnable(GL_CULL_FACE);
 
-    GLBindMatrix4fv(sceneShader, "projMatrix", 1, perspectiveMatrix.ptr());
+    if (keyscurrent[SDL_SCANCODE_SPACE])
+    {
+        mat4 proj = activePerspectiveMatrix;//ProjectionMatrixPerspective((90.f/2.f)*GM_DEG2RAD,float(1920)/float(1080), 4.f, 32000.f);
+        proj = ScaleMatrix(1920.f/32.f, 1080.f/32.f, 1.f) * proj;
+        const float offsetX = (mousepos.x - 1920.f*0.5f) / (32.f * 0.5f);
+        const float offsetY = (mousepos.y - 1080.f*0.5f) / (32.f * 0.5f);
+        proj[2][0] += offsetX;
+        proj[2][1] -= offsetY;
+        GLBindMatrix4fv(sceneShader, "projMatrix", 1, proj.ptr());
+    }
+    else
+        GLBindMatrix4fv(sceneShader, "projMatrix", 1, perspectiveMatrix.ptr());
     GLBindMatrix4fv(sceneShader, "viewMatrix", 1, viewMatrix.ptr());
 
     mat4 modelMatrix = mat4();
 
     GLBindMatrix4fv(sceneShader, "modelMatrix", 1, modelMatrix.ptr());
-
-    GLActiveTextureUnit0(tex_Default.id);
 
     for (size_t i = 0; i < activeFaceBatches.size(); ++i)
     {
@@ -1932,9 +1993,13 @@ static void RenderMapEditorLayer()
     }
 
     // PRIMITIVES
-    for (MapEdit::Vert *v : SELECTABLE_VERTICES)
+    if (editorActiveTool == MapEditorTools::VertexManip)
     {
-        PrimitiveDrawSolidDisc(v->pos, editorCameraPosition - v->pos, GetEditorHandleSize(v->pos, 8), vec4(RGBHEXTO1(0xFF8000), 1.f));
+        for (MapEdit::Vert *v: SELECTABLE_VERTICES)
+        {
+            PrimitiveDrawSolidDisc(v->pos, editorCameraPosition - v->pos, GetEditorHandleSize(v->pos, 8),
+                                   vec4(RGBHEXTO1(0xFF8000), 1.f));
+        }
     }
     if (keyspressed[SDL_SCANCODE_X])
         primitivesDepthTest = !primitivesDepthTest;
@@ -2027,7 +2092,7 @@ static void InitGameRenderer()
     };
     CreateGPUMesh(&__final_render_output_quad, refQuadVertices, refQuadIndices, 16, 6, 2, 2, 0, GL_STATIC_DRAW);
 
-    PrimitiveInitAll();
+    InitPrimitivesAndHandlesSystems();
 }
 
 static void DrawGame()
