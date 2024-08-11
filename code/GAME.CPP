@@ -1,5 +1,9 @@
 /*
 
+TODO
+- finish FlushHandles and mouse picking
+
+
 
 basic layout and structures of maps can be created, they are textured
     - handles (have render pick ID, reference a Vert, or Edge, or Face?)
@@ -66,14 +70,19 @@ Priorty #1 is building the game, not the engine/tech
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
 
+#define STB_SPRINTF_IMPLEMENTATION
+#include <stb_sprintf.h>
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
-
-
+#define STB_TRUETYPE_IMPLEMENTATION
+#include <stb_truetype.h>
+#define VERTEXT_IMPLEMENTATION
+#include <vertext.h>
 #include <gmath.h>
 
 #include <unordered_map>
 #include <array>
+#include <stack>
 
 
 
@@ -106,6 +115,28 @@ inline std::string wd_path(const std::string& name) { return wd_path() + std::st
 inline std::string data_path() { return wd_path() + "data/"; }
 inline std::string data_path(const std::string& name) { return wd_path() + "data/" + name; }
 
+#define ARRAY_COUNT(a) (sizeof(a) / (sizeof(a[0])))
+
+#define LogMessage(...)                        \
+    do {                                       \
+        fprintf(stdout, __VA_ARGS__);          \
+        fprintf(stdout, "\n");                 \
+    } while (false)
+#define LogWarning(...)                        \
+    do {                                       \
+        fprintf(stderr, __VA_ARGS__);          \
+        fprintf(stderr, "\n");                 \
+    } while (false)
+#define LogError(...)                          \
+    do {                                       \
+        fprintf(stderr, __VA_ARGS__);          \
+        fprintf(stderr, "\n");                 \
+    } while (false)
+
+
+
+#pragma region SUPER_GLOBAL_VARIABLES
+
 // let 1 unit = 1 inch, this approximates 32 units to 0.82 metres
 #define STANDARD_LENGTH_IN_GAME_UNITS 32
 // sqrt(32^2 + 32^2) = 45.254833996 ~= 45
@@ -128,6 +159,12 @@ ivec2 mousepos;
 u8 keyscurrent[256] = {0};
 u8 keyspressed[256] = {0};
 u8 keysreleased[256] = {0};
+
+i32 BACKBUFFER_WIDTH = -1;
+i32 BACKBUFFER_HEIGHT = -1;
+
+
+#pragma endregion
 
 struct MemoryLinearBuffer
 {
@@ -502,6 +539,12 @@ static void CreateGPUTextureFromBitmap(GPUTexture        *texture,
                                        GLenum            min_filter_mode = GL_NEAREST,
                                        GLenum            mag_filter_mode = GL_NEAREST)
 {
+    if (bitmap == NULL)
+    {
+        LogError("CreateGPUTextureFromBitmap error: provided bitmap is null.");
+        return;
+    }
+
     ASSERT(texture->id == 0);
 
     texture->width = bitmap_width;
@@ -815,10 +858,21 @@ static void RenderFaceBatch(FaceBatch faceBatch)
     glBindVertexArray(0);
 }
 
-
-
 #include "SHADERS.CPP"
 #include "UTILITY.CPP"
+
+#pragma region MORE_GLOBAL_VARIABLES
+GPUShader sceneShader;
+GPUShader finalPassShader;
+GPUFrameBuffer renderTargetGame;
+GPUFrameBuffer renderTargetGUI;
+GPUMesh __final_render_output_quad;
+float GAMEPROJECTION_NEARCLIP = 4.f; // even 2 works fine to remove z fighting
+float GAMEPROJECTION_FARCLIP = 32000.f;
+bool primitivesDepthTest = false;
+#pragma endregion
+
+#include "GUI.CPP"
 #include "MAP.CPP"
 
 
@@ -1301,18 +1355,6 @@ Mix_Chunk *Mixer_LoadChunk(const char *filepath)
 }
 
 
-
-GPUShader sceneShader;
-GPUShader finalPassShader;
-GPUFrameBuffer renderTargetGame;
-GPUFrameBuffer renderTargetGUI;
-GPUMesh __final_render_output_quad;
-i32 backBufferWidth = -1;
-i32 backBufferHeight = -1;
-float GAMEPROJECTION_NEARCLIP = 4.f; // even 2 works fine to remove z fighting
-float GAMEPROJECTION_FARCLIP = 32000.f;
-bool primitivesDepthTest = false;
-
 GPUTexture tex_Default;
 std::vector<FaceBatch> activeFaceBatches;
 std::vector<float> MY_VERTEX_BUFFER;
@@ -1393,9 +1435,6 @@ static void Stuff()
     };
 
     // RebindFaceBatchBufferObject(&fb0, (u32)fb0data.size()*sizeof(float), fb0data.data());
-    tex_Default.id = mousePickingRenderTarget.colorTexId;
-    tex_Default.width = mousePickingRenderTarget.width;
-    tex_Default.height = mousePickingRenderTarget.height;
     fb0.sharedTexture = tex_Default;
 
     activeFaceBatches.push_back(fb0);
@@ -1530,8 +1569,8 @@ vec3 ScreenPointToWorldRay(ivec2 screenspaceCoords)
     // https://antongerdelan.net/opengl/raycasting.html
     // assuming 3D world view is taking up the entire window
     // Reversing perspective divide not necessary because this is a vector/direction/ray with no intrinsic depth.
-    float x_NDC = ((float)screenspaceCoords.x / (float)backBufferWidth) * 2.f - 1.f;
-    float y_NDC = (float(backBufferHeight - screenspaceCoords.y) / (float)backBufferHeight) * 2.f - 1.f;
+    float x_NDC = ((float)screenspaceCoords.x / (float)BACKBUFFER_WIDTH) * 2.f - 1.f;
+    float y_NDC = (float(BACKBUFFER_HEIGHT - screenspaceCoords.y) / (float)BACKBUFFER_HEIGHT) * 2.f - 1.f;
     vec4 ray_in_clipspace = vec4(x_NDC, y_NDC, -1.f, 1.f);
     vec4 ray_in_viewspace = activePerspectiveMatrix.GetInverse() * ray_in_clipspace;
     ray_in_viewspace = vec4(ray_in_viewspace.x, ray_in_viewspace.y, -1.f, 0.f);
@@ -1541,8 +1580,8 @@ vec3 ScreenPointToWorldRay(ivec2 screenspaceCoords)
 
 vec3 ScreenPointToWorldPoint(ivec2 screenspaceCoords, float z_NDC)
 {
-    float x_NDC = ((float)screenspaceCoords.x / (float)backBufferWidth) * 2.f - 1.f;
-    float y_NDC = (float(backBufferHeight - screenspaceCoords.y) / (float)backBufferHeight) * 2.f - 1.f;
+    float x_NDC = ((float)screenspaceCoords.x / (float)BACKBUFFER_WIDTH) * 2.f - 1.f;
+    float y_NDC = (float(BACKBUFFER_HEIGHT - screenspaceCoords.y) / (float)BACKBUFFER_HEIGHT) * 2.f - 1.f;
     vec4 point_in_clipspace = vec4(x_NDC, y_NDC, z_NDC, 1.f);
     // For points, reverse perspective divide after the inverse projection matrix transformation because it's easier that way.
     vec4 point_in_viewspace_before_perspective_divide = activePerspectiveMatrix.GetInverse() * point_in_clipspace;
@@ -1556,8 +1595,8 @@ vec3 WorldPointToScreenPoint(vec3 worldPosition)
     vec4 clipspaceCoordinates = activePerspectiveMatrix * activeViewMatrix * vec4(worldPosition, 1.f);
     float screenspaceRatioX = ((clipspaceCoordinates.x / clipspaceCoordinates.w) + 1.f) / 2.f;
     float screenspaceRatioY = 1.f - (((clipspaceCoordinates.y / clipspaceCoordinates.w) + 1.f) / 2.f);
-    float internalResolutionWidth = (float)backBufferWidth;
-    float internalResolutionHeight = (float)backBufferHeight;
+    float internalResolutionWidth = (float)BACKBUFFER_WIDTH;
+    float internalResolutionHeight = (float)BACKBUFFER_HEIGHT;
     float distanceFromCameraWCS = Dot(worldPosition - editorCameraPosition, cameraDirection);
     return vec3(screenspaceRatioX * internalResolutionWidth, screenspaceRatioY * internalResolutionHeight, distanceFromCameraWCS);
 }
@@ -1678,6 +1717,7 @@ void TickMapEditor()
             u32 id = FlushHandles(mousepos, activeViewMatrix, activePerspectiveMatrix);
             printf("%d\n", id);
 
+
             // flush draw, retrieve color/id in middle of 4x4 view, vertex of this id enters drag
             // hold down alt to move vertically, otherwise drag along XZ plane anchored at drag/vertex/handle point
 
@@ -1691,6 +1731,7 @@ void TickMapEditor()
             // in the next frames, if mouse is still down, calculate mouse intersection with drag plane, that's vertex target pos
             // target pos - source pos = translation. apply translation to every selected vertex.
         }
+        Gui::PrimitivePanel(Gui::UIRect(0,0,mousePickingRenderTarget.width*10, mousePickingRenderTarget.height*10), mousePickingRenderTarget.colorTexId);
     }
 
     if (editorActiveTool == MapEditorTools::SimpleBrushTool)
@@ -1910,7 +1951,7 @@ static void RenderGameLayer()
     glEnable(GL_DEPTH_TEST);
 
     activePerspectiveMatrix = ProjectionMatrixPerspective((90.f/2.f)*GM_DEG2RAD,
-        float(backBufferWidth)/float(backBufferHeight), GAMEPROJECTION_NEARCLIP, GAMEPROJECTION_FARCLIP);
+                                                          float(BACKBUFFER_WIDTH) / float(BACKBUFFER_HEIGHT), GAMEPROJECTION_NEARCLIP, GAMEPROJECTION_FARCLIP);
     mat4 perspectiveMatrix = activePerspectiveMatrix;
     mat4 viewMatrix = activeViewMatrix;
 
@@ -1961,7 +2002,7 @@ static void RenderMapEditorLayer()
     glEnable(GL_DEPTH_TEST);
 
     activePerspectiveMatrix = ProjectionMatrixPerspective((90.f/2.f)*GM_DEG2RAD,
-        float(backBufferWidth)/float(backBufferHeight), GAMEPROJECTION_NEARCLIP, GAMEPROJECTION_FARCLIP);
+                                                          float(BACKBUFFER_WIDTH) / float(BACKBUFFER_HEIGHT), GAMEPROJECTION_NEARCLIP, GAMEPROJECTION_FARCLIP);
     mat4 perspectiveMatrix = activePerspectiveMatrix;
     mat4 viewMatrix = activeViewMatrix;
 
@@ -2021,9 +2062,9 @@ static void RenderGUILayer()
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glEnable(GL_BLEND);
     glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_SRC_ALPHA, GL_ONE);
-    glDisable(GL_DEPTH_TEST);
+    glDisable(GL_DEPTH_TEST); // I forgot why the fuck I'm disabling depth test when using glDepthRange
 
-    // Gui::Draw();
+    Gui::Draw();
 }
 
 static void FinalRenderToBackBuffer()
@@ -2031,7 +2072,7 @@ static void FinalRenderToBackBuffer()
     UseShader(finalPassShader);
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    glViewport(0, 0, backBufferWidth, backBufferHeight);
+    glViewport(0, 0, BACKBUFFER_WIDTH, BACKBUFFER_HEIGHT);
     glDepthRange(0, 10);
     glClearColor(RGB255TO1(0, 0, 0), 1.f);
     glClearDepth(1.f);
@@ -2066,12 +2107,12 @@ static void InitGameRenderer()
     glBlendEquation(GL_FUNC_ADD);
 
 
-    SDL_GL_GetDrawableSize(g_MainSDLWindow, &backBufferWidth, &backBufferHeight);
-    renderTargetGame.width = backBufferWidth;
-    renderTargetGame.height = backBufferHeight;
+    SDL_GL_GetDrawableSize(g_MainSDLWindow, &BACKBUFFER_WIDTH, &BACKBUFFER_HEIGHT);
+    renderTargetGame.width = BACKBUFFER_WIDTH;
+    renderTargetGame.height = BACKBUFFER_HEIGHT;
     CreateGPUFrameBuffer(&renderTargetGame);
-    renderTargetGUI.width = backBufferWidth;
-    renderTargetGUI.height = backBufferHeight;
+    renderTargetGUI.width = BACKBUFFER_WIDTH;
+    renderTargetGUI.height = BACKBUFFER_HEIGHT;
     CreateGPUFrameBuffer(&renderTargetGUI);
 
 
@@ -2164,6 +2205,8 @@ static bool InitializeEverything()
     if (Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 2, 2048) < 0 || Mix_Init(MIX_INIT_OGG) < 0)
         return false;
 
+    Gui::Init();
+
     return true;
 }
 
@@ -2199,9 +2242,9 @@ static void ProcessSDLEvents()
                     case SDL_WINDOWEVENT_SIZE_CHANGED:
                     case SDL_WINDOWEVENT_RESIZED:
                     {
-                        SDL_GL_GetDrawableSize(g_MainSDLWindow, &backBufferWidth, &backBufferHeight);
-                        UpdateGPUFrameBufferSize(&renderTargetGame, backBufferWidth, backBufferHeight);
-                        UpdateGPUFrameBufferSize(&renderTargetGUI, backBufferWidth, backBufferHeight);
+                        SDL_GL_GetDrawableSize(g_MainSDLWindow, &BACKBUFFER_WIDTH, &BACKBUFFER_HEIGHT);
+                        UpdateGPUFrameBufferSize(&renderTargetGame, BACKBUFFER_WIDTH, BACKBUFFER_HEIGHT);
+                        UpdateGPUFrameBufferSize(&renderTargetGUI, BACKBUFFER_WIDTH, BACKBUFFER_HEIGHT);
                         break;
                     }
                 }
@@ -2236,10 +2279,8 @@ static void ProcessSDLEvents()
                 break;
             }
         }
-
-        // Gui::ProcessSDLEvent(event);
-        // MapEditorProcessSDLEvent(event);
     }
+    Gui::ProcessSDLEvent(event);
 }
 
 int main(int argc, char* argv[])
@@ -2255,7 +2296,6 @@ int main(int argc, char* argv[])
         TickTime();
         if (g_DeltaTime > 0.1f) continue; // if delta time is too large, will cause glitches
 
-        // Gui::NewFrame();
         ProcessSDLEvents();
 
         // TickGame();

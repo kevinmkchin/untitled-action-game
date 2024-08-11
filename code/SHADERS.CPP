@@ -1,4 +1,3 @@
-bool GLHasErrors(); // UTILITY.CPP
 
 static const char* __scene_shader_vs =
     "#version 330\n"
@@ -75,7 +74,41 @@ static const char* __finalpass_shader_fs =
     "    color = in_color;\n"
     "}\n";
 
+bool GLHasErrors()
+{
+    GLenum error = glGetError();
 
+    if (error == GL_NO_ERROR) return false;
+
+    while (error != GL_NO_ERROR)
+    {
+        const char* error_str = "";
+        switch (error)
+        {
+            case GL_INVALID_OPERATION:
+                error_str = "INVALID_OPERATION\n";
+                break;
+            case GL_INVALID_ENUM:
+                error_str = "INVALID_ENUM\n";
+                break;
+            case GL_INVALID_VALUE:
+                error_str = "INVALID_VALUE\n";
+                break;
+            case GL_OUT_OF_MEMORY:
+                error_str = "OUT_OF_MEMORY\n";
+                break;
+            case GL_INVALID_FRAMEBUFFER_OPERATION:
+                error_str = "INVALID_FRAMEBUFFER_OPERATION\n";
+                break;
+        }
+
+        fprintf(stderr, error_str);
+        error = glGetError();
+        assert(false);
+    }
+
+    return true;
+}
 
 
 struct GPUShader
