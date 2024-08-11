@@ -228,7 +228,6 @@ template<typename T, int _count> struct NiceArray
 
 #pragma region PRIMITIVES_AND_HANDLES_DRAWING
 
-
 static u32 PRIM_VERTEX_POS_AND_COLOR_VAO;
 static u32 PRIM_VERTEX_POS_AND_COLOR_VBO;
 
@@ -287,8 +286,7 @@ static const char* LINES_SHADER_FS =
     "in float distance_from_eye;\n"
     "in vec4 baseColour;\n"
     "void main() {\n"
-    "    float fadeMult = clamp(exp(-pow((distance_from_eye * 0.0007), 1.5)), 0.0, 1.0);\n"
-//    "    if (distance_from_eye < 1600) { fadeMult = 1.0;  } \n"
+    "    float fadeMult = clamp(exp(-pow((distance_from_eye * 0.0007), 5)), 0.0, 1.0);\n"
     "    vec2 depthUV = gl_FragCoord.xy / framebufferSize;\n"
     "    float sceneDepth = texture(sceneDepthTexture, depthUV).r;\n"
     "    if (sceneDepth < gl_FragCoord.z) {  \n"
@@ -297,6 +295,7 @@ static const char* LINES_SHADER_FS =
     "        colour = vec4(baseColour.xyz, baseColour.w * fadeMult);\n"
     "    }\n"
     "}\n";
+static bool DrawAxisLines = false;
 
 static GPUFrameBuffer mousePickingRenderTarget;
 static u32 HANDLES_VAO = 0;
@@ -358,41 +357,51 @@ void InitPrimitivesAndHandlesSystems()
 
 void PrimitiveDrawAll(const mat4 *projectionMatrix, const mat4 *viewMatrix, GLuint sceneDepthTextureId, vec2 framebufferSize)
 {
-    UseShader(LINES_SHADER);
-    GLBindMatrix4fv(LINES_SHADER, "projectionMatrix", 1, projectionMatrix->ptr());
-    GLBindMatrix4fv(LINES_SHADER, "viewMatrix", 1, viewMatrix->ptr());
+    if (PRIMITIVE_LINES_VB.count > 0)
+    {
+        UseShader(LINES_SHADER);
+        GLBindMatrix4fv(LINES_SHADER, "projectionMatrix", 1, projectionMatrix->ptr());
+        GLBindMatrix4fv(LINES_SHADER, "viewMatrix", 1, viewMatrix->ptr());
 
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, sceneDepthTextureId);
-    GLBind1i(LINES_SHADER, "sceneDepthTexture", 0);
-    GLBind2f(LINES_SHADER, "framebufferSize", framebufferSize.x, framebufferSize.y);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, sceneDepthTextureId);
+        GLBind1i(LINES_SHADER, "sceneDepthTexture", 0);
+        GLBind2f(LINES_SHADER, "framebufferSize", framebufferSize.x, framebufferSize.y);
 
-    GLBind1f(LINES_SHADER, "occludedOpacity", 0.5f);
-    glBindVertexArray(PRIM_VERTEX_POS_AND_COLOR_VAO);
-    glBindBuffer(GL_ARRAY_BUFFER, PRIM_VERTEX_POS_AND_COLOR_VBO);
-    glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)sizeof(float)*PRIMITIVE_LINES_VB.count, PRIMITIVE_LINES_VB.data, GL_DYNAMIC_DRAW);
-    glDrawArrays(GL_LINES, 0, PRIMITIVE_LINES_VB.count/7);
-    PRIMITIVE_LINES_VB.ResetCount();
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-    glBindVertexArray(0);
+        GLBind1f(LINES_SHADER, "occludedOpacity", 0.5f);
+        glBindVertexArray(PRIM_VERTEX_POS_AND_COLOR_VAO);
+        glBindBuffer(GL_ARRAY_BUFFER, PRIM_VERTEX_POS_AND_COLOR_VBO);
+        glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr) sizeof(float) * PRIMITIVE_LINES_VB.count, PRIMITIVE_LINES_VB.data,
+                     GL_DYNAMIC_DRAW);
+        glDrawArrays(GL_LINES, 0, PRIMITIVE_LINES_VB.count / 7);
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        glBindVertexArray(0);
 
-    UseShader(PRIMITIVES_TRIS_SHADER);
-    GLBindMatrix4fv(PRIMITIVES_TRIS_SHADER, "projectionMatrix", 1, projectionMatrix->ptr());
-    GLBindMatrix4fv(PRIMITIVES_TRIS_SHADER, "viewMatrix", 1, viewMatrix->ptr());
+        PRIMITIVE_LINES_VB.ResetCount();
+    }
 
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, sceneDepthTextureId);
-    GLBind1i(PRIMITIVES_TRIS_SHADER, "sceneDepthTexture", 0);
-    GLBind2f(PRIMITIVES_TRIS_SHADER, "framebufferSize", framebufferSize.x, framebufferSize.y);
+    if (PRIMITIVE_TRIS_VB.count > 0)
+    {
+        UseShader(PRIMITIVES_TRIS_SHADER);
+        GLBindMatrix4fv(PRIMITIVES_TRIS_SHADER, "projectionMatrix", 1, projectionMatrix->ptr());
+        GLBindMatrix4fv(PRIMITIVES_TRIS_SHADER, "viewMatrix", 1, viewMatrix->ptr());
 
-    GLBind1f(PRIMITIVES_TRIS_SHADER, "occludedOpacity", 0.5f);
-    glBindVertexArray(PRIM_VERTEX_POS_AND_COLOR_VAO);
-    glBindBuffer(GL_ARRAY_BUFFER, PRIM_VERTEX_POS_AND_COLOR_VBO);
-    glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)sizeof(float)*PRIMITIVE_TRIS_VB.count, PRIMITIVE_TRIS_VB.data, GL_DYNAMIC_DRAW);
-    glDrawArrays(GL_TRIANGLES, 0, PRIMITIVE_TRIS_VB.count/7);
-    PRIMITIVE_TRIS_VB.ResetCount();
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-    glBindVertexArray(0);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, sceneDepthTextureId);
+        GLBind1i(PRIMITIVES_TRIS_SHADER, "sceneDepthTexture", 0);
+        GLBind2f(PRIMITIVES_TRIS_SHADER, "framebufferSize", framebufferSize.x, framebufferSize.y);
+
+        GLBind1f(PRIMITIVES_TRIS_SHADER, "occludedOpacity", 0.5f);
+        glBindVertexArray(PRIM_VERTEX_POS_AND_COLOR_VAO);
+        glBindBuffer(GL_ARRAY_BUFFER, PRIM_VERTEX_POS_AND_COLOR_VBO);
+        glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr) sizeof(float) * PRIMITIVE_TRIS_VB.count, PRIMITIVE_TRIS_VB.data,
+                     GL_DYNAMIC_DRAW);
+        glDrawArrays(GL_TRIANGLES, 0, PRIMITIVE_TRIS_VB.count / 7);
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        glBindVertexArray(0);
+
+        PRIMITIVE_TRIS_VB.ResetCount();
+    }
 }
 
 void PrimitiveDrawSolidDisc(vec3 center, vec3 normal, float radius, vec4 color)
