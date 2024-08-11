@@ -1670,17 +1670,21 @@ void TickMapEditor()
                                             gridcheckray_bottommiddle,
                                             &intersection_with_xz_plane))
     {
+        float gridVisualIncrement = GRID_INCREMENT;
         intersection_with_xz_plane = SnapToMapEditorGrid(intersection_with_xz_plane);
         float gridoriginx = intersection_with_xz_plane.x;
         float gridoriginz = intersection_with_xz_plane.z;
-        for (int i = -50; i < 50; ++i)
+        int linedrawcount = 1800 / (int)gridVisualIncrement;
+        for (int i = -linedrawcount; i < linedrawcount; ++i)
         {
-            PrimitiveDrawLine(vec3(320000.f + gridoriginx, 0.f, float(i) * GRID_INCREMENT + gridoriginz),
-                              vec3(-320000.f + gridoriginx, 0.f, float(i) * GRID_INCREMENT + gridoriginz),
-                              vec4(RGB255TO1(255,255,255), 0.25f));
-            PrimitiveDrawLine(vec3(float(i) * GRID_INCREMENT + gridoriginx, 0.f, 320000.f + gridoriginz),
-                              vec3(float(i) * GRID_INCREMENT + gridoriginx, 0.f, -320000.f + gridoriginz),
-                              vec4(RGB255TO1(255,255,255), 0.25f));
+            if (float(i) * gridVisualIncrement + gridoriginz != 0.f)
+                PrimitiveDrawLine(vec3(320000.f + gridoriginx, 0.f, float(i) * gridVisualIncrement + gridoriginz),
+                                  vec3(-320000.f + gridoriginx, 0.f, float(i) * gridVisualIncrement + gridoriginz),
+                                  vec4(RGB255TO1(155,155,155), 0.25f));
+            if (float(i) * gridVisualIncrement + gridoriginx != 0.f)
+                PrimitiveDrawLine(vec3(float(i) * gridVisualIncrement + gridoriginx, 0.f, 320000.f + gridoriginz),
+                                  vec3(float(i) * gridVisualIncrement + gridoriginx, 0.f, -320000.f + gridoriginz),
+                                  vec4(RGB255TO1(155,155,155), 0.25f));
         }
     }
     PrimitiveDrawLine(vec3(320000.f, 0.f, 0.f), vec3(-320000.f, 0.f, 0.f), vec4(RGB255TO1(205, 56, 9), 0.8f));
