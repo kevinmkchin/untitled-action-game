@@ -1535,6 +1535,7 @@ static void TickGame()
 
 vec3 editorCameraPosition = vec3(128, 128, 128);
 float GRID_DIAGONAL_LENGTH = 11.f;
+float GRID_INCREMENT = 8.f;
 NiceArray<MapEdit::Volume, 3200> LOADED_MAP_VOLUMES;
 NiceArray<int, 16> SELECTED_MAP_VOLUMES_INDICES;
 std::vector<MapEdit::Vert*> SELECTABLE_VERTICES;
@@ -1598,8 +1599,9 @@ vec3 WorldPointToScreenPoint(vec3 worldPosition)
 
 float SnapToMapEditorGrid(float beforeSnap)
 {
-    int adjustedBeforeSnap = int(roundf(beforeSnap) + ((beforeSnap < 0.f ? -0.5f : 0.5f) * 8));
-    int snapped = adjustedBeforeSnap - adjustedBeforeSnap % 8;
+    int adjustedBeforeSnap = int(roundf(beforeSnap) + ((beforeSnap < 0.f ? -0.5f : 0.5f) * GRID_INCREMENT));
+    // TODO(Kevin): fix divide by zero when GRID_INCREMENT is less than 1
+    int snapped = adjustedBeforeSnap - adjustedBeforeSnap % (int)(GRID_INCREMENT);
     return (float)snapped;
 }
 
@@ -1660,29 +1662,69 @@ void TickMapEditor()
     }
     activeViewMatrix = ViewMatrixLookAt(editorCameraPosition, editorCameraPosition + cameraDirection, cameraUp);
 
-    // AXIS LINES
+    // DRAW AXIS AND GRID LINES
+    PrimitivePushOccludedOpacity(0.5f);
+    vec3 gridcheckpoint_bottommiddle = ScreenPointToWorldPoint(ivec2(renderTargetGame.width/2,renderTargetGame.height), 0.f);
+    vec3 gridcheckray_bottommiddle = ScreenPointToWorldRay(ivec2(renderTargetGame.width/2,renderTargetGame.height));
+    vec3 intersection_with_xz_plane;
+    if (IntersectPlaneAndLineWithDirections(vec3(), GM_UP_VECTOR, gridcheckpoint_bottommiddle,
+                                            gridcheckray_bottommiddle,
+                                            &intersection_with_xz_plane))
+    {
+        intersection_with_xz_plane = SnapToMapEditorGrid(intersection_with_xz_plane);
+        float gridoriginx = intersection_with_xz_plane.x;
+        float gridoriginz = intersection_with_xz_plane.z;
+        for (int i = -50; i < 50; ++i)
+        {
+            PrimitivePushOccludedOpacity(0.3f);
+            PrimitiveDrawLine(vec3(320000.f + gridoriginx, 0.f, float(i) * GRID_INCREMENT + gridoriginz),
+                              vec3(-320000.f + gridoriginx, 0.f, float(i) * GRID_INCREMENT + gridoriginz),
+                              vec4(RGB255TO1(255,255,255), 0.25f));
+            PrimitiveDrawLine(vec3(float(i) * GRID_INCREMENT + gridoriginx, 0.f, 320000.f + gridoriginz),
+                              vec3(float(i) * GRID_INCREMENT + gridoriginx, 0.f, -320000.f + gridoriginz),
+                              vec4(RGB255TO1(255,255,255), 0.25f));
+            PrimitivePopOccludedOpacity();
+        }
+    }
     PrimitiveDrawLine(vec3(320000.f, 0.f, 0.f), vec3(-320000.f, 0.f, 0.f), vec4(RGB255TO1(205, 56, 9), 0.8f));
     PrimitiveDrawLine(vec3(0.f, 320000.f, 0.f), vec3(0.f, -320000.f, 0.f), vec4(RGB255TO1(67, 123, 9), 0.8f));
     PrimitiveDrawLine(vec3(0.f, 0.f, 320000.f), vec3(0.f, 0.f, -320000.f), vec4(RGB255TO1(21, 129, 205), 0.8f));
+    PrimitivePopOccludedOpacity();
+    Gui::PrimitiveText(100,100, 36, Gui::Align::Left, std::to_string(GRID_INCREMENT).c_str());
+
+    if (Gui::ImageButton(Gui::UIRect(400,10,32,32), tex_Default.id, tex_Default.id, tex_Default.id))
+    {
+        GRID_INCREMENT /= 2.f;
+    }
+    if (Gui::PrimitiveLabelledButton(Gui::UIRect(442,10,32,32), "Grid +", Gui::Align::Left))
+    {
+        GRID_INCREMENT *= 2.f;
+    }
 
 
-    if (keyspressed[SDL_SCANCODE_1])
+    if (keyspressed[SDL_SCANCODE_1] ||
+        Gui::ImageButton(Gui::UIRect(10,10,32,32), tex_Default.id, tex_Default.id, tex_Default.id))
     {
         editorActiveTool = MapEditorTools::VertexManip;
     }
-    if (keyspressed[SDL_SCANCODE_2])
+    if (keyspressed[SDL_SCANCODE_2] ||
+        Gui::ImageButton(Gui::UIRect(10,52,32,32), tex_Default.id, tex_Default.id, tex_Default.id))
     {
         editorActiveTool = MapEditorTools::EdgeManip;
     }
-    if (keyspressed[SDL_SCANCODE_3])
+    if (keyspressed[SDL_SCANCODE_3] ||
+        Gui::ImageButton(Gui::UIRect(10,94,32,32), tex_Default.id, tex_Default.id, tex_Default.id))
     {
         editorActiveTool = MapEditorTools::FaceManip;
     }
-    if (keyspressed[SDL_SCANCODE_4])
+    if (keyspressed[SDL_SCANCODE_4] ||
+        Gui::ImageButton(Gui::UIRect(10,136,32,32), tex_Default.id, tex_Default.id, tex_Default.id))
     {
         editorActiveTool = MapEditorTools::SimpleBrushTool;
     }
 
+    if (Gui::anyElementActive)
+        return;
 
     // Selection handles
 
@@ -1739,8 +1781,6 @@ void TickMapEditor()
             case SimpleBrushToolState::NotActive:
                 if (mousepressed & SDL_BUTTON(SDL_BUTTON_LEFT))
                 {
-                    simpleBrushToolState = SimpleBrushToolState::DrawingRectangle;
-
                     // todo with drawing brush ON other volumes, do picking first to see on which volume we are drawing,
                     // then do the mouse ray intersect...although this optimization might not be needed
 
@@ -1751,6 +1791,7 @@ void TickMapEditor()
                     float f = (desiredBrushY_in_world - ws.y) / wr.y;
                     if (f > 0.f) // should accept any f... since we want to draw brush in any direction
                     {
+                        simpleBrushToolState = SimpleBrushToolState::DrawingRectangle;
                         rectstartpoint = SnapToMapEditorGrid(ws + wr * f);
                     }
                 }
@@ -1810,7 +1851,7 @@ void TickMapEditor()
                 vec3 wp = ScreenPointToWorldPoint(mousepos, 0.f);
                 vec3 wr = ScreenPointToWorldRay(mousepos);
                 vec3 intersection;
-                FindIntersectionBetweenPlaneAndLine(pp, pn, wp, wr, &intersection);
+                IntersectPlaneAndLineWithDirections(pp, pn, wp, wr, &intersection);
                 float trueHeightComp = Dot((intersection - rectendpoint), drawingSurfaceNormal);
                 float heightcomponent = SnapToMapEditorGrid(trueHeightComp);
                 height = heightcomponent * drawingSurfaceNormal;
@@ -2019,8 +2060,10 @@ static void RenderMapEditorLayer()
     {
         for (MapEdit::Vert *v: SELECTABLE_VERTICES)
         {
+            PrimitivePushOccludedOpacity(0.6f);
             PrimitiveDrawSolidDisc(v->pos, editorCameraPosition - v->pos, GetEditorHandleSize(v->pos, 8),
                                    vec4(RGBHEXTO1(0xFF8000), 1.f));
+            PrimitivePopOccludedOpacity();
         }
     }
     if (keyspressed[SDL_SCANCODE_X])
@@ -2037,9 +2080,9 @@ static void RenderGUILayer()
 {
     glBindFramebuffer(GL_FRAMEBUFFER, renderTargetGUI.fbo);
     glViewport(0, 0, renderTargetGUI.width, renderTargetGUI.height);
-    glDepthRange(0.00001f, 10.f);
+//    glDepthRange(0.00001f, 10.f); I should just be doing painters algorithm
     glClearColor(RGB255TO1(244, 194, 194), 0.0f);
-    glClearDepth(10.f);
+//    glClearDepth(10.f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glEnable(GL_BLEND);
     glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_SRC_ALPHA, GL_ONE);
@@ -2054,9 +2097,9 @@ static void FinalRenderToBackBuffer()
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glViewport(0, 0, BACKBUFFER_WIDTH, BACKBUFFER_HEIGHT);
-    glDepthRange(0, 10);
+//    glDepthRange(0, 10);
     glClearColor(RGB255TO1(0, 0, 0), 1.f);
-    glClearDepth(1.f);
+//    glClearDepth(1.f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glEnable(GL_BLEND);
     glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_SRC_ALPHA, GL_ONE);
@@ -2092,8 +2135,8 @@ static void InitGameRenderer()
     renderTargetGame.width = BACKBUFFER_WIDTH;
     renderTargetGame.height = BACKBUFFER_HEIGHT;
     CreateGPUFrameBuffer(&renderTargetGame);
-    renderTargetGUI.width = BACKBUFFER_WIDTH;
-    renderTargetGUI.height = BACKBUFFER_HEIGHT;
+    renderTargetGUI.width = BACKBUFFER_WIDTH/2;
+    renderTargetGUI.height = BACKBUFFER_HEIGHT/2;
     CreateGPUFrameBuffer(&renderTargetGUI);
 
 
@@ -2225,7 +2268,7 @@ static void ProcessSDLEvents()
                     {
                         SDL_GL_GetDrawableSize(g_MainSDLWindow, &BACKBUFFER_WIDTH, &BACKBUFFER_HEIGHT);
                         UpdateGPUFrameBufferSize(&renderTargetGame, BACKBUFFER_WIDTH, BACKBUFFER_HEIGHT);
-                        UpdateGPUFrameBufferSize(&renderTargetGUI, BACKBUFFER_WIDTH, BACKBUFFER_HEIGHT);
+                        UpdateGPUFrameBufferSize(&renderTargetGUI, BACKBUFFER_WIDTH/2, BACKBUFFER_HEIGHT/2);
                         break;
                     }
                 }
@@ -2260,8 +2303,9 @@ static void ProcessSDLEvents()
                 break;
             }
         }
+
+        Gui::ProcessSDLEvent(event);
     }
-    Gui::ProcessSDLEvent(event);
 }
 
 int main(int argc, char* argv[])
@@ -2277,6 +2321,7 @@ int main(int argc, char* argv[])
         TickTime();
         if (g_DeltaTime > 0.1f) continue; // if delta time is too large, will cause glitches
 
+        Gui::NewFrame();
         ProcessSDLEvents();
 
         // TickGame();
