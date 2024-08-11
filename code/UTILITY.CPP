@@ -487,25 +487,31 @@ void DoDiscHandle(u32 id, vec3 worldpos, vec3 normal, float radius)
 }
 
 // draw all handles, return id of clicked handle
-u32 FlushHandles(ivec2 clickat, mat4 viewMatrix, mat4 perspectiveMatrix)
+u32 FlushHandles(ivec2 clickat, const GPUFrameBuffer activeSceneTarget,
+                 const mat4& activeViewMatrix, const mat4& activeProjectionMatrix, bool orthographic)
 {
     if (HANDLES_VB.count == 0) return 0;
 
-//    vec3 mouseClickWorldPos = ScreenPointToWorldPoint(clickat, 0.f);
-//    vec3 mouseCameraDirection = ScreenPointToWorldRay(clickat);
-//    vec3 mouseCameraRight = Normalize(Cross(mouseCameraDirection, GM_UP_VECTOR));
-//    vec3 mouseCameraUp = Normalize(Cross(mouseCameraRight, mouseCameraDirection));
-//    mat4 handlesViewMatrix = ViewMatrixLookAt(mouseClickWorldPos, mouseClickWorldPos+mouseCameraDirection, mouseCameraUp);
-//    mat4 handlesProjMatrix = ProjectionMatrixOrthographic(-2, 2,
-//                                                          -2, 2,
-//                                                          -32000.f, 32000.f);
-//    mat4 handlesProjMatrix = ProjectionMatrixPerspective(1.f, 1.f, 0.1f, 32000.f);
-    mat4 proj = perspectiveMatrix;
-    proj = ScaleMatrix(1920.f/4.f, 1080.f/4.f, 1.f) * proj; // scales down frustrum
-    const float offsetX = (clickat.x - 1920.f*0.5f) / (4.f * 0.5f);
-    const float offsetY = (clickat.y - 1080.f*0.5f) / (4.f * 0.5f);
-    proj[2][0] += offsetX;
-    proj[2][1] -= offsetY; // then the offset moves it around like light coming through a moving hole on the near plane
+    const float sceneResolutionW = (float)activeSceneTarget.width;
+    const float sceneResolutionH = (float)activeSceneTarget.height;
+    const float mousePickTargetW = (float)mousePickingRenderTarget.width;
+    const float mousePickTargetH = (float)mousePickingRenderTarget.width;
+
+    mat4 scaledDownFrustum = ScaleMatrix(sceneResolutionW/mousePickTargetW, sceneResolutionH/mousePickTargetH, 1.f) * activeProjectionMatrix;
+    const float offsetX = ((float)clickat.x - sceneResolutionW*0.5f) / (mousePickTargetW * 0.5f);
+    const float offsetY = ((float)clickat.y - sceneResolutionH*0.5f) / (mousePickTargetH * 0.5f);
+    if (orthographic)
+    {
+        // NOTE(Kevin): untested! haven't tried orthographic picking yet! prob needs some debugging
+        scaledDownFrustum[3][0] += -offsetX;
+        scaledDownFrustum[3][1] -= -offsetY;
+    }
+    else
+    {
+        // then the offset moves it around like light coming through a moving hole on the near plane
+        scaledDownFrustum[2][0] += offsetX;
+        scaledDownFrustum[2][1] -= offsetY;
+    }
 
     glBindFramebuffer(GL_FRAMEBUFFER, mousePickingRenderTarget.fbo);
     glViewport(0,0,mousePickingRenderTarget.width,mousePickingRenderTarget.height);
@@ -515,8 +521,8 @@ u32 FlushHandles(ivec2 clickat, mat4 viewMatrix, mat4 perspectiveMatrix)
 
     UseShader(HANDLES_SHADER);
 
-    GLBindMatrix4fv(HANDLES_SHADER, "projectionMatrix", 1, proj.ptr());
-    GLBindMatrix4fv(HANDLES_SHADER, "viewMatrix", 1, viewMatrix.ptr());
+    GLBindMatrix4fv(HANDLES_SHADER, "projectionMatrix", 1, scaledDownFrustum.ptr());
+    GLBindMatrix4fv(HANDLES_SHADER, "viewMatrix", 1, activeViewMatrix.ptr());
 
     glBindVertexArray(HANDLES_VAO);
     glBindBuffer(GL_ARRAY_BUFFER, HANDLES_VBO);
