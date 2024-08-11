@@ -1,9 +1,5 @@
 /*
 
-TODO
-- finish FlushHandles and mouse picking
-
-
 
 basic layout and structures of maps can be created, they are textured
     - handles (have render pick ID, reference a Vert, or Edge, or Face?)
@@ -28,7 +24,6 @@ Multiselect volumes and edit them all at the same time
 
 
 What else can be stripped out reused?
-    GUI
     Console front and backend
 
     use flat faces for collision? instead of meshes? GJK EPA code accepts 2D meshes
@@ -1714,7 +1709,7 @@ void TickMapEditor()
             // draw 4x4 view at mouse click
             // draw disc for each vertex with color rgb(id)
             DoDiscHandle(255, vec3(), editorCameraPosition, GetEditorHandleSize(vec3(), 8));
-            u32 id = FlushHandles(mousepos, activeViewMatrix, activePerspectiveMatrix);
+            u32 id = FlushHandles(mousepos, renderTargetGame, activeViewMatrix, activePerspectiveMatrix, false);
             printf("%d\n", id);
 
 
@@ -1991,36 +1986,22 @@ static void RenderGameLayer()
 static void RenderMapEditorLayer()
 {
     glBindFramebuffer(GL_FRAMEBUFFER, renderTargetGame.fbo);
-    if (keyscurrent[SDL_SCANCODE_SPACE])
-        glViewport(0, 0, 320, 320);
-    else
-        glViewport(0, 0, renderTargetGame.width, renderTargetGame.height);
+    glViewport(0, 0, renderTargetGame.width, renderTargetGame.height);
     glClearColor(0.15f, 0.15f, 0.15f, 1.f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glEnable(GL_BLEND);
     glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_SRC_ALPHA, GL_ONE);
     glEnable(GL_DEPTH_TEST);
 
-    activePerspectiveMatrix = ProjectionMatrixPerspective((90.f/2.f)*GM_DEG2RAD,
-                                                          float(BACKBUFFER_WIDTH) / float(BACKBUFFER_HEIGHT), GAMEPROJECTION_NEARCLIP, GAMEPROJECTION_FARCLIP);
+    activePerspectiveMatrix = ProjectionMatrixPerspective((90.f/2.f)*GM_DEG2RAD, float(BACKBUFFER_WIDTH) / float(BACKBUFFER_HEIGHT),
+                                                          GAMEPROJECTION_NEARCLIP, GAMEPROJECTION_FARCLIP);
     mat4 perspectiveMatrix = activePerspectiveMatrix;
     mat4 viewMatrix = activeViewMatrix;
 
     UseShader(sceneShader);
     glEnable(GL_CULL_FACE);
 
-    if (keyscurrent[SDL_SCANCODE_SPACE])
-    {
-        mat4 proj = activePerspectiveMatrix;//ProjectionMatrixPerspective((90.f/2.f)*GM_DEG2RAD,float(1920)/float(1080), 4.f, 32000.f);
-        proj = ScaleMatrix(1920.f/32.f, 1080.f/32.f, 1.f) * proj;
-        const float offsetX = (mousepos.x - 1920.f*0.5f) / (32.f * 0.5f);
-        const float offsetY = (mousepos.y - 1080.f*0.5f) / (32.f * 0.5f);
-        proj[2][0] += offsetX;
-        proj[2][1] -= offsetY;
-        GLBindMatrix4fv(sceneShader, "projMatrix", 1, proj.ptr());
-    }
-    else
-        GLBindMatrix4fv(sceneShader, "projMatrix", 1, perspectiveMatrix.ptr());
+    GLBindMatrix4fv(sceneShader, "projMatrix", 1, perspectiveMatrix.ptr());
     GLBindMatrix4fv(sceneShader, "viewMatrix", 1, viewMatrix.ptr());
 
     mat4 modelMatrix = mat4();
