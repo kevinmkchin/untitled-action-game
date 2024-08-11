@@ -6,6 +6,9 @@ namespace MapEdit
     struct Vert;
     struct Loop;
     struct Face;
+    struct Face;
+
+    NiceArray<Face*, 100000> EDITOR_FACES;
 
     struct Loop
     {
@@ -22,6 +25,10 @@ namespace MapEdit
     {
         Loop *loopbase = NULL;
         int looplen = -1;
+
+        // For map editor rendering. Each face is its own mesh. Don't optimize until my PC chugs while map editing.
+        FaceBatch facemesh;
+        i32 EDITOR_FACES_INDEX = -1;
 
         int RefreshLoopLen()
         {
@@ -92,6 +99,21 @@ namespace MapEdit
                 return b;
             else
                 return NULL;
+        }
+
+        std::vector<Loop*> GetRadialCycleCopy() const
+        {
+            ASSERT(radial);
+
+            std::vector<Loop*> radialCycle;
+
+            Loop *l = radial;
+            do {
+                radialCycle.push_back(l);
+                l = l->radialNext;
+            } while (l != radial && l != NULL);
+
+            return radialCycle;
         }
 
         // void SwitchAB()
@@ -248,6 +270,10 @@ namespace MapEdit
         face->looplen = (int)edges.size();
 
         owner->faces.push_back(face);
+        CreateFaceBatchMeshOnGPU(&face->facemesh.idVAO, &face->facemesh.idVBO);
+        face->EDITOR_FACES_INDEX = EDITOR_FACES.count;
+        EDITOR_FACES.PushBack(face);
+
         return face;
     }
 
@@ -276,6 +302,9 @@ namespace MapEdit
     {
         // find remove face from owner->faces
         // delete face and loops...i think
+        DeleteFaceBatchMeshOnGPU(face->facemesh.idVAO, face->facemesh.idVBO); // delete gpu face batch
+        EDITOR_FACES.Back()->EDITOR_FACES_INDEX = face->EDITOR_FACES_INDEX; // update index of the face that will be moved
+        EDITOR_FACES.EraseAt(face->EDITOR_FACES_INDEX); // erase face and replace index with face at the back of nice array
         // maybe im missing some things
     }
 

@@ -112,10 +112,12 @@ inline std::string data_path(const std::string& name) { return wd_path() + "data
 
 #define ARRAY_COUNT(a) (sizeof(a) / (sizeof(a[0])))
 
+// fflush this shit for CLion
 #define LogMessage(...)                        \
     do {                                       \
         fprintf(stdout, __VA_ARGS__);          \
         fprintf(stdout, "\n");                 \
+        fflush(stdout);                        \
     } while (false)
 #define LogWarning(...)                        \
     do {                                       \
@@ -1351,7 +1353,7 @@ Mix_Chunk *Mixer_LoadChunk(const char *filepath)
 
 
 GPUTexture tex_Default;
-std::vector<FaceBatch> activeFaceBatches;
+//std::vector<FaceBatch> activeFaceBatches;
 std::vector<float> MY_VERTEX_BUFFER;
 Mix_Chunk *sfx_Jump;
 
@@ -1410,29 +1412,26 @@ static void Stuff()
 
     sfx_Jump = Mixer_LoadChunk(wd_path("gunshot-37055.ogg").c_str());
 
-    FaceBatch fb0;
-    CreateFaceBatchMeshOnGPU(&fb0.idVAO, &fb0.idVBO);
-
-    std::vector<float> fb0data { 
-        0, 0, 0, 0, 0, 1, 0, 0,
-        0, 32, 32, 1, 1, 1, 0, 0,
-        0, 0, 32, 0, 1, 1, 0, 0,
-        0, 0, 0, 0, 0, 1, 0, 0,
-        0, 32, 0, 1, 0, 1, 0, 0,
-        0, 32, 32, 1, 1, 1, 0, 0,
-
-        -320, 0, -320, 0, 0, 0, 1, 0,
-        -320, 0, 320, 0, 20, 0, 1, 0,
-        320, 0, 320, 20, 20, 0, 1, 0,
-        -320, 0, -320, 0, 0, 0, 1, 0,
-        320, 0, 320, 20, 20, 0, 1, 0,
-        320, 0, -320, 20, 0, 0, 1, 0,
-    };
-
-    // RebindFaceBatchBufferObject(&fb0, (u32)fb0data.size()*sizeof(float), fb0data.data());
-    fb0.sharedTexture = tex_Default;
-
-    activeFaceBatches.push_back(fb0);
+//    FaceBatch fb0;
+//    CreateFaceBatchMeshOnGPU(&fb0.idVAO, &fb0.idVBO);
+//    std::vector<float> fb0data {
+//        0, 0, 0, 0, 0, 1, 0, 0,
+//        0, 32, 32, 1, 1, 1, 0, 0,
+//        0, 0, 32, 0, 1, 1, 0, 0,
+//        0, 0, 0, 0, 0, 1, 0, 0,
+//        0, 32, 0, 1, 0, 1, 0, 0,
+//        0, 32, 32, 1, 1, 1, 0, 0,
+//
+//        -320, 0, -320, 0, 0, 0, 1, 0,
+//        -320, 0, 320, 0, 20, 0, 1, 0,
+//        320, 0, 320, 20, 20, 0, 1, 0,
+//        -320, 0, -320, 0, 0, 0, 1, 0,
+//        320, 0, 320, 20, 20, 0, 1, 0,
+//        320, 0, -320, 20, 0, 0, 1, 0,
+//    };
+//    RebindFaceBatchBufferObject(&fb0, (u32)fb0data.size()*sizeof(float), fb0data.data());
+//    fb0.sharedTexture = tex_Default;
+//    activeFaceBatches.push_back(fb0);
 
     // EditableVolumes::Volume vol;
     // EditableVolumes::MakeRectangularVolume(&vol);
@@ -1534,8 +1533,8 @@ static void TickGame()
 
 
 vec3 editorCameraPosition = vec3(128, 128, 128);
-float GRID_DIAGONAL_LENGTH = 11.f;
 float GRID_INCREMENT = 8.f;
+float DISC_HANDLE_RADIUS = 10.f;
 NiceArray<MapEdit::Volume, 3200> LOADED_MAP_VOLUMES;
 NiceArray<int, 16> SELECTED_MAP_VOLUMES_INDICES;
 std::vector<MapEdit::Vert*> SELECTABLE_VERTICES;
@@ -1663,12 +1662,10 @@ void TickMapEditor()
     activeViewMatrix = ViewMatrixLookAt(editorCameraPosition, editorCameraPosition + cameraDirection, cameraUp);
 
     // DRAW AXIS AND GRID LINES
-    vec3 gridcheckpoint_bottommiddle = ScreenPointToWorldPoint(ivec2(renderTargetGame.width/2,renderTargetGame.height), 0.f);
-    vec3 gridcheckray_bottommiddle = ScreenPointToWorldRay(ivec2(renderTargetGame.width/2,renderTargetGame.height));
     vec3 intersection_with_xz_plane;
-    if (IntersectPlaneAndLineWithDirections(vec3(), GM_UP_VECTOR, gridcheckpoint_bottommiddle,
-                                            gridcheckray_bottommiddle,
-                                            &intersection_with_xz_plane))
+    if (IntersectPlaneAndLine(vec3(), GM_UP_VECTOR, editorCameraPosition,
+                              -GM_UP_VECTOR,
+                              &intersection_with_xz_plane))
     {
         float gridVisualIncrement = GRID_INCREMENT;
         intersection_with_xz_plane = SnapToMapEditorGrid(intersection_with_xz_plane);
@@ -1692,35 +1689,41 @@ void TickMapEditor()
     PrimitiveDrawLine(vec3(0.f, 0.f, 320000.f), vec3(0.f, 0.f, -320000.f), vec4(RGB255TO1(21, 129, 205), 0.8f));
     Gui::PrimitiveText(100,100, 36, Gui::Align::Left, std::to_string(GRID_INCREMENT).c_str());
 
-    if (Gui::ImageButton(Gui::UIRect(400,10,32,32), tex_Default.id, tex_Default.id, tex_Default.id))
+    if (Gui::PrimitiveLabelledButton(Gui::UIRect(400,10,60,32), "Grid -", Gui::Align::Right))
     {
         GRID_INCREMENT /= 2.f;
     }
-    if (Gui::PrimitiveLabelledButton(Gui::UIRect(442,10,32,32), "Grid +", Gui::Align::Left))
+    if (Gui::PrimitiveLabelledButton(Gui::UIRect(470,10,60,32), "Grid +", Gui::Align::Left))
     {
         GRID_INCREMENT *= 2.f;
     }
 
 
+    static u32 hotHandleId = 0;
+
     if (keyspressed[SDL_SCANCODE_1] ||
         Gui::ImageButton(Gui::UIRect(10,10,32,32), tex_Default.id, tex_Default.id, tex_Default.id))
     {
         editorActiveTool = MapEditorTools::VertexManip;
+        hotHandleId = 0;
     }
     if (keyspressed[SDL_SCANCODE_2] ||
         Gui::ImageButton(Gui::UIRect(10,52,32,32), tex_Default.id, tex_Default.id, tex_Default.id))
     {
         editorActiveTool = MapEditorTools::EdgeManip;
+        hotHandleId = 0;
     }
     if (keyspressed[SDL_SCANCODE_3] ||
         Gui::ImageButton(Gui::UIRect(10,94,32,32), tex_Default.id, tex_Default.id, tex_Default.id))
     {
         editorActiveTool = MapEditorTools::FaceManip;
+        hotHandleId = 0;
     }
     if (keyspressed[SDL_SCANCODE_4] ||
         Gui::ImageButton(Gui::UIRect(10,136,32,32), tex_Default.id, tex_Default.id, tex_Default.id))
     {
         editorActiveTool = MapEditorTools::SimpleBrushTool;
+        hotHandleId = 0;
     }
 
     if (Gui::anyElementActive)
@@ -1733,7 +1736,6 @@ void TickMapEditor()
     //                                      if ctrl not pressed then start drag
     // on mouse down, if disc was already selected, then if ctrl pressed then deselect that disc/vert, if ctrl not pressed
     // then start checking for drag
-
     SELECTABLE_VERTICES.clear();
     for (int i = 0; i < SELECTED_MAP_VOLUMES_INDICES.count; ++i)
     {
@@ -1748,13 +1750,19 @@ void TickMapEditor()
     {
         if (mousepressed & SDL_BUTTON(SDL_BUTTON_LEFT))
         {
+            for (u32 id = 1; id <= SELECTABLE_VERTICES.size(); ++id)
+            {
+                MapEdit::Vert *vert = SELECTABLE_VERTICES[id-1];
+                DoDiscHandle(id, vert->pos, editorCameraPosition, GetEditorHandleSize(vert->pos, DISC_HANDLE_RADIUS + 4.f));
+            }
+            u32 clickedId = FlushHandles(mousepos, renderTargetGame, activeViewMatrix, activePerspectiveMatrix, false);
+            LogMessage("%d", clickedId);
+
+            if (clickedId > 0)
+                hotHandleId = clickedId;
+
             // draw 4x4 view at mouse click
             // draw disc for each vertex with color rgb(id)
-            DoDiscHandle(255, vec3(), editorCameraPosition, GetEditorHandleSize(vec3(), 8));
-            u32 id = FlushHandles(mousepos, renderTargetGame, activeViewMatrix, activePerspectiveMatrix, false);
-            printf("%d\n", id);
-
-
             // flush draw, retrieve color/id in middle of 4x4 view, vertex of this id enters drag
             // hold down alt to move vertically, otherwise drag along XZ plane anchored at drag/vertex/handle point
 
@@ -1764,11 +1772,52 @@ void TickMapEditor()
             // draw the selected volume(s) with rgb(0) so it is ignored when clicked
             // draw these discs on top of all the volumes, but the discs themselves must do depth test so a disc closer to camera
             // is clicked first.
-
-            // in the next frames, if mouse is still down, calculate mouse intersection with drag plane, that's vertex target pos
-            // target pos - source pos = translation. apply translation to every selected vertex.
         }
-        Gui::PrimitivePanel(Gui::UIRect(0,0,mousePickingRenderTarget.width*10, mousePickingRenderTarget.height*10), mousePickingRenderTarget.colorTexId);
+
+        if (mousecurrent & SDL_BUTTON(SDL_BUTTON_LEFT) && hotHandleId > 0)
+        {
+            MapEdit::Vert *hotVert = SELECTABLE_VERTICES[hotHandleId-1];
+
+            vec3 worldpos_mouse = ScreenPointToWorldPoint(mousepos, 0.f);
+            vec3 worldray_mouse = ScreenPointToWorldRay(mousepos);
+
+            vec3 translation;
+            if (keyscurrent[SDL_SCANCODE_LALT])
+            {
+                vec3 dragPlanePoint = hotVert->pos;
+                vec3 dragPlaneNormal = -cameraDirection;
+                vec3 intersect;
+                IntersectPlaneAndLineWithDirections(dragPlanePoint, dragPlaneNormal, worldpos_mouse, worldray_mouse, &intersect);
+                float yTranslation = Dot((intersect - dragPlanePoint), GM_UP_VECTOR);
+                translation = vec3(0.f,yTranslation,0.f);//intersect - hotVert->pos;
+            }
+            else
+            {
+                vec3 XZDragPlanePoint = hotVert->pos;
+                vec3 XZDragPlaneNormal = GM_UP_VECTOR;
+                vec3 intersect;
+                IntersectPlaneAndLine(XZDragPlanePoint, XZDragPlaneNormal, worldpos_mouse, worldray_mouse, &intersect);
+                translation = intersect - hotVert->pos;
+            }
+            hotVert->pos += translation;
+            // TODO translate all selected vertices
+
+            for (int i = 0; i < SELECTED_MAP_VOLUMES_INDICES.count; ++i)
+            {
+                MapEdit::Volume& selectedVol = LOADED_MAP_VOLUMES.At(SELECTED_MAP_VOLUMES_INDICES.At(i));
+                for (MapEdit::Face *face : selectedVol.faces)
+                {
+                    MY_VERTEX_BUFFER.clear();
+                    MapEdit::TriangulateFace_QuickDumb(*face, &MY_VERTEX_BUFFER);
+                    RebindFaceBatchBufferObject(&face->facemesh, sizeof(float)*MY_VERTEX_BUFFER.size(), MY_VERTEX_BUFFER.data());
+                }
+            }
+        }
+
+        if (mousereleased & SDL_BUTTON(SDL_BUTTON_LEFT))
+        {
+            hotHandleId = 0;
+        }
     }
 
     if (editorActiveTool == MapEditorTools::SimpleBrushTool)
@@ -1824,7 +1873,7 @@ void TickMapEditor()
                     rectendpoint = SnapToMapEditorGrid(ws + wr * f);
                     vec3 startToEndVector = vec3(rectendpoint - rectstartpoint);
                     float d = Magnitude(startToEndVector);
-                    if (d > GRID_DIAGONAL_LENGTH) // TODO check X and Z values to see if theyre bigger than grid size
+                    if (true) // TODO check X and Z values to see if theyre bigger than grid size
                         simpleBrushToolState = SimpleBrushToolState::DrawingHeight;
                     else
                         simpleBrushToolState = SimpleBrushToolState::NotActive;
@@ -1959,9 +2008,13 @@ void TickMapEditor()
                     SELECTED_MAP_VOLUMES_INDICES.PushBack(LOADED_MAP_VOLUMES.count - 1);
 
                     for (auto face: createdVolume.faces)
+                    {
+                        MY_VERTEX_BUFFER.clear();
                         TriangulateFace_QuickDumb(*face, &MY_VERTEX_BUFFER);
-                    RebindFaceBatchBufferObject(&activeFaceBatches[0], (u32) MY_VERTEX_BUFFER.size() * sizeof(float),
-                                                MY_VERTEX_BUFFER.data());
+                        RebindFaceBatchBufferObject(&face->facemesh, (u32) MY_VERTEX_BUFFER.size() * sizeof(float),
+                            MY_VERTEX_BUFFER.data());
+                        face->facemesh.sharedTexture = tex_Default;
+                    }
 
                     simpleBrushToolState = SimpleBrushToolState::NotActive;
                 }
@@ -2003,11 +2056,11 @@ static void RenderGameLayer()
 
     GLActiveTextureUnit0(tex_Default.id);
 
-    for (size_t i = 0; i < activeFaceBatches.size(); ++i)
-    {
-        FaceBatch fb = activeFaceBatches.at(i);
-        RenderFaceBatch(fb);
-    }
+//    for (size_t i = 0; i < activeFaceBatches.size(); ++i)
+//    {
+//        FaceBatch fb = activeFaceBatches.at(i);
+//        RenderFaceBatch(fb);
+//    }
 
     modelMatrix = TranslationMatrix(enemy0.root) * RotationMatrix(DirectionToOrientation(enemy0.facing));
     GLBindMatrix4fv(sceneShader, "modelMatrix", 1, modelMatrix.ptr());
@@ -2049,9 +2102,9 @@ static void RenderMapEditorLayer()
 
     GLBindMatrix4fv(sceneShader, "modelMatrix", 1, modelMatrix.ptr());
 
-    for (size_t i = 0; i < activeFaceBatches.size(); ++i)
+    for (int i = 0; i < MapEdit::EDITOR_FACES.count; ++i)
     {
-        FaceBatch fb = activeFaceBatches.at(i);
+        const FaceBatch fb = MapEdit::EDITOR_FACES.At(i)->facemesh;
         RenderFaceBatch(fb);
     }
 
@@ -2060,7 +2113,7 @@ static void RenderMapEditorLayer()
     {
         for (MapEdit::Vert *v: SELECTABLE_VERTICES)
         {
-            PrimitiveDrawSolidDisc(v->pos, editorCameraPosition - v->pos, GetEditorHandleSize(v->pos, 8),
+            PrimitiveDrawSolidDisc(v->pos, editorCameraPosition - v->pos, GetEditorHandleSize(v->pos, DISC_HANDLE_RADIUS),
                                    vec4(RGBHEXTO1(0xFF8000), 1.f));
         }
     }
