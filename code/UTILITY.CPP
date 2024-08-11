@@ -236,8 +236,11 @@ static const char* PRIMITIVES_SHADER_VS =
     "layout (location = 0) in vec3 pos;\n"
     "uniform mat4 projectionMatrix;\n"
     "uniform mat4 viewMatrix;\n"
+    "out float distance_from_eye;\n"
     "void main() {\n"
-    "    gl_Position = projectionMatrix * viewMatrix * vec4(pos, 1.0);\n"
+    "    vec4 viewspace_pos = viewMatrix * vec4(pos, 1.0);\n"
+    "    gl_Position = projectionMatrix * viewspace_pos;\n"
+    "    distance_from_eye = -viewspace_pos.z;\n"
     "}\n";
 static const char* PRIMITIVES_SHADER_FS =
     "#version 330 core\n"
@@ -245,13 +248,17 @@ static const char* PRIMITIVES_SHADER_FS =
     "uniform vec2 framebufferSize;\n"
     "uniform vec4 primitivesColor;\n"
     "uniform sampler2D sceneDepthTexture;\n"
+    "uniform float occludedOpacity;\n"
+    "in float distance_from_eye;\n"
     "void main() {\n"
+    "    float fadeMult = clamp(exp(-pow((distance_from_eye * 0.0007), 1.5)), 0.0, 1.0);\n"
+//    "    if (distance_from_eye < 1600) { fadeMult = 1.0;  } \n"
     "    vec2 depthUV = gl_FragCoord.xy / framebufferSize;\n"
     "    float sceneDepth = texture(sceneDepthTexture, depthUV).r;\n"
     "    if (sceneDepth < gl_FragCoord.z) {  \n"
-    "        colour = vec4(primitivesColor.xyz, 0.5);\n" // TODO let opacity be defined in immediate mode
+    "        colour = vec4(primitivesColor.xyz, primitivesColor.w * fadeMult * occludedOpacity);\n"
     "    } else {\n"
-    "        colour = primitivesColor;\n"
+    "        colour = vec4(primitivesColor.xyz, primitivesColor.w * fadeMult);\n"
     "    }\n"
     "}\n";
 enum class PrimitiveDrawMode
@@ -259,10 +266,14 @@ enum class PrimitiveDrawMode
     Triangles,
     Lines
 };
-static NiceArray<vec4, 128> PRIMITIVES_COLORS;
-static NiceArray<PrimitiveDrawMode, 128> PRIMITIVES_DRAWMODES;
-static NiceArray<u16, 128> PRIMITIVES_VERTEXCOUNTS; // vertex buffer sizes in number of floats
-static NiceArray<float, 256 * 128> PRIMITIVES_VB;
+static NiceArray<vec4, 512> PRIMITIVES_COLORS;
+static NiceArray<PrimitiveDrawMode, 512> PRIMITIVES_DRAWMODES;
+static NiceArray<float, 512> PRIMITIVE_OCCLUDED_OPACITY;
+static NiceArray<float, 8> PRIMITIVE_OCCLUDED_OPACITY_STACK;
+static NiceArray<u16, 512> PRIMITIVES_VERTEXCOUNTS; // vertex buffer sizes in number of floats
+static NiceArray<float, 256 * 512> PRIMITIVES_VB;
+
+//static NiceArray<float, 256000> PRIMITIVE_LINES_VB;
 
 static GPUFrameBuffer mousePickingRenderTarget;
 static u32 HANDLES_VAO = 0;
@@ -317,6 +328,8 @@ void InitPrimitivesAndHandlesSystems()
     mousePickingRenderTarget.width = 4;
     mousePickingRenderTarget.height = 4;
     CreateGPUFrameBuffer(&mousePickingRenderTarget);
+
+    PRIMITIVE_OCCLUDED_OPACITY_STACK.PushBack(0.5f);
 }
 
 void PrimitiveDrawAll(const mat4 *projectionMatrix, const mat4 *viewMatrix, GLuint sceneDepthTextureId, vec2 framebufferSize)
@@ -342,6 +355,8 @@ void PrimitiveDrawAll(const mat4 *projectionMatrix, const mat4 *viewMatrix, GLui
         __vbIndexer += vertexCount * 3;
 
         GLBind4f(PRIMITIVES_SHADER, "primitivesColor", color.x, color.y, color.z, color.w);
+        GLBind1f(PRIMITIVES_SHADER, "occludedOpacity", PRIMITIVE_OCCLUDED_OPACITY.At(i));
+
         glBindVertexArray(PRIMITIVES_VAO);
         glBindBuffer(GL_ARRAY_BUFFER, PRIMITIVES_VBO);
         glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)4 * vertexCount * 3, vb, GL_DYNAMIC_DRAW);
@@ -359,14 +374,25 @@ void PrimitiveDrawAll(const mat4 *projectionMatrix, const mat4 *viewMatrix, GLui
 
     PRIMITIVES_COLORS.ResetCount();
     PRIMITIVES_DRAWMODES.ResetCount();
+    PRIMITIVE_OCCLUDED_OPACITY.ResetCount();
     PRIMITIVES_VERTEXCOUNTS.ResetCount();
     PRIMITIVES_VB.ResetCount();
+}
+
+void PrimitivePushOccludedOpacity(float opacitymult)
+{
+    PRIMITIVE_OCCLUDED_OPACITY_STACK.PushBack(opacitymult);
+}
+void PrimitivePopOccludedOpacity()
+{
+    PRIMITIVE_OCCLUDED_OPACITY_STACK.PopBack();
 }
 
 void PrimitiveDrawSolidDisc(vec3 center, vec3 normal, float radius, vec4 color)
 {
     PRIMITIVES_COLORS.PushBack(color);
     PRIMITIVES_DRAWMODES.PushBack(PrimitiveDrawMode::Triangles);
+    PRIMITIVE_OCCLUDED_OPACITY.PushBack(PRIMITIVE_OCCLUDED_OPACITY_STACK.Back());
     PRIMITIVES_VERTEXCOUNTS.PushBack(12 * 3);
 
     vec3 tangent = Normalize(Cross(normal == GM_UP_VECTOR ? GM_RIGHT_VECTOR : GM_UP_VECTOR, normal));
@@ -399,6 +425,7 @@ void PrimitiveDrawLine(vec3 p1, vec3 p2, vec4 color)
 {
     PRIMITIVES_COLORS.PushBack(color);
     PRIMITIVES_DRAWMODES.PushBack(PrimitiveDrawMode::Lines);
+    PRIMITIVE_OCCLUDED_OPACITY.PushBack(PRIMITIVE_OCCLUDED_OPACITY_STACK.Back());
     PRIMITIVES_VERTEXCOUNTS.PushBack(2);
     PRIMITIVES_VB.PushBack(p1.x);
     PRIMITIVES_VB.PushBack(p1.y);
@@ -412,6 +439,7 @@ void PrimitiveDrawLine(vec3 p1, vec3 p2, vec4 color, float thickness, vec3 camer
 {
     PRIMITIVES_COLORS.PushBack(color);
     PRIMITIVES_DRAWMODES.PushBack(PrimitiveDrawMode::Triangles);
+    PRIMITIVE_OCCLUDED_OPACITY.PushBack(PRIMITIVE_OCCLUDED_OPACITY_STACK.Back());
     PRIMITIVES_VERTEXCOUNTS.PushBack(6);
 
     vec3 mid = (p2 - p1) * 0.5f + p1;
@@ -514,7 +542,7 @@ u32 FlushHandles(ivec2 clickat, const GPUFrameBuffer activeSceneTarget,
     }
 
     glBindFramebuffer(GL_FRAMEBUFFER, mousePickingRenderTarget.fbo);
-    glViewport(0,0,mousePickingRenderTarget.width,mousePickingRenderTarget.height);
+    glViewport(0,0,(int)mousePickTargetW,(int)mousePickTargetH);
     glClearColor(0.f,0.f,0.f,1.f); // clear with rgb(id 0)
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glEnable(GL_DEPTH_TEST);
@@ -538,7 +566,7 @@ u32 FlushHandles(ivec2 clickat, const GPUFrameBuffer activeSceneTarget,
 
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
     u8 pickedRGBData[4];
-    glReadPixels(mousePickingRenderTarget.width/2, mousePickingRenderTarget.height/2, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pickedRGBData);
+    glReadPixels((int)mousePickTargetW/2, (int)mousePickTargetH/2, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pickedRGBData);
     u32 pickedHandleId = pickedRGBData[0] + pickedRGBData[1] * 256 + pickedRGBData[2] * 256 * 256;
     return pickedHandleId;
 }
@@ -549,7 +577,8 @@ u32 FlushHandles(ivec2 clickat, const GPUFrameBuffer activeSceneTarget,
 
 #pragma region MATH_HELPERS
 
-bool FindIntersectionBetweenPlaneAndLine(vec3 pointOnPlane, vec3 normalOfPlane, vec3 pointOnLine, vec3 directionOfLine, vec3 *intersectionPoint)
+// only check in direction from
+bool IntersectPlaneAndLine(vec3 pointOnPlane, vec3 normalOfPlane, vec3 pointOnLine, vec3 directionOfLine, vec3 *intersectionPoint)
 {
     // vec3 pp = pointOnPlane;
     // vec3 pn = normalOfPlane;
@@ -566,6 +595,17 @@ bool FindIntersectionBetweenPlaneAndLine(vec3 pointOnPlane, vec3 normalOfPlane, 
 
     float denominator = Dot(normalOfPlane, directionOfLine);
     if (GM_abs(denominator) < 0.000001f)
+        return false;
+
+    float t = (Dot(normalOfPlane, pointOnPlane) - Dot(normalOfPlane, pointOnLine)) / denominator;
+    *intersectionPoint = pointOnLine + directionOfLine * t;
+    return true;
+}
+
+bool IntersectPlaneAndLineWithDirections(vec3 pointOnPlane, vec3 normalOfPlane, vec3 pointOnLine, vec3 directionOfLine, vec3 *intersectionPoint)
+{
+    float denominator = Dot(normalOfPlane, directionOfLine);
+    if (denominator > -0.000001f)
         return false;
 
     float t = (Dot(normalOfPlane, pointOnPlane) - Dot(normalOfPlane, pointOnLine)) / denominator;

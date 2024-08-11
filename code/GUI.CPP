@@ -42,7 +42,7 @@ namespace Gui
 
     /* Application API */
     void Init(); // on program start
-    // void NewFrame(); // before each frame NOTE(Kevin): just call this as part of ProcessSDLEvent automatically
+    void NewFrame(); // before each frame
     void ProcessSDLEvent(const SDL_Event evt); // update input state
     void Draw(); // flush draw requests to GPU
 
@@ -346,6 +346,8 @@ namespace Gui
     static ui_id hoveredUI = null_ui_id;
     static ui_id activeUI = null_ui_id;
     static bool anyElementHoveredThisFrame = false;
+    // Quick hack used to check if GUI is consuming input this frame
+    static bool anyElementActive = false;
 
 
     static MemoryLinearBuffer drawRequestsFrameStorageBuffer;
@@ -380,6 +382,9 @@ namespace Gui
     void SetActive(ui_id id)
     {
         activeUI = id;
+
+        if (id != null_ui_id) // if id == null_ui_id, set to false at beginning of next frame
+            anyElementActive = true;
     }
 
     void SetHovered(ui_id id)
@@ -1490,7 +1495,7 @@ namespace Gui
         // s_Fonts[4] = FontCreateFromTTFFile(data_path("BitFontMaker2Tes.ttf"), 16, true);
 
         BitmapHandle bm_curses6x9;
-        ReadImage(bm_curses6x9, data_path("Kevin6x9.png").c_str());
+        ReadImage(bm_curses6x9, wd_path("Kevin6x9.png").c_str());
         for (u32 y = 0; y < bm_curses6x9.height; ++y)
         {
             for (u32 x = 0; x < bm_curses6x9.width; ++x)
@@ -1528,6 +1533,10 @@ namespace Gui
             hoveredUI = null_ui_id;
         }
         anyElementHoveredThisFrame = false;
+
+        if (activeUI == null_ui_id)
+            anyElementActive = false;
+
         keyboardInputASCIIKeycodeThisFrame.ResetCount();
         keyboardInputASCIIKeycodeThisFrame.ResetToZero();
         freshIdCounter = 0;
@@ -1544,8 +1553,6 @@ namespace Gui
 
     void ProcessSDLEvent(const SDL_Event event)
     {
-        Gui::NewFrame();
-
         switch (event.type)
         {
             case SDL_MOUSEMOTION:
