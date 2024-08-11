@@ -1663,7 +1663,6 @@ void TickMapEditor()
     activeViewMatrix = ViewMatrixLookAt(editorCameraPosition, editorCameraPosition + cameraDirection, cameraUp);
 
     // DRAW AXIS AND GRID LINES
-    PrimitivePushOccludedOpacity(0.5f);
     vec3 gridcheckpoint_bottommiddle = ScreenPointToWorldPoint(ivec2(renderTargetGame.width/2,renderTargetGame.height), 0.f);
     vec3 gridcheckray_bottommiddle = ScreenPointToWorldRay(ivec2(renderTargetGame.width/2,renderTargetGame.height));
     vec3 intersection_with_xz_plane;
@@ -1676,20 +1675,17 @@ void TickMapEditor()
         float gridoriginz = intersection_with_xz_plane.z;
         for (int i = -50; i < 50; ++i)
         {
-            PrimitivePushOccludedOpacity(0.3f);
             PrimitiveDrawLine(vec3(320000.f + gridoriginx, 0.f, float(i) * GRID_INCREMENT + gridoriginz),
                               vec3(-320000.f + gridoriginx, 0.f, float(i) * GRID_INCREMENT + gridoriginz),
                               vec4(RGB255TO1(255,255,255), 0.25f));
             PrimitiveDrawLine(vec3(float(i) * GRID_INCREMENT + gridoriginx, 0.f, 320000.f + gridoriginz),
                               vec3(float(i) * GRID_INCREMENT + gridoriginx, 0.f, -320000.f + gridoriginz),
                               vec4(RGB255TO1(255,255,255), 0.25f));
-            PrimitivePopOccludedOpacity();
         }
     }
     PrimitiveDrawLine(vec3(320000.f, 0.f, 0.f), vec3(-320000.f, 0.f, 0.f), vec4(RGB255TO1(205, 56, 9), 0.8f));
     PrimitiveDrawLine(vec3(0.f, 320000.f, 0.f), vec3(0.f, -320000.f, 0.f), vec4(RGB255TO1(67, 123, 9), 0.8f));
     PrimitiveDrawLine(vec3(0.f, 0.f, 320000.f), vec3(0.f, 0.f, -320000.f), vec4(RGB255TO1(21, 129, 205), 0.8f));
-    PrimitivePopOccludedOpacity();
     Gui::PrimitiveText(100,100, 36, Gui::Align::Left, std::to_string(GRID_INCREMENT).c_str());
 
     if (Gui::ImageButton(Gui::UIRect(400,10,32,32), tex_Default.id, tex_Default.id, tex_Default.id))
@@ -2060,10 +2056,8 @@ static void RenderMapEditorLayer()
     {
         for (MapEdit::Vert *v: SELECTABLE_VERTICES)
         {
-            PrimitivePushOccludedOpacity(0.6f);
             PrimitiveDrawSolidDisc(v->pos, editorCameraPosition - v->pos, GetEditorHandleSize(v->pos, 8),
                                    vec4(RGBHEXTO1(0xFF8000), 1.f));
-            PrimitivePopOccludedOpacity();
         }
     }
     if (keyspressed[SDL_SCANCODE_X])

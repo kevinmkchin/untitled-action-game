@@ -228,52 +228,75 @@ template<typename T, int _count> struct NiceArray
 
 #pragma region PRIMITIVES_AND_HANDLES_DRAWING
 
-static u32 PRIMITIVES_VAO = 0;
-static u32 PRIMITIVES_VBO = 0;
-static GPUShader PRIMITIVES_SHADER;
-static const char* PRIMITIVES_SHADER_VS =
+
+static u32 PRIM_VERTEX_POS_AND_COLOR_VAO;
+static u32 PRIM_VERTEX_POS_AND_COLOR_VBO;
+
+static NiceArray<float, 256000> PRIMITIVE_TRIS_VB;
+static GPUShader PRIMITIVES_TRIS_SHADER;
+static const char* PRIMITIVES_TRIS_SHADER_VS =
     "#version 330 core\n"
     "layout (location = 0) in vec3 pos;\n"
+    "layout (location = 1) in vec4 col;\n"
+    "uniform mat4 projectionMatrix;\n"
+    "uniform mat4 viewMatrix;\n"
+    "out vec4 baseColour;\n"
+    "void main() {\n"
+    "    gl_Position = projectionMatrix * viewMatrix * vec4(pos, 1.0);\n"
+    "    baseColour = col;\n"
+    "}\n";
+static const char* PRIMITIVES_TRIS_SHADER_FS =
+    "#version 330 core\n"
+    "out vec4 colour;\n"
+    "uniform vec2 framebufferSize;\n"
+    "uniform sampler2D sceneDepthTexture;\n"
+    "uniform float occludedOpacity;\n"
+    "in vec4 baseColour;\n"
+    "void main() {\n"
+    "    vec2 depthUV = gl_FragCoord.xy / framebufferSize;\n"
+    "    float sceneDepth = texture(sceneDepthTexture, depthUV).r;\n"
+    "    if (sceneDepth < gl_FragCoord.z) {  \n"
+    "        colour = vec4(baseColour.xyz, baseColour.w * occludedOpacity);\n"
+    "    } else {\n"
+    "        colour = vec4(baseColour.xyz, baseColour.w);\n"
+    "    }\n"
+    "}\n";
+
+static NiceArray<float, 256000> PRIMITIVE_LINES_VB;
+static GPUShader LINES_SHADER;
+static const char* LINES_SHADER_VS =
+    "#version 330 core\n"
+    "layout (location = 0) in vec3 pos;\n"
+    "layout (location = 1) in vec4 col;\n"
     "uniform mat4 projectionMatrix;\n"
     "uniform mat4 viewMatrix;\n"
     "out float distance_from_eye;\n"
+    "out vec4 baseColour;\n"
     "void main() {\n"
     "    vec4 viewspace_pos = viewMatrix * vec4(pos, 1.0);\n"
     "    gl_Position = projectionMatrix * viewspace_pos;\n"
     "    distance_from_eye = -viewspace_pos.z;\n"
+    "    baseColour = col;\n"
     "}\n";
-static const char* PRIMITIVES_SHADER_FS =
+static const char* LINES_SHADER_FS =
     "#version 330 core\n"
     "out vec4 colour;\n"
     "uniform vec2 framebufferSize;\n"
-    "uniform vec4 primitivesColor;\n"
     "uniform sampler2D sceneDepthTexture;\n"
     "uniform float occludedOpacity;\n"
     "in float distance_from_eye;\n"
+    "in vec4 baseColour;\n"
     "void main() {\n"
     "    float fadeMult = clamp(exp(-pow((distance_from_eye * 0.0007), 1.5)), 0.0, 1.0);\n"
 //    "    if (distance_from_eye < 1600) { fadeMult = 1.0;  } \n"
     "    vec2 depthUV = gl_FragCoord.xy / framebufferSize;\n"
     "    float sceneDepth = texture(sceneDepthTexture, depthUV).r;\n"
     "    if (sceneDepth < gl_FragCoord.z) {  \n"
-    "        colour = vec4(primitivesColor.xyz, primitivesColor.w * fadeMult * occludedOpacity);\n"
+    "        colour = vec4(baseColour.xyz, baseColour.w * fadeMult * occludedOpacity);\n"
     "    } else {\n"
-    "        colour = vec4(primitivesColor.xyz, primitivesColor.w * fadeMult);\n"
+    "        colour = vec4(baseColour.xyz, baseColour.w * fadeMult);\n"
     "    }\n"
     "}\n";
-enum class PrimitiveDrawMode
-{
-    Triangles,
-    Lines
-};
-static NiceArray<vec4, 512> PRIMITIVES_COLORS;
-static NiceArray<PrimitiveDrawMode, 512> PRIMITIVES_DRAWMODES;
-static NiceArray<float, 512> PRIMITIVE_OCCLUDED_OPACITY;
-static NiceArray<float, 8> PRIMITIVE_OCCLUDED_OPACITY_STACK;
-static NiceArray<u16, 512> PRIMITIVES_VERTEXCOUNTS; // vertex buffer sizes in number of floats
-static NiceArray<float, 256 * 512> PRIMITIVES_VB;
-
-//static NiceArray<float, 256000> PRIMITIVE_LINES_VB;
 
 static GPUFrameBuffer mousePickingRenderTarget;
 static u32 HANDLES_VAO = 0;
@@ -301,16 +324,19 @@ static NiceArray<float, 256 * 128> HANDLES_VB;
 
 void InitPrimitivesAndHandlesSystems()
 {
-    glGenVertexArrays(1, &PRIMITIVES_VAO);
-    glBindVertexArray(PRIMITIVES_VAO);
-    glGenBuffers(1, &PRIMITIVES_VBO);
-    glBindBuffer(GL_ARRAY_BUFFER, PRIMITIVES_VBO);
+    glGenVertexArrays(1, &PRIM_VERTEX_POS_AND_COLOR_VAO);
+    glBindVertexArray(PRIM_VERTEX_POS_AND_COLOR_VAO);
+    glGenBuffers(1, &PRIM_VERTEX_POS_AND_COLOR_VBO);
+    glBindBuffer(GL_ARRAY_BUFFER, PRIM_VERTEX_POS_AND_COLOR_VBO);
     glBufferData(GL_ARRAY_BUFFER, 0, nullptr, GL_DYNAMIC_DRAW);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(float)*7, nullptr);
     glEnableVertexAttribArray(0);
+    glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, sizeof(float)*7, (void*)(sizeof(float)*3));
+    glEnableVertexAttribArray(1);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
-    GLCreateShaderProgram(PRIMITIVES_SHADER, PRIMITIVES_SHADER_VS, PRIMITIVES_SHADER_FS);
+    GLCreateShaderProgram(PRIMITIVES_TRIS_SHADER, PRIMITIVES_TRIS_SHADER_VS, PRIMITIVES_TRIS_SHADER_FS);
+    GLCreateShaderProgram(LINES_SHADER, LINES_SHADER_VS, LINES_SHADER_FS);
 
     glGenVertexArrays(1, &HANDLES_VAO);
     glBindVertexArray(HANDLES_VAO);
@@ -328,73 +354,49 @@ void InitPrimitivesAndHandlesSystems()
     mousePickingRenderTarget.width = 4;
     mousePickingRenderTarget.height = 4;
     CreateGPUFrameBuffer(&mousePickingRenderTarget);
-
-    PRIMITIVE_OCCLUDED_OPACITY_STACK.PushBack(0.5f);
 }
 
 void PrimitiveDrawAll(const mat4 *projectionMatrix, const mat4 *viewMatrix, GLuint sceneDepthTextureId, vec2 framebufferSize)
 {
-    if (PRIMITIVES_COLORS.count == 0) return;
-
-    UseShader(PRIMITIVES_SHADER);
-    GLBindMatrix4fv(PRIMITIVES_SHADER, "projectionMatrix", 1, projectionMatrix->ptr());
-    GLBindMatrix4fv(PRIMITIVES_SHADER, "viewMatrix", 1, viewMatrix->ptr());
+    UseShader(LINES_SHADER);
+    GLBindMatrix4fv(LINES_SHADER, "projectionMatrix", 1, projectionMatrix->ptr());
+    GLBindMatrix4fv(LINES_SHADER, "viewMatrix", 1, viewMatrix->ptr());
 
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, sceneDepthTextureId);
-    GLBind1i(PRIMITIVES_SHADER, "sceneDepthTexture", 0);
+    GLBind1i(LINES_SHADER, "sceneDepthTexture", 0);
+    GLBind2f(LINES_SHADER, "framebufferSize", framebufferSize.x, framebufferSize.y);
 
-    GLBind2f(PRIMITIVES_SHADER, "framebufferSize", framebufferSize.x, framebufferSize.y);
+    GLBind1f(LINES_SHADER, "occludedOpacity", 0.5f);
+    glBindVertexArray(PRIM_VERTEX_POS_AND_COLOR_VAO);
+    glBindBuffer(GL_ARRAY_BUFFER, PRIM_VERTEX_POS_AND_COLOR_VBO);
+    glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)sizeof(float)*PRIMITIVE_LINES_VB.count, PRIMITIVE_LINES_VB.data, GL_DYNAMIC_DRAW);
+    glDrawArrays(GL_LINES, 0, PRIMITIVE_LINES_VB.count/7);
+    PRIMITIVE_LINES_VB.ResetCount();
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
 
-    u32 __vbIndexer = 0;
-    for (int i = 0; i < PRIMITIVES_COLORS.count; ++i)
-    {
-        vec4 color = PRIMITIVES_COLORS.At(i);
-        u16 vertexCount = PRIMITIVES_VERTEXCOUNTS.At(i);
-        float* vb = PRIMITIVES_VB.data + __vbIndexer;
-        __vbIndexer += vertexCount * 3;
+    UseShader(PRIMITIVES_TRIS_SHADER);
+    GLBindMatrix4fv(PRIMITIVES_TRIS_SHADER, "projectionMatrix", 1, projectionMatrix->ptr());
+    GLBindMatrix4fv(PRIMITIVES_TRIS_SHADER, "viewMatrix", 1, viewMatrix->ptr());
 
-        GLBind4f(PRIMITIVES_SHADER, "primitivesColor", color.x, color.y, color.z, color.w);
-        GLBind1f(PRIMITIVES_SHADER, "occludedOpacity", PRIMITIVE_OCCLUDED_OPACITY.At(i));
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, sceneDepthTextureId);
+    GLBind1i(PRIMITIVES_TRIS_SHADER, "sceneDepthTexture", 0);
+    GLBind2f(PRIMITIVES_TRIS_SHADER, "framebufferSize", framebufferSize.x, framebufferSize.y);
 
-        glBindVertexArray(PRIMITIVES_VAO);
-        glBindBuffer(GL_ARRAY_BUFFER, PRIMITIVES_VBO);
-        glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)4 * vertexCount * 3, vb, GL_DYNAMIC_DRAW);
-        if (PRIMITIVES_DRAWMODES.At(i) == PrimitiveDrawMode::Triangles)
-        {
-            glDrawArrays(GL_TRIANGLES, 0, vertexCount);
-        }
-        else if (PRIMITIVES_DRAWMODES.At(i) == PrimitiveDrawMode::Lines)
-        {
-            glDrawArrays(GL_LINES, 0, vertexCount);
-        }
-        glBindBuffer(GL_ARRAY_BUFFER, 0);
-        glBindVertexArray(0);
-    }
-
-    PRIMITIVES_COLORS.ResetCount();
-    PRIMITIVES_DRAWMODES.ResetCount();
-    PRIMITIVE_OCCLUDED_OPACITY.ResetCount();
-    PRIMITIVES_VERTEXCOUNTS.ResetCount();
-    PRIMITIVES_VB.ResetCount();
-}
-
-void PrimitivePushOccludedOpacity(float opacitymult)
-{
-    PRIMITIVE_OCCLUDED_OPACITY_STACK.PushBack(opacitymult);
-}
-void PrimitivePopOccludedOpacity()
-{
-    PRIMITIVE_OCCLUDED_OPACITY_STACK.PopBack();
+    GLBind1f(PRIMITIVES_TRIS_SHADER, "occludedOpacity", 0.5f);
+    glBindVertexArray(PRIM_VERTEX_POS_AND_COLOR_VAO);
+    glBindBuffer(GL_ARRAY_BUFFER, PRIM_VERTEX_POS_AND_COLOR_VBO);
+    glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)sizeof(float)*PRIMITIVE_TRIS_VB.count, PRIMITIVE_TRIS_VB.data, GL_DYNAMIC_DRAW);
+    glDrawArrays(GL_TRIANGLES, 0, PRIMITIVE_TRIS_VB.count/7);
+    PRIMITIVE_TRIS_VB.ResetCount();
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
 }
 
 void PrimitiveDrawSolidDisc(vec3 center, vec3 normal, float radius, vec4 color)
 {
-    PRIMITIVES_COLORS.PushBack(color);
-    PRIMITIVES_DRAWMODES.PushBack(PrimitiveDrawMode::Triangles);
-    PRIMITIVE_OCCLUDED_OPACITY.PushBack(PRIMITIVE_OCCLUDED_OPACITY_STACK.Back());
-    PRIMITIVES_VERTEXCOUNTS.PushBack(12 * 3);
-
     vec3 tangent = Normalize(Cross(normal == GM_UP_VECTOR ? GM_RIGHT_VECTOR : GM_UP_VECTOR, normal));
     quat q = quat(GM_DEG2RAD * 30.f, normal);
     for(int i = 0; i < 12; ++i)
@@ -404,15 +406,29 @@ void PrimitiveDrawSolidDisc(vec3 center, vec3 normal, float radius, vec4 color)
         tangent = RotateVector(tangent, q);
         vec3 c = center + tangent * radius;
 
-        PRIMITIVES_VB.PushBack(a.x);
-        PRIMITIVES_VB.PushBack(a.y);
-        PRIMITIVES_VB.PushBack(a.z);
-        PRIMITIVES_VB.PushBack(b.x);
-        PRIMITIVES_VB.PushBack(b.y);
-        PRIMITIVES_VB.PushBack(b.z);
-        PRIMITIVES_VB.PushBack(c.x);
-        PRIMITIVES_VB.PushBack(c.y);
-        PRIMITIVES_VB.PushBack(c.z);
+        PRIMITIVE_TRIS_VB.PushBack(a.x);
+        PRIMITIVE_TRIS_VB.PushBack(a.y);
+        PRIMITIVE_TRIS_VB.PushBack(a.z);
+        PRIMITIVE_TRIS_VB.PushBack(color.x);
+        PRIMITIVE_TRIS_VB.PushBack(color.y);
+        PRIMITIVE_TRIS_VB.PushBack(color.z);
+        PRIMITIVE_TRIS_VB.PushBack(color.w);
+
+        PRIMITIVE_TRIS_VB.PushBack(b.x);
+        PRIMITIVE_TRIS_VB.PushBack(b.y);
+        PRIMITIVE_TRIS_VB.PushBack(b.z);
+        PRIMITIVE_TRIS_VB.PushBack(color.x);
+        PRIMITIVE_TRIS_VB.PushBack(color.y);
+        PRIMITIVE_TRIS_VB.PushBack(color.z);
+        PRIMITIVE_TRIS_VB.PushBack(color.w);
+
+        PRIMITIVE_TRIS_VB.PushBack(c.x);
+        PRIMITIVE_TRIS_VB.PushBack(c.y);
+        PRIMITIVE_TRIS_VB.PushBack(c.z);
+        PRIMITIVE_TRIS_VB.PushBack(color.x);
+        PRIMITIVE_TRIS_VB.PushBack(color.y);
+        PRIMITIVE_TRIS_VB.PushBack(color.z);
+        PRIMITIVE_TRIS_VB.PushBack(color.w);
     }
 }
 
@@ -423,25 +439,25 @@ void PrimitiveDrawSolidDisc(vec3 center, vec3 normal, float radius)
 
 void PrimitiveDrawLine(vec3 p1, vec3 p2, vec4 color)
 {
-    PRIMITIVES_COLORS.PushBack(color);
-    PRIMITIVES_DRAWMODES.PushBack(PrimitiveDrawMode::Lines);
-    PRIMITIVE_OCCLUDED_OPACITY.PushBack(PRIMITIVE_OCCLUDED_OPACITY_STACK.Back());
-    PRIMITIVES_VERTEXCOUNTS.PushBack(2);
-    PRIMITIVES_VB.PushBack(p1.x);
-    PRIMITIVES_VB.PushBack(p1.y);
-    PRIMITIVES_VB.PushBack(p1.z);
-    PRIMITIVES_VB.PushBack(p2.x);
-    PRIMITIVES_VB.PushBack(p2.y);
-    PRIMITIVES_VB.PushBack(p2.z);
+    PRIMITIVE_LINES_VB.PushBack(p1.x);
+    PRIMITIVE_LINES_VB.PushBack(p1.y);
+    PRIMITIVE_LINES_VB.PushBack(p1.z);
+    PRIMITIVE_LINES_VB.PushBack(color.x);
+    PRIMITIVE_LINES_VB.PushBack(color.y);
+    PRIMITIVE_LINES_VB.PushBack(color.z);
+    PRIMITIVE_LINES_VB.PushBack(color.w);
+
+    PRIMITIVE_LINES_VB.PushBack(p2.x);
+    PRIMITIVE_LINES_VB.PushBack(p2.y);
+    PRIMITIVE_LINES_VB.PushBack(p2.z);
+    PRIMITIVE_LINES_VB.PushBack(color.x);
+    PRIMITIVE_LINES_VB.PushBack(color.y);
+    PRIMITIVE_LINES_VB.PushBack(color.z);
+    PRIMITIVE_LINES_VB.PushBack(color.w);
 }
 
 void PrimitiveDrawLine(vec3 p1, vec3 p2, vec4 color, float thickness, vec3 cameraPosition)
 {
-    PRIMITIVES_COLORS.PushBack(color);
-    PRIMITIVES_DRAWMODES.PushBack(PrimitiveDrawMode::Triangles);
-    PRIMITIVE_OCCLUDED_OPACITY.PushBack(PRIMITIVE_OCCLUDED_OPACITY_STACK.Back());
-    PRIMITIVES_VERTEXCOUNTS.PushBack(6);
-
     vec3 mid = (p2 - p1) * 0.5f + p1;
     vec3 toCam = Normalize(cameraPosition - mid);
     vec3 lineTangent = Normalize(Cross(p2 - p1, toCam));
@@ -449,24 +465,53 @@ void PrimitiveDrawLine(vec3 p1, vec3 p2, vec4 color, float thickness, vec3 camer
     vec3 pb = p1 + lineTangent * thickness * 0.5f;
     vec3 pc = p2 + lineTangent * thickness * -0.5f;
     vec3 pd = p2 + lineTangent * thickness * 0.5f;
-    PRIMITIVES_VB.PushBack(pa.x);
-    PRIMITIVES_VB.PushBack(pa.y);
-    PRIMITIVES_VB.PushBack(pa.z);
-    PRIMITIVES_VB.PushBack(pb.x);
-    PRIMITIVES_VB.PushBack(pb.y);
-    PRIMITIVES_VB.PushBack(pb.z);
-    PRIMITIVES_VB.PushBack(pc.x);
-    PRIMITIVES_VB.PushBack(pc.y);
-    PRIMITIVES_VB.PushBack(pc.z);
-    PRIMITIVES_VB.PushBack(pd.x);
-    PRIMITIVES_VB.PushBack(pd.y);
-    PRIMITIVES_VB.PushBack(pd.z);
-    PRIMITIVES_VB.PushBack(pc.x);
-    PRIMITIVES_VB.PushBack(pc.y);
-    PRIMITIVES_VB.PushBack(pc.z);
-    PRIMITIVES_VB.PushBack(pb.x);
-    PRIMITIVES_VB.PushBack(pb.y);
-    PRIMITIVES_VB.PushBack(pb.z);
+    PRIMITIVE_TRIS_VB.PushBack(pa.x);
+    PRIMITIVE_TRIS_VB.PushBack(pa.y);
+    PRIMITIVE_TRIS_VB.PushBack(pa.z);
+    PRIMITIVE_TRIS_VB.PushBack(color.x);
+    PRIMITIVE_TRIS_VB.PushBack(color.y);
+    PRIMITIVE_TRIS_VB.PushBack(color.z);
+    PRIMITIVE_TRIS_VB.PushBack(color.w);
+
+    PRIMITIVE_TRIS_VB.PushBack(pb.x);
+    PRIMITIVE_TRIS_VB.PushBack(pb.y);
+    PRIMITIVE_TRIS_VB.PushBack(pb.z);
+    PRIMITIVE_TRIS_VB.PushBack(color.x);
+    PRIMITIVE_TRIS_VB.PushBack(color.y);
+    PRIMITIVE_TRIS_VB.PushBack(color.z);
+    PRIMITIVE_TRIS_VB.PushBack(color.w);
+
+    PRIMITIVE_TRIS_VB.PushBack(pc.x);
+    PRIMITIVE_TRIS_VB.PushBack(pc.y);
+    PRIMITIVE_TRIS_VB.PushBack(pc.z);
+    PRIMITIVE_TRIS_VB.PushBack(color.x);
+    PRIMITIVE_TRIS_VB.PushBack(color.y);
+    PRIMITIVE_TRIS_VB.PushBack(color.z);
+    PRIMITIVE_TRIS_VB.PushBack(color.w);
+
+    PRIMITIVE_TRIS_VB.PushBack(pd.x);
+    PRIMITIVE_TRIS_VB.PushBack(pd.y);
+    PRIMITIVE_TRIS_VB.PushBack(pd.z);
+    PRIMITIVE_TRIS_VB.PushBack(color.x);
+    PRIMITIVE_TRIS_VB.PushBack(color.y);
+    PRIMITIVE_TRIS_VB.PushBack(color.z);
+    PRIMITIVE_TRIS_VB.PushBack(color.w);
+
+    PRIMITIVE_TRIS_VB.PushBack(pc.x);
+    PRIMITIVE_TRIS_VB.PushBack(pc.y);
+    PRIMITIVE_TRIS_VB.PushBack(pc.z);
+    PRIMITIVE_TRIS_VB.PushBack(color.x);
+    PRIMITIVE_TRIS_VB.PushBack(color.y);
+    PRIMITIVE_TRIS_VB.PushBack(color.z);
+    PRIMITIVE_TRIS_VB.PushBack(color.w);
+
+    PRIMITIVE_TRIS_VB.PushBack(pb.x);
+    PRIMITIVE_TRIS_VB.PushBack(pb.y);
+    PRIMITIVE_TRIS_VB.PushBack(pb.z);
+    PRIMITIVE_TRIS_VB.PushBack(color.x);
+    PRIMITIVE_TRIS_VB.PushBack(color.y);
+    PRIMITIVE_TRIS_VB.PushBack(color.z);
+    PRIMITIVE_TRIS_VB.PushBack(color.w);
 }
 
 
