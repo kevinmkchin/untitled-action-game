@@ -27,7 +27,7 @@ static const char* __scene_shader_vs =
     "    float diffuseIntensity = max(0.0, dot(normalize(normalWCS), normalize(-vec3(sunlightWCS))));\n"
     "    vec3 lightAMB = vec3(1.0) * ambientIntensity;\n"
     "    vec3 lightDIFF = vec3(1.0) * diffuseIntensity;\n"
-    "    LIGHT = lightAMB + lightDIFF;\n"
+    "    LIGHT = min(lightAMB + lightDIFF, vec3(1.0));\n"
     "}";
 
 static const char* __scene_shader_fs = 
