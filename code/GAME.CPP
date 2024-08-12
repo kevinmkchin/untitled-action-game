@@ -1538,6 +1538,7 @@ float DISC_HANDLE_RADIUS = 10.f;
 NiceArray<MapEdit::Volume, 3200> LOADED_MAP_VOLUMES;
 NiceArray<int, 16> SELECTED_MAP_VOLUMES_INDICES;
 std::vector<MapEdit::Vert*> SELECTABLE_VERTICES;
+std::vector<int> SELECTED_SELECTABLE_VERTICES_INDICES;
 
 
 enum class MapEditorTools
@@ -1701,13 +1702,20 @@ void TickMapEditor()
 
     static u32 hotHandleId = 0;
 
+
     if (keyspressed[SDL_SCANCODE_1] ||
+        Gui::ImageButton(Gui::UIRect(10,136,32,32), tex_Default.id, tex_Default.id, tex_Default.id))
+    {
+        editorActiveTool = MapEditorTools::SimpleBrushTool;
+        hotHandleId = 0;
+    }
+    if (keyspressed[SDL_SCANCODE_2] ||
         Gui::ImageButton(Gui::UIRect(10,10,32,32), tex_Default.id, tex_Default.id, tex_Default.id))
     {
         editorActiveTool = MapEditorTools::VertexManip;
         hotHandleId = 0;
     }
-    if (keyspressed[SDL_SCANCODE_2] ||
+    if (keyspressed[SDL_SCANCODE_3] ||
         Gui::ImageButton(Gui::UIRect(10,52,32,32), tex_Default.id, tex_Default.id, tex_Default.id))
     {
         editorActiveTool = MapEditorTools::EdgeManip;
@@ -1717,12 +1725,6 @@ void TickMapEditor()
         Gui::ImageButton(Gui::UIRect(10,94,32,32), tex_Default.id, tex_Default.id, tex_Default.id))
     {
         editorActiveTool = MapEditorTools::FaceManip;
-        hotHandleId = 0;
-    }
-    if (keyspressed[SDL_SCANCODE_4] ||
-        Gui::ImageButton(Gui::UIRect(10,136,32,32), tex_Default.id, tex_Default.id, tex_Default.id))
-    {
-        editorActiveTool = MapEditorTools::SimpleBrushTool;
         hotHandleId = 0;
     }
 
@@ -1736,6 +1738,7 @@ void TickMapEditor()
     //                                      if ctrl not pressed then start drag
     // on mouse down, if disc was already selected, then if ctrl pressed then deselect that disc/vert, if ctrl not pressed
     // then start checking for drag
+
     SELECTABLE_VERTICES.clear();
     for (int i = 0; i < SELECTED_MAP_VOLUMES_INDICES.count; ++i)
     {
@@ -1748,30 +1751,46 @@ void TickMapEditor()
 
     if (editorActiveTool == MapEditorTools::VertexManip)
     {
+        static bool LCtrlDownOnLeftMouseDown = false;
+        static bool AlreadySelectedOnLeftMouseDown = false;
+        static bool TranslationHappenedForSomeFrames = false;
+
         if (mousepressed & SDL_BUTTON(SDL_BUTTON_LEFT))
         {
+            TranslationHappenedForSomeFrames = false;
+            LCtrlDownOnLeftMouseDown = keyscurrent[SDL_SCANCODE_LCTRL];
+
             for (u32 id = 1; id <= SELECTABLE_VERTICES.size(); ++id)
             {
                 MapEdit::Vert *vert = SELECTABLE_VERTICES[id-1];
                 DoDiscHandle(id, vert->pos, editorCameraPosition, GetEditorHandleSize(vert->pos, DISC_HANDLE_RADIUS + 4.f));
             }
             u32 clickedId = FlushHandles(mousepos, renderTargetGame, activeViewMatrix, activePerspectiveMatrix, false);
-            LogMessage("%d", clickedId);
 
             if (clickedId > 0)
+            {
                 hotHandleId = clickedId;
-
-            // draw 4x4 view at mouse click
-            // draw disc for each vertex with color rgb(id)
-            // flush draw, retrieve color/id in middle of 4x4 view, vertex of this id enters drag
-            // hold down alt to move vertically, otherwise drag along XZ plane anchored at drag/vertex/handle point
-
-            // if id == 0 (nothing clicked) then check for click against volumes
-
-            // also draw all the other volumes with a clickable rgb id so we can switch which volume displays their vertices
-            // draw the selected volume(s) with rgb(0) so it is ignored when clicked
-            // draw these discs on top of all the volumes, but the discs themselves must do depth test so a disc closer to camera
-            // is clicked first.
+                auto clickedIter = std::find(SELECTED_SELECTABLE_VERTICES_INDICES.begin(), SELECTED_SELECTABLE_VERTICES_INDICES.end(), clickedId);
+                AlreadySelectedOnLeftMouseDown = clickedIter != SELECTED_SELECTABLE_VERTICES_INDICES.end();
+                if (!AlreadySelectedOnLeftMouseDown)
+                {
+                    if (!LCtrlDownOnLeftMouseDown)
+                        SELECTED_SELECTABLE_VERTICES_INDICES.clear();
+                    SELECTED_SELECTABLE_VERTICES_INDICES.push_back(clickedId);
+                }
+            }
+            else if (!LCtrlDownOnLeftMouseDown)
+            {
+                SELECTED_SELECTABLE_VERTICES_INDICES.clear();
+            }
+            else
+            {
+                // if id == 0 (nothing clicked) then check for click against volumes
+                // also draw all the other volumes with a clickable rgb id so we can switch which volume displays their vertices
+                // draw the selected volume(s) with rgb(0) so it is ignored when clicked
+                // draw these discs on top of all the volumes, but the discs themselves must do depth test so a disc closer to camera
+                // is clicked first.
+            }
         }
 
         if (mousecurrent & SDL_BUTTON(SDL_BUTTON_LEFT) && hotHandleId > 0)
@@ -1788,8 +1807,9 @@ void TickMapEditor()
                 vec3 dragPlaneNormal = -cameraDirection;
                 vec3 intersect;
                 IntersectPlaneAndLineWithDirections(dragPlanePoint, dragPlaneNormal, worldpos_mouse, worldray_mouse, &intersect);
+                intersect = vec3(intersect.x, SnapToMapEditorGrid(intersect.y), intersect.z);
                 float yTranslation = Dot((intersect - dragPlanePoint), GM_UP_VECTOR);
-                translation = vec3(0.f,yTranslation,0.f);//intersect - hotVert->pos;
+                translation = vec3(0.f,yTranslation,0.f);
             }
             else
             {
@@ -1797,10 +1817,16 @@ void TickMapEditor()
                 vec3 XZDragPlaneNormal = GM_UP_VECTOR;
                 vec3 intersect;
                 IntersectPlaneAndLine(XZDragPlanePoint, XZDragPlaneNormal, worldpos_mouse, worldray_mouse, &intersect);
-                translation = intersect - hotVert->pos;
+                translation = SnapToMapEditorGrid(intersect) - hotVert->pos;
             }
-            hotVert->pos += translation;
-            // TODO translate all selected vertices
+            if (translation != vec3())
+                TranslationHappenedForSomeFrames = true;
+
+            for (int index : SELECTED_SELECTABLE_VERTICES_INDICES)
+            {
+                MapEdit::Vert *vert = SELECTABLE_VERTICES[index - 1];
+                vert->pos += translation;
+            }
 
             for (int i = 0; i < SELECTED_MAP_VOLUMES_INDICES.count; ++i)
             {
@@ -1809,14 +1835,39 @@ void TickMapEditor()
                 {
                     MY_VERTEX_BUFFER.clear();
                     MapEdit::TriangulateFace_QuickDumb(*face, &MY_VERTEX_BUFFER);
-                    RebindFaceBatchBufferObject(&face->facemesh, sizeof(float)*MY_VERTEX_BUFFER.size(), MY_VERTEX_BUFFER.data());
+                    RebindFaceBatchBufferObject(&face->facemesh, (u32)sizeof(float)*MY_VERTEX_BUFFER.size(), MY_VERTEX_BUFFER.data());
                 }
             }
         }
 
         if (mousereleased & SDL_BUTTON(SDL_BUTTON_LEFT))
         {
+            if (hotHandleId > 0)
+            {
+                if (LCtrlDownOnLeftMouseDown)
+                {
+                    auto clickedIter = std::find(SELECTED_SELECTABLE_VERTICES_INDICES.begin(), SELECTED_SELECTABLE_VERTICES_INDICES.end(), hotHandleId);
+                    if (clickedIter != SELECTED_SELECTABLE_VERTICES_INDICES.end())
+                    {
+                        if (AlreadySelectedOnLeftMouseDown && !TranslationHappenedForSomeFrames)
+                            SELECTED_SELECTABLE_VERTICES_INDICES.erase(clickedIter);
+                    }
+                    else
+                    {
+                        LogError("wtf");
+                    }
+                }
+                else if (!TranslationHappenedForSomeFrames)
+                {
+                    SELECTED_SELECTABLE_VERTICES_INDICES.clear();
+                    SELECTED_SELECTABLE_VERTICES_INDICES.push_back(hotHandleId);
+                }
+            }
+
             hotHandleId = 0;
+            AlreadySelectedOnLeftMouseDown = false;
+            LCtrlDownOnLeftMouseDown = false;
+            TranslationHappenedForSomeFrames = false;
         }
     }
 
@@ -2111,10 +2162,15 @@ static void RenderMapEditorLayer()
     // PRIMITIVES
     if (editorActiveTool == MapEditorTools::VertexManip)
     {
-        for (MapEdit::Vert *v: SELECTABLE_VERTICES)
+        for (int i = 0; i < SELECTABLE_VERTICES.size(); ++i)
         {
+            MapEdit::Vert *v = SELECTABLE_VERTICES[i];
+            vec4 discHandleColor = vec4(RGBHEXTO1(0xFF8000), 1.f);
+            if (std::find(SELECTED_SELECTABLE_VERTICES_INDICES.begin(), SELECTED_SELECTABLE_VERTICES_INDICES.end(), i+1)
+                != SELECTED_SELECTABLE_VERTICES_INDICES.end())
+                discHandleColor = vec4(RGB255TO1(254,8,8),1.f);
             PrimitiveDrawSolidDisc(v->pos, editorCameraPosition - v->pos, GetEditorHandleSize(v->pos, DISC_HANDLE_RADIUS),
-                                   vec4(RGBHEXTO1(0xFF8000), 1.f));
+                                   discHandleColor);
         }
     }
     if (keyspressed[SDL_SCANCODE_X])
