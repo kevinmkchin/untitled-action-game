@@ -1,5 +1,8 @@
 /*
 
+TODO:
+- Edge & Face select & move
+- Face select and choose texture
 
 basic layout and structures of maps can be created, they are textured
     - handles (have render pick ID, reference a Vert, or Edge, or Face?)
@@ -1527,10 +1530,9 @@ static void TickGame()
     if (dot < 0.99f)
         printf("bad cam up %f\n", dot);
     activeViewMatrix = ViewMatrixLookAt(cameraPosition, cameraPosition + cameraDirection, cameraUpWithSway);
-
-    // PrimitiveDrawSolidDisc(vec3(10,0,10), -cameraDirection, 2.f);
 }
 
+#pragma region MAP_EDITOR_CODE
 
 vec3 editorCameraPosition = vec3(128, 128, 128);
 float GRID_INCREMENT = 8.f;
@@ -1754,9 +1756,11 @@ void TickMapEditor()
         static bool LCtrlDownOnLeftMouseDown = false;
         static bool AlreadySelectedOnLeftMouseDown = false;
         static bool TranslationHappenedForSomeFrames = false;
+        static vec3 TotalTranslationThisMouseDown = vec3();
 
         if (mousepressed & SDL_BUTTON(SDL_BUTTON_LEFT))
         {
+            TotalTranslationThisMouseDown = vec3();
             TranslationHappenedForSomeFrames = false;
             LCtrlDownOnLeftMouseDown = keyscurrent[SDL_SCANCODE_LCTRL];
 
@@ -1820,14 +1824,16 @@ void TickMapEditor()
                 translation = SnapToMapEditorGrid(intersect) - hotVert->pos;
             }
             if (translation != vec3())
+            {
                 TranslationHappenedForSomeFrames = true;
+                TotalTranslationThisMouseDown += translation;
+            }
 
             for (int index : SELECTED_SELECTABLE_VERTICES_INDICES)
             {
                 MapEdit::Vert *vert = SELECTABLE_VERTICES[index - 1];
                 vert->pos += translation;
             }
-
             for (int i = 0; i < SELECTED_MAP_VOLUMES_INDICES.count; ++i)
             {
                 MapEdit::Volume& selectedVol = LOADED_MAP_VOLUMES.At(SELECTED_MAP_VOLUMES_INDICES.At(i));
@@ -1838,6 +1844,31 @@ void TickMapEditor()
                     RebindFaceBatchBufferObject(&face->facemesh, (u32)sizeof(float)*MY_VERTEX_BUFFER.size(), MY_VERTEX_BUFFER.data());
                 }
             }
+        }
+
+        if (keyscurrent[SDL_SCANCODE_ESCAPE])
+        {
+            for (int index : SELECTED_SELECTABLE_VERTICES_INDICES)
+            {
+                MapEdit::Vert *vert = SELECTABLE_VERTICES[index - 1];
+                vert->pos -= TotalTranslationThisMouseDown;
+            }
+            for (int i = 0; i < SELECTED_MAP_VOLUMES_INDICES.count; ++i)
+            {
+                MapEdit::Volume& selectedVol = LOADED_MAP_VOLUMES.At(SELECTED_MAP_VOLUMES_INDICES.At(i));
+                for (MapEdit::Face *face : selectedVol.faces)
+                {
+                    MY_VERTEX_BUFFER.clear();
+                    MapEdit::TriangulateFace_QuickDumb(*face, &MY_VERTEX_BUFFER);
+                    RebindFaceBatchBufferObject(&face->facemesh, (u32)sizeof(float)*MY_VERTEX_BUFFER.size(), MY_VERTEX_BUFFER.data());
+                }
+            }
+
+            hotHandleId = 0;
+            TotalTranslationThisMouseDown = vec3();
+            AlreadySelectedOnLeftMouseDown = false;
+            LCtrlDownOnLeftMouseDown = false;
+            TranslationHappenedForSomeFrames = false;
         }
 
         if (mousereleased & SDL_BUTTON(SDL_BUTTON_LEFT))
@@ -1865,6 +1896,7 @@ void TickMapEditor()
             }
 
             hotHandleId = 0;
+            TotalTranslationThisMouseDown = vec3();
             AlreadySelectedOnLeftMouseDown = false;
             LCtrlDownOnLeftMouseDown = false;
             TranslationHappenedForSomeFrames = false;
@@ -2078,6 +2110,8 @@ void TickMapEditor()
     }
 
 }
+
+#pragma endregion MAP_EDITOR_CODE
 
 static void RenderGameLayer()
 {
