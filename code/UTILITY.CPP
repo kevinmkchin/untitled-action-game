@@ -368,7 +368,7 @@ void PrimitiveDrawAll(const mat4 *projectionMatrix, const mat4 *viewMatrix, GLui
         GLBind1i(LINES_SHADER, "sceneDepthTexture", 0);
         GLBind2f(LINES_SHADER, "framebufferSize", framebufferSize.x, framebufferSize.y);
 
-        GLBind1f(LINES_SHADER, "occludedOpacity", 0.5f);
+        GLBind1f(LINES_SHADER, "occludedOpacity", 0.0f);
         glBindVertexArray(PRIM_VERTEX_POS_AND_COLOR_VAO);
         glBindBuffer(GL_ARRAY_BUFFER, PRIM_VERTEX_POS_AND_COLOR_VBO);
         glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr) sizeof(float) * PRIMITIVE_LINES_VB.count, PRIMITIVE_LINES_VB.data,

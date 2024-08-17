@@ -1730,6 +1730,8 @@ void TickMapEditor()
         hotHandleId = 0;
     }
 
+    Gui::PrimitiveText(100,28, 9, Gui::Align::Left, "Toggle Auto Colliders []");
+
     if (Gui::anyElementActive)
         return;
 
