@@ -1541,6 +1541,7 @@ NiceArray<MapEdit::Volume, 3200> LOADED_MAP_VOLUMES;
 NiceArray<int, 16> SELECTED_MAP_VOLUMES_INDICES;
 std::vector<MapEdit::Vert*> SELECTABLE_VERTICES;
 std::vector<int> SELECTED_SELECTABLE_VERTICES_INDICES;
+std::vector<MapEdit::Face*> SELECTABLE_FACES;
 
 
 enum class MapEditorTools
@@ -1744,12 +1745,37 @@ void TickMapEditor()
     // then start checking for drag
 
     SELECTABLE_VERTICES.clear();
+    SELECTABLE_FACES.clear();
     for (int i = 0; i < SELECTED_MAP_VOLUMES_INDICES.count; ++i)
     {
         MapEdit::Volume volume = LOADED_MAP_VOLUMES.At(SELECTED_MAP_VOLUMES_INDICES.At(i));
+
         for (int j = 0; j < volume.verts.size(); ++j)
         {
             SELECTABLE_VERTICES.push_back(volume.verts[j]);
+        }
+
+        for (int j = 0; j < volume.faces.size(); ++j)
+        {
+            SELECTABLE_FACES.push_back(volume.faces[j]);
+        }
+    }
+
+    if (editorActiveTool == MapEditorTools::FaceManip)
+    {
+
+        if (mousepressed & SDL_BUTTON(SDL_BUTTON_LEFT))
+        {
+            for (u32 id = 1; id <= SELECTABLE_FACES.size(); ++id)
+            {
+                MapEdit::Face *face = SELECTABLE_FACES[id-1];
+                vec3 idrgb = HandleIdToRGB(id+255);
+                int count;
+                MapEdit::TriangulateFace_QuickDumb_WithColor(*face, idrgb, HANDLES_VB.data + HANDLES_VB.count, &count);
+                HANDLES_VB.count += count;
+            }
+            u32 clickedId = FlushHandles(mousepos, renderTargetGame, activeViewMatrix, activePerspectiveMatrix, false);
+            LogMessage("%d", clickedId);
         }
     }
 
@@ -1843,7 +1869,7 @@ void TickMapEditor()
                 {
                     MY_VERTEX_BUFFER.clear();
                     MapEdit::TriangulateFace_QuickDumb(*face, &MY_VERTEX_BUFFER);
-                    RebindFaceBatchBufferObject(&face->facemesh, (u32)sizeof(float)*MY_VERTEX_BUFFER.size(), MY_VERTEX_BUFFER.data());
+                    RebindFaceBatchBufferObject(&face->facemesh, (u32)(sizeof(float)*MY_VERTEX_BUFFER.size()), MY_VERTEX_BUFFER.data());
                 }
             }
         }
@@ -1862,7 +1888,7 @@ void TickMapEditor()
                 {
                     MY_VERTEX_BUFFER.clear();
                     MapEdit::TriangulateFace_QuickDumb(*face, &MY_VERTEX_BUFFER);
-                    RebindFaceBatchBufferObject(&face->facemesh, (u32)sizeof(float)*MY_VERTEX_BUFFER.size(), MY_VERTEX_BUFFER.data());
+                    RebindFaceBatchBufferObject(&face->facemesh, (u32)(sizeof(float)*MY_VERTEX_BUFFER.size()), MY_VERTEX_BUFFER.data());
                 }
             }
 
@@ -2349,8 +2375,8 @@ static bool InitializeEverything()
 
     g_MainSDLWindow = SDL_CreateWindow("game",
                                        SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-                                       1920,
-                                       1080,
+                                       1280,
+                                       720,
                                        SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
 
     g_SDLGLContext = SDL_GL_CreateContext(g_MainSDLWindow);
