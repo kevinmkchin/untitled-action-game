@@ -389,6 +389,45 @@ namespace MapEdit
 
     }
 
+    void TriangulateFace_QuickDumb_WithColor(const Face f, vec3 color, float *vbdata, int *out_count)
+    {
+        std::vector<vec3> verticesInOrder;
+        Loop *l = f.loopbase;
+        do {
+            vec3 p = l->v->pos;
+            verticesInOrder.push_back(p);
+            l = l->loopNext;
+        } while (l != f.loopbase && l != NULL);
+
+        int offset = 0;
+        for (int i = 1; i < verticesInOrder.size() - 1; ++i)
+        {
+            vec3 a = verticesInOrder[0];
+            vec3 b = verticesInOrder[i];
+            vec3 c = verticesInOrder[i+1];
+
+            vbdata[offset++] = a.x;
+            vbdata[offset++] = a.y;
+            vbdata[offset++] = a.z;
+            vbdata[offset++] = color.x;
+            vbdata[offset++] = color.y;
+            vbdata[offset++] = color.z;
+            vbdata[offset++] = b.x;
+            vbdata[offset++] = b.y;
+            vbdata[offset++] = b.z;
+            vbdata[offset++] = color.x;
+            vbdata[offset++] = color.y;
+            vbdata[offset++] = color.z;
+            vbdata[offset++] = c.x;
+            vbdata[offset++] = c.y;
+            vbdata[offset++] = c.z;
+            vbdata[offset++] = color.x;
+            vbdata[offset++] = color.y;
+            vbdata[offset++] = color.z;
+        }
+        *out_count = offset;
+    }
+
     void TriangulateFace_QuickDumb(const Face f, std::vector<float> *vb)
     {
         // TODO Figure out a good way for triangulating arbitrary simple polygons in 3d space which

@@ -1852,12 +1852,16 @@ namespace Gui
 
     void GUIDraw_NewFrame()
     {
+        // Clear all collections
+        for (int i = 0; i < DRAWQSTORAGE.count; ++i)
+            DRAWQSTORAGE.At(i).clear();
         // clear draw queue
         DRAWQSTORAGE.count = 1;
         DRAWQUEUE_METADATA.count = 1;
         if (DRAWREQCOLLECTIONSTACK.size() > 1)
         {
             LogError("GUI BeginWindow and EndWindow don't match.");
+            ASSERT(0);
         }
     }
 
@@ -1904,10 +1908,6 @@ namespace Gui
         std::vector<UIDrawRequest*>& baseDrawQueue = DRAWQSTORAGE.At(0);
         for (auto drawCall : baseDrawQueue)
             drawCall->Draw();
-
-        // Clear all collections
-        for (int i = 0; i < DRAWQSTORAGE.count; ++i)
-            DRAWQSTORAGE.At(i).clear();
     }
 
     void GUIDraw_PushDrawCollection(UIRect windowMask, int depth)
