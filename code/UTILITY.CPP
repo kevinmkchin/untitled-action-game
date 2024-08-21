@@ -286,7 +286,7 @@ static const char* LINES_SHADER_FS =
     "in float distance_from_eye;\n"
     "in vec4 baseColour;\n"
     "void main() {\n"
-    "    float fadeMult = clamp(exp(-pow((distance_from_eye * 0.0007), 5)), 0.0, 1.0);\n"
+    "    float fadeMult = clamp(exp(-pow((distance_from_eye * 0.0001), 5)), 0.0, 1.0);\n"
     "    vec2 depthUV = gl_FragCoord.xy / framebufferSize;\n"
     "    float sceneDepth = texture(sceneDepthTexture, depthUV).r;\n"
     "    if (sceneDepth < gl_FragCoord.z) {  \n"

@@ -29,6 +29,7 @@ namespace MapEdit
         // For map editor rendering. Each face is its own mesh. Don't optimize until my PC chugs while map editing.
         FaceBatch facemesh;
         i32 EDITOR_FACES_INDEX = -1;
+        bool hovered = false;
 
         int RefreshLoopLen()
         {
@@ -40,6 +41,18 @@ namespace MapEdit
                 l = l->loopNext;
             }
             return looplen;
+        }
+
+        std::vector<Vert*> GetVertices() const
+        {
+            ASSERT(loopbase);
+            std::vector<Vert*> verticesInOrder;
+            Loop *l = loopbase;
+            do {
+                verticesInOrder.push_back(l->v);
+                l = l->loopNext;
+            } while (l != loopbase && l != NULL);
+            return verticesInOrder;
         }
 
         vec3 QuickNormal();
@@ -156,16 +169,16 @@ namespace MapEdit
         std::vector<Vert*> verts;
     };
 
-    // vec3 Face::QuickNormal()
-    // {
-    //     // just takes the first three verts and calculates a normal
-    //     // not accurate if verts past the first three are not coplanar
-    //     ASSERT(looplen > 2);
-    //     vec3 a = loopbase->v->pos;
-    //     vec3 b = loopbase->loopNext->v->pos;
-    //     vec3 c = loopbase->loopNext->loopNext->v->pos;
-    //     return Normalize(Cross(b-a, c-a));
-    // }
+    vec3 Face::QuickNormal()
+    {
+        // just takes the first three verts and calculates a normal
+        // not accurate if verts past the first three are not coplanar
+        ASSERT(looplen > 2);
+        vec3 a = loopbase->v->pos;
+        vec3 b = loopbase->loopNext->v->pos;
+        vec3 c = loopbase->loopNext->loopNext->v->pos;
+        return Normalize(Cross(b-a, c-a));
+    }
 
     /*
     Example usage:

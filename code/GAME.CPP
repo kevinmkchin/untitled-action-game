@@ -1,8 +1,10 @@
 /*
 
 TODO:
+- SELECT THE SELECTABLE VERTICES SINCE THAT EXISTS probably make SELECTED_SELECTABLE_VERTICES_INDICES a list of vertex ptrs
 - Edge & Face select & move
 - Face select and choose texture
+- CREATE GRID MESH STATICALLY AT THE START!!! DONT NEED TO MAKE IT EVERY FRAME (just one grid mesh, scale it and translate it)
 
 basic layout and structures of maps can be created, they are textured
     - handles (have render pick ID, reference a Vert, or Edge, or Face?)
@@ -863,6 +865,7 @@ static void RenderFaceBatch(FaceBatch faceBatch)
 
 #pragma region MORE_GLOBAL_VARIABLES
 GPUShader sceneShader;
+GPUShader editorShader_FaceSelected;
 GPUShader finalPassShader;
 GPUFrameBuffer renderTargetGame;
 GPUFrameBuffer renderTargetGUI;
@@ -1540,6 +1543,7 @@ float DISC_HANDLE_RADIUS = 10.f;
 NiceArray<MapEdit::Volume, 3200> LOADED_MAP_VOLUMES;
 NiceArray<int, 16> SELECTED_MAP_VOLUMES_INDICES;
 std::vector<MapEdit::Vert*> SELECTABLE_VERTICES;
+std::vector<MapEdit::Vert*> SELECTED_VERTICES;
 std::vector<int> SELECTED_SELECTABLE_VERTICES_INDICES;
 std::vector<MapEdit::Face*> SELECTABLE_FACES;
 
@@ -1675,7 +1679,7 @@ void TickMapEditor()
         intersection_with_xz_plane = SnapToMapEditorGrid(intersection_with_xz_plane);
         float gridoriginx = intersection_with_xz_plane.x;
         float gridoriginz = intersection_with_xz_plane.z;
-        int linedrawcount = 1800 / (int)gridVisualIncrement;
+        int linedrawcount = 4000 / (int)gridVisualIncrement;
         for (int i = -linedrawcount; i < linedrawcount; ++i)
         {
             if (float(i) * gridVisualIncrement + gridoriginz != 0.f)
@@ -1689,7 +1693,7 @@ void TickMapEditor()
         }
     }
     PrimitiveDrawLine(vec3(320000.f, 0.f, 0.f), vec3(-320000.f, 0.f, 0.f), vec4(RGB255TO1(205, 56, 9), 0.8f));
-    PrimitiveDrawLine(vec3(0.f, 320000.f, 0.f), vec3(0.f, -320000.f, 0.f), vec4(RGB255TO1(67, 123, 9), 0.8f));
+    // PrimitiveDrawLine(vec3(0.f, 320000.f, 0.f), vec3(0.f, -320000.f, 0.f), vec4(RGB255TO1(67, 123, 9), 0.8f));
     PrimitiveDrawLine(vec3(0.f, 0.f, 320000.f), vec3(0.f, 0.f, -320000.f), vec4(RGB255TO1(21, 129, 205), 0.8f));
     Gui::PrimitiveText(100,100, 36, Gui::Align::Left, std::to_string(GRID_INCREMENT).c_str());
 
@@ -1707,25 +1711,25 @@ void TickMapEditor()
 
 
     if (keyspressed[SDL_SCANCODE_1] ||
-        Gui::ImageButton(Gui::UIRect(10,136,32,32), tex_Default.id, tex_Default.id, tex_Default.id))
+        Gui::ImageButton(Gui::UIRect(10,10,32,32), tex_Default.id, tex_Default.id, tex_Default.id))
     {
         editorActiveTool = MapEditorTools::SimpleBrushTool;
         hotHandleId = 0;
     }
     if (keyspressed[SDL_SCANCODE_2] ||
-        Gui::ImageButton(Gui::UIRect(10,10,32,32), tex_Default.id, tex_Default.id, tex_Default.id))
+        Gui::ImageButton(Gui::UIRect(10,52,32,32), tex_Default.id, tex_Default.id, tex_Default.id))
     {
         editorActiveTool = MapEditorTools::VertexManip;
         hotHandleId = 0;
     }
     if (keyspressed[SDL_SCANCODE_3] ||
-        Gui::ImageButton(Gui::UIRect(10,52,32,32), tex_Default.id, tex_Default.id, tex_Default.id))
+        Gui::ImageButton(Gui::UIRect(10,94,32,32), tex_Default.id, tex_Default.id, tex_Default.id))
     {
         editorActiveTool = MapEditorTools::EdgeManip;
         hotHandleId = 0;
     }
-    if (keyspressed[SDL_SCANCODE_3] ||
-        Gui::ImageButton(Gui::UIRect(10,94,32,32), tex_Default.id, tex_Default.id, tex_Default.id))
+    if (keyspressed[SDL_SCANCODE_4] ||
+        Gui::ImageButton(Gui::UIRect(10,136,32,32), tex_Default.id, tex_Default.id, tex_Default.id))
     {
         editorActiveTool = MapEditorTools::FaceManip;
         hotHandleId = 0;
@@ -1763,19 +1767,102 @@ void TickMapEditor()
 
     if (editorActiveTool == MapEditorTools::FaceManip)
     {
+        static vec3 intersectOffsetFromLoopbaseVert;
 
-        if (mousepressed & SDL_BUTTON(SDL_BUTTON_LEFT))
+        bool lmbPressedThisFrame = mousepressed & SDL_BUTTON(SDL_BUTTON_LEFT);
+        bool lmbIsPressed = mousecurrent & SDL_BUTTON(SDL_BUTTON_LEFT);
+
+        for (u32 id = 1; id <= SELECTABLE_FACES.size(); ++id)
         {
-            for (u32 id = 1; id <= SELECTABLE_FACES.size(); ++id)
+            MapEdit::Face *face = SELECTABLE_FACES[id-1];
+            vec3 idrgb = HandleIdToRGB(id);
+            int count;
+            MapEdit::TriangulateFace_QuickDumb_WithColor(*face, idrgb, HANDLES_VB.data + HANDLES_VB.count, &count);
+            HANDLES_VB.count += count;
+        }
+        u32 hoveredFaceId = FlushHandles(mousepos, renderTargetGame, activeViewMatrix, activePerspectiveMatrix, false);
+        LogMessage("%d", hoveredFaceId);
+
+        if (hoveredFaceId > 0)
+        {
+            MapEdit::Face *face = SELECTABLE_FACES[hoveredFaceId-1];
+            face->hovered = true;
+
+            if (lmbPressedThisFrame)
             {
-                MapEdit::Face *face = SELECTABLE_FACES[id-1];
-                vec3 idrgb = HandleIdToRGB(id+255);
-                int count;
-                MapEdit::TriangulateFace_QuickDumb_WithColor(*face, idrgb, HANDLES_VB.data + HANDLES_VB.count, &count);
-                HANDLES_VB.count += count;
+                hotHandleId = hoveredFaceId;
+                SELECTED_VERTICES = face->GetVertices();
+
+                vec3 worldpos_mouse = ScreenPointToWorldPoint(mousepos, 0.f);
+                vec3 worldray_mouse = ScreenPointToWorldRay(mousepos);
+                vec3 intersect;
+                IntersectPlaneAndLineWithDirections(face->loopbase->v->pos, face->QuickNormal(), worldpos_mouse, worldray_mouse, &intersect);
+                intersectOffsetFromLoopbaseVert = intersect - face->loopbase->v->pos;
             }
-            u32 clickedId = FlushHandles(mousepos, renderTargetGame, activeViewMatrix, activePerspectiveMatrix, false);
-            LogMessage("%d", clickedId);
+        }
+
+
+        if (lmbIsPressed && hotHandleId > 0)
+        {
+            MapEdit::Face *hotFace = SELECTABLE_FACES[hotHandleId-1];
+
+            vec3 worldpos_mouse = ScreenPointToWorldPoint(mousepos, 0.f);
+            vec3 worldray_mouse = ScreenPointToWorldRay(mousepos);
+
+            vec3 translation;
+            vec3 faceNormal = hotFace->QuickNormal();
+            // PrimitiveDrawSolidDisc(intersect, -cameraDirection, 8.f, vec4(1.0,0.0,1.0,1.0));
+            vec3 dragPlanePoint = hotFace->loopbase->v->pos + intersectOffsetFromLoopbaseVert;
+            vec3 intersect;
+            IntersectPlaneAndLineWithDirections(dragPlanePoint, -cameraDirection, worldpos_mouse, worldray_mouse, &intersect);
+            float scaleComponent = Dot((intersect - dragPlanePoint), faceNormal);
+            translation = SnapToMapEditorGrid(scaleComponent) * faceNormal;//vec3(0.f,yTranslation,0.f);
+
+            // vec3 dragPlanePoint = hotFace->pos;
+            // vec3 dragPlaneNormal = -cameraDirection;
+            // vec3 intersect;
+            // IntersectPlaneAndLineWithDirections(dragPlanePoint, dragPlaneNormal, worldpos_mouse, worldray_mouse, &intersect);
+            // intersect = vec3(intersect.x, SnapToMapEditorGrid(intersect.y), intersect.z);
+            // float yTranslation = Dot((intersect - dragPlanePoint), GM_UP_VECTOR);
+            // translation = vec3(0.f,yTranslation,0.f);
+            // if (keyscurrent[SDL_SCANCODE_LALT])
+            // {
+            //     vec3 dragPlanePoint = hotVert->pos;
+            //     vec3 dragPlaneNormal = -cameraDirection;
+            //     vec3 intersect;
+            //     IntersectPlaneAndLineWithDirections(dragPlanePoint, dragPlaneNormal, worldpos_mouse, worldray_mouse, &intersect);
+            //     intersect = vec3(intersect.x, SnapToMapEditorGrid(intersect.y), intersect.z);
+            //     float yTranslation = Dot((intersect - dragPlanePoint), GM_UP_VECTOR);
+            //     translation = vec3(0.f,yTranslation,0.f);
+            // }
+            // else
+            // {
+            //     vec3 XZDragPlanePoint = hotVert->pos;
+            //     vec3 XZDragPlaneNormal = GM_UP_VECTOR;
+            //     vec3 intersect;
+            //     IntersectPlaneAndLine(XZDragPlanePoint, XZDragPlaneNormal, worldpos_mouse, worldray_mouse, &intersect);
+            //     translation = SnapToMapEditorGrid(intersect) - hotVert->pos;
+            // }
+            // if (translation != vec3())
+            // {
+            //     TranslationHappenedForSomeFrames = true;
+            //     TotalTranslationThisMouseDown += translation;
+            // }
+
+            for (MapEdit::Vert *vert : SELECTED_VERTICES)
+            {
+                vert->pos += translation;
+            }
+            for (int i = 0; i < SELECTED_MAP_VOLUMES_INDICES.count; ++i)
+            {
+                MapEdit::Volume& selectedVol = LOADED_MAP_VOLUMES.At(SELECTED_MAP_VOLUMES_INDICES.At(i));
+                for (MapEdit::Face *face : selectedVol.faces)
+                {
+                    MY_VERTEX_BUFFER.clear();
+                    MapEdit::TriangulateFace_QuickDumb(*face, &MY_VERTEX_BUFFER);
+                    RebindFaceBatchBufferObject(&face->facemesh, (u32)(sizeof(float)*MY_VERTEX_BUFFER.size()), MY_VERTEX_BUFFER.data());
+                }
+            }
         }
     }
 
@@ -2215,11 +2302,28 @@ static void RenderMapEditorLayer()
 
     GLBindMatrix4fv(sceneShader, "modelMatrix", 1, modelMatrix.ptr());
 
+
+    FaceBatch hoveredFaceMesh;
     for (int i = 0; i < MapEdit::EDITOR_FACES.count; ++i)
     {
-        const FaceBatch fb = MapEdit::EDITOR_FACES.At(i)->facemesh;
+        MapEdit::Face *editorVolumeFace = MapEdit::EDITOR_FACES.At(i);
+        if (editorVolumeFace->hovered)
+        {
+            hoveredFaceMesh = editorVolumeFace->facemesh;
+            editorVolumeFace->hovered = false;
+            continue;
+        }
+        const FaceBatch fb = editorVolumeFace->facemesh;
         RenderFaceBatch(fb);
     }
+
+    UseShader(editorShader_FaceSelected);
+    GLBindMatrix4fv(editorShader_FaceSelected, "projMatrix", 1, perspectiveMatrix.ptr());
+    GLBindMatrix4fv(editorShader_FaceSelected, "viewMatrix", 1, viewMatrix.ptr());
+    modelMatrix = mat4();
+    GLBindMatrix4fv(editorShader_FaceSelected, "modelMatrix", 1, modelMatrix.ptr());
+    RenderFaceBatch(hoveredFaceMesh);
+
 
     // PRIMITIVES
     if (editorActiveTool == MapEditorTools::VertexManip)
@@ -2310,6 +2414,7 @@ static void InitGameRenderer()
 
 
     GLCreateShaderProgram(sceneShader, __scene_shader_vs, __scene_shader_fs);
+    GLCreateShaderProgram(editorShader_FaceSelected, __editor_shader_face_selected_vs, __editor_shader_face_selected_fs);
     GLCreateShaderProgram(finalPassShader, __finalpass_shader_vs, __finalpass_shader_fs);
 
 
