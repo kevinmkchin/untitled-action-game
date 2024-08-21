@@ -47,6 +47,42 @@ static const char* __scene_shader_fs =
     "    out_colour = vec4(TOTAL, 1.0);\n"
     "}";
 
+static const char* __editor_shader_face_selected_vs =
+    "#version 330\n"
+    "\n"
+    "layout (location = 0) in vec3 vertex_pos;\n"
+    "layout (location = 1) in vec2 vertex_uv;\n"
+    "layout (location = 2) in vec3 vertex_normal;\n"
+    "\n"
+    "out vec2 uv;\n"
+    "\n"
+    "uniform mat4 modelMatrix;\n"
+    "uniform mat4 viewMatrix;\n"
+    "uniform mat4 projMatrix;\n"
+    "\n"
+    "void main()\n"
+    "{\n"
+    "    uv = vertex_uv;\n"
+    "    vec4 vertInClipSpace = projMatrix * viewMatrix * modelMatrix * vec4(vertex_pos, 1.0);\n"
+    "    gl_Position = vertInClipSpace;\n"
+    "}";
+
+static const char* __editor_shader_face_selected_fs = 
+    "#version 330\n"
+    "\n"
+    "in vec2 uv;\n"
+    "\n"
+    "layout(location = 0) out vec4 out_colour;\n"
+    "\n"
+    "uniform sampler2D texture0;\n"
+    "\n"
+    "void main()\n"
+    "{\n"
+    "    vec3 COLOR = texture(texture0, uv).xyz;\n"
+    "    vec3 TOTAL = COLOR * vec3(0.9, 0.9, 0.0);\n"
+    "    out_colour = vec4(TOTAL, 1.0);\n"
+    "}";
+
 
 static const char* __finalpass_shader_vs =
     "#version 330\n"
