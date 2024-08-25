@@ -528,13 +528,10 @@ namespace MapEdit
         }
 
     }
+
 }
 
 
-struct EditableMapData
-{
-
-};
 
 
 
