@@ -1,11 +1,545 @@
-#pragma region MAP_EDITOR_CODE
+
+
+namespace MapEdit
+{
+    struct Edge;
+    struct Vert;
+    struct Loop;
+    struct Face;
+    struct Face;
+
+    NiceArray<Face*, 100000> EDITOR_FACES;
+
+    struct Loop
+    {
+        Loop *loopNext = NULL;
+        Loop *loopPrev = NULL;
+        Loop *radialNext = NULL;
+        Loop *radialPrev = NULL;
+        Edge *e = NULL;
+        Vert *v = NULL;
+        Face *f = NULL;
+    };
+
+    struct Face
+    {
+        Loop *loopbase = NULL;
+        int looplen = -1;
+
+        // For map editor rendering. Each face is its own mesh. Don't optimize until my PC chugs while map editing.
+        FaceBatch facemesh;
+        i32 EDITOR_FACES_INDEX = -1;
+        bool hovered = false;
+
+        int RefreshLoopLen()
+        {
+            looplen = 0;
+            Loop *l = loopbase;
+            while (l != NULL && l != loopbase->loopPrev)
+            {
+                ++looplen;
+                l = l->loopNext;
+            }
+            return looplen;
+        }
+
+        std::vector<Vert*> GetVertices() const
+        {
+            ASSERT(loopbase);
+            std::vector<Vert*> verticesInOrder;
+            Loop *l = loopbase;
+            do {
+                verticesInOrder.push_back(l->v);
+                l = l->loopNext;
+            } while (l != loopbase && l != NULL);
+            return verticesInOrder;
+        }
+
+        vec3 QuickNormal();
+    };
+
+    struct Edge
+    {
+        Vert *a = NULL;
+        Vert *b = NULL;
+        Loop *radial = NULL;
+
+        void InsertIntoRadialCycle(Loop *loop)
+        {
+            if (radial == NULL)
+            {
+                loop->radialNext = loop;
+                loop->radialPrev = loop;
+                radial = loop;
+            }
+            else
+            {
+                loop->radialNext = radial->radialNext;
+                loop->radialPrev = radial;
+                radial->radialNext->radialPrev = loop;
+                radial->radialNext = loop;
+            }
+        }
+
+        void RemoveFromRadialCycle(Loop *loop)
+        {
+            ASSERT(radial);
+
+            Loop *l = radial;
+            do {
+                if (l == loop)
+                {
+                    if (l == l->radialPrev)
+                    {
+                        radial = NULL;
+                        return;
+                    }
+
+                    l->radialPrev->radialNext = l->radialNext;
+                    l->radialNext->radialPrev = l->radialPrev;
+                    radial = l->radialPrev;
+                    return;
+                }
+                l = l->radialNext;
+            } while (l != radial && l != NULL);
+        }
+
+        Vert *SharesVert(Edge *other) const
+        {
+            if (other->a == a || other->b == a)
+                return a;
+            else if (other->a == b || other->b == b)
+                return b;
+            else
+                return NULL;
+        }
+
+        std::vector<Loop*> GetRadialCycleCopy() const
+        {
+            ASSERT(radial);
+
+            std::vector<Loop*> radialCycle;
+
+            Loop *l = radial;
+            do {
+                radialCycle.push_back(l);
+                l = l->radialNext;
+            } while (l != radial && l != NULL);
+
+            return radialCycle;
+        }
+
+        // void SwitchAB()
+        // {
+        //     auto v = a;
+        //     b = a;
+        //     a = v;
+        // }
+    };
+
+    struct Vert
+    {
+        vec3 pos;
+
+        std::vector<Edge*> edges;
+
+        void DiskLinkInsertEdge(Edge *e)
+        {
+            edges.push_back(e);
+        }
+
+        void DiskLinkRemoveEdge(Edge *e)
+        {
+            for (Edge *edge : edges)
+            {
+                if (edge == e)
+                {
+                    edges.erase(std::find(edges.begin(), edges.end(), e));
+                    return;
+                }
+            }
+            fprintf(stderr, "Attemping to remove edge from disk link but edge doesn't exist in disk link.");
+        }
+    };
+
+    struct Volume
+    {
+        std::vector<Face*> faces;
+        std::vector<Edge*> edges;
+        std::vector<Vert*> verts;
+    };
+
+    vec3 Face::QuickNormal()
+    {
+        // just takes the first three verts and calculates a normal
+        // not accurate if verts past the first three are not coplanar
+        ASSERT(looplen > 2);
+        vec3 a = loopbase->v->pos;
+        vec3 b = loopbase->loopNext->v->pos;
+        vec3 c = loopbase->loopNext->loopNext->v->pos;
+        return Normalize(Cross(b-a, c-a));
+    }
+
+    /*
+    Example usage:
+
+    v0 = CreateVert(...)
+    v1 = CreateVert(...)
+    v2 = CreateVert(...)
+    v3 = CreateVert(...)
+    v4 = CreateVert(...)
+
+    e0 = CreateEdge(v0, v1)
+    e1 = CreateEdge(v1, v2)
+    e2 = CreateEdge(v3, v2) // order of vertices must not matter
+    e3 = CreateEdge(v3, v4)
+    e4 = CreateEdge(v4, v0)
+
+    loe = [e0, e1, e2, e3, e4]
+
+    f0 = CreateFace(loe)
+
+    v5 = CreateVert(...)
+
+    e5 = CreateEdge(v5, v1)
+    e6 = CreateEdge(v5, v2)
+
+    loe = [e1, e5, e6]
+
+    f1 = CreateFace(loe)
+
+    This would create a mesh structure with two faces where e1 is the shared edge connecting the two faces.
+    e1 would also have two loops in its radial cycle.
+
+    The topological entities created from these functions are only partially populated. Vertices are only
+    fully populated once they are used to create Edges, and Edges are only fully populated once they are
+    used to create Faces.
+    */
+
+    Face *CreateFace(const std::vector<Edge*>& edges, Volume *owner)
+    {
+        if (edges.size() < 2)
+            return NULL;
+
+        // Order the edges by adjacency
+        std::vector<Edge*> unprocessed = edges;
+        std::vector<Edge*> orderedEdges = { edges[0] };
+        Edge *lastEdgeAddedToOrderedList = edges[0];
+        unprocessed.erase(std::find(unprocessed.begin(), unprocessed.end(), lastEdgeAddedToOrderedList));
+        while (!unprocessed.empty())
+        {
+            bool processed = false;
+            for (Edge *u : unprocessed)
+            {
+                if (lastEdgeAddedToOrderedList->SharesVert(u) != NULL)
+                {
+                    orderedEdges.push_back(u);
+                    lastEdgeAddedToOrderedList = u;
+                    unprocessed.erase(std::find(unprocessed.begin(), unprocessed.end(), u));
+                    processed = true;
+                    break;
+                }
+            }
+            if (!processed)
+            {
+                fprintf(stderr, "Failed to create face from provided edges.");
+                return NULL;
+            }
+        }
+
+        // Create face and loops
+        Face *face = new Face();
+
+        Loop *lastLoop = NULL;
+        Loop *firstLoop = NULL;
+        for (Edge *e : orderedEdges)
+        {
+            // Store references to base vertex, corresponding edge, and corresponding face
+            // Insert loop into Radial Cycle of this edge
+            // Form Loop Cycle of this face
+
+            Loop *loop = new Loop();
+            loop->v = lastLoop == NULL ? orderedEdges[orderedEdges.size()-1]->SharesVert(e) : lastLoop->e->SharesVert(e);
+            loop->e = e;
+            loop->f = face;
+
+            e->InsertIntoRadialCycle(loop);
+
+            if (lastLoop == NULL)
+            {
+                firstLoop = loop;
+            }
+            else
+            {
+                loop->loopPrev = lastLoop;
+                lastLoop->loopNext = loop;
+            }
+            lastLoop = loop;
+        }
+        firstLoop->loopPrev = lastLoop;
+        lastLoop->loopNext = firstLoop;
+
+        face->loopbase = firstLoop;
+        face->looplen = (int)edges.size();
+
+        owner->faces.push_back(face);
+        CreateFaceBatchMeshOnGPU(&face->facemesh.idVAO, &face->facemesh.idVBO);
+        face->EDITOR_FACES_INDEX = EDITOR_FACES.count;
+        EDITOR_FACES.PushBack(face);
+
+        return face;
+    }
+
+    Edge *CreateEdge(Vert *v1, Vert *v2, Volume *owner)
+    {
+        Edge *edge = new Edge();
+        edge->a = v1;
+        edge->b = v2;
+        v1->DiskLinkInsertEdge(edge);
+        v2->DiskLinkInsertEdge(edge);
+
+        owner->edges.push_back(edge);
+        return edge;
+    }
+
+    Vert *CreateVert(vec3 pos, Volume *owner)
+    {
+        Vert *v = new Vert();
+        v->pos = pos;
+
+        owner->verts.push_back(v);
+        return v;
+    }
+
+    void KillFace(Face *face, Volume *owner)
+    {
+        // find remove face from owner->faces
+        // delete face and loops...i think
+        DeleteFaceBatchMeshOnGPU(face->facemesh.idVAO, face->facemesh.idVBO); // delete gpu face batch
+        EDITOR_FACES.Back()->EDITOR_FACES_INDEX = face->EDITOR_FACES_INDEX; // update index of the face that will be moved
+        EDITOR_FACES.EraseAt(face->EDITOR_FACES_INDEX); // erase face and replace index with face at the back of nice array
+        // maybe im missing some things
+    }
+
+    void KillEdge(Edge *edge, Volume *owner)
+    {
+        // find remove edge from owner->edges
+        // kill faces that use this edge
+        // delete edge
+        // maybe im missing some things
+    }
+
+    void KillVert(Vert *vert, Volume *owner)
+    {
+        // find remove vert from owner->verts
+        // kill edges that use this vert
+        // delete vert
+        // maybe im missing some things
+    }
+
+    void FaceLoopReverse(Face *face)
+    {
+        ASSERT(face->looplen > 2);
+        Vert *ogloopbasev = face->loopbase->v;
+        Loop *l = face->loopbase;
+
+        while (l->loopNext != face->loopbase)
+        {
+            l->v = l->loopNext->v;
+            Loop *next = l->loopNext;
+            l->loopNext = l->loopPrev;
+            l->loopPrev = next;
+            l = next;
+        }
+        l->v = ogloopbasev;
+        l->loopNext = l->loopPrev;
+        l->loopPrev = face->loopbase;
+    }
+
+    Vert *Euler_SplitEdgeMakeVert(Edge *edge, float abLerp = 0.5f)
+    {
+        return nullptr;
+    }
+
+    Edge *Euler_JoinEdgeKillVert()
+    {
+        return nullptr;
+    }
+
+    Face *Euler_SplitFaceMakeEdge(Face *face, Vert *v1, Vert *v2)
+    {
+        return nullptr;
+    }
+
+    Face *Euler_JoinFaceKillEdge()
+    {
+        return nullptr;
+    }
+
+
+
+    void MakeRectangularVolume(Volume *vol)
+    {
+        for (Face *f : vol->faces)
+            delete f;
+        vol->faces.clear();
+
+        Vert *v0 = CreateVert(vec3(-320,0,-320), vol);
+        Vert *v1 = CreateVert(vec3(-320,0,320), vol);
+        Vert *v2 = CreateVert(vec3(320,0,320), vol);
+        Vert *v3 = CreateVert(vec3(320,0,-320), vol);
+
+        Edge *e0 = CreateEdge(v0, v1, vol);
+        Edge *e1 = CreateEdge(v1, v2, vol);
+        Edge *e2 = CreateEdge(v2, v3, vol);
+        Edge *e3 = CreateEdge(v3, v0, vol);
+
+        CreateFace({e0, e1, e2, e3}, vol);
+    }
+
+    void MakeCubeVolume(Volume *vol)
+    {
+
+    }
+
+    void TriangulateFace_QuickDumb_WithColor(const Face f, vec3 color, float *vbdata, int *out_count)
+    {
+        std::vector<vec3> verticesInOrder;
+        Loop *l = f.loopbase;
+        do {
+            vec3 p = l->v->pos;
+            verticesInOrder.push_back(p);
+            l = l->loopNext;
+        } while (l != f.loopbase && l != NULL);
+
+        int offset = 0;
+        for (int i = 1; i < verticesInOrder.size() - 1; ++i)
+        {
+            vec3 a = verticesInOrder[0];
+            vec3 b = verticesInOrder[i];
+            vec3 c = verticesInOrder[i+1];
+
+            vbdata[offset++] = a.x;
+            vbdata[offset++] = a.y;
+            vbdata[offset++] = a.z;
+            vbdata[offset++] = color.x;
+            vbdata[offset++] = color.y;
+            vbdata[offset++] = color.z;
+            vbdata[offset++] = b.x;
+            vbdata[offset++] = b.y;
+            vbdata[offset++] = b.z;
+            vbdata[offset++] = color.x;
+            vbdata[offset++] = color.y;
+            vbdata[offset++] = color.z;
+            vbdata[offset++] = c.x;
+            vbdata[offset++] = c.y;
+            vbdata[offset++] = c.z;
+            vbdata[offset++] = color.x;
+            vbdata[offset++] = color.y;
+            vbdata[offset++] = color.z;
+        }
+        *out_count = offset;
+    }
+
+    void TriangulateFace_QuickDumb(const Face f, std::vector<float> *vb)
+    {
+        // TODO Figure out a good way for triangulating arbitrary simple polygons in 3d space which
+        // may not have coplanar vertices...and then do delaunay and flipping for nicer triangles...
+        // https://swaminathanj.github.io/cg/PolygonTriangulation.html#:~:text=Let%20v%20be%20a%20vertex,has%20at%20least%20two%20ears.
+
+        ASSERT(f.looplen > 2);
+        std::vector<vec3> verticesInOrder;
+        Loop *l = f.loopbase;
+        do {
+            vec3 p = l->v->pos;
+            verticesInOrder.push_back(p);
+            l = l->loopNext;
+        } while (l != f.loopbase && l != NULL);
+
+        for (int i = 1; i < verticesInOrder.size() - 1; ++i)
+        {
+            vec3 a = verticesInOrder[0];
+            vec3 b = verticesInOrder[i];
+            vec3 c = verticesInOrder[i+1];
+            vec3 n = Normalize(Cross(b-a, c-a));
+
+            float uvScale = (1.f / (float)THIRTYTWO); // [0,1] being scaled to 32 units
+            float xf = GM_abs(Dot(n, vec3(1.f, 0.f, 0.f)));
+            float yf = GM_abs(Dot(n, vec3(0.f, 1.f, 0.f)));
+            float zf = GM_abs(Dot(n, vec3(0.f, 0.f, 1.f)));
+            float au;
+            float av;
+            float bu;
+            float bv;
+            float cu;
+            float cv;
+            if(xf >= yf && xf >= zf)
+            {
+                au = a.z * uvScale;
+                av = a.y * uvScale;
+                bu = b.z * uvScale;
+                bv = b.y * uvScale;
+                cu = c.z * uvScale;
+                cv = c.y * uvScale;
+            }
+            else if(yf >= xf && yf >= zf)
+            {
+                au = a.x * uvScale;
+                av = a.z * uvScale;
+                bu = b.x * uvScale;
+                bv = b.z * uvScale;
+                cu = c.x * uvScale;
+                cv = c.z * uvScale;
+            }
+            else if(zf >= xf && zf >= yf)
+            {
+                au = a.x * uvScale;
+                av = a.y * uvScale;
+                bu = b.x * uvScale;
+                bv = b.y * uvScale;
+                cu = c.x * uvScale;
+                cv = c.y * uvScale;
+            }
+
+            vb->push_back(a.x);
+            vb->push_back(a.y);
+            vb->push_back(a.z);
+            vb->push_back(au);
+            vb->push_back(av);
+            vb->push_back(n.x);
+            vb->push_back(n.y);
+            vb->push_back(n.z);
+            vb->push_back(b.x);
+            vb->push_back(b.y);
+            vb->push_back(b.z);
+            vb->push_back(bu);
+            vb->push_back(bv);
+            vb->push_back(n.x);
+            vb->push_back(n.y);
+            vb->push_back(n.z);
+            vb->push_back(c.x);
+            vb->push_back(c.y);
+            vb->push_back(c.z);
+            vb->push_back(cu);
+            vb->push_back(cv);
+            vb->push_back(n.x);
+            vb->push_back(n.y);
+            vb->push_back(n.z);
+        }
+
+    }
+
+}
+
+
+
+NiceArray<MapEdit::Volume, 3200> EDITOR_MAP_VOLUMES;
 
 std::vector<float> MY_VERTEX_BUFFER;
 
 vec3 editorCameraPosition = vec3(128, 128, 128);
 float GRID_INCREMENT = 8.f;
 float DISC_HANDLE_RADIUS = 10.f;
-NiceArray<MapEdit::Volume, 3200> LOADED_MAP_VOLUMES;
 NiceArray<int, 16> SELECTED_MAP_VOLUMES_INDICES;
 std::vector<MapEdit::Vert*> SELECTABLE_VERTICES;
 std::vector<MapEdit::Vert*> SELECTED_VERTICES;
@@ -217,7 +751,7 @@ void TickMapEditor()
     SELECTABLE_FACES.clear();
     for (int i = 0; i < SELECTED_MAP_VOLUMES_INDICES.count; ++i)
     {
-        MapEdit::Volume volume = LOADED_MAP_VOLUMES.At(SELECTED_MAP_VOLUMES_INDICES.At(i));
+        MapEdit::Volume volume = EDITOR_MAP_VOLUMES.At(SELECTED_MAP_VOLUMES_INDICES.At(i));
 
         for (int j = 0; j < volume.verts.size(); ++j)
         {
@@ -320,7 +854,7 @@ void TickMapEditor()
             }
             for (int i = 0; i < SELECTED_MAP_VOLUMES_INDICES.count; ++i)
             {
-                MapEdit::Volume& selectedVol = LOADED_MAP_VOLUMES.At(SELECTED_MAP_VOLUMES_INDICES.At(i));
+                MapEdit::Volume& selectedVol = EDITOR_MAP_VOLUMES.At(SELECTED_MAP_VOLUMES_INDICES.At(i));
                 for (MapEdit::Face *face : selectedVol.faces)
                 {
                     MY_VERTEX_BUFFER.clear();
@@ -416,7 +950,7 @@ void TickMapEditor()
             }
             for (int i = 0; i < SELECTED_MAP_VOLUMES_INDICES.count; ++i)
             {
-                MapEdit::Volume& selectedVol = LOADED_MAP_VOLUMES.At(SELECTED_MAP_VOLUMES_INDICES.At(i));
+                MapEdit::Volume& selectedVol = EDITOR_MAP_VOLUMES.At(SELECTED_MAP_VOLUMES_INDICES.At(i));
                 for (MapEdit::Face *face : selectedVol.faces)
                 {
                     MY_VERTEX_BUFFER.clear();
@@ -435,7 +969,7 @@ void TickMapEditor()
             }
             for (int i = 0; i < SELECTED_MAP_VOLUMES_INDICES.count; ++i)
             {
-                MapEdit::Volume& selectedVol = LOADED_MAP_VOLUMES.At(SELECTED_MAP_VOLUMES_INDICES.At(i));
+                MapEdit::Volume& selectedVol = EDITOR_MAP_VOLUMES.At(SELECTED_MAP_VOLUMES_INDICES.At(i));
                 for (MapEdit::Face *face : selectedVol.faces)
                 {
                     MY_VERTEX_BUFFER.clear();
@@ -667,8 +1201,8 @@ void TickMapEditor()
                     MapEdit::CreateFace({f2_to_f3, f2_to_c2, c2_to_c3, f3_to_c3}, &createdVolume);
                     MapEdit::CreateFace({f3_to_f0, f3_to_c3, c3_to_c0, f0_to_c0}, &createdVolume);
 
-                    LOADED_MAP_VOLUMES.PushBack(createdVolume);
-                    SELECTED_MAP_VOLUMES_INDICES.PushBack(LOADED_MAP_VOLUMES.count - 1);
+                    EDITOR_MAP_VOLUMES.PushBack(createdVolume);
+                    SELECTED_MAP_VOLUMES_INDICES.PushBack(EDITOR_MAP_VOLUMES.count - 1);
 
                     for (auto face: createdVolume.faces)
                     {
@@ -690,14 +1224,67 @@ void TickMapEditor()
     }
 }
 
+// void EditorSerializeMap()
+// {
+//     for (int i = 0; i < EDITOR_MAP_VOLUMES.count; ++i)
+//     {
+//         const MapEdit::Volume& volume = EDITOR_MAP_VOLUMES.At(i);
+        
+//         for (Vert *v : volume.verts)
+//         {
 
-// save editable map
+//         }
 
-// load editable map
+//         for (Edge *e : volume.edges)
+//         {
 
-// build/save game map
+//         }
 
-// load game map
+//     }
+
+//     // serialize EDITOR_MAP_VOLUMES 
+//     // i think i want to reuse MapEdit::CreateFace for Deserialize, 
+//     // which means i need to preserve the order of each vertex
+
+//     // when serializing, every element's address becomes its unique id
+//     // when deserializing, 
+//     //      every vertex is created and hashmap maps unique id to the created vertex ptr
+//     //      every edge is created 
+
+//     // hash the address to the element
+//     // to 
+
+//     // all of the vertices need to exist in memory
+//     // all of the edges then get created from those vertices
+
+// }
+
+void EditorDeserializeMap()
+{
+    // deserialize into EDITOR_MAP_VOLUMES
+}
+
+void BuildGameMap()
+{
+    // need to just save a bunch of FaceBatches (which are basically just meshes)
+}
+
+void LoadGameMap()
+{
+    // just load the face batches into memory
+}
 
 
-#pragma endregion MAP_EDITOR_CODE
+/*
+ALL_VERTICES
+start at address 0x0000
+when create vertex, it has address = base + offset
+to find its index, it is simply base - address 
+
+
+*/
+
+
+
+
+
