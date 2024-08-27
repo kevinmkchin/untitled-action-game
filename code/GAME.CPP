@@ -876,8 +876,6 @@ bool primitivesDepthTest = false;
 #pragma endregion
 
 #include "GUI.CPP"
-#include "MAP.CPP"
-
 
 
 ///////////////////////////////
@@ -1406,6 +1404,10 @@ struct BodyguardEnemy
 };
 BodyguardEnemy enemy0;
 
+
+#include "EDITOR.CPP"
+
+
 static void Stuff()
 {
     SDL_SetRelativeMouseMode(SDL_TRUE);
@@ -1581,8 +1583,6 @@ static void RenderGameLayer()
     glDisable(GL_CULL_FACE);
     PrimitiveDrawAll(&perspectiveMatrix, &viewMatrix, renderTargetGame.depthTexId, vec2((float)renderTargetGame.width,(float)renderTargetGame.height));
 }
-
-#include "EDITOR.CPP"
 
 static void RenderMapEditorLayer()
 {
