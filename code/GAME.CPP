@@ -81,6 +81,7 @@ Priorty #1 is building the game, not the engine/tech
 #include <gmath.h>
 
 #include <unordered_map>
+#include <unordered_set>
 #include <array>
 #include <stack>
 

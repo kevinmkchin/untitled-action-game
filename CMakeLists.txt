@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.20)
 set (CMAKE_CXX_STANDARD 14)
 
 project(game)
+set(PROJECT_BUILD_VERSION "0.0.1.20240827")
 set(PROJECT_WORKING_DIR "${CMAKE_CURRENT_SOURCE_DIR}/wd/")
 
 if (WIN32)

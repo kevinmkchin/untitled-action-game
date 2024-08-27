@@ -581,6 +581,10 @@ std::vector<float> MY_VERTEX_BUFFER;
 
 bool EditorSerializeMap(const char *mapFilePath)
 {
+#if INTERNAL_BUILD
+    std::unordered_set<u64> SerPtrSet;
+#endif
+
     ByteBuffer mapbuf;
     ByteBufferInit(&mapbuf);
 
@@ -595,7 +599,11 @@ bool EditorSerializeMap(const char *mapFilePath)
         ByteBufferWrite(&mapbuf, size_t, volume.verts.size());
         for (MapEdit::Vert *v : volume.verts)
         {
-            ByteBufferWrite(&mapbuf, u64, (u64)v);
+            u64 ptrAsInt = (u64)v;
+#if INTERNAL_BUILD
+            SerPtrSet.emplace(ptrAsInt);
+#endif
+            ByteBufferWrite(&mapbuf, u64, ptrAsInt);
             ByteBufferWrite(&mapbuf, float, v->pos.x);
             ByteBufferWrite(&mapbuf, float, v->pos.y);
             ByteBufferWrite(&mapbuf, float, v->pos.z);
@@ -604,9 +612,16 @@ bool EditorSerializeMap(const char *mapFilePath)
         ByteBufferWrite(&mapbuf, size_t, volume.edges.size());
         for (MapEdit::Edge *e : volume.edges)
         {
-            ByteBufferWrite(&mapbuf, u64, (u64)e);
-            ByteBufferWrite(&mapbuf, u64, (u64)e->a);
-            ByteBufferWrite(&mapbuf, u64, (u64)e->b);
+            u64 ep = (u64)e;
+            u64 ea = (u64)e->a;
+            u64 eb = (u64)e->b;
+#if INTERNAL_BUILD
+            ASSERT(SerPtrSet.find(ea) != SerPtrSet.end());
+            ASSERT(SerPtrSet.find(eb) != SerPtrSet.end());
+#endif
+            ByteBufferWrite(&mapbuf, u64, ep);
+            ByteBufferWrite(&mapbuf, u64, ea);
+            ByteBufferWrite(&mapbuf, u64, eb);
         }
 
         ByteBufferWrite(&mapbuf, size_t, volume.faces.size());
