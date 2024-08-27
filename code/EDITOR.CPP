@@ -43,6 +43,30 @@ namespace MapEdit
             return looplen;
         }
 
+        std::vector<Loop*> GetLoopCycle() const
+        {
+            ASSERT(loopbase);
+            std::vector<Loop*> loopcycle;
+            Loop *l = loopbase;
+            do {
+                loopcycle.push_back(l);
+                l = l->loopNext;
+            } while (l != loopbase && l != NULL);
+            return loopcycle;
+        }
+
+        std::vector<Edge*> GetEdges() const
+        {
+            ASSERT(loopbase);
+            std::vector<Edge*> edgesInOrder;
+            Loop *l = loopbase;
+            do {
+                edgesInOrder.push_back(l->e);
+                l = l->loopNext;
+            } while (l != loopbase && l != NULL);
+            return edgesInOrder;
+        }
+
         std::vector<Vert*> GetVertices() const
         {
             ASSERT(loopbase);
@@ -216,6 +240,7 @@ namespace MapEdit
     used to create Faces.
     */
 
+    // this is the OMEGA function
     Face *CreateFace(const std::vector<Edge*>& edges, Volume *owner)
     {
         if (edges.size() < 2)
@@ -532,10 +557,190 @@ namespace MapEdit
 }
 
 
-
 NiceArray<MapEdit::Volume, 3200> EDITOR_MAP_VOLUMES;
-
 std::vector<float> MY_VERTEX_BUFFER;
+
+#define MAPSER_VOLUMES_U64_DIVIDER_START 0x49779b0ef139ca39
+#define MAPSER_VOLUMES_U64_DIVIDER_END   0x9fcf207673e66e63 
+#define DESER_FACE_ADDITIONAL_SIZE 64
+
+// serialize EDITOR_MAP_VOLUMES 
+// i think i want to reuse MapEdit::CreateFace for Deserialize, 
+// which means i need to preserve the order of each vertex
+
+// when serializing, every element's address becomes its unique id
+// when deserializing, 
+//      every vertex is created and hashmap maps unique id to the created vertex ptr
+//      every edge is created 
+
+// hash the address to the element
+// to 
+
+// all of the vertices need to exist in memory
+// all of the edges then get created from those vertices
+
+bool EditorSerializeMap(const char *mapFilePath)
+{
+    ByteBuffer mapbuf;
+    ByteBufferInit(&mapbuf);
+
+    ByteBufferWrite(&mapbuf, u64, MAPSER_VOLUMES_U64_DIVIDER_START);
+    const int volumesCount = EDITOR_MAP_VOLUMES.count;
+    ByteBufferWrite(&mapbuf, int, volumesCount);
+
+    for (int i = 0; i < volumesCount; ++i)
+    {
+        const MapEdit::Volume& volume = EDITOR_MAP_VOLUMES.At(i);
+        
+        ByteBufferWrite(&mapbuf, size_t, volume.verts.size());
+        for (MapEdit::Vert *v : volume.verts)
+        {
+            ByteBufferWrite(&mapbuf, u64, (u64)v);
+            ByteBufferWrite(&mapbuf, float, v->pos.x);
+            ByteBufferWrite(&mapbuf, float, v->pos.y);
+            ByteBufferWrite(&mapbuf, float, v->pos.z);
+        }
+
+        ByteBufferWrite(&mapbuf, size_t, volume.edges.size());
+        for (MapEdit::Edge *e : volume.edges)
+        {
+            ByteBufferWrite(&mapbuf, u64, (u64)e);
+            ByteBufferWrite(&mapbuf, u64, (u64)e->a);
+            ByteBufferWrite(&mapbuf, u64, (u64)e->b);
+        }
+
+        ByteBufferWrite(&mapbuf, size_t, volume.faces.size());
+        for (MapEdit::Face *f : volume.faces)
+        {
+            // save the sequence of edges in the face's loop cycle by their pointers
+            const std::vector<MapEdit::Edge*>& faceEdges = f->GetEdges();
+            ByteBufferWrite(&mapbuf, size_t, faceEdges.size());
+            size_t blksz = sizeof(void*)*faceEdges.size();
+            ByteBufferWriteBulk(&mapbuf, (void*)faceEdges.data(), blksz);
+            // leaving some buffer room for additional Face data in the future
+            // make sure to decrement as needed and mirror same value on deserialize
+            u8 nullbytes[DESER_FACE_ADDITIONAL_SIZE];
+            ByteBufferWriteBulk(&mapbuf, &nullbytes, DESER_FACE_ADDITIONAL_SIZE);
+        }
+    }
+
+    ByteBufferWrite(&mapbuf, u64, MAPSER_VOLUMES_U64_DIVIDER_END);
+
+    bool writtenToFile = ByteBufferWriteToFile(&mapbuf, mapFilePath) == 1;
+
+    ByteBufferFree(&mapbuf);
+
+    return writtenToFile;
+}
+
+bool EditorDeserializeMap(const char *mapFilePath)
+{
+    std::unordered_map<u64, void*> DeserPtrToElem;
+
+    ByteBuffer mapbuf;
+    ByteBufferInit(&mapbuf);
+    if (ByteBufferReadFromFile(&mapbuf, mapFilePath) == 0)
+        return false;
+
+    u64 u64slot;
+    ByteBufferRead(&mapbuf, u64, &u64slot);
+    ASSERT(u64slot == MAPSER_VOLUMES_U64_DIVIDER_START);
+
+    int volumesCount = -1;
+    ByteBufferRead(&mapbuf, int, &volumesCount);
+
+    for (int i = 0; i < volumesCount; ++i)
+    {
+        MapEdit::Volume owner;
+
+        size_t vertexCount, edgeCount, faceCount = 0;
+
+        ByteBufferRead(&mapbuf, size_t, &vertexCount);
+        for (size_t j = 0; j < vertexCount; ++j)
+        {
+            u64 vptr;
+            vec3 vpos;
+            ByteBufferRead(&mapbuf, u64, &vptr);
+            ByteBufferRead(&mapbuf, float, &vpos.x);
+            ByteBufferRead(&mapbuf, float, &vpos.y);
+            ByteBufferRead(&mapbuf, float, &vpos.z);
+
+            void *elemptr = (void*)CreateVert(vpos, &owner); // MEM ALLOC
+            DeserPtrToElem.emplace(vptr, elemptr);
+        }
+
+        ByteBufferRead(&mapbuf, size_t, &edgeCount);
+        for (size_t j = 0; j < edgeCount; ++j)
+        {
+            u64 eptr;
+            u64 aptr;
+            u64 bptr;
+            ByteBufferRead(&mapbuf, u64, &eptr);
+            ByteBufferRead(&mapbuf, u64, &aptr);
+            ByteBufferRead(&mapbuf, u64, &bptr);
+
+            MapEdit::Vert *av = (MapEdit::Vert*)DeserPtrToElem.at(aptr);
+            MapEdit::Vert *bv = (MapEdit::Vert*)DeserPtrToElem.at(bptr);
+            void *elemptr = (void*)CreateEdge(av, bv, &owner); // MEM ALLOC
+            DeserPtrToElem.emplace(eptr, elemptr);
+        }
+
+        ByteBufferRead(&mapbuf, size_t, &faceCount);
+        for (size_t j = 0; j < faceCount; ++j)
+        {
+            size_t faceEdgesCount = 0;
+            std::vector<u64> faceEdgeIds;
+            std::vector<MapEdit::Edge*> faceEdges;
+            
+            ByteBufferRead(&mapbuf, size_t, &faceEdgesCount);
+            faceEdgeIds.resize(faceEdgesCount);
+            faceEdges.reserve(faceEdgesCount);
+
+            size_t blksz = sizeof(void*)*faceEdgesCount;
+            ByteBufferReadBulk(&mapbuf, faceEdgeIds.data(), blksz);
+
+            ByteBufferAdvancePosition(&mapbuf, DESER_FACE_ADDITIONAL_SIZE);
+
+            for (int k = 0; k < faceEdgesCount; ++k)
+            {
+                faceEdges.push_back((MapEdit::Edge*)DeserPtrToElem.at(faceEdgeIds[k]));
+            }
+
+            CreateFace(faceEdges, &owner); // MEM ALLOC
+        }
+
+        EDITOR_MAP_VOLUMES.PushBack(owner);
+        // todo remove this shit
+        for (auto face : owner.faces)
+        {
+            MY_VERTEX_BUFFER.clear();
+            TriangulateFace_QuickDumb(*face, &MY_VERTEX_BUFFER);
+            RebindFaceBatchBufferObject(&face->facemesh, (u32) MY_VERTEX_BUFFER.size() * sizeof(float),
+                MY_VERTEX_BUFFER.data());
+            face->facemesh.sharedTexture = tex_Default;
+        }
+    }
+
+    ByteBufferRead(&mapbuf, u64, &u64slot);
+    ASSERT(u64slot == MAPSER_VOLUMES_U64_DIVIDER_END);
+
+    ByteBufferFree(&mapbuf);
+
+    return true;
+}
+
+void BuildGameMap()
+{
+    // need to just save a bunch of FaceBatches (which are basically just meshes)
+}
+
+void LoadGameMap()
+{
+    // just load the face batches into memory
+}
+
+
+
 
 vec3 editorCameraPosition = vec3(128, 128, 128);
 float GRID_INCREMENT = 8.f;
@@ -736,10 +941,29 @@ void TickMapEditor()
 
     Gui::PrimitiveText(100,28, 9, Gui::Align::Left, "Toggle Auto Colliders []");
 
+    if (keyspressed[SDL_SCANCODE_O])
+    {
+        if (EditorSerializeMap(wd_path("test.map").c_str()))
+            LogMessage("map saved successfully");
+        else
+            LogMessage("map failed to save");
+    }
+
+    if (keyspressed[SDL_SCANCODE_P])
+    {
+        if (EditorDeserializeMap(wd_path("test.map").c_str()))
+            LogMessage("map loaded successfully");
+        else
+            LogMessage("map failed to load");
+    }
+
     if (Gui::anyElementActive)
         return;
 
-    // Selection handles
+
+
+
+    // === Selection handles ===
 
     // on mouse up, disc remains selected
     // on mouse down, if disc not selected, then if ctrl pressed then add to selection but don't start drag
@@ -1202,9 +1426,9 @@ void TickMapEditor()
                     MapEdit::CreateFace({f3_to_f0, f3_to_c3, c3_to_c0, f0_to_c0}, &createdVolume);
 
                     EDITOR_MAP_VOLUMES.PushBack(createdVolume);
-                    SELECTED_MAP_VOLUMES_INDICES.PushBack(EDITOR_MAP_VOLUMES.count - 1);
+                    SELECTED_MAP_VOLUMES_INDICES.PushBack(EDITOR_MAP_VOLUMES.count - 1); // TODO dont select vol here
 
-                    for (auto face: createdVolume.faces)
+                    for (auto face : createdVolume.faces)
                     {
                         MY_VERTEX_BUFFER.clear();
                         TriangulateFace_QuickDumb(*face, &MY_VERTEX_BUFFER);
@@ -1224,65 +1448,6 @@ void TickMapEditor()
     }
 }
 
-// void EditorSerializeMap()
-// {
-//     for (int i = 0; i < EDITOR_MAP_VOLUMES.count; ++i)
-//     {
-//         const MapEdit::Volume& volume = EDITOR_MAP_VOLUMES.At(i);
-        
-//         for (Vert *v : volume.verts)
-//         {
-
-//         }
-
-//         for (Edge *e : volume.edges)
-//         {
-
-//         }
-
-//     }
-
-//     // serialize EDITOR_MAP_VOLUMES 
-//     // i think i want to reuse MapEdit::CreateFace for Deserialize, 
-//     // which means i need to preserve the order of each vertex
-
-//     // when serializing, every element's address becomes its unique id
-//     // when deserializing, 
-//     //      every vertex is created and hashmap maps unique id to the created vertex ptr
-//     //      every edge is created 
-
-//     // hash the address to the element
-//     // to 
-
-//     // all of the vertices need to exist in memory
-//     // all of the edges then get created from those vertices
-
-// }
-
-void EditorDeserializeMap()
-{
-    // deserialize into EDITOR_MAP_VOLUMES
-}
-
-void BuildGameMap()
-{
-    // need to just save a bunch of FaceBatches (which are basically just meshes)
-}
-
-void LoadGameMap()
-{
-    // just load the face batches into memory
-}
-
-
-/*
-ALL_VERTICES
-start at address 0x0000
-when create vertex, it has address = base + offset
-to find its index, it is simply base - address 
-
-
-*/
 
 
 
