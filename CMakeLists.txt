@@ -12,6 +12,7 @@ else(APPLE)
     set(MESA_MACOSX 1)
 endif()
 
+set(INTERNAL_BUILD 1)
 
 set(SOURCE_FILES
     code/GAME.CPP
@@ -20,16 +21,14 @@ set(SOURCE_FILES
 
 add_executable(${PROJECT_NAME} ${SOURCE_FILES})
 
-add_compile_definitions(INTERNAL_BUILD=1)
-
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/ext/BUILDINFO.H.IN" "${CMAKE_CURRENT_SOURCE_DIR}/code/BUILDINFO.H")
 
 # Build options, additional include directories, library linking, copying DLLs to executable directory
 
-if(INTERNAL_BUILD MATCHES 0)
-    message(STATUS "External build: " ${PROJECT_BUILD_VERSION})
+if(INTERNAL_BUILD)
+    message(STATUS "INTERNAL build: " ${PROJECT_BUILD_VERSION})
 else()
-    message(STATUS "INTERNAL_BUILD: " ${PROJECT_BUILD_VERSION})
+    message(STATUS "External build: " ${PROJECT_BUILD_VERSION})
 endif()
 
 target_include_directories(${PROJECT_NAME} PUBLIC ext)
