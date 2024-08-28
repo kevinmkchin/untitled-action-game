@@ -88,7 +88,7 @@ namespace Gui
     * Can be set to capture focus?
     * Can be set to collapse?
     * */
-    void BeginWindow(UIRect windowRect, vec4 bgcolor = vec4(0.05f, 0.05f, 0.05f, 0.5f), int depth = -1);
+    void BeginWindow(UIRect windowRect, vec4 bgcolor = vec4(0.05f, 0.05f, 0.05f, 1.0f), int depth = -1);
     void EndWindow();
     void Window_GetWidthHeight(int *w, int *h);
     void Window_GetCurrentOffsets(int *x, int *y);
@@ -105,7 +105,7 @@ namespace Gui
     void EditorText(const char *text);
     // TODO void EditorImage(u32 glTextureId, ivec2 size, vec2 uv0 = vec2(0.f,0.f), vec2 uv1 = vec2(1.f,1.f));
     // TODO void EditorImageButton(u32 glTextureId, ivec2 size, vec2 uv0 = vec2(0.f,0.f), vec2 uv1 = vec2(1.f,1.f));
-    bool EditorLabelledButton(const char *label);
+    bool EditorLabelledButton(const char *label, int minwidth = 50);
     void EditorIncrementableIntegerField(const char *label, int *v, int increment = 1);
     void EditorIncrementableFloatField(const char *label, float *v, float increment = 0.1f);
 
@@ -345,9 +345,9 @@ namespace Gui
 
     static ui_id hoveredUI = null_ui_id;
     static ui_id activeUI = null_ui_id;
-    static bool anyElementHoveredThisFrame = false;
-    // Quick hack used to check if GUI is consuming input this frame
+    static bool anyElementHovered = false;
     static bool anyElementActive = false;
+    static bool anyWindowHovered = false;
 
 
     static MemoryLinearBuffer drawRequestsFrameStorageBuffer;
@@ -389,7 +389,7 @@ namespace Gui
 
     void SetHovered(ui_id id)
     {
-        anyElementHoveredThisFrame = true;
+        anyElementHovered = true;
         hoveredUI = id;
     }
 
@@ -885,9 +885,9 @@ namespace Gui
         WindowData windata;
         windata.zoneId = FreshID();
         windata.zoneRect = windowRect;
-        windata.paddingFromLeft = 5;
+        windata.paddingFromLeft = 2;
         windata.topLeftXOffset = windata.paddingFromLeft;
-        windata.topLeftYOffset = 5;
+        windata.topLeftYOffset = 2;
         WINDOWSTACK.push(windata);
 
         PrimitivePanel(windowRect, bgcolor);
@@ -899,6 +899,10 @@ namespace Gui
     {
         if (!WINDOWSTACK.empty())
         {
+            // If no other element is hovered at the end of this window, then check if window is hovered
+            if (!anyWindowHovered && MouseInside(WINDOWSTACK.top().zoneRect))
+                anyWindowHovered = true;
+            // Pop draw requests collection and from window stack
             GUIDraw_PopDrawCollection();
             WINDOWSTACK.pop();
         }
@@ -950,7 +954,11 @@ namespace Gui
 
         PrimitiveText(x + style_paddingLeft, y + sz + style_paddingTop, sz, Align::Left, text);
 
-        Window_StageLastElementDimension(0, sz + style_paddingTop + style_paddingBottom);
+        float textW;
+        float textH;
+        vtxt_get_text_bounding_box_info(&textW, &textH, text, style_textFont.ptr, sz);
+        Window_StageLastElementDimension(style_paddingLeft + (int)textW + style_paddingRight, 
+            sz + style_paddingTop + style_paddingBottom);
     }
 
     void EditorSpacer(int x, int y)
@@ -959,7 +967,7 @@ namespace Gui
         Window_StageLastElementDimension(x, y);
     }
 
-    bool EditorLabelledButton(const char* label)
+    bool EditorLabelledButton(const char* label, int minwidth)
     {
         Window_CommitLastElementDimension();
 
@@ -973,13 +981,14 @@ namespace Gui
         Window_GetCurrentOffsets(&buttonX, &buttonY);
         buttonX += style_paddingLeft;
         buttonY += style_paddingTop;
-        int buttonW = GM_max((int) textW + 4, 50);
+        int buttonW = GM_max((int) textW + 4, minwidth);
         int buttonH = labelTextSize + 4;
 
         UIRect buttonRect = UIRect(buttonX, buttonY, buttonW, buttonH);
         bool result = PrimitiveLabelledButton(buttonRect, label, Align::Center);
 
-        Window_StageLastElementDimension(0, style_paddingTop + buttonH + style_paddingBottom);
+        Window_StageLastElementDimension(style_paddingLeft + buttonW + style_paddingRight, 
+            style_paddingTop + buttonH + style_paddingBottom);
 
         return result;
     }
@@ -994,8 +1003,6 @@ namespace Gui
 
         int w = 50;
         int h = 9 + 4;
-        int paddingAbove = style_paddingTop;
-        int paddingBelow = style_paddingBottom;
 
         PrimitivePanel(UIRect(x, y, w-2, h), vec4(0.4f, 0.4f, 0.4f, 1.f));
         PrimitiveIntegerInputField(FreshID(), UIRect(x + 1, y + 1, w-4, h - 2), v);
@@ -1009,7 +1016,8 @@ namespace Gui
         }
         PrimitiveText(x + w + 12, y + h, 9, Align::Left, label);
 
-        Window_StageLastElementDimension(0, paddingAbove + h + paddingBelow);
+        // TODO stage width
+        Window_StageLastElementDimension(0, style_paddingTop + h + style_paddingBottom);
     }
 
     void EditorIncrementableFloatField(const char* label, float* v, float increment)
@@ -1021,8 +1029,6 @@ namespace Gui
 
         int w = 50;
         int h = 9+4;
-        int paddingAbove = style_paddingTop;
-        int paddingBelow = style_paddingBottom;
 
         PrimitivePanel(UIRect(x, y, w-2, h), vec4(0.4f, 0.4f, 0.4f, 1.f));
         PrimitiveFloatInputField(FreshID(), UIRect(x + 1, y + 1, w-4, h - 2), v);
@@ -1036,7 +1042,8 @@ namespace Gui
         }
         PrimitiveText(x + w + 12, y + h, 9, Align::Left, label);
 
-        Window_StageLastElementDimension(0, paddingAbove + h + paddingBelow);
+        // TODO stage width
+        Window_StageLastElementDimension(0, style_paddingTop + h + style_paddingBottom);
     }
 
     bool EditorSelectableRect(vec4 colorRGBA, bool *selected, int id)
@@ -1058,18 +1065,51 @@ namespace Gui
         int x, y;
         Window_GetCurrentOffsets(&x, &y);
 
-        UIRect selectableRegion = UIRect(x, y, 100, 11);
+        UIRect selectableRegion = UIRect(x, y, 64, 19);
         if (*selected)
         {
-            PrimitivePanel(selectableRegion, vec4(0,0,0,0.4f));
+            PrimitivePanel(selectableRegion, style_buttonActiveColor);
             PrimitiveText(x + 1, y + 10, 9, Align::Left, label);
-            Window_StageLastElementDimension(0, 11);
+            Window_StageLastElementDimension(selectableRegion.w, selectableRegion.h);
         }
         else
         {
-            *selected = PrimitiveButton(FreshID(), selectableRegion, vec4(), vec4(0,0,0,0.2f), vec4(0,0,0,0.4f), true);
+            *selected = PrimitiveButton(FreshID(), selectableRegion, 
+                style_buttonNormalColor, style_buttonHoveredColor, style_buttonActiveColor, true);
             PrimitiveText(x + 1, y + 10, 9, Align::Left, label);
-            Window_StageLastElementDimension(0, 11);
+            Window_StageLastElementDimension(selectableRegion.w, selectableRegion.h);
+            if (*selected)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool EditorSelectable_2(const char *label, bool *selected)
+    {
+        Window_CommitLastElementDimension();
+        int x, y;
+        Window_GetCurrentOffsets(&x, &y);
+        x += style_paddingLeft;
+        y += style_paddingTop;
+        int labelTextSize = style_textFont.ptr->font_height_px;
+        int w = 40;
+        int h = labelTextSize + 4;
+
+        UIRect selectableRegion = UIRect(x, y, w, h);
+        if (*selected)
+        {
+            PrimitivePanel(selectableRegion, vec4(0.7f,0.7f,0.7f,1.0f));
+            PrimitiveText(x + 2, y + h - 2, labelTextSize, Align::Left, label);
+            Window_StageLastElementDimension(selectableRegion.w, selectableRegion.h);
+        }
+        else
+        {
+            *selected = PrimitiveButton(FreshID(), selectableRegion, 
+                style_buttonNormalColor, vec4(0.4f,0.4f,0.4f,1.0f), vec4(0.7f,0.7f,0.7f,1.0f), true);
+            PrimitiveText(x + 2, y + h - 2, labelTextSize, Align::Left, label);
+            Window_StageLastElementDimension(selectableRegion.w, selectableRegion.h);
             if (*selected)
             {
                 return true;
@@ -1528,11 +1568,12 @@ namespace Gui
 
     void NewFrame()
     {
-        if (!anyElementHoveredThisFrame)
+        if (!anyElementHovered)
         {
             hoveredUI = null_ui_id;
         }
-        anyElementHoveredThisFrame = false;
+        anyElementHovered = false;
+        anyWindowHovered = false;
 
         if (activeUI == null_ui_id)
             anyElementActive = false;
