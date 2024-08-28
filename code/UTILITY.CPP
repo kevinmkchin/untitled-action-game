@@ -356,7 +356,7 @@ do {\
 int ByteBufferWriteToFile(ByteBuffer* buffer, const char* filePath)
 {
     FILE* fp;
-    fp = fopen(filePath, "w");
+    fp = fopen(filePath, "wb");
 
     if(!fp)
     {
@@ -378,7 +378,7 @@ int ByteBufferReadFromFile(ByteBuffer* buffer, const char* filePath)
     }
 
     FILE* fp;
-    fp = fopen(filePath, "r");
+    fp = fopen(filePath, "rb");
 
     if(!fp)
     {
