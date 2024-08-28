@@ -416,7 +416,110 @@ int ByteBufferReadFromFile(ByteBuffer* buffer, const char* filePath)
 
 #pragma endregion
 
+#if MESA_WINDOWS
+#include <ShObjIdl.h>
+#include <codecvt>
 
+std::string OpenFilePrompt(u32 fileTypesCount, COMDLG_FILTERSPEC fileTypes[])
+{
+    std::string filePathString;
+    IFileOpenDialog *pFileOpen;
+    HRESULT hr = CoCreateInstance(CLSID_FileOpenDialog, NULL, CLSCTX_ALL,
+                          IID_IFileOpenDialog, reinterpret_cast<void**>(&pFileOpen));
+    if (SUCCEEDED(hr))
+    {
+        hr = pFileOpen->SetFileTypes(fileTypesCount, fileTypes);
+
+        // Show the Open dialog box.
+        hr = pFileOpen->Show(NULL);
+        // Get the file name from the dialog box.
+        if (SUCCEEDED(hr))
+        {
+            IShellItem *pItem;
+            hr = pFileOpen->GetResult(&pItem);
+            if (SUCCEEDED(hr))
+            {
+                PWSTR pszFilePath;
+                hr = pItem->GetDisplayName(SIGDN_FILESYSPATH, &pszFilePath);
+
+                if (SUCCEEDED(hr))
+                {
+                    std::wstring_convert<std::codecvt_utf8<wchar_t>, wchar_t> converterX;
+                    filePathString = converterX.to_bytes(pszFilePath);
+                    CoTaskMemFree(pszFilePath);
+                }
+                pItem->Release();
+            }
+        }
+        pFileOpen->Release();
+    }
+    CoUninitialize();
+    return filePathString;
+}
+
+std::string SaveFilePrompt(COMDLG_FILTERSPEC fileTypes[], const wchar_t *defaultExtension)
+{
+    std::string filePathString;
+    IFileSaveDialog* pFileSave;
+    HRESULT hr = CoCreateInstance(CLSID_FileSaveDialog, NULL, CLSCTX_ALL,
+                                  IID_IFileSaveDialog, reinterpret_cast<void**>(&pFileSave));
+    if (SUCCEEDED(hr))
+    {
+        hr = pFileSave->SetFileTypes(1, fileTypes);
+        pFileSave->SetDefaultExtension(defaultExtension);
+
+        // Show the Open dialog box.
+        hr = pFileSave->Show(NULL);
+        // Get the file name from the dialog box.
+        if (SUCCEEDED(hr))
+        {
+            IShellItem *pItem;
+            hr = pFileSave->GetResult(&pItem);
+            if (SUCCEEDED(hr))
+            {
+                PWSTR pszFilePath;
+                hr = pItem->GetDisplayName(SIGDN_FILESYSPATH, &pszFilePath);
+
+                if (SUCCEEDED(hr))
+                {
+                    std::wstring_convert<std::codecvt_utf8<wchar_t>, wchar_t> converterX;
+                    filePathString = converterX.to_bytes(pszFilePath);
+                    CoTaskMemFree(pszFilePath);
+                }
+                pItem->Release();
+            }
+        }
+        pFileSave->Release();
+    }
+    CoUninitialize();
+    return filePathString;
+}
+
+std::string OpenPNGImageDialog()
+{
+    COMDLG_FILTERSPEC fileTypes[] = { { L"PNG files", L"*.png" } };
+    std::string imagepath = OpenFilePrompt(1, fileTypes);
+    LogMessage("%s\n", imagepath.c_str());
+    return imagepath;
+}
+
+std::string OpenMapDialog()
+{
+    COMDLG_FILTERSPEC fileTypes[] = { { L"Map files", L"*.map" } };
+    std::string path = OpenFilePrompt(1, fileTypes);
+    LogMessage("%s\n", path.c_str());
+    return path;
+}
+
+std::string SaveMapDialog()
+{
+    COMDLG_FILTERSPEC fileTypes[] = { { L"Map files", L"*.map" } };
+    std::string path = SaveFilePrompt(fileTypes, L"map");
+    LogMessage("%s\n", path.c_str());
+    return path;
+}
+
+#endif
 
 
 #pragma region PRIMITIVES_AND_HANDLES_DRAWING

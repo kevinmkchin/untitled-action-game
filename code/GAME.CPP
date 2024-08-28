@@ -1,23 +1,25 @@
 /*
 
 TODO:
+- Fix serialize deserialize bug with aptr or bptr not existing in DeserPtrToElem
 - Edge & Face select & move 
     - SELECT THE SELECTABLE VERTICES SINCE THAT EXISTS probably make SELECTED_SELECTABLE_VERTICES_INDICES a list of vertex ptrs
     - Face select and choose texture
     - CREATE GRID MESH STATICALLY AT THE START!!! DONT NEED TO MAKE IT EVERY FRAME (just one grid mesh, scale it and translate it)
 
-basic layout and structures of maps can be created, they are textured
+EPICS:
+- Basic layout and structures of maps can be created, they are textured
     - handles (have render pick ID, reference a Vert, or Edge, or Face?)
-Save/load maps into fps game
-can navigate map with collisions
-enemy billboards two behaviour:
+- Build maps and load into fps game
+- Can navigate map with collisions
+- Enemy billboards two behaviour:
     - walk towards player
     - stop and shoot after split second to shoot projectile at player, projectile hurts player health
-player holds 3D gun model, shoot hitscan at enemies, hitscan hurts enemy health
-swap to a second 3D gun model, shoot shotgun hitscan at enemies
-swap to a third 3D gun model, shoot hitscan with different stats at enemies
+- Player holds 3D gun model, shoot hitscan at enemies, hitscan hurts enemy health
+- Swap to a second 3D gun model, shoot shotgun hitscan at enemies
+- Swap to a third 3D gun model, shoot hitscan with different stats at enemies
 
-
+OTHER:
 Finish implementing Editable Volumes and Atomics
 (cube draw) Super simple create volume tool where you just drag mouse once? and then click once and raise mouse for height?
 (poly draw) Draw on plane then raise to create volume tool
@@ -27,11 +29,9 @@ Multiselect edges and move them
 Multiselect faces and move them
 Multiselect volumes and edit them all at the same time
 
+Port over Console front and backend
 
-What else can be stripped out reused?
-    Console front and backend
-
-    use flat faces for collision? instead of meshes? GJK EPA code accepts 2D meshes
+use flat faces for collision? instead of meshes? GJK EPA code accepts 2D meshes
 
 
 Priorty #1 is building the game, not the engine/tech

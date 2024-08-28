@@ -918,17 +918,33 @@ void TickMapEditor()
 
     static u32 hotHandleId = 0;
 
-    // Gui::PrimitiveText(100,28, 9, Gui::Align::Left, "");
-
     Gui::BeginWindow(Gui::UIRect(0,0,BACKBUFFER_WIDTH,19));
     Gui::EditorBeginHorizontal();
     if (Gui::EditorLabelledButton("SAVE"))
     {
-
+        std::string path = SaveMapDialog();
+        if(!path.empty())
+        {
+            // TODO ...
+            if (EditorSerializeMap(path.c_str()))
+                LogMessage("Saved %s", path.c_str());
+            else
+                LogError("Failed to save to %s", path.c_str());
+            // TODO ...
+        }
     }
     if (Gui::EditorLabelledButton("OPEN"))
     {
-
+        std::string path = OpenMapDialog();
+        if(!path.empty())
+        {
+            // TODO ...
+            if (EditorDeserializeMap(path.c_str()))
+                LogMessage("Opened %s", path.c_str());
+            else
+                LogError("Failed to open %s", path.c_str());
+            // TODO ...
+        }
     }
     if (Gui::EditorLabelledButton("BUILD"))
     {
@@ -979,26 +995,9 @@ void TickMapEditor()
 
     Gui::EditorEndHorizontal();
     Gui::EndWindow();
-/*
-    if (keyspressed[SDL_SCANCODE_O])
-    {
-        if (EditorSerializeMap(wd_path("test.map").c_str()))
-            LogMessage("map saved successfully");
-        else
-            LogMessage("map failed to save");
-    }
 
-    if (keyspressed[SDL_SCANCODE_P])
-    {
-        if (EditorDeserializeMap(wd_path("test.map").c_str()))
-            LogMessage("map loaded successfully");
-        else
-            LogMessage("map failed to load");
-    }
-*/
     if (Gui::anyElementHovered || Gui::anyWindowHovered)
         return;
-
 
 
 
