@@ -950,7 +950,7 @@ void TickMapEditor()
     {
 
     }
-    Gui::EditorSpacer(8,0);
+    Gui::EditorSpacer(16,0);
 
     bool brushToolActive = editorActiveTool == MapEditorTools::SimpleBrushTool;
     bool vertToolActive = editorActiveTool == MapEditorTools::VertexManip;
@@ -977,7 +977,7 @@ void TickMapEditor()
         hotHandleId = 0;
     }
 
-    Gui::EditorSpacer(8,0);
+    Gui::EditorSpacer(16,0);
     if (Gui::EditorLabelledButton("-", 18))
     {
         GRID_INCREMENT /= 2.f;
@@ -990,7 +990,7 @@ void TickMapEditor()
         GRID_INCREMENT *= 2.f;
     }
 
-    Gui::EditorSpacer(8,0);
+    Gui::EditorSpacer(16,0);
     Gui::EditorLabelledButton("Toggle Auto Colliders []");
 
     Gui::EditorEndHorizontal();

@@ -2,6 +2,8 @@
 
 TODO:
 - Fix serialize deserialize bug with aptr or bptr not existing in DeserPtrToElem
+    - actually...instead of serializing the ptr directly, just assign a unique id to each element
+      when they get new'ed. such an easy fix...
 - Edge & Face select & move 
     - SELECT THE SELECTABLE VERTICES SINCE THAT EXISTS probably make SELECTED_SELECTABLE_VERTICES_INDICES a list of vertex ptrs
     - Face select and choose texture
