@@ -914,48 +914,72 @@ void TickMapEditor()
     PrimitiveDrawLine(vec3(320000.f, 0.f, 0.f), vec3(-320000.f, 0.f, 0.f), vec4(RGB255TO1(205, 56, 9), 0.8f));
     // PrimitiveDrawLine(vec3(0.f, 320000.f, 0.f), vec3(0.f, -320000.f, 0.f), vec4(RGB255TO1(67, 123, 9), 0.8f));
     PrimitiveDrawLine(vec3(0.f, 0.f, 320000.f), vec3(0.f, 0.f, -320000.f), vec4(RGB255TO1(21, 129, 205), 0.8f));
-    Gui::PrimitiveText(100,100, 36, Gui::Align::Left, std::to_string(GRID_INCREMENT).c_str());
-
-    if (Gui::PrimitiveLabelledButton(Gui::UIRect(400,10,60,32), "Grid -", Gui::Align::Right))
-    {
-        GRID_INCREMENT /= 2.f;
-    }
-    if (Gui::PrimitiveLabelledButton(Gui::UIRect(470,10,60,32), "Grid +", Gui::Align::Left))
-    {
-        GRID_INCREMENT *= 2.f;
-    }
 
 
     static u32 hotHandleId = 0;
 
+    // Gui::PrimitiveText(100,28, 9, Gui::Align::Left, "");
 
-    if (keyspressed[SDL_SCANCODE_1] ||
-        Gui::ImageButton(Gui::UIRect(10,10,32,32), tex_Default.id, tex_Default.id, tex_Default.id))
+    Gui::BeginWindow(Gui::UIRect(0,0,BACKBUFFER_WIDTH,19));
+    Gui::EditorBeginHorizontal();
+    if (Gui::EditorLabelledButton("SAVE"))
+    {
+
+    }
+    if (Gui::EditorLabelledButton("OPEN"))
+    {
+
+    }
+    if (Gui::EditorLabelledButton("BUILD"))
+    {
+
+    }
+    Gui::EditorSpacer(8,0);
+
+    bool brushToolActive = editorActiveTool == MapEditorTools::SimpleBrushTool;
+    bool vertToolActive = editorActiveTool == MapEditorTools::VertexManip;
+    bool edgeToolActive = editorActiveTool == MapEditorTools::EdgeManip;
+    bool faceToolActive = editorActiveTool == MapEditorTools::FaceManip;
+    if (keyspressed[SDL_SCANCODE_1] || Gui::EditorSelectable_2("BRUSH", &brushToolActive))
     {
         editorActiveTool = MapEditorTools::SimpleBrushTool;
         hotHandleId = 0;
     }
-    if (keyspressed[SDL_SCANCODE_2] ||
-        Gui::ImageButton(Gui::UIRect(10,52,32,32), tex_Default.id, tex_Default.id, tex_Default.id))
+    if (keyspressed[SDL_SCANCODE_2] || Gui::EditorSelectable_2("VERT", &vertToolActive))
     {
         editorActiveTool = MapEditorTools::VertexManip;
         hotHandleId = 0;
     }
-    if (keyspressed[SDL_SCANCODE_3] ||
-        Gui::ImageButton(Gui::UIRect(10,94,32,32), tex_Default.id, tex_Default.id, tex_Default.id))
+    if (keyspressed[SDL_SCANCODE_3] || Gui::EditorSelectable_2("EDGE", &edgeToolActive))
     {
         editorActiveTool = MapEditorTools::EdgeManip;
         hotHandleId = 0;
     }
-    if (keyspressed[SDL_SCANCODE_4] ||
-        Gui::ImageButton(Gui::UIRect(10,136,32,32), tex_Default.id, tex_Default.id, tex_Default.id))
+    if (keyspressed[SDL_SCANCODE_4] || Gui::EditorSelectable_2("FACE", &faceToolActive))
     {
         editorActiveTool = MapEditorTools::FaceManip;
         hotHandleId = 0;
     }
 
-    Gui::PrimitiveText(100,28, 9, Gui::Align::Left, "Toggle Auto Colliders []");
+    Gui::EditorSpacer(8,0);
+    if (Gui::EditorLabelledButton("-", 18))
+    {
+        GRID_INCREMENT /= 2.f;
+    }
+    Gui::EditorSpacer(1,0);
+    Gui::EditorText(std::to_string(GRID_INCREMENT).c_str());
+    Gui::EditorSpacer(1,0);
+    if (Gui::EditorLabelledButton("+", 18))
+    {
+        GRID_INCREMENT *= 2.f;
+    }
 
+    Gui::EditorSpacer(8,0);
+    Gui::EditorLabelledButton("Toggle Auto Colliders []");
+
+    Gui::EditorEndHorizontal();
+    Gui::EndWindow();
+/*
     if (keyspressed[SDL_SCANCODE_O])
     {
         if (EditorSerializeMap(wd_path("test.map").c_str()))
@@ -971,8 +995,8 @@ void TickMapEditor()
         else
             LogMessage("map failed to load");
     }
-
-    if (Gui::anyElementActive)
+*/
+    if (Gui::anyElementHovered || Gui::anyWindowHovered)
         return;
 
 
