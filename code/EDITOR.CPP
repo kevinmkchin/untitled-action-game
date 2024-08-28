@@ -31,6 +31,9 @@ namespace MapEdit
         i32 EDITOR_FACES_INDEX = -1;
         bool hovered = false;
 
+        u32 elemId = 0;
+
+
         int RefreshLoopLen()
         {
             looplen = 0;
@@ -87,6 +90,8 @@ namespace MapEdit
         Vert *a = NULL;
         Vert *b = NULL;
         Loop *radial = NULL;
+
+        u32 elemId = 0;
 
         void InsertIntoRadialCycle(Loop *loop)
         {
@@ -167,6 +172,8 @@ namespace MapEdit
 
         std::vector<Edge*> edges;
 
+        u32 elemId = 0;
+
         void DiskLinkInsertEdge(Edge *e)
         {
             edges.push_back(e);
@@ -240,6 +247,12 @@ namespace MapEdit
     used to create Faces.
     */
 
+    u32 FreshElemId()
+    {
+        static u32 elemIdCounter = 0;
+        return ++elemIdCounter;
+    }
+
     // this is the OMEGA function
     Face *CreateFace(const std::vector<Edge*>& edges, Volume *owner)
     {
@@ -274,6 +287,7 @@ namespace MapEdit
 
         // Create face and loops
         Face *face = new Face();
+        face->elemId = FreshElemId();
 
         Loop *lastLoop = NULL;
         Loop *firstLoop = NULL;
@@ -318,6 +332,8 @@ namespace MapEdit
     Edge *CreateEdge(Vert *v1, Vert *v2, Volume *owner)
     {
         Edge *edge = new Edge();
+        edge->elemId = FreshElemId();
+
         edge->a = v1;
         edge->b = v2;
         v1->DiskLinkInsertEdge(edge);
@@ -330,6 +346,8 @@ namespace MapEdit
     Vert *CreateVert(vec3 pos, Volume *owner)
     {
         Vert *v = new Vert();
+        v->elemId = FreshElemId();
+
         v->pos = pos;
 
         owner->verts.push_back(v);
@@ -564,25 +582,11 @@ std::vector<float> MY_VERTEX_BUFFER;
 #define MAPSER_VOLUMES_U64_DIVIDER_END   0x9fcf207673e66e63 
 #define DESER_FACE_ADDITIONAL_SIZE 64
 
-// serialize EDITOR_MAP_VOLUMES 
-// i think i want to reuse MapEdit::CreateFace for Deserialize, 
-// which means i need to preserve the order of each vertex
-
-// when serializing, every element's address becomes its unique id
-// when deserializing, 
-//      every vertex is created and hashmap maps unique id to the created vertex ptr
-//      every edge is created 
-
-// hash the address to the element
-// to 
-
-// all of the vertices need to exist in memory
-// all of the edges then get created from those vertices
 
 bool EditorSerializeMap(const char *mapFilePath)
 {
 #if INTERNAL_BUILD
-    std::unordered_set<u64> SerPtrSet;
+    std::unordered_set<u32> SerPtrSet;
 #endif
 
     ByteBuffer mapbuf;
@@ -599,11 +603,10 @@ bool EditorSerializeMap(const char *mapFilePath)
         ByteBufferWrite(&mapbuf, size_t, volume.verts.size());
         for (MapEdit::Vert *v : volume.verts)
         {
-            u64 ptrAsInt = (u64)v;
 #if INTERNAL_BUILD
-            SerPtrSet.emplace(ptrAsInt);
+            SerPtrSet.emplace(v->elemId);
 #endif
-            ByteBufferWrite(&mapbuf, u64, ptrAsInt);
+            ByteBufferWrite(&mapbuf, u32, v->elemId);
             ByteBufferWrite(&mapbuf, float, v->pos.x);
             ByteBufferWrite(&mapbuf, float, v->pos.y);
             ByteBufferWrite(&mapbuf, float, v->pos.z);
@@ -612,16 +615,17 @@ bool EditorSerializeMap(const char *mapFilePath)
         ByteBufferWrite(&mapbuf, size_t, volume.edges.size());
         for (MapEdit::Edge *e : volume.edges)
         {
-            u64 ep = (u64)e;
-            u64 ea = (u64)e->a;
-            u64 eb = (u64)e->b;
+            u32 ep = e->elemId;
+            u32 ea = e->a->elemId;
+            u32 eb = e->b->elemId;
 #if INTERNAL_BUILD
             ASSERT(SerPtrSet.find(ea) != SerPtrSet.end());
             ASSERT(SerPtrSet.find(eb) != SerPtrSet.end());
+            SerPtrSet.emplace(ep);
 #endif
-            ByteBufferWrite(&mapbuf, u64, ep);
-            ByteBufferWrite(&mapbuf, u64, ea);
-            ByteBufferWrite(&mapbuf, u64, eb);
+            ByteBufferWrite(&mapbuf, u32, ep);
+            ByteBufferWrite(&mapbuf, u32, ea);
+            ByteBufferWrite(&mapbuf, u32, eb);
         }
 
         ByteBufferWrite(&mapbuf, size_t, volume.faces.size());
@@ -630,8 +634,13 @@ bool EditorSerializeMap(const char *mapFilePath)
             // save the sequence of edges in the face's loop cycle by their pointers
             const std::vector<MapEdit::Edge*>& faceEdges = f->GetEdges();
             ByteBufferWrite(&mapbuf, size_t, faceEdges.size());
-            size_t blksz = sizeof(void*)*faceEdges.size();
-            ByteBufferWriteBulk(&mapbuf, (void*)faceEdges.data(), blksz);
+            for (MapEdit::Edge *fe : faceEdges)
+            {
+#if INTERNAL_BUILD
+                ASSERT(SerPtrSet.find(fe->elemId) != SerPtrSet.end());
+#endif
+                ByteBufferWrite(&mapbuf, u32, fe->elemId);
+            }
             // leaving some buffer room for additional Face data in the future
             // make sure to decrement as needed and mirror same value on deserialize
             u8 nullbytes[DESER_FACE_ADDITIONAL_SIZE];
@@ -650,7 +659,7 @@ bool EditorSerializeMap(const char *mapFilePath)
 
 bool EditorDeserializeMap(const char *mapFilePath)
 {
-    std::unordered_map<u64, void*> DeserPtrToElem;
+    std::unordered_map<u32, void*> DeserElemIdToElem;
 
     ByteBuffer mapbuf;
     ByteBufferInit(&mapbuf);
@@ -673,53 +682,48 @@ bool EditorDeserializeMap(const char *mapFilePath)
         ByteBufferRead(&mapbuf, size_t, &vertexCount);
         for (size_t j = 0; j < vertexCount; ++j)
         {
-            u64 vptr;
+            u32 vElemId;
             vec3 vpos;
-            ByteBufferRead(&mapbuf, u64, &vptr);
+            ByteBufferRead(&mapbuf, u32, &vElemId);
             ByteBufferRead(&mapbuf, float, &vpos.x);
             ByteBufferRead(&mapbuf, float, &vpos.y);
             ByteBufferRead(&mapbuf, float, &vpos.z);
 
             void *elemptr = (void*)CreateVert(vpos, &owner); // MEM ALLOC
-            DeserPtrToElem.emplace(vptr, elemptr);
+            DeserElemIdToElem.emplace(vElemId, elemptr);
         }
 
         ByteBufferRead(&mapbuf, size_t, &edgeCount);
         for (size_t j = 0; j < edgeCount; ++j)
         {
-            u64 eptr;
-            u64 aptr;
-            u64 bptr;
-            ByteBufferRead(&mapbuf, u64, &eptr);
-            ByteBufferRead(&mapbuf, u64, &aptr);
-            ByteBufferRead(&mapbuf, u64, &bptr);
+            u32 eElemId;
+            u32 aElemId;
+            u32 bElemId;
+            ByteBufferRead(&mapbuf, u32, &eElemId);
+            ByteBufferRead(&mapbuf, u32, &aElemId);
+            ByteBufferRead(&mapbuf, u32, &bElemId);
 
-            MapEdit::Vert *av = (MapEdit::Vert*)DeserPtrToElem.at(aptr);
-            MapEdit::Vert *bv = (MapEdit::Vert*)DeserPtrToElem.at(bptr);
+            MapEdit::Vert *av = (MapEdit::Vert*)DeserElemIdToElem.at(aElemId);
+            MapEdit::Vert *bv = (MapEdit::Vert*)DeserElemIdToElem.at(bElemId);
             void *elemptr = (void*)CreateEdge(av, bv, &owner); // MEM ALLOC
-            DeserPtrToElem.emplace(eptr, elemptr);
+            DeserElemIdToElem.emplace(eElemId, elemptr);
         }
 
         ByteBufferRead(&mapbuf, size_t, &faceCount);
         for (size_t j = 0; j < faceCount; ++j)
         {
             size_t faceEdgesCount = 0;
-            std::vector<u64> faceEdgeIds;
             std::vector<MapEdit::Edge*> faceEdges;
             
             ByteBufferRead(&mapbuf, size_t, &faceEdgesCount);
-            faceEdgeIds.resize(faceEdgesCount);
-            faceEdges.reserve(faceEdgesCount);
-
-            size_t blksz = sizeof(void*)*faceEdgesCount;
-            ByteBufferReadBulk(&mapbuf, faceEdgeIds.data(), blksz);
-
-            ByteBufferAdvancePosition(&mapbuf, DESER_FACE_ADDITIONAL_SIZE);
-
             for (int k = 0; k < faceEdgesCount; ++k)
             {
-                faceEdges.push_back((MapEdit::Edge*)DeserPtrToElem.at(faceEdgeIds[k]));
+                u32 feElemId;
+                ByteBufferRead(&mapbuf, u32, &feElemId);
+                faceEdges.push_back((MapEdit::Edge*)DeserElemIdToElem.at(feElemId));
             }
+
+            ByteBufferAdvancePosition(&mapbuf, DESER_FACE_ADDITIONAL_SIZE);
 
             CreateFace(faceEdges, &owner); // MEM ALLOC
         }

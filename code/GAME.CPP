@@ -4,6 +4,10 @@ TODO:
 - Fix serialize deserialize bug with aptr or bptr not existing in DeserPtrToElem
     - actually...instead of serializing the ptr directly, just assign a unique id to each element
       when they get new'ed. such an easy fix...
+    - so far pretty consistent (hasn't failed) repro steps: open test.map, create three volumes under hell, save, then try to open in new instance
+    - THE FIX: I was writing and reading these files as text files "w" "r" instead of binary files "wb" and "rb"
+      which means there was weird shit happening like adding Carriage Returns and LF stuff and new lines ugh its fixed now
+      Changing the ptr to serialize a unique id didn't really do anything. but that's fine.
 - Edge & Face select & move 
     - SELECT THE SELECTABLE VERTICES SINCE THAT EXISTS probably make SELECTED_SELECTABLE_VERTICES_INDICES a list of vertex ptrs
     - Face select and choose texture
