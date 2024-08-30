@@ -767,7 +767,6 @@ float DISC_HANDLE_RADIUS = 10.f;
 NiceArray<int, 16> SELECTED_MAP_VOLUMES_INDICES;
 std::vector<MapEdit::Vert*> SELECTABLE_VERTICES;
 std::vector<MapEdit::Vert*> SELECTED_VERTICES;
-std::vector<int> SELECTED_SELECTABLE_VERTICES_INDICES;
 std::vector<MapEdit::Face*> SELECTABLE_FACES;
 
 
@@ -1154,18 +1153,19 @@ void TickMapEditor()
             if (clickedId > 0)
             {
                 hotHandleId = clickedId;
-                auto clickedIter = std::find(SELECTED_SELECTABLE_VERTICES_INDICES.begin(), SELECTED_SELECTABLE_VERTICES_INDICES.end(), clickedId);
-                AlreadySelectedOnLeftMouseDown = clickedIter != SELECTED_SELECTABLE_VERTICES_INDICES.end();
+                MapEdit::Vert *hotVert = SELECTABLE_VERTICES[hotHandleId-1];
+                auto clickedIter = std::find(SELECTED_VERTICES.begin(), SELECTED_VERTICES.end(), hotVert);
+                AlreadySelectedOnLeftMouseDown = clickedIter != SELECTED_VERTICES.end();
                 if (!AlreadySelectedOnLeftMouseDown)
                 {
                     if (!LCtrlDownOnLeftMouseDown)
-                        SELECTED_SELECTABLE_VERTICES_INDICES.clear();
-                    SELECTED_SELECTABLE_VERTICES_INDICES.push_back(clickedId);
+                        SELECTED_VERTICES.clear();
+                    SELECTED_VERTICES.push_back(hotVert);
                 }
             }
             else if (!LCtrlDownOnLeftMouseDown)
             {
-                SELECTED_SELECTABLE_VERTICES_INDICES.clear();
+                SELECTED_VERTICES.clear();
             }
             else
             {
@@ -1209,9 +1209,8 @@ void TickMapEditor()
                 TotalTranslationThisMouseDown += translation;
             }
 
-            for (int index : SELECTED_SELECTABLE_VERTICES_INDICES)
+            for (MapEdit::Vert *vert : SELECTED_VERTICES)
             {
-                MapEdit::Vert *vert = SELECTABLE_VERTICES[index - 1];
                 vert->pos += translation;
             }
             for (int i = 0; i < SELECTED_MAP_VOLUMES_INDICES.count; ++i)
@@ -1228,9 +1227,8 @@ void TickMapEditor()
 
         if (keyscurrent[SDL_SCANCODE_ESCAPE])
         {
-            for (int index : SELECTED_SELECTABLE_VERTICES_INDICES)
+            for (MapEdit::Vert *vert : SELECTED_VERTICES)
             {
-                MapEdit::Vert *vert = SELECTABLE_VERTICES[index - 1];
                 vert->pos -= TotalTranslationThisMouseDown;
             }
             for (int i = 0; i < SELECTED_MAP_VOLUMES_INDICES.count; ++i)
@@ -1255,13 +1253,14 @@ void TickMapEditor()
         {
             if (hotHandleId > 0)
             {
+                MapEdit::Vert *hotVert = SELECTABLE_VERTICES[hotHandleId-1];
                 if (LCtrlDownOnLeftMouseDown)
                 {
-                    auto clickedIter = std::find(SELECTED_SELECTABLE_VERTICES_INDICES.begin(), SELECTED_SELECTABLE_VERTICES_INDICES.end(), hotHandleId);
-                    if (clickedIter != SELECTED_SELECTABLE_VERTICES_INDICES.end())
+                    auto hotVertIter = std::find(SELECTED_VERTICES.begin(), SELECTED_VERTICES.end(), hotVert);
+                    if (hotVertIter != SELECTED_VERTICES.end())
                     {
                         if (AlreadySelectedOnLeftMouseDown && !TranslationHappenedForSomeFrames)
-                            SELECTED_SELECTABLE_VERTICES_INDICES.erase(clickedIter);
+                            SELECTED_VERTICES.erase(hotVertIter);
                     }
                     else
                     {
@@ -1270,8 +1269,8 @@ void TickMapEditor()
                 }
                 else if (!TranslationHappenedForSomeFrames)
                 {
-                    SELECTED_SELECTABLE_VERTICES_INDICES.clear();
-                    SELECTED_SELECTABLE_VERTICES_INDICES.push_back(hotHandleId);
+                    SELECTED_VERTICES.clear();
+                    SELECTED_VERTICES.push_back(hotVert);
                 }
             }
 
