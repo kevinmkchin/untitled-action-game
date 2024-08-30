@@ -1,7 +1,7 @@
 /*
 
 TODO:
-- Edge & Face select & move 
+- Edge & Face select & move & texture
     - SELECT THE SELECTABLE VERTICES SINCE THAT EXISTS probably make SELECTED_SELECTABLE_VERTICES_INDICES a list of vertex ptrs
     - Face select and choose texture
     - CREATE GRID MESH STATICALLY AT THE START!!! DONT NEED TO MAKE IT EVERY FRAME (just one grid mesh, scale it and translate it)
@@ -1642,8 +1642,7 @@ static void RenderMapEditorLayer()
         {
             MapEdit::Vert *v = SELECTABLE_VERTICES[i];
             vec4 discHandleColor = vec4(RGBHEXTO1(0xFF8000), 1.f);
-            if (std::find(SELECTED_SELECTABLE_VERTICES_INDICES.begin(), SELECTED_SELECTABLE_VERTICES_INDICES.end(), i+1)
-                != SELECTED_SELECTABLE_VERTICES_INDICES.end())
+            if (std::find(SELECTED_VERTICES.begin(), SELECTED_VERTICES.end(), v) != SELECTED_VERTICES.end())
                 discHandleColor = vec4(RGB255TO1(254,8,8),1.f);
             PrimitiveDrawSolidDisc(v->pos, editorCameraPosition - v->pos, GetEditorHandleSize(v->pos, DISC_HANDLE_RADIUS),
                                    discHandleColor);

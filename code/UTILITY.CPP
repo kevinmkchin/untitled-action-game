@@ -499,7 +499,6 @@ std::string OpenPNGImageDialog()
 {
     COMDLG_FILTERSPEC fileTypes[] = { { L"PNG files", L"*.png" } };
     std::string imagepath = OpenFilePrompt(1, fileTypes);
-    LogMessage("%s\n", imagepath.c_str());
     return imagepath;
 }
 
@@ -507,7 +506,6 @@ std::string OpenMapDialog()
 {
     COMDLG_FILTERSPEC fileTypes[] = { { L"Map files", L"*.map" } };
     std::string path = OpenFilePrompt(1, fileTypes);
-    LogMessage("%s\n", path.c_str());
     return path;
 }
 
@@ -515,7 +513,6 @@ std::string SaveMapDialog()
 {
     COMDLG_FILTERSPEC fileTypes[] = { { L"Map files", L"*.map" } };
     std::string path = SaveFilePrompt(fileTypes, L"map");
-    LogMessage("%s\n", path.c_str());
     return path;
 }
 
