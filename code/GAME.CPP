@@ -1,8 +1,10 @@
 /*
 
+TODAY:
+- simplify VertexManip code like FaceManip code; make sure LALT vertical is using drag plane aligned to Y-axis
+
 TODO:
 - Edge & Face select & move & texture
-    - SELECT THE SELECTABLE VERTICES SINCE THAT EXISTS probably make SELECTED_SELECTABLE_VERTICES_INDICES a list of vertex ptrs
     - Face select and choose texture
     - CREATE GRID MESH STATICALLY AT THE START!!! DONT NEED TO MAKE IT EVERY FRAME (just one grid mesh, scale it and translate it)
 
