@@ -11,7 +11,7 @@ devenv build\game.sln
 goto end
 
 :run-subl
-subl source.sublime-project
+subl game.sublime-project
 goto end
 
 :run-bin
