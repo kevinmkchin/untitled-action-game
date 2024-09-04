@@ -1,8 +1,5 @@
 /*
 
-TODAY:
-- simplify VertexManip code like FaceManip code; make sure LALT vertical is using drag plane aligned to Y-axis
-
 TODO:
 - Edge & Face select & move & texture
     - Face select and choose texture

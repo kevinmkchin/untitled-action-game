@@ -997,6 +997,7 @@ void TickMapEditor()
 
     Gui::EditorSpacer(16,0);
     Gui::EditorLabelledButton("Toggle Auto Colliders []");
+    Gui::EditorLabelledButton("Snap Vertex or Translation to Grid?");
 
     Gui::EditorEndHorizontal();
     Gui::EndWindow();
@@ -1048,7 +1049,6 @@ void TickMapEditor()
             HANDLES_VB.count += count;
         }
         u32 hoveredFaceId = FlushHandles(mousepos, renderTargetGame, activeViewMatrix, activePerspectiveMatrix, false);
-        LogMessage("%d", hoveredFaceId);
 
         if (hoveredFaceId > 0)
         {
@@ -1068,7 +1068,6 @@ void TickMapEditor()
             }
         }
 
-
         if (lmbIsPressed && hotHandleId > 0)
         {
             MapEdit::Face *hotFace = SELECTABLE_FACES[hotHandleId-1];
@@ -1080,9 +1079,10 @@ void TickMapEditor()
             if (keyscurrent[SDL_SCANCODE_LALT])
             {
                 vec3 intersect;
-                IntersectPlaneAndLineWithDirections(DragPlanePoint, vec3(-cameraDirection.x, 0, -cameraDirection.z), worldpos_mouse, worldray_mouse, &intersect);
+                IntersectPlaneAndLineWithDirections(DragPlanePoint, vec3(-cameraDirection.x, 0.f, -cameraDirection.z), worldpos_mouse, worldray_mouse, &intersect);
                 float yTranslation = Dot((intersect - DragPlanePoint), GM_UP_VECTOR);
-                TotalTranslation = SnapToMapEditorGrid(vec3(0.f,yTranslation,0.f));
+                TotalTranslation = vec3(0.f,yTranslation,0.f);
+                TotalTranslation = SnapToMapEditorGrid(TotalTranslation);
             }
             else
             {
@@ -1092,9 +1092,18 @@ void TickMapEditor()
                 TotalTranslation = SnapToMapEditorGrid(TotalTranslation);
             }
 
-            for (MapEdit::Vert *vert : SELECTED_VERTICES)
+            if (keyscurrent[SDL_SCANCODE_ESCAPE])
             {
-                vert->pos = vert->poscache + TotalTranslation;
+                for (MapEdit::Vert *vert : SELECTED_VERTICES)
+                    vert->pos = vert->poscache;
+                hotHandleId = 0;
+            }
+            else
+            {
+                for (MapEdit::Vert *vert : SELECTED_VERTICES)
+                {
+                    vert->pos = vert->poscache + TotalTranslation;
+                }
             }
             for (int i = 0; i < SELECTED_MAP_VOLUMES_INDICES.count; ++i)
             {
@@ -1116,15 +1125,13 @@ void TickMapEditor()
 
     if (editorActiveTool == MapEditorTools::VertexManip)
     {
+        static vec3 DragPlanePoint;
         static bool LCtrlDownOnLeftMouseDown = false;
         static bool AlreadySelectedOnLeftMouseDown = false;
-        static bool TranslationHappenedForSomeFrames = false;
-        static vec3 TotalTranslationThisMouseDown = vec3();
+        static vec3 TotalTranslation;
 
         if (mousepressed & SDL_BUTTON(SDL_BUTTON_LEFT))
         {
-            TotalTranslationThisMouseDown = vec3();
-            TranslationHappenedForSomeFrames = false;
             LCtrlDownOnLeftMouseDown = keyscurrent[SDL_SCANCODE_LCTRL];
 
             for (u32 id = 1; id <= SELECTABLE_VERTICES.size(); ++id)
@@ -1145,7 +1152,12 @@ void TickMapEditor()
                     if (!LCtrlDownOnLeftMouseDown)
                         SELECTED_VERTICES.clear();
                     SELECTED_VERTICES.push_back(hotVert);
+                    hotVert->poscache = hotVert->pos;
                 }
+
+                vec3 worldpos_mouse = ScreenPointToWorldPoint(mousepos, 0.f);
+                vec3 worldray_mouse = ScreenPointToWorldRay(mousepos);
+                IntersectPlaneAndLineWithDirections(hotVert->pos, -cameraDirection, worldpos_mouse, worldray_mouse, &DragPlanePoint);
             }
             else if (!LCtrlDownOnLeftMouseDown)
             {
@@ -1168,34 +1180,37 @@ void TickMapEditor()
             vec3 worldpos_mouse = ScreenPointToWorldPoint(mousepos, 0.f);
             vec3 worldray_mouse = ScreenPointToWorldRay(mousepos);
 
-            vec3 translation;
+            TotalTranslation = vec3();
             if (keyscurrent[SDL_SCANCODE_LALT])
             {
-                vec3 dragPlanePoint = hotVert->pos;
-                vec3 dragPlaneNormal = -cameraDirection;
                 vec3 intersect;
-                IntersectPlaneAndLineWithDirections(dragPlanePoint, dragPlaneNormal, worldpos_mouse, worldray_mouse, &intersect);
-                intersect = vec3(intersect.x, SnapToMapEditorGrid(intersect.y), intersect.z);
-                float yTranslation = Dot((intersect - dragPlanePoint), GM_UP_VECTOR);
-                translation = vec3(0.f,yTranslation,0.f);
+                IntersectPlaneAndLineWithDirections(DragPlanePoint, vec3(-cameraDirection.x, 0.f, -cameraDirection.z), worldpos_mouse, worldray_mouse, &intersect);
+                float yTranslation = Dot((intersect - DragPlanePoint), GM_UP_VECTOR);
+                TotalTranslation = vec3(0.f,yTranslation,0.f);
+                TotalTranslation = SnapToMapEditorGrid(TotalTranslation);
             }
             else
             {
-                vec3 XZDragPlanePoint = hotVert->pos;
-                vec3 XZDragPlaneNormal = GM_UP_VECTOR;
                 vec3 intersect;
-                IntersectPlaneAndLine(XZDragPlanePoint, XZDragPlaneNormal, worldpos_mouse, worldray_mouse, &intersect);
-                translation = SnapToMapEditorGrid(intersect) - hotVert->pos;
-            }
-            if (translation != vec3())
-            {
-                TranslationHappenedForSomeFrames = true;
-                TotalTranslationThisMouseDown += translation;
+                IntersectPlaneAndLine(DragPlanePoint, GM_UP_VECTOR, worldpos_mouse, worldray_mouse, &intersect);
+                TotalTranslation = intersect - DragPlanePoint;
+                TotalTranslation = SnapToMapEditorGrid(TotalTranslation);
             }
 
-            for (MapEdit::Vert *vert : SELECTED_VERTICES)
+            if (keyscurrent[SDL_SCANCODE_ESCAPE])
             {
-                vert->pos += translation;
+                for (MapEdit::Vert *vert : SELECTED_VERTICES)
+                    vert->pos = vert->poscache;
+                hotHandleId = 0;
+                LCtrlDownOnLeftMouseDown = false;
+                AlreadySelectedOnLeftMouseDown = false;
+            }
+            else
+            {
+                for (MapEdit::Vert *vert : SELECTED_VERTICES)
+                {
+                    vert->pos = vert->poscache + TotalTranslation;
+                }
             }
             for (int i = 0; i < SELECTED_MAP_VOLUMES_INDICES.count; ++i)
             {
@@ -1207,30 +1222,6 @@ void TickMapEditor()
                     RebindFaceBatchBufferObject(&face->facemesh, (u32)(sizeof(float)*MY_VERTEX_BUFFER.size()), MY_VERTEX_BUFFER.data());
                 }
             }
-        }
-
-        if (keyscurrent[SDL_SCANCODE_ESCAPE])
-        {
-            for (MapEdit::Vert *vert : SELECTED_VERTICES)
-            {
-                vert->pos -= TotalTranslationThisMouseDown;
-            }
-            for (int i = 0; i < SELECTED_MAP_VOLUMES_INDICES.count; ++i)
-            {
-                MapEdit::Volume& selectedVol = EDITOR_MAP_VOLUMES.At(SELECTED_MAP_VOLUMES_INDICES.At(i));
-                for (MapEdit::Face *face : selectedVol.faces)
-                {
-                    MY_VERTEX_BUFFER.clear();
-                    MapEdit::TriangulateFace_QuickDumb(*face, &MY_VERTEX_BUFFER);
-                    RebindFaceBatchBufferObject(&face->facemesh, (u32)(sizeof(float)*MY_VERTEX_BUFFER.size()), MY_VERTEX_BUFFER.data());
-                }
-            }
-
-            hotHandleId = 0;
-            TotalTranslationThisMouseDown = vec3();
-            AlreadySelectedOnLeftMouseDown = false;
-            LCtrlDownOnLeftMouseDown = false;
-            TranslationHappenedForSomeFrames = false;
         }
 
         if (mousereleased & SDL_BUTTON(SDL_BUTTON_LEFT))
@@ -1243,7 +1234,7 @@ void TickMapEditor()
                     auto hotVertIter = std::find(SELECTED_VERTICES.begin(), SELECTED_VERTICES.end(), hotVert);
                     if (hotVertIter != SELECTED_VERTICES.end())
                     {
-                        if (AlreadySelectedOnLeftMouseDown && !TranslationHappenedForSomeFrames)
+                        if (AlreadySelectedOnLeftMouseDown && TotalTranslation != vec3())
                             SELECTED_VERTICES.erase(hotVertIter);
                     }
                     else
@@ -1251,7 +1242,7 @@ void TickMapEditor()
                         LogError("wtf");
                     }
                 }
-                else if (!TranslationHappenedForSomeFrames)
+                else if (TotalTranslation != vec3())
                 {
                     SELECTED_VERTICES.clear();
                     SELECTED_VERTICES.push_back(hotVert);
@@ -1259,10 +1250,8 @@ void TickMapEditor()
             }
 
             hotHandleId = 0;
-            TotalTranslationThisMouseDown = vec3();
-            AlreadySelectedOnLeftMouseDown = false;
             LCtrlDownOnLeftMouseDown = false;
-            TranslationHappenedForSomeFrames = false;
+            AlreadySelectedOnLeftMouseDown = false;
         }
     }
 
