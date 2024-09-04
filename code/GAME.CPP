@@ -1,9 +1,13 @@
 /*
+TODAY:
+- Face "selection" and choose texture (just limit face selection to 1 for now)
+
 
 TODO:
 - Edge & Face select & move & texture
     - Face select and choose texture
     - CREATE GRID MESH STATICALLY AT THE START!!! DONT NEED TO MAKE IT EVERY FRAME (just one grid mesh, scale it and translate it)
+- Volume "selection"
 
 EPICS:
 - Basic layout and structures of maps can be created, they are textured
@@ -19,15 +23,11 @@ EPICS:
 
 OTHER:
 Finish implementing Editable Volumes and Atomics
-(cube draw) Super simple create volume tool where you just drag mouse once? and then click once and raise mouse for height?
-(poly draw) Draw on plane then raise to create volume tool
-Move volume tool (maybe this is select all vertices and move?)
-Multiselect vertices and move them
-Multiselect edges and move them
-Multiselect faces and move them
-Multiselect volumes and edit them all at the same time
+(poly draw) Draw poly on plane then raise to create volume tool
 
+DONT FORGET:
 Port over Console front and backend
+
 
 use flat faces for collision? instead of meshes? GJK EPA code accepts 2D meshes
 
