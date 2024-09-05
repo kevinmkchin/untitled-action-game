@@ -1,13 +1,13 @@
 /*
 TODAY:
 - Face "selection" and choose texture (just limit face selection to 1 for now)
-
+- Move volume mode/tool (don't need whole tool...maybe make brush tool part of this mode? like trenchbroom)
+- Make Simple Brush Tool work on arbitrary surface
 
 TODO:
 - Edge & Face select & move & texture
     - Face select and choose texture
     - CREATE GRID MESH STATICALLY AT THE START!!! DONT NEED TO MAKE IT EVERY FRAME (just one grid mesh, scale it and translate it)
-- Volume "selection"
 
 EPICS:
 - Basic layout and structures of maps can be created, they are textured
@@ -1635,6 +1635,20 @@ static void RenderMapEditorLayer()
 
 
     // PRIMITIVES
+    // Draw outline of selected faces
+    for (int i = 0; i < SELECTED_MAP_VOLUMES_INDICES.count; ++i)
+    {
+        const MapEdit::Volume& volume = EDITOR_MAP_VOLUMES.At(SELECTED_MAP_VOLUMES_INDICES.At(i));
+        for (MapEdit::Face *selVolFace : volume.faces)
+        {
+            std::vector<MapEdit::Edge*> faceEdges = selVolFace->GetEdges();
+            for (MapEdit::Edge* e : faceEdges)
+            {
+                PrimitiveDrawLine(e->a->pos, e->b->pos, vec4(1,0,0,1), 2.f, editorCameraPosition);
+            }
+        }
+    }
+    // Draw vertex handles
     if (editorActiveTool == MapEditorTools::VertexManip)
     {
         for (int i = 0; i < SELECTABLE_VERTICES.size(); ++i)

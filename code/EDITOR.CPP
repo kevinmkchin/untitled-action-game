@@ -200,6 +200,8 @@ namespace MapEdit
         std::vector<Face*> faces;
         std::vector<Edge*> edges;
         std::vector<Vert*> verts;
+
+        u64 persistId = 0; // 0 is invalid volume. All volumes should call FreshVolumePersistId.
     };
 
     vec3 Face::QuickNormal()
@@ -248,6 +250,12 @@ namespace MapEdit
     fully populated once they are used to create Edges, and Edges are only fully populated once they are
     used to create Faces.
     */
+
+    static u64 session_VolumePersistIdCounter = 0;
+    u64 FreshVolumePersistId()
+    {
+        return ++session_VolumePersistIdCounter;
+    }
 
     u32 FreshElemId()
     {
@@ -602,6 +610,8 @@ bool EditorSerializeMap(const char *mapFilePath)
     {
         const MapEdit::Volume& volume = EDITOR_MAP_VOLUMES.At(i);
         
+        ByteBufferWrite(&mapbuf, u64, volume.persistId);
+
         ByteBufferWrite(&mapbuf, size_t, volume.verts.size());
         for (MapEdit::Vert *v : volume.verts)
         {
@@ -678,6 +688,8 @@ bool EditorDeserializeMap(const char *mapFilePath)
     for (int i = 0; i < volumesCount; ++i)
     {
         MapEdit::Volume owner;
+        ByteBufferRead(&mapbuf, u64, &owner.persistId);
+        MapEdit::session_VolumePersistIdCounter = GM_max(owner.persistId, MapEdit::session_VolumePersistIdCounter);
 
         size_t vertexCount, edgeCount, faceCount = 0;
 
@@ -764,8 +776,10 @@ void LoadGameMap()
 
 
 vec3 editorCameraPosition = vec3(128, 128, 128);
-float GRID_INCREMENT = 8.f;
+float GRID_INCREMENT = 32.f;
 float DISC_HANDLE_RADIUS = 10.f;
+// These indices are not guaranteed to persist frame to frame. For now (2024-09-04) they index into
+// the huge array of all Volumes EDITOR_MAP_VOLUMES. Things will/should move around within the array. 
 NiceArray<int, 16> SELECTED_MAP_VOLUMES_INDICES;
 std::vector<MapEdit::Vert*> SELECTABLE_VERTICES;
 std::vector<MapEdit::Vert*> SELECTED_VERTICES;
@@ -923,7 +937,7 @@ void TickMapEditor()
 
     static u32 hotHandleId = 0;
 
-    Gui::BeginWindow(Gui::UIRect(0,0,BACKBUFFER_WIDTH,19));
+    Gui::BeginWindow(Gui::UIRect(0,0,renderTargetGUI.width,19));
     Gui::EditorBeginHorizontal();
     if (Gui::EditorLabelledButton("SAVE"))
     {
@@ -965,6 +979,7 @@ void TickMapEditor()
     {
         editorActiveTool = MapEditorTools::SimpleBrushTool;
         hotHandleId = 0;
+        SELECTED_MAP_VOLUMES_INDICES.ResetCount();
     }
     if (keyspressed[SDL_SCANCODE_2] || Gui::EditorSelectable_2("VERT", &vertToolActive))
     {
@@ -1002,9 +1017,74 @@ void TickMapEditor()
     Gui::EditorEndHorizontal();
     Gui::EndWindow();
 
-    if (Gui::anyElementHovered || Gui::anyWindowHovered)
-        return;
+    int volc = SELECTED_MAP_VOLUMES_INDICES.count;
+    Gui::BeginWindow(Gui::UIRect(renderTargetGUI.width - 160, 28, 150, 15 + volc * 15));
+    Gui::EditorText((std::string("selected volumes (") + std::to_string(volc) + std::string(")")).c_str());
+    for (int i = 0; i < SELECTED_MAP_VOLUMES_INDICES.count; ++i)
+    {
+        int editorMapVolumeIndex = SELECTED_MAP_VOLUMES_INDICES.At(i);
+        const MapEdit::Volume& volume = EDITOR_MAP_VOLUMES.At(editorMapVolumeIndex);
+        std::string volPersIdStr = std::to_string(volume.persistId);
+        Gui::EditorBeginHorizontal();
+        // Gui::EditorLabelledButton("S");
+        if (Gui::EditorLabelledButton("X"))
+        {
+            // TODO remove volume from selection
+        }
+        Gui::EditorSpacer(4, 0);
+        Gui::EditorText(volPersIdStr.c_str());
+        Gui::EditorEndHorizontal();
+    }
+    // Gui::EditorText((std::string("            max ") + std::to_string(SELECTED_MAP_VOLUMES_INDICES.capacity)).c_str());
+    Gui::EndWindow();
 
+    if (Gui::anyElementHovered || Gui::anyWindowHovered)
+    {
+        // TODO tools reset? if LMB relased? not always.
+        return;
+    }
+
+
+    // === Volume picking ===
+    // can pick volumes while in most modes
+    // can pick nothing to deselect in most modes
+    bool volumePickable = 
+        editorActiveTool == MapEditorTools::VertexManip ||
+        editorActiveTool == MapEditorTools::EdgeManip ||
+        editorActiveTool == MapEditorTools::FaceManip;
+    if (volumePickable && mousereleased & SDL_BUTTON(SDL_BUTTON_LEFT) && hotHandleId == 0)
+    {
+        for (int volumeFrameId = 1; volumeFrameId <= EDITOR_MAP_VOLUMES.count; ++volumeFrameId)
+        {
+            vec3 idrgb = HandleIdToRGB(volumeFrameId);
+            MapEdit::Volume& vol = EDITOR_MAP_VOLUMES.At(volumeFrameId - 1);
+            for (MapEdit::Face *f : vol.faces)
+            {
+                int count;
+                MapEdit::TriangulateFace_QuickDumb_WithColor(*f, idrgb, HANDLES_VB.data + HANDLES_VB.count, &count);
+                HANDLES_VB.count += count;
+            }
+        }
+        u32 pickedVolumeFrameId = FlushHandles(mousepos, renderTargetGame, activeViewMatrix, activePerspectiveMatrix, false);
+
+        if (pickedVolumeFrameId <= 0)
+        {
+            SELECTED_MAP_VOLUMES_INDICES.ResetCount();
+        }
+        else
+        {
+            if (!keyscurrent[SDL_SCANCODE_LCTRL])
+                SELECTED_MAP_VOLUMES_INDICES.ResetCount();
+
+            int pickedVolumeIndexInMegaArray = pickedVolumeFrameId-1;
+            bool exists = false;
+            for (int j = 0; j < SELECTED_MAP_VOLUMES_INDICES.count; ++j)
+                exists |= SELECTED_MAP_VOLUMES_INDICES.At(j) == pickedVolumeIndexInMegaArray;
+            if (!exists && SELECTED_MAP_VOLUMES_INDICES.count < SELECTED_MAP_VOLUMES_INDICES.capacity)
+                SELECTED_MAP_VOLUMES_INDICES.PushBack(pickedVolumeIndexInMegaArray);
+        }
+
+    }
 
 
     // === Selection handles ===
@@ -1019,7 +1099,7 @@ void TickMapEditor()
     SELECTABLE_FACES.clear();
     for (int i = 0; i < SELECTED_MAP_VOLUMES_INDICES.count; ++i)
     {
-        MapEdit::Volume volume = EDITOR_MAP_VOLUMES.At(SELECTED_MAP_VOLUMES_INDICES.At(i));
+        const MapEdit::Volume& volume = EDITOR_MAP_VOLUMES.At(SELECTED_MAP_VOLUMES_INDICES.At(i));
 
         for (int j = 0; j < volume.verts.size(); ++j)
         {
@@ -1391,6 +1471,7 @@ void TickMapEditor()
                     // if heigth component is zero or too small then just default to current grid increment
 
                     MapEdit::Volume createdVolume;
+                    createdVolume.persistId = MapEdit::FreshVolumePersistId();
 
                     // complete with drawn height
                     MapEdit::Vert *fv0 = MapEdit::CreateVert(floorPointA, &createdVolume);
@@ -1440,7 +1521,6 @@ void TickMapEditor()
                     MapEdit::CreateFace({f3_to_f0, f3_to_c3, c3_to_c0, f0_to_c0}, &createdVolume);
 
                     EDITOR_MAP_VOLUMES.PushBack(createdVolume);
-                    SELECTED_MAP_VOLUMES_INDICES.PushBack(EDITOR_MAP_VOLUMES.count - 1); // TODO dont select vol here
 
                     for (auto face : createdVolume.faces)
                     {
