@@ -1,13 +1,14 @@
 /*
 TODAY:
-- Face "selection" and choose texture (just limit face selection to 1 for now)
-- Move volume mode/tool (don't need whole tool...maybe make brush tool part of this mode? like trenchbroom)
-- Make Simple Brush Tool work on arbitrary surface
+- load map into fps game
 
 TODO:
-- Edge & Face select & move & texture
-    - Face select and choose texture
-    - CREATE GRID MESH STATICALLY AT THE START!!! DONT NEED TO MAKE IT EVERY FRAME (just one grid mesh, scale it and translate it)
+- texture, ser, deser
+- CREATE GRID MESH STATICALLY AT THE START!!! DONT NEED TO MAKE IT EVERY FRAME (just one grid mesh, scale it and translate it)
+- Move volume mode/tool (don't need whole tool...maybe make brush tool part of this mode? like trenchbroom)
+- Make Simple Brush Tool work on arbitrary surface
+- multi select vertices need to be fixed
+- Edge select
 
 EPICS:
 - Basic layout and structures of maps can be created, they are textured
@@ -1609,28 +1610,52 @@ static void RenderMapEditorLayer()
     GLBindMatrix4fv(sceneShader, "modelMatrix", 1, modelMatrix.ptr());
 
 
+    FaceBatch selectedFaceMesh;
     FaceBatch hoveredFaceMesh;
     for (int i = 0; i < MapEdit::EDITOR_FACES.count; ++i)
     {
         MapEdit::Face *editorVolumeFace = MapEdit::EDITOR_FACES.At(i);
-        if (editorActiveTool == MapEditorTools::FaceManip && editorVolumeFace->hovered)
+        if (editorActiveTool == MapEditorTools::FaceManip)
         {
-            hoveredFaceMesh = editorVolumeFace->facemesh;
-            editorVolumeFace->hovered = false;
-            continue;
+            if (Session.SelectedFace == editorVolumeFace)
+            {
+                selectedFaceMesh = editorVolumeFace->facemesh;
+                continue;
+            }
+            else if (editorVolumeFace->hovered)
+            {
+                // DONT CARE ABOUT HOVERED hoveredFaceMesh = editorVolumeFace->facemesh;
+                editorVolumeFace->hovered = false;
+                //continue;
+            }
         }
+
         const FaceBatch fb = editorVolumeFace->facemesh;
         RenderFaceBatch(fb);
     }
 
-    if (editorActiveTool == MapEditorTools::FaceManip && hoveredFaceMesh.idVAO > 0)
+    if (editorActiveTool == MapEditorTools::FaceManip)
     {
-        UseShader(editorShader_FaceSelected);
-        GLBindMatrix4fv(editorShader_FaceSelected, "projMatrix", 1, perspectiveMatrix.ptr());
-        GLBindMatrix4fv(editorShader_FaceSelected, "viewMatrix", 1, viewMatrix.ptr());
-        modelMatrix = mat4();
-        GLBindMatrix4fv(editorShader_FaceSelected, "modelMatrix", 1, modelMatrix.ptr());
-        RenderFaceBatch(hoveredFaceMesh);
+        if (selectedFaceMesh.idVAO > 0)
+        {
+            UseShader(editorShader_FaceSelected);
+            GLBind3f(editorShader_FaceSelected, "tint", 1.0f, 0.9f, 0.9f);
+            GLBindMatrix4fv(editorShader_FaceSelected, "projMatrix", 1, perspectiveMatrix.ptr());
+            GLBindMatrix4fv(editorShader_FaceSelected, "viewMatrix", 1, viewMatrix.ptr());
+            modelMatrix = mat4();
+            GLBindMatrix4fv(editorShader_FaceSelected, "modelMatrix", 1, modelMatrix.ptr());
+            RenderFaceBatch(selectedFaceMesh);
+        }
+        else if (hoveredFaceMesh.idVAO > 0)
+        {
+            UseShader(editorShader_FaceSelected);
+            GLBind3f(editorShader_FaceSelected, "tint", 0.9f, 0.9f, 0.0f);
+            GLBindMatrix4fv(editorShader_FaceSelected, "projMatrix", 1, perspectiveMatrix.ptr());
+            GLBindMatrix4fv(editorShader_FaceSelected, "viewMatrix", 1, viewMatrix.ptr());
+            modelMatrix = mat4();
+            GLBindMatrix4fv(editorShader_FaceSelected, "modelMatrix", 1, modelMatrix.ptr());
+            RenderFaceBatch(hoveredFaceMesh);
+        }
     }
 
 
