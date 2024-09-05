@@ -75,11 +75,12 @@ static const char* __editor_shader_face_selected_fs =
     "layout(location = 0) out vec4 out_colour;\n"
     "\n"
     "uniform sampler2D texture0;\n"
+    "uniform vec3 tint;"
     "\n"
     "void main()\n"
     "{\n"
     "    vec3 COLOR = texture(texture0, uv).xyz;\n"
-    "    vec3 TOTAL = COLOR * vec3(0.9, 0.9, 0.0);\n"
+    "    vec3 TOTAL = COLOR * tint;\n"
     "    out_colour = vec4(TOTAL, 1.0);\n"
     "}";
 

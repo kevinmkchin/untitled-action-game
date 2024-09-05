@@ -764,7 +764,11 @@ bool EditorDeserializeMap(const char *mapFilePath)
 
 void BuildGameMap()
 {
-    // need to just save a bunch of FaceBatches (which are basically just meshes)
+    // need to save a bunch of FaceBatches (which are basically just meshes)
+
+    // sort by texture, etc. every face using same texture goes into same FaceBatch
+
+    // need to do something smarter for collider data and texture data
 }
 
 void LoadGameMap()
@@ -775,7 +779,7 @@ void LoadGameMap()
 
 
 
-vec3 editorCameraPosition = vec3(128, 128, 128);
+vec3 editorCameraPosition = vec3(600, 500, 600);
 float GRID_INCREMENT = 32.f;
 float DISC_HANDLE_RADIUS = 10.f;
 // These indices are not guaranteed to persist frame to frame. For now (2024-09-04) they index into
@@ -865,6 +869,20 @@ float GetEditorHandleSize(vec3 worldPosition, float sizeInPixels)
     float screenDist = Magnitude(screenPos - screenPos2);
     return (sizeInPixels*32.f / GM_max(screenDist, 0.0001f));
 }
+
+struct editorSessionData
+{
+    MapEdit::Face *SelectedFace = NULL;
+    // move hotHandleId here
+    // move all the editor session specific data here
+};
+static editorSessionData Session;
+
+void SessionResetFaceToolData()
+{
+    Session.SelectedFace = NULL;
+}
+
 
 void TickMapEditor()
 {
@@ -980,21 +998,25 @@ void TickMapEditor()
         editorActiveTool = MapEditorTools::SimpleBrushTool;
         hotHandleId = 0;
         SELECTED_MAP_VOLUMES_INDICES.ResetCount();
+        SessionResetFaceToolData();
     }
     if (keyspressed[SDL_SCANCODE_2] || Gui::EditorSelectable_2("VERT", &vertToolActive))
     {
         editorActiveTool = MapEditorTools::VertexManip;
         hotHandleId = 0;
+        SessionResetFaceToolData();
     }
     if (keyspressed[SDL_SCANCODE_3] || Gui::EditorSelectable_2("EDGE", &edgeToolActive))
     {
         editorActiveTool = MapEditorTools::EdgeManip;
         hotHandleId = 0;
+        SessionResetFaceToolData();
     }
     if (keyspressed[SDL_SCANCODE_4] || Gui::EditorSelectable_2("FACE", &faceToolActive))
     {
         editorActiveTool = MapEditorTools::FaceManip;
         hotHandleId = 0;
+        SessionResetFaceToolData();
     }
 
     Gui::EditorSpacer(16,0);
@@ -1017,6 +1039,7 @@ void TickMapEditor()
     Gui::EditorEndHorizontal();
     Gui::EndWindow();
 
+
     int volc = SELECTED_MAP_VOLUMES_INDICES.count;
     Gui::BeginWindow(Gui::UIRect(renderTargetGUI.width - 160, 28, 150, 15 + volc * 15));
     Gui::EditorText((std::string("selected volumes (") + std::to_string(volc) + std::string(")")).c_str());
@@ -1038,6 +1061,19 @@ void TickMapEditor()
     // Gui::EditorText((std::string("            max ") + std::to_string(SELECTED_MAP_VOLUMES_INDICES.capacity)).c_str());
     Gui::EndWindow();
 
+
+    Gui::BeginWindow(Gui::UIRect(renderTargetGUI.width - 210, renderTargetGUI.height - 310, 200, 300));
+    Gui::EditorText("TODO");
+    Gui::EditorLabelledButton("Load new texture to database");
+    // TODO (Kevin): Have shortcuts for these actions so you can go click click shortcut click click shortcut
+    Gui::EditorLabelledButton("Apply Texture to Volume");
+    if (Session.SelectedFace != NULL && Gui::EditorLabelledButton("Apply Texture to Face"))
+    {
+
+    }
+    Gui::EndWindow();
+
+
     if (Gui::anyElementHovered || Gui::anyWindowHovered)
     {
         // TODO tools reset? if LMB relased? not always.
@@ -1046,6 +1082,7 @@ void TickMapEditor()
 
 
     // === Volume picking ===
+    // Triangulation on the fly is efficient but I don't care right now
     // can pick volumes while in most modes
     // can pick nothing to deselect in most modes
     bool volumePickable = 
@@ -1070,11 +1107,15 @@ void TickMapEditor()
         if (pickedVolumeFrameId <= 0)
         {
             SELECTED_MAP_VOLUMES_INDICES.ResetCount();
+            SessionResetFaceToolData();
         }
         else
         {
             if (!keyscurrent[SDL_SCANCODE_LCTRL])
+            {
                 SELECTED_MAP_VOLUMES_INDICES.ResetCount();
+                SessionResetFaceToolData();
+            }
 
             int pickedVolumeIndexInMegaArray = pickedVolumeFrameId-1;
             bool exists = false;
@@ -1138,7 +1179,10 @@ void TickMapEditor()
             if (lmbPressedThisFrame)
             {
                 hotHandleId = hoveredFaceId;
+                Session.SelectedFace = face;
+
                 SELECTED_VERTICES = face->GetVertices();
+
                 for (MapEdit::Vert *vert : SELECTED_VERTICES)
                     vert->poscache = vert->pos;
 
