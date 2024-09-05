@@ -926,7 +926,10 @@ namespace Gui
 
     void Window_StageLastElementDimension(int x, int y)
     {
-        lastAddedElementDimension = ivec2(x,y);
+        if (flag_HorizontalMode)
+            lastAddedElementDimension = ivec2(x, GM_max(lastAddedElementDimension.y, y));
+        else
+            lastAddedElementDimension = ivec2(x,y);
     }
 
     void Window_CommitLastElementDimension()
