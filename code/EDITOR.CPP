@@ -762,18 +762,95 @@ bool EditorDeserializeMap(const char *mapFilePath)
     return true;
 }
 
-void BuildGameMap()
+bool BuildGameMap(const char *path)
 {
     // need to save a bunch of FaceBatches (which are basically just meshes)
-
     // sort by texture, etc. every face using same texture goes into same FaceBatch
-
     // need to do something smarter for collider data and texture data
+
+    int totalfacecount = MapEdit::EDITOR_FACES.count;
+    
+    std::unordered_map<u32, std::vector<float>> VertexBuffers;
+
+
+    // sort faces by their textures
+    for (int i = 0; i < totalfacecount; ++i)
+    {
+        MapEdit::Face *face = MapEdit::EDITOR_FACES.At(i);
+        FaceBatch fb = face->facemesh;
+        GPUTexture tex = fb.sharedTexture;
+        u32 gpuTexId = tex.id;
+
+        if (VertexBuffers.find(gpuTexId) == VertexBuffers.end())
+        {
+            VertexBuffers.emplace(gpuTexId, std::vector<float>());
+        }
+
+        std::vector<float>& vb = VertexBuffers.at(gpuTexId);
+        TriangulateFace_QuickDumb(*face, &vb);
+    }
+
+
+    // serialize
+    ByteBuffer mapbuf;
+    ByteBufferInit(&mapbuf);
+
+    for (auto& vbpair : VertexBuffers)
+    {
+        u32 gpuTexId = vbpair.first;
+        const std::vector<float>& vb = vbpair.second;
+
+        ByteBufferWrite(&mapbuf, u32, gpuTexId); // dont do this, I need tex id in database. make database...
+        ByteBufferWrite(&mapbuf, size_t, vb.size());
+        for (float v : vb)
+        {
+            ByteBufferWrite(&mapbuf, float, v);
+        }
+    }
+
+    bool writtenToFile = ByteBufferWriteToFile(&mapbuf, path) == 1;
+    ByteBufferFree(&mapbuf);
+    return writtenToFile;
 }
 
-void LoadGameMap()
+bool LoadGameMap(const char *path)
 {
-    // just load the face batches into memory
+    // load the face batches into memory
+    // unpack the octree of colliders
+
+    std::unordered_map<u32, void*> DeserElemIdToElem;
+
+    ByteBuffer mapbuf;
+    ByteBufferInit(&mapbuf);
+    if (ByteBufferReadFromFile(&mapbuf, path) == 0)
+        return false;
+
+    u32 throwaway;
+    ByteBufferRead(&mapbuf, u32, &throwaway);
+
+    size_t count;
+    ByteBufferRead(&mapbuf, size_t, &count);
+
+    std::vector<float> vb;
+    vb.reserve(count);
+    for (int i = 0; i < count; ++i)
+    {
+        float val;
+        ByteBufferRead(&mapbuf, float, &val);
+        vb.push_back(val);
+    }
+    ASSERT(vb.size() == count);
+
+    FaceBatch batch;
+    batch.sharedTexture = tex_Default;
+    CreateFaceBatchMeshOnGPU(&batch.idVAO, &batch.idVBO);
+    RebindFaceBatchBufferObject(&batch, u32(sizeof(float)*count), vb.data());
+
+    GameLevelFaceBatches.push_back(batch);
+
+    ByteBufferFree(&mapbuf);
+
+    return true;
 }
 
 
@@ -959,7 +1036,7 @@ void TickMapEditor()
     Gui::EditorBeginHorizontal();
     if (Gui::EditorLabelledButton("SAVE"))
     {
-        std::string path = SaveMapDialog();
+        std::string path = SaveEditableMapFormatDialog();
         if(!path.empty())
         {
             // TODO ...
@@ -972,7 +1049,7 @@ void TickMapEditor()
     }
     if (Gui::EditorLabelledButton("OPEN"))
     {
-        std::string path = OpenMapDialog();
+        std::string path = OpenEditableMapFormatDialog();
         if(!path.empty())
         {
             // TODO ...
@@ -985,7 +1062,16 @@ void TickMapEditor()
     }
     if (Gui::EditorLabelledButton("BUILD"))
     {
-
+        std::string path = SaveGameMapDialog();
+        if(!path.empty())
+        {
+            // TODO ...
+            if (BuildGameMap(path.c_str()))
+                LogMessage("Built %s", path.c_str());
+            else
+                LogError("Failed to build to %s", path.c_str());
+            // TODO ...
+        }
     }
     Gui::EditorSpacer(16,0);
 

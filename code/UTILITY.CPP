@@ -416,6 +416,69 @@ int ByteBufferReadFromFile(ByteBuffer* buffer, const char* filePath)
 
 #pragma endregion
 
+#pragma region MEMORY_ALLOCATORS
+
+struct MemoryLinearBuffer
+{
+    // Linear allocator works best when we don't support freeing memory at the pointer level
+    // Carve allocations out of a pre alloced buffer
+
+    // There is no per allocation overhead.
+    // The buffer memory is not modified by the allocator.
+    // The allocator is not thread-safe.
+
+    u8* buffer = nullptr;
+    size_t arenaOffset = 0;
+    size_t bufferSize = 0;
+};
+
+// returns pointer aligned forward to given alignment
+static u8 *__PointerAlignForward(u8* ptr, size_t align)
+{
+    ASSERT((align & (align-1)) == 0) // power of 2  
+    size_t p = (size_t)ptr;
+    size_t modulo = p & (align-1); // cuz power of 2, faster than modulo
+    if(modulo != 0)
+    {
+        return ptr + (align - modulo);
+    }
+    return ptr;
+}
+
+void MemoryLinearInitialize(MemoryLinearBuffer *buffer, size_t sizeBytes)
+{
+    buffer->buffer = (u8*) calloc(sizeBytes, 1);
+    buffer->bufferSize = sizeBytes;
+    buffer->arenaOffset = 0;
+}
+
+void *MemoryLinearAllocate(MemoryLinearBuffer *buffer, size_t wantedBytes, size_t align)
+{
+    u8 *current_ptr = buffer->buffer + buffer->arenaOffset;
+    u8 *aligned_ptr = __PointerAlignForward(current_ptr, align);
+    size_t offset = aligned_ptr - buffer->buffer;
+
+    if(offset + wantedBytes <= buffer->bufferSize)
+    {
+        void* ptr = buffer->buffer + offset;
+        buffer->arenaOffset = offset + wantedBytes;
+        return ptr;
+    }
+    
+    printf("Out of memory in given MemoryLinearBuffer");
+    return nullptr;
+}
+
+#define MEMORY_LINEAR_ALLOCATE(buffer, type) MemoryLinearAllocate(buffer, sizeof(type), alignof(type))
+
+#pragma endregion
+
+
+
+
+
+
+
 #if MESA_WINDOWS
 #include <ShObjIdl.h>
 #include <codecvt>
@@ -502,16 +565,30 @@ std::string OpenPNGImageDialog()
     return imagepath;
 }
 
-std::string OpenMapDialog()
+std::string OpenEditableMapFormatDialog()
 {
-    COMDLG_FILTERSPEC fileTypes[] = { { L"Map files", L"*.map" } };
+    COMDLG_FILTERSPEC fileTypes[] = { { L"Editable map files", L"*.emf" } };
     std::string path = OpenFilePrompt(1, fileTypes);
     return path;
 }
 
-std::string SaveMapDialog()
+std::string SaveEditableMapFormatDialog()
 {
-    COMDLG_FILTERSPEC fileTypes[] = { { L"Map files", L"*.map" } };
+    COMDLG_FILTERSPEC fileTypes[] = { { L"Editable map files", L"*.emf" } };
+    std::string path = SaveFilePrompt(fileTypes, L"emf");
+    return path;
+}
+
+// std::string OpenGameMapDialog()
+// {
+//     COMDLG_FILTERSPEC fileTypes[] = { { L"Game map files", L"*.map" } };
+//     std::string path = OpenFilePrompt(1, fileTypes);
+//     return path;
+// }
+
+std::string SaveGameMapDialog()
+{
+    COMDLG_FILTERSPEC fileTypes[] = { { L"Game map files", L"*.map" } };
     std::string path = SaveFilePrompt(fileTypes, L"map");
     return path;
 }
