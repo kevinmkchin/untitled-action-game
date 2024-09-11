@@ -1,7 +1,6 @@
 /*
 
 TODO:
-- draw lines with geometry shader so that line thickness is screenspace
 - build/load level collider info
 - build/load level texture info
 - build/load level LIGHT MAP info
@@ -1164,7 +1163,7 @@ static void RenderMapEditorLayer()
             std::vector<MapEdit::Edge*> faceEdges = selVolFace->GetEdges();
             for (MapEdit::Edge* e : faceEdges)
             {
-                PrimitiveDrawLine(e->a->pos, e->b->pos, vec4(1,0,0,1), 2.f, editorCameraPosition);
+                PrimitiveDrawLine(e->a->pos, e->b->pos, vec4(1,0,0,0.5f), 2.f, editorCameraPosition);
             }
         }
     }
