@@ -466,4 +466,357 @@ static GJKEPACollisionInfo GJK(Collider* colA, Collider* colB)
 
 
 
+/// Acceleration with Octree
 
+struct Bounds : Collider
+{
+    vec3 FindFurthestPoint(vec3 direction) const override
+    {
+        vec3 corners[] = { 
+            vec3(center.x - size.x/2.f, center.y - size.y/2.f, center.z - size.z/2.f),
+            vec3(center.x + size.x/2.f, center.y - size.y/2.f, center.z - size.z/2.f),
+            vec3(center.x - size.x/2.f, center.y + size.y/2.f, center.z - size.z/2.f),
+            vec3(center.x - size.x/2.f, center.y - size.y/2.f, center.z + size.z/2.f),
+            vec3(center.x - size.x/2.f, center.y + size.y/2.f, center.z + size.z/2.f),
+            vec3(center.x + size.x/2.f, center.y + size.y/2.f, center.z - size.z/2.f),
+            vec3(center.x + size.x/2.f, center.y - size.y/2.f, center.z + size.z/2.f),
+            vec3(center.x + size.x/2.f, center.y + size.y/2.f, center.z + size.z/2.f)
+        }; 
+
+        vec3 maxVertexSoFar;
+        float maxDistanceSoFar = -FLT_MAX;
+        for (int i = 0; i < 8; ++i)
+        {
+            vec3 pointWCS = corners[i];
+            float distance = Dot(pointWCS, direction);
+            if (distance > maxDistanceSoFar)
+            {
+                maxVertexSoFar = pointWCS;
+                maxDistanceSoFar = distance;
+            }
+        }
+        return maxVertexSoFar;
+    }
+
+    vec3 center;
+    vec3 size;
+
+    bool Intersects(const Bounds& other) const 
+    {
+        return (GM_abs(center.x - other.center.x) * 2.f < (size.x + other.size.x)) &&
+               (GM_abs(center.y - other.center.y) * 2.f < (size.y + other.size.y)) &&
+               (GM_abs(center.z - other.center.z) * 2.f < (size.z + other.size.z));
+    }
+
+    bool Intersects(const LineCollider& line) // Vector3 A, Vector3 B, Vector3 boxMin, Vector3 boxMax) 
+    {
+        vec3 A = line.a;
+        vec3 B = line.b;
+        vec3 boxMin = center - size/2.f;
+        vec3 boxMax = center + size/2.f;
+
+        vec3 dir = B - A;
+        float tmin = (boxMin.x - A.x) / dir.x;
+        float tmax = (boxMax.x - A.x) / dir.x;
+
+        if (tmin > tmax) std::swap(tmin, tmax);
+
+        float tymin = (boxMin.y - A.y) / dir.y;
+        float tymax = (boxMax.y - A.y) / dir.y;
+
+        if (tymin > tymax) std::swap(tymin, tymax);
+
+        if ((tmin > tymax) || (tymin > tmax))
+            return false;
+
+        if (tymin > tmin)
+            tmin = tymin;
+        if (tymax < tmax)
+            tmax = tymax;
+
+        float tzmin = (boxMin.z - A.z) / dir.z;
+        float tzmax = (boxMax.z - A.z) / dir.z;
+
+        if (tzmin > tzmax) std::swap(tzmin, tzmax);
+
+        if ((tmin > tzmax) || (tzmin > tmax))
+            return false;
+
+        if (tzmin > tmin)
+            tmin = tzmin;
+        if (tzmax < tmax)
+            tmax = tzmax;
+
+        // Check if intersection occurs within the segment [0, 1]
+        return (tmin <= tmax) && (tmin >= 0) && (tmin <= 1);
+    }
+
+    // bool Contains(const Bounds& other) const 
+    // {
+    //     return (other.center.x - other.size.x / 2.f >= center.x - size.x / 2.f) &&
+    //            (other.center.x + other.size.x / 2.f <= center.x + size.x / 2.f) &&
+    //            (other.center.y - other.size.y / 2.f >= center.y - size.y / 2.f) &&
+    //            (other.center.y + other.size.y / 2.f <= center.y + size.y / 2.f) &&
+    //            (other.center.z - other.size.z / 2.f >= center.z - size.z / 2.f) &&
+    //            (other.center.z + other.size.z / 2.f <= center.z + size.z / 2.f);
+    // }
+};
+
+Bounds BoundsFromMeshCollider(MeshCollider& meshCollider)
+{
+    vec3 min = vec3(FLT_MAX, FLT_MAX, FLT_MAX);
+    vec3 max = vec3(-FLT_MAX, -FLT_MAX, -FLT_MAX);
+
+    for (vec3 point : meshCollider.pointCloud) 
+    {
+        min.x = GM_min(min.x, point.x);
+        min.y = GM_min(min.y, point.y);
+        min.z = GM_min(min.z, point.z);
+        
+        max.x = GM_max(max.x, point.x);
+        max.y = GM_max(max.y, point.y);
+        max.z = GM_max(max.z, point.z);
+    }
+
+    Bounds bounds;
+    bounds.size = max - min;
+    bounds.center = min + (bounds.size/2.f);
+    return bounds;
+}
+
+struct OctreeNode
+{
+    Bounds bounds;
+    std::vector<Collider*> objects;
+    std::unique_ptr<OctreeNode[]> children;
+    bool isLeaf = true;
+
+    OctreeNode()
+    {}
+
+    OctreeNode(const Bounds& bounds)
+        : bounds(bounds)
+    {}
+};
+
+struct Octree
+{
+    Octree() {}
+    Octree(const Bounds& worldBounds, int maxDepth, int maxObjectsPerNode)
+        : root(new OctreeNode(worldBounds))
+        , maxDepth(maxDepth)
+        , maxObjectsPerNode(maxObjectsPerNode) 
+    {}
+
+    // Places Collider into octree
+    void Insert(Collider *obj) 
+    {
+        Insert(root.get(), obj, 0);
+    }
+
+    // Retrieve objects that may intersect with given bounding box
+    std::unordered_set<Collider*> Query(const Bounds& queryBounds) 
+    {
+        return QueryNode(root.get(), queryBounds);
+    }
+
+    // Retrieve objects that may intersect with given line
+    std::unordered_set<Collider*> Query(const LineCollider& queryRay) 
+    {
+        return QueryNode(root.get(), queryRay);
+    }
+
+    std::unique_ptr<OctreeNode> root;
+    int maxDepth;
+    int maxObjectsPerNode; // TODO (Kevin): Compare performance of large scene with this at 100000 and this at something reasonable like 32
+
+    void Insert(OctreeNode *node, Collider *obj, int depth);
+    u8 GetChildIndices(const OctreeNode *node, Collider *obj) ;
+    void Subdivide(OctreeNode *node);
+    void RedistributeObjects(OctreeNode *node);
+    std::unordered_set<Collider*> QueryNode(OctreeNode *node, const Bounds& queryBounds);
+    std::unordered_set<Collider*> QueryNode(OctreeNode *node, const LineCollider& queryRay);
+};
+
+// To handle large colliders that can span multiple octants, I'm resorting to storing them in every leaf node that
+// contains them. Alternative approach is to store it in the deepest node that contains the collider fully (i.e. none
+// of my sibling octants contain this collider but more than 1 of my children octants contain the collider).
+
+// Objects are inserted into the appropriate nodes, and if a node exceeds the maximum
+// object count, it is subdivided into eight smaller nodes.
+void Octree::Insert(OctreeNode *node, Collider *obj, int depth) 
+{
+    if (node->isLeaf) 
+    {
+        node->objects.push_back(obj);
+
+        if (node->objects.size() > maxObjectsPerNode && depth < maxDepth) 
+        {
+            // does not guarantee resolve max obj but will run again if node on next insert if node is still problematic
+            Subdivide(node);
+            RedistributeObjects(node);
+        }
+    } 
+    else 
+    {
+        // can be inserted into multiple children
+
+        u8 indices = GetChildIndices(node, obj);
+        if (indices & 0b00000001)
+            Insert(&node->children[0], obj, depth + 1);
+        if (indices & 0b00000010)
+            Insert(&node->children[1], obj, depth + 1);
+        if (indices & 0b00000100)
+            Insert(&node->children[2], obj, depth + 1);
+        if (indices & 0b00001000)
+            Insert(&node->children[3], obj, depth + 1);
+        if (indices & 0b00010000)
+            Insert(&node->children[4], obj, depth + 1);
+        if (indices & 0b00100000)
+            Insert(&node->children[5], obj, depth + 1);
+        if (indices & 0b01000000)
+            Insert(&node->children[6], obj, depth + 1);
+        if (indices & 0b10000000)
+            Insert(&node->children[7], obj, depth + 1);
+    }
+}
+
+// When a node exceeds its object capacity, it splits into eight smaller regions, 
+// each representing a different octant. 
+void Octree::Subdivide(OctreeNode *node) 
+{
+    vec3 octantSize = node->bounds.size / 2.0f;
+
+    node->children = std::make_unique<OctreeNode[]>(8);
+    node->isLeaf = false;
+
+    for (int i = 0; i < 8; ++i) 
+    {
+        vec3 newCenter = node->bounds.center;
+        newCenter.x += octantSize.x * ((i & 1) ? 0.5f : -0.5f);
+        newCenter.y += octantSize.y * ((i & 2) ? 0.5f : -0.5f);
+        newCenter.z += octantSize.z * ((i & 4) ? 0.5f : -0.5f);
+
+        Bounds octant;
+        octant.center = newCenter;
+        octant.size = octantSize;
+        node->children[i] = OctreeNode(octant);
+    }
+}
+
+void Octree::RedistributeObjects(OctreeNode *node) 
+{
+    std::vector<Collider*> objectsToReinsert = std::move(node->objects);
+    node->objects.clear();
+
+    for (Collider *obj : objectsToReinsert) 
+    {
+        u8 indices = GetChildIndices(node, obj);
+        if (indices & 0b00000001)
+            node->children[0].objects.push_back(obj);
+        if (indices & 0b00000010)
+            node->children[1].objects.push_back(obj);
+        if (indices & 0b00000100)
+            node->children[2].objects.push_back(obj);
+        if (indices & 0b00001000)
+            node->children[3].objects.push_back(obj);
+        if (indices & 0b00010000)
+            node->children[4].objects.push_back(obj);
+        if (indices & 0b00100000)
+            node->children[5].objects.push_back(obj);
+        if (indices & 0b01000000)
+            node->children[6].objects.push_back(obj);
+        if (indices & 0b10000000)
+            node->children[7].objects.push_back(obj);
+    }
+}
+
+// given a collider and a node, which of its octants does it belong to? up to all of them
+u8 Octree::GetChildIndices(const OctreeNode *node, Collider *obj) 
+{
+    Collider *octant0 = &node->children[0].bounds;
+    Collider *octant1 = &node->children[1].bounds;
+    Collider *octant2 = &node->children[2].bounds;
+    Collider *octant3 = &node->children[3].bounds;
+    Collider *octant4 = &node->children[4].bounds;
+    Collider *octant5 = &node->children[5].bounds;
+    Collider *octant6 = &node->children[6].bounds;
+    Collider *octant7 = &node->children[7].bounds;
+
+    // Note (Kevin): GJK returns true when a collider is lying on the surface of an octant bound
+    ColResult result0 = GJK(octant0, obj);
+    ColResult result1 = GJK(octant1, obj);
+    ColResult result2 = GJK(octant2, obj);
+    ColResult result3 = GJK(octant3, obj);
+    ColResult result4 = GJK(octant4, obj);
+    ColResult result5 = GJK(octant5, obj);
+    ColResult result6 = GJK(octant6, obj);
+    ColResult result7 = GJK(octant7, obj);
+
+    u8 childIndices = 0;
+    childIndices |= result0.hasCollision ? 0b00000001 : 0;
+    childIndices |= result1.hasCollision ? 0b00000010 : 0;
+    childIndices |= result2.hasCollision ? 0b00000100 : 0;
+    childIndices |= result3.hasCollision ? 0b00001000 : 0;
+    childIndices |= result4.hasCollision ? 0b00010000 : 0;
+    childIndices |= result5.hasCollision ? 0b00100000 : 0;
+    childIndices |= result6.hasCollision ? 0b01000000 : 0;
+    childIndices |= result7.hasCollision ? 0b10000000 : 0;
+
+    return childIndices;
+}
+
+// Use AABB of query collider to speed up look up
+// NOTE(Kevin): these insertions into unordered_set may take up a lot of time. If so, probably better to do approach where there are no duplicates (large colliders stored in parent)
+std::unordered_set<Collider*> Octree::QueryNode(OctreeNode *node, const Bounds& queryBounds) 
+{
+    std::unordered_set<Collider*> result;
+
+    if (!node->bounds.Intersects(queryBounds)) 
+        return result;
+
+    if (node->isLeaf) 
+    {
+        for (Collider *obj : node->objects) 
+        {
+            result.insert(obj);
+        }
+    } 
+    else
+    {
+        for (int i = 0; i < 8; ++i)
+        {
+            std::unordered_set<Collider*> childResults = QueryNode(&node->children[i], queryBounds);
+            result.insert(childResults.begin(), childResults.end());
+        }
+    }
+
+    return result;
+}
+
+// I need a QueryNode override for ray checking
+std::unordered_set<Collider*> Octree::QueryNode(OctreeNode *node, const LineCollider& queryRay) 
+{
+    std::unordered_set<Collider*> result;
+
+    if (!node->bounds.Intersects(queryRay)) 
+        return result;
+
+    if (node->isLeaf) 
+    {
+        for (Collider *obj : node->objects) 
+        {
+            result.insert(obj);
+        }
+    } 
+    else
+    {
+        for (int i = 0; i < 8; ++i)
+        {
+            std::unordered_set<Collider*> childResults = QueryNode(&node->children[i], queryRay);
+            result.insert(childResults.begin(), childResults.end());
+        }
+    }
+
+    return result;
+}
