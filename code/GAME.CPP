@@ -1,6 +1,7 @@
 /*
 
 TODO:
+- draw lines with geometry shader so that line thickness is screenspace
 - build/load level collider info
 - build/load level texture info
 - build/load level LIGHT MAP info
@@ -1442,10 +1443,10 @@ int main(int argc, char* argv[])
         Gui::NewFrame();
         ProcessSDLEvents();
 
-        TickGame();
-        DrawGame();
-        // TickMapEditor();
-        // DrawMapEditor();
+        // TickGame();
+        // DrawGame();
+        TickMapEditor();
+        DrawMapEditor();
 
         SDL_GL_SwapWindow(g_MainSDLWindow);
 

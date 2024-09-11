@@ -961,8 +961,89 @@ void SessionResetFaceToolData()
 }
 
 
+Octree CollisionTree;
+
+void DrawOctreeNode(OctreeNode *node)
+{
+    vec3 center = node->bounds.center;
+    vec3 size = node->bounds.size;
+    vec3 corners[] = { 
+        vec3(center.x - size.x/2.f, center.y - size.y/2.f, center.z - size.z/2.f),
+        vec3(center.x + size.x/2.f, center.y - size.y/2.f, center.z - size.z/2.f),
+        vec3(center.x - size.x/2.f, center.y + size.y/2.f, center.z - size.z/2.f),
+        vec3(center.x - size.x/2.f, center.y - size.y/2.f, center.z + size.z/2.f),
+        vec3(center.x - size.x/2.f, center.y + size.y/2.f, center.z + size.z/2.f),
+        vec3(center.x + size.x/2.f, center.y + size.y/2.f, center.z - size.z/2.f),
+        vec3(center.x + size.x/2.f, center.y - size.y/2.f, center.z + size.z/2.f),
+        vec3(center.x + size.x/2.f, center.y + size.y/2.f, center.z + size.z/2.f)
+    }; 
+
+    vec4 octantColor = vec4(0, 1, 0, 1);
+    // if (node->objects.size() > 0)
+    // {
+    //     octantColor = vec4(1,0,0,1);
+    // }
+
+    PrimitiveDrawLine(corners[0], corners[1], octantColor);
+    PrimitiveDrawLine(corners[1], corners[6], octantColor);
+    PrimitiveDrawLine(corners[6], corners[3], octantColor);
+    PrimitiveDrawLine(corners[3], corners[0], octantColor);
+    
+    PrimitiveDrawLine(corners[2], corners[4], octantColor);
+    PrimitiveDrawLine(corners[4], corners[7], octantColor);
+    PrimitiveDrawLine(corners[7], corners[5], octantColor);
+    PrimitiveDrawLine(corners[5], corners[2], octantColor);
+    
+    PrimitiveDrawLine(corners[0], corners[2], octantColor);
+    PrimitiveDrawLine(corners[1], corners[5], octantColor);
+    PrimitiveDrawLine(corners[6], corners[7], octantColor);
+    PrimitiveDrawLine(corners[3], corners[4], octantColor);
+
+
+    if (node->isLeaf)
+        return;
+    else
+    {
+        for (int i = 0; i < 8; ++i)
+            DrawOctreeNode(&node->children[i]);
+    }
+}
+
+void VisualizeOctreeHack()
+{
+    Bounds worldBounds;
+    worldBounds.center = vec3(-0.17f, -0.17f, -0.17f); // little bit off origin so octant bounds aren't strictly along grid
+    worldBounds.size = vec3(3200,3200,3200);
+    CollisionTree = Octree(worldBounds,32,2);
+
+    int totalfacecount = MapEdit::EDITOR_FACES.count;
+    for (int i = 0; i < totalfacecount; ++i)
+    {
+        MapEdit::Face *face = MapEdit::EDITOR_FACES.At(i);
+
+        MeshCollider *col = new MeshCollider();
+        std::vector<MapEdit::Vert*> points = face->GetVertices();
+        for (MapEdit::Vert *v : points)
+        {
+            col->pointCloud.push_back(v->pos);
+        }
+
+        CollisionTree.Insert(col);
+    }
+}
+
+
+
 void TickMapEditor()
 {
+    if (keyspressed[SDL_SCANCODE_J])
+    {
+        VisualizeOctreeHack();
+    }
+
+    if (CollisionTree.root.get())
+        DrawOctreeNode(CollisionTree.root.get());
+
     SDL_SetRelativeMouseMode(mousecurrent & SDL_BUTTON(SDL_BUTTON_RIGHT) ? SDL_TRUE : SDL_FALSE);
 
     // EDITOR CAMERA MOVE
