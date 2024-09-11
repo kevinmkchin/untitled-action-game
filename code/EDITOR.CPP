@@ -766,7 +766,8 @@ bool BuildGameMap(const char *path)
 {
     // need to save a bunch of FaceBatches (which are basically just meshes)
     // sort by texture, etc. every face using same texture goes into same FaceBatch
-    // need to do something smarter for collider data and texture data
+    // collider data -> just save the point clouds for mesh colliders and add to Octree while loading into game
+    // need to do something smarter for texture data (want to use database so that textures are just enums)
 
     int totalfacecount = MapEdit::EDITOR_FACES.count;
     
@@ -1036,13 +1037,12 @@ void VisualizeOctreeHack()
 
 void TickMapEditor()
 {
-    if (keyspressed[SDL_SCANCODE_J])
-    {
-        VisualizeOctreeHack();
-    }
-
-    if (CollisionTree.root.get())
-        DrawOctreeNode(CollisionTree.root.get());
+    // if (keyspressed[SDL_SCANCODE_J])
+    // {
+    //     VisualizeOctreeHack();
+    // }
+    // if (CollisionTree.root.get())
+    //     DrawOctreeNode(CollisionTree.root.get());
 
     SDL_SetRelativeMouseMode(mousecurrent & SDL_BUTTON(SDL_BUTTON_RIGHT) ? SDL_TRUE : SDL_FALSE);
 
