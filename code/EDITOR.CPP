@@ -772,12 +772,14 @@ bool BuildGameMap(const char *path)
     int totalfacecount = MapEdit::EDITOR_FACES.count;
     
     std::unordered_map<u32, std::vector<float>> VertexBuffers;
-
+    std::vector<vec3> ColliderWorldPoints;
+    std::vector<u32> ColliderSpans;
 
     // sort faces by their textures
     for (int i = 0; i < totalfacecount; ++i)
     {
         MapEdit::Face *face = MapEdit::EDITOR_FACES.At(i);
+
         FaceBatch fb = face->facemesh;
         GPUTexture tex = fb.sharedTexture;
         u32 gpuTexId = tex.id;
@@ -790,12 +792,38 @@ bool BuildGameMap(const char *path)
         std::vector<float>& vb = VertexBuffers.at(gpuTexId);
         TriangulateFace_QuickDumb(*face, &vb);
     }
+    for (int i = 0; i < totalfacecount; ++i)
+    {
+        MapEdit::Face *face = MapEdit::EDITOR_FACES.At(i);
+
+        std::vector<MapEdit::Vert*> faceVerts = face->GetVertices();
+
+        u32 ColliderSpan = 0;
+        for (MapEdit::Vert *v : faceVerts)
+        {
+            vec3 worldpos = v->pos;
+            ColliderWorldPoints.push_back(worldpos);
+            ++ColliderSpan;
+        }
+        ColliderSpans.push_back(ColliderSpan);
+    }
 
 
     // serialize
     ByteBuffer mapbuf;
     ByteBufferInit(&mapbuf);
 
+    // colliders
+    size_t numColliderPoints = ColliderWorldPoints.size();
+    size_t numColliderSpans = ColliderSpans.size();
+    ByteBufferWrite(&mapbuf, size_t, numColliderPoints);
+    ByteBufferWrite(&mapbuf, size_t, numColliderSpans);
+    ByteBufferWriteBulk(&mapbuf, ColliderWorldPoints.data(), sizeof(vec3)*numColliderPoints);
+    ByteBufferWriteBulk(&mapbuf, ColliderSpans.data(), sizeof(u32)*numColliderSpans);
+
+    // vertex buffers
+    size_t numVertexBufs = VertexBuffers.size();
+    ByteBufferWrite(&mapbuf, size_t, numVertexBufs);
     for (auto& vbpair : VertexBuffers)
     {
         u32 gpuTexId = vbpair.first;
@@ -803,10 +831,7 @@ bool BuildGameMap(const char *path)
 
         ByteBufferWrite(&mapbuf, u32, gpuTexId); // dont do this, I need tex id in database. make database...
         ByteBufferWrite(&mapbuf, size_t, vb.size());
-        for (float v : vb)
-        {
-            ByteBufferWrite(&mapbuf, float, v);
-        }
+        ByteBufferWriteBulk(&mapbuf, (void*)vb.data(), sizeof(float)*vb.size());
     }
 
     bool writtenToFile = ByteBufferWriteToFile(&mapbuf, path) == 1;
@@ -816,38 +841,66 @@ bool BuildGameMap(const char *path)
 
 bool LoadGameMap(const char *path)
 {
-    // load the face batches into memory
-    // unpack the octree of colliders
-
     std::unordered_map<u32, void*> DeserElemIdToElem;
 
+    // deserialize
     ByteBuffer mapbuf;
     ByteBufferInit(&mapbuf);
     if (ByteBufferReadFromFile(&mapbuf, path) == 0)
         return false;
 
-    u32 throwaway;
-    ByteBufferRead(&mapbuf, u32, &throwaway);
+    // colliders
+    size_t numColliderPoints, numColliderSpans;
+    ByteBufferRead(&mapbuf, size_t, &numColliderPoints);
+    ByteBufferRead(&mapbuf, size_t, &numColliderSpans);
 
-    size_t count;
-    ByteBufferRead(&mapbuf, size_t, &count);
+    ASSERT(GameLevelColliders.size() == 0); // just crash for now
+    GameLevelColliderPoints.resize(numColliderPoints);
+    GameLevelColliders.resize(numColliderSpans);
 
-    std::vector<float> vb;
-    vb.reserve(count);
-    for (int i = 0; i < count; ++i)
+    std::vector<u32> ColliderSpans(numColliderSpans); 
+    ByteBufferReadBulk(&mapbuf, GameLevelColliderPoints.data(), sizeof(vec3)*numColliderPoints);
+    ByteBufferReadBulk(&mapbuf, ColliderSpans.data(), sizeof(u32)*numColliderSpans);
+    
+    int GameLevelColliderPointsIterator = 0;
+    for (u32 colliderIndex = 0; colliderIndex < numColliderSpans; ++colliderIndex)
     {
-        float val;
-        ByteBufferRead(&mapbuf, float, &val);
-        vb.push_back(val);
+        u32 span = ColliderSpans[colliderIndex];
+        StaticMeshCollider& collider = GameLevelColliders[colliderIndex];
+        collider.pointCloudPtr = &GameLevelColliderPoints[GameLevelColliderPointsIterator];
+        collider.pointCount = span;
+        GameLevelColliderPointsIterator += span;
     }
-    ASSERT(vb.size() == count);
+    ASSERT(GameLevelCollisionTree.root.get() == NULL); // i don't care. crash for now.
+    Bounds GameLevelWorldBound = Bounds(vec3(-0.17f, -0.17f, -0.17f), vec3(8000, 8000, 8000));
+    GameLevelCollisionTree = Octree(GameLevelWorldBound, 7, 24); // NOTE(Kevin): maybe I can be smarter about how I'm deciding the values for max tree depth and max count per octant
+    for (StaticMeshCollider& collider : GameLevelColliders)
+    {
+        GameLevelCollisionTree.Insert(&collider);
+    }
 
-    FaceBatch batch;
-    batch.sharedTexture = tex_Default;
-    CreateFaceBatchMeshOnGPU(&batch.idVAO, &batch.idVBO);
-    RebindFaceBatchBufferObject(&batch, u32(sizeof(float)*count), vb.data());
+    // vertex buffers
+    size_t numVertexBufs;
+    ByteBufferRead(&mapbuf, size_t, &numVertexBufs);
+    for (int i = 0; i < numVertexBufs; ++i)
+    {
+        u32 throwaway;
+        ByteBufferRead(&mapbuf, u32, &throwaway);
 
-    GameLevelFaceBatches.push_back(batch);
+        size_t vertexcount;
+        ByteBufferRead(&mapbuf, size_t, &vertexcount);
+
+        std::vector<float> vb;
+        vb.resize(vertexcount);
+        ByteBufferReadBulk(&mapbuf, vb.data(), sizeof(float)*vertexcount);
+        ASSERT(vb.size() == vertexcount);
+        
+        FaceBatch batch;
+        batch.sharedTexture = tex_Default;
+        CreateFaceBatchMeshOnGPU(&batch.idVAO, &batch.idVBO);
+        RebindFaceBatchBufferObject(&batch, u32(sizeof(float)*vertexcount), vb.data());
+        GameLevelFaceBatches.push_back(batch);
+    }
 
     ByteBufferFree(&mapbuf);
 

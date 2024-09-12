@@ -7,7 +7,7 @@ struct Collider
     virtual vec3 FindFurthestPoint(vec3 direction) const = 0;
 };
 
-struct MeshCollider : Collider
+struct MeshCollider : Collider // kinda wanna remove this... I don't want to use std::vector for pointCloud
 {
     vec3 FindFurthestPoint(vec3 direction) const override
     {
@@ -26,6 +26,33 @@ struct MeshCollider : Collider
     }
 
     std::vector<vec3> pointCloud;
+};
+
+struct StaticMeshCollider : Collider
+{
+    vec3 FindFurthestPoint(vec3 direction) const override
+    {
+        vec3 maxVertexSoFar;
+        float maxDistanceSoFar = -FLT_MAX;
+#if INTERNAL_BUILD
+        if (pointCount == 0) LogWarning("StaticMeshCollider has zero points in it...");
+#endif
+        for (u32 i = 0; i < pointCount; ++i)
+        {
+            vec3 pointWCS = pointCloudPtr[i];
+            float distance = Dot(pointWCS, direction);
+            if (distance > maxDistanceSoFar)
+            {
+                maxVertexSoFar = pointWCS;
+                maxDistanceSoFar = distance;
+            }
+        }
+        return maxVertexSoFar;
+    }
+
+    // using pointer into big static array of collider points
+    vec3 *pointCloudPtr = NULL;
+    u32 pointCount = 0;
 };
 
 struct SphereCollider : Collider
@@ -470,6 +497,15 @@ static GJKEPACollisionInfo GJK(Collider* colA, Collider* colB)
 
 struct Bounds : Collider
 {
+    vec3 center;
+    vec3 size;
+
+    Bounds() {};
+    Bounds(vec3 center, vec3 size)
+        : center(center)
+        , size(size)
+    {};
+
     vec3 FindFurthestPoint(vec3 direction) const override
     {
         vec3 corners[] = { 
@@ -497,9 +533,6 @@ struct Bounds : Collider
         }
         return maxVertexSoFar;
     }
-
-    vec3 center;
-    vec3 size;
 
     bool Intersects(const Bounds& other) const 
     {
@@ -584,6 +617,30 @@ Bounds BoundsFromMeshCollider(MeshCollider& meshCollider)
     return bounds;
 }
 
+Bounds BoundsFromStaticMeshCollider(StaticMeshCollider& collider)
+{
+    vec3 min = vec3(FLT_MAX, FLT_MAX, FLT_MAX);
+    vec3 max = vec3(-FLT_MAX, -FLT_MAX, -FLT_MAX);
+    
+    for (u32 i = 0; i < collider.pointCount; ++i) 
+    {
+        vec3 point = collider.pointCloudPtr[i];
+
+        min.x = GM_min(min.x, point.x);
+        min.y = GM_min(min.y, point.y);
+        min.z = GM_min(min.z, point.z);
+            
+        max.x = GM_max(max.x, point.x);
+        max.y = GM_max(max.y, point.y);
+        max.z = GM_max(max.z, point.z);
+    }
+    
+    Bounds bounds;
+    bounds.size = max - min;
+    bounds.center = min + (bounds.size/2.f);
+    return bounds;
+}
+
 struct OctreeNode
 {
     Bounds bounds;
@@ -628,7 +685,7 @@ struct Octree
 
     std::unique_ptr<OctreeNode> root;
     int maxDepth;
-    int maxObjectsPerNode; // TODO (Kevin): Compare performance of large scene with this at 100000 and this at something reasonable like 32
+    int maxObjectsPerNode; // TODO (Kevin): Fun thing to do - compare performance of large scene with this at 100000 and this at something reasonable like 32
 
     void Insert(OctreeNode *node, Collider *obj, int depth);
     u8 GetChildIndices(const OctreeNode *node, Collider *obj) ;
