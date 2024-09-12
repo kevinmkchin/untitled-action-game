@@ -1,7 +1,6 @@
 /*
 
 TODO:
-- build/load level collider info
 - build/load level texture info
 - build/load level LIGHT MAP info
 - change editable map format to .emf  
@@ -38,6 +37,15 @@ use flat faces for collision? instead of meshes? GJK EPA code accepts 2D meshes
 Priorty #1 is building the game, not the engine/tech
 Engine work is almost done. Octree collision acceleration, lightmap baking (potentially radiosity), 
 basic skeletal animations, basic navmesh or pathfinding. Those are the hard things left.
+
+
+I don't really want to support non flat faces
+
+The game level static colliders being flat polygons makes collisions weird. They are double sided.
+What if I optionally enforce resolution normal for some colliders? that would make resolution only happen
+in that direction. But that doesn't solve the problem of colliding at all with those double sided colliders.
+Maybe...for player I can check if that optional normal (basically face normal) is same direction (cos theta)
+as player movement direction and if so ignore that collider?
 
 */
 
@@ -851,6 +859,9 @@ Mix_Chunk *Mixer_LoadChunk(const char *filepath)
 GPUTexture tex_Default;
 Mix_Chunk *sfx_Jump;
 
+std::vector<vec3> GameLevelColliderPoints;
+std::vector<StaticMeshCollider> GameLevelColliders;
+Octree GameLevelCollisionTree;
 std::vector<FaceBatch> GameLevelFaceBatches;
 
 vec3 playerControllerRoot = vec3(100,10,100);
@@ -989,20 +1000,20 @@ static void TickGame()
     playerControllerRoot.y += playeryvel * g_DeltaTime;
 
     // PLAYER RESOLVE COLLISIONS
-    MeshCollider floor;
-    floor.pointCloud = {
-        vec3(-10000,0,-10000), vec3(-10000,0,10000), vec3(10000,0,-1000), vec3(10000,0,10000),
-        vec3(-10000,-100,-10000), vec3(-10000,-100,10000), vec3(10000,-100,-10000), vec3(10000,-100,10000),
-    };
     MeshCollider *pcol = PlayerColliderAtPos(playerControllerRoot);
-    GJKEPACollisionInfo colinfo = GJK(&floor, pcol);
-
-    if (colinfo.hasCollision)
+    Bounds playerBounds = BoundsFromMeshCollider(*pcol);
+    std::unordered_set<Collider*> pcollisionquery = GameLevelCollisionTree.Query(playerBounds);
+    // NOTE(Kevin): If I wanted, I could do something like sort these potential colliders by walls before floors or something
+    for (Collider *levelCollider : pcollisionquery)
     {
-        vec3 moveby = colinfo.normal * colinfo.penetrationDepth;
-        playerControllerRoot += moveby;
-        if (Dot(colinfo.normal, GM_UP_VECTOR) > 0.1f)
-            playeryvel = 0.f;
+        ColResult result = GJK(levelCollider, pcol);
+        if (result.hasCollision)
+        {
+            vec3 moveby = result.normal * result.penetrationDepth;
+            playerControllerRoot += moveby;
+            if (Dot(result.normal, GM_UP_VECTOR) > 0.1f)
+                playeryvel = 0.f;
+        }
     }
 
     // PLAYER CAMERA 
@@ -1442,10 +1453,10 @@ int main(int argc, char* argv[])
         Gui::NewFrame();
         ProcessSDLEvents();
 
-        // TickGame();
-        // DrawGame();
-        TickMapEditor();
-        DrawMapEditor();
+        TickGame();
+        DrawGame();
+        //TickMapEditor();
+        //DrawMapEditor();
 
         SDL_GL_SwapWindow(g_MainSDLWindow);
 
