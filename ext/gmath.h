@@ -393,6 +393,32 @@ inline vec4 Normalize(vec4 a);
 inline vec3 Lerp(vec3 from, vec3 to, float ratio);
 inline vec4 Lerp(vec4 from, vec4 to, float ratio);
 
+inline ivec2 operator-(ivec2 a);
+inline ivec2 operator+(ivec2 a, ivec2 b);
+inline ivec2 operator-(ivec2 a, ivec2 b);
+inline ivec2 operator*(ivec2 a, float b);
+inline ivec2 operator*(float b, ivec2 a);
+inline ivec2 operator/(ivec2 a, float b);
+inline ivec2 &operator+=(ivec2 &a, ivec2 b);
+inline ivec2 &operator-=(ivec2 &a, ivec2 b);
+inline ivec2 &operator*=(ivec2 &a, float b);
+inline ivec2 &operator/=(ivec2 &a, float b);
+inline bool operator==(const ivec2 &lhs, const ivec2 &rhs);
+inline bool operator!=(const ivec2 &lhs, const ivec2 &rhs);
+
+inline ivec3 operator-(ivec3 a);
+inline ivec3 operator+(ivec3 a, ivec3 b);
+inline ivec3 operator-(ivec3 a, ivec3 b);
+inline ivec3 operator*(ivec3 a, float b);
+inline ivec3 operator*(float b, ivec3 a);
+inline ivec3 operator/(ivec3 a, float b);
+inline ivec3 &operator+=(ivec3& a, ivec3 b);
+inline ivec3 &operator-=(ivec3& a, ivec3 b);
+inline ivec3 &operator*=(ivec3& a, float b);
+inline ivec3 &operator/=(ivec3& a, float b);
+inline bool operator==(const ivec3& lhs, const ivec3& rhs);
+inline bool operator!=(const ivec3& lhs, const ivec3& rhs);
+
 inline vec2 operator-(vec2 a);
 inline vec2 operator+(vec2 a, vec2 b);
 inline vec2 operator-(vec2 a, vec2 b);
@@ -867,6 +893,30 @@ inline vec4 Normalize(vec4 a)
     }
     return Div(a, Magnitude(a));
 }
+
+inline ivec2 operator-(ivec2 a) { ivec2 r = { -a.x, -a.y }; return(r); }
+inline ivec2 operator+(ivec2 a, ivec2 b) { return ivec2(a.x + b.x, a.y + b.y); }
+inline ivec2 operator-(ivec2 a, ivec2 b) { return ivec2(a.x - b.x, a.y - b.y); }
+inline ivec2 operator*(ivec2 a, int b) { return ivec2(a.x * b, a.y * b); }
+inline ivec2 operator*(int b, ivec2 a) { return ivec2(a.x * b, a.y * b); }
+inline ivec2 operator/(ivec2 a, int b) { return ivec2(a.x / b, a.y / b); }
+inline ivec2 &operator*=(ivec2 &a, int b) { return(a = a * b); }
+inline ivec2 &operator/=(ivec2 &a, int b) { return(a = a / b); }
+inline bool operator==(const ivec2 &lhs, const ivec2 &rhs) { return lhs.x == rhs.x && lhs.y == rhs.y; }
+inline bool operator!=(const ivec2 &lhs, const ivec2 &rhs) { return !(lhs == rhs); }
+
+inline ivec3 operator-(ivec3 a) { ivec3 r = { -a.x, -a.y, -a.z }; return(r); }
+inline ivec3 operator+(ivec3 a, ivec3 b) { return ivec3(a.x + b.x, a.y + b.y, a.z + b.z); }
+inline ivec3 operator-(ivec3 a, ivec3 b) { return ivec3(a.x - b.x, a.y - b.y, a.z - b.z); }
+inline ivec3 operator*(ivec3 a, int b) { return ivec3(a.x * b, a.y * b, a.z * b); }
+inline ivec3 operator*(int b, ivec3 a) { return ivec3(a.x * b, a.y * b, a.z * b); }
+inline ivec3 operator/(ivec3 a, int b) { return ivec3(a.x / b, a.y / b, a.z / b); }
+inline ivec3 &operator+=(ivec3 &a, ivec3 b) { return(a = a + b); }
+inline ivec3 &operator-=(ivec3 &a, ivec3 b) { return(a = a - b); }
+inline ivec3 &operator*=(ivec3 &a, int b) { return(a = a * b); }
+inline ivec3 &operator/=(ivec3 &a, int b) { return(a = a / b); }
+inline bool operator==(const ivec3 &lhs, const ivec3 &rhs) { return lhs.x == rhs.x && lhs.y == rhs.y && lhs.z == rhs.z; }
+inline bool operator!=(const ivec3 &lhs, const ivec3 &rhs) { return !(lhs == rhs); }
 
 inline vec2 operator-(vec2 a) { vec2 r = { -a.x, -a.y }; return(r); }
 inline vec2 operator+(vec2 a, vec2 b) { return Add(a, b); }
