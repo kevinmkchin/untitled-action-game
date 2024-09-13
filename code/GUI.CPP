@@ -3,8 +3,8 @@
 //              may be useless for this game but who knows.
 
 
-#define null_ui_id (-1)
-typedef i64 ui_id;
+#define null_ui_id 0
+typedef u64 ui_id;
 
 #define ISANYOF1(a, x) ((a) == (x))
 #define ISANYOF2(a, x, y) ((a) == (x) || (a) == (y))
@@ -50,7 +50,7 @@ namespace Gui
     bool IsActive(ui_id id);
     bool IsHovered(ui_id id);
     void SetActive(ui_id id);
-    void SetHovered(ui_id id);
+    void RequestSetHovered(ui_id id);
     bool MouseWentUp();
     bool MouseWentDown();
     bool MouseInside(const UIRect& rect);
@@ -103,8 +103,8 @@ namespace Gui
     /* GUI elements that go inside windows
     * */
     void EditorText(const char *text);
-    // TODO void EditorImage(u32 glTextureId, ivec2 size, vec2 uv0 = vec2(0.f,0.f), vec2 uv1 = vec2(1.f,1.f));
-    // TODO void EditorImageButton(u32 glTextureId, ivec2 size, vec2 uv0 = vec2(0.f,0.f), vec2 uv1 = vec2(1.f,1.f));
+    void EditorImage(u32 glTextureId, ivec2 size);//, vec2 uv0 = vec2(0.f,0.f), vec2 uv1 = vec2(1.f,1.f));
+    bool EditorImageButton(u32 glTextureId, ivec2 size);//, vec2 uv0 = vec2(0.f,0.f), vec2 uv1 = vec2(1.f,1.f));
     bool EditorLabelledButton(const char *label, int minwidth = 50);
     void EditorIncrementableIntegerField(const char *label, int *v, int increment = 1);
     void EditorIncrementableFloatField(const char *label, float *v, float increment = 0.1f);
@@ -167,6 +167,10 @@ namespace Gui
     ALH *NewALH(bool vertical);
     ALH *NewALH(int absX, int absY, int absW, int absH, bool vertical);
     void DeleteALH(ALH *layout);
+
+
+    // some helpers from GUI drawing code
+    u8 GetCurrentDrawingDepth();
 }
 
 namespace Gui {
@@ -177,7 +181,7 @@ namespace Gui {
     void GUIDraw_DrawEverything();
     void GUIDraw_NewFrame();
 
-    void GUIDraw_PushDrawCollection(UIRect windowMask, int depth = -1);
+    void GUIDraw_PushDrawCollection(UIRect windowMask, u8 depth);
     void GUIDraw_PopDrawCollection();
     void AppendToCurrentDrawRequestsCollection(UIDrawRequest *drawRequest);
 
@@ -253,7 +257,7 @@ static bool flag_HorizontalMode = false;
 static ui_id freshIdCounter = 0;
 static ui_id FreshID()
 {
-    return freshIdCounter++;
+    return ++freshIdCounter;
 }
 
 namespace Gui
@@ -387,12 +391,17 @@ namespace Gui
             anyElementActive = true;
     }
 
-    void SetHovered(ui_id id)
+    static NiceArray<u64, 16> hoveredThisFrame;
+    void RequestSetHovered(ui_id id)
     {
         anyElementHovered = true;
-        hoveredUI = id;
+        
+        ASSERT((0xff000000 & id) == 0x00000000);
+        u64 idWithEmbeddedDepth = (u64() << 48) | id; 
+        hoveredThisFrame.PushBack(idWithEmbeddedDepth);
+        // Actual setting of hoveredUI should be processed at NewFrame IMO
+        // add to array with depth info and process later
     }
-
 
     static int mouseX_InGuiTarget = 0;
     static int mouseY_InGuiTarget = 0;
@@ -452,7 +461,7 @@ namespace Gui
 
         if(MouseInside(rect))
         {
-            SetHovered(id);
+            RequestSetHovered(id);
         }
 
         return result;
@@ -729,7 +738,7 @@ namespace Gui
 
         if (MouseInside(rect))
         {
-            SetHovered(id);
+            RequestSetHovered(id);
         }
 
         RectDrawRequest *drawRequest = MESAIMGUI_NEW_DRAW_REQUEST(RectDrawRequest);
@@ -832,7 +841,7 @@ namespace Gui
 
         if (MouseInside(rect))
         {
-            SetHovered(id);
+            RequestSetHovered(id);
         }
 
         RectDrawRequest *drawRequest = MESAIMGUI_NEW_DRAW_REQUEST(RectDrawRequest);
@@ -880,6 +889,9 @@ namespace Gui
 
     void BeginWindow(UIRect windowRect, vec4 bgcolor, int depth)
     {
+        if (lastAddedElementDimension != ivec2())
+            Window_CommitLastElementDimension();
+
         GUIDraw_PushDrawCollection(windowRect, depth);
 
         WindowData windata;
@@ -897,6 +909,8 @@ namespace Gui
 
     void EndWindow()
     {
+        lastAddedElementDimension = ivec2();
+
         if (!WINDOWSTACK.empty())
         {
             // If no other element is hovered at the end of this window, then check if window is hovered
@@ -968,6 +982,45 @@ namespace Gui
     {
         Window_CommitLastElementDimension();
         Window_StageLastElementDimension(x, y);
+    }
+
+    void EditorImage(u32 glTextureId, ivec2 size)
+    {
+        Window_CommitLastElementDimension();
+
+        int x;
+        int y;
+        Window_GetCurrentOffsets(&x, &y);
+        x += style_paddingLeft;
+        y += style_paddingTop;
+        UIRect rect = UIRect(x, y, size.x, size.y);
+
+        PrimitivePanel(rect, glTextureId);
+
+        Window_StageLastElementDimension(style_paddingLeft + size.x + style_paddingRight, 
+                                         style_paddingTop + size.y + style_paddingBottom);
+    }
+
+    bool EditorImageButton(u32 glTextureId, ivec2 size)
+    {
+        EditorImage(glTextureId, size);
+
+        int x;
+        int y;
+        Window_GetCurrentOffsets(&x, &y);
+        x += style_paddingLeft;
+        y += style_paddingTop;
+        UIRect rect = UIRect(x, y, size.x, size.y);
+
+        ui_id buttonId = FreshID();
+        bool result = Behaviour_Button(buttonId, rect);
+
+        if (IsActive(buttonId))
+            PrimitivePanel(rect, vec4(1.f,1.f,1.f,0.4f));
+        else if (IsHovered(buttonId))
+            PrimitivePanel(rect, vec4(1.f,1.f,1.f,0.2f));
+
+        return result;
     }
 
     bool EditorLabelledButton(const char* label, int minwidth)
@@ -1239,7 +1292,7 @@ namespace Gui
         }
         if (MouseInside(chromaselectorrect))
         {
-            SetHovered(id);
+            RequestSetHovered(id);
         }
 
         // todo(kevin): this is all temporary code to quickly hack
@@ -1253,7 +1306,7 @@ namespace Gui
         }
         if (MouseInside(hueselectorrect))
         {
-            SetHovered(id + 1);
+            RequestSetHovered(id + 1);
         }
 
         if (IsActive(id + 2) && MouseWentUp())
@@ -1266,7 +1319,7 @@ namespace Gui
         }
         if (MouseInside(alphaselectorrect))
         {
-            SetHovered(id + 2);
+            RequestSetHovered(id + 2);
         }
 
         if (IsActive(id))
@@ -1575,6 +1628,22 @@ namespace Gui
         {
             hoveredUI = null_ui_id;
         }
+        else
+        {
+            // Process array of hovered ui element ids this frame and pick the one with highest depth i.e. closest to screen
+            ASSERT(hoveredThisFrame.count > 0);
+            u64 highestDepthElement = 0;
+            for (int i = 0; i < hoveredThisFrame.count; ++i)
+            {
+                u64 info = hoveredThisFrame.At(i);
+                if ((0xff000000 & info) >= (0xff000000 & highestDepthElement))
+                    highestDepthElement = info;
+            }
+            hoveredUI = 0x00ffffff & highestDepthElement;
+            hoveredThisFrame.ResetCount();
+        }
+        ASSERT(hoveredThisFrame.count == 0);
+
         anyElementHovered = false;
         anyWindowHovered = false;
 
@@ -1860,14 +1929,14 @@ static GPUMesh s_ui_mesh;
 static GPUMesh s_text_mesh;
 static GPUMesh s_colored_text_mesh;
 
-#define MAX_DRAWCOLLECTIONS_ALLOWED 8
+#define MAX_DRAWCOLLECTIONS_ALLOWED 16
 
 namespace Gui
 {
     struct DrawCollectionMetaData
     {
         UIRect windowMask;
-        int depth = 0;
+        u8 depth = 0;
     };
 
     static UIRect activeWindowMask;
@@ -1889,7 +1958,7 @@ namespace Gui
         ASSERT(DRAWQUEUE_METADATA.count == 0);
         ASSERT(DRAWREQCOLLECTIONSTACK.empty());
 
-        DRAWQSTORAGE.count++;
+        DRAWQSTORAGE.count = 1;
         DRAWQUEUE_METADATA.PushBack({ UIRect(0,0,9999,9999), 0 });
         DRAWREQCOLLECTIONSTACK.push(&DRAWQSTORAGE.Back());
     }
@@ -1928,12 +1997,12 @@ namespace Gui
         GLBindMatrix4fv(colored_text_shader, "matrixOrtho", 1, projectionMatrix.ptr());
 
         // could sort so its O(n) but realistically how many windows am I going to have...
-        int highestDepth = 0;
+        u8 highestDepth = 0;
         for (int i = 0; i < DRAWQUEUE_METADATA.count; ++i)
             highestDepth = GM_max(highestDepth, DRAWQUEUE_METADATA.At(i).depth);
 
         // Draw collections of depth 0 to highestDepth except for base collection
-        for (int depth = 0; depth <= highestDepth; ++depth)
+        for (u8 depth = 0; depth <= highestDepth; ++depth)
         {
             for (int i = 1; i < DRAWQSTORAGE.count; ++i)
             {
@@ -1947,21 +2016,18 @@ namespace Gui
             }
         }
 
-        // Draw base collection
+        // Draw base collection NOTE(Kevin): ok so basically base collection goes on top of everything else
         activeWindowMask = DRAWQUEUE_METADATA.At(0).windowMask;
         std::vector<UIDrawRequest*>& baseDrawQueue = DRAWQSTORAGE.At(0);
         for (auto drawCall : baseDrawQueue)
             drawCall->Draw();
     }
 
-    void GUIDraw_PushDrawCollection(UIRect windowMask, int depth)
+    void GUIDraw_PushDrawCollection(UIRect windowMask, u8 depth)
     {
         ASSERT(DRAWQSTORAGE.NotAtCapacity());
         DRAWQSTORAGE.count++;
-        if (depth < 0)
-            depth = (int)DRAWREQCOLLECTIONSTACK.size();
-        else
-            depth = GM_min(depth, MAX_DRAWCOLLECTIONS_ALLOWED);
+        depth = GM_min(depth, MAX_DRAWCOLLECTIONS_ALLOWED);
         DRAWQUEUE_METADATA.PushBack({ windowMask, depth });
         DRAWREQCOLLECTIONSTACK.push(&DRAWQSTORAGE.Back());
     }
@@ -1970,6 +2036,11 @@ namespace Gui
     {
         ASSERT(DRAWREQCOLLECTIONSTACK.size() > 1);
         DRAWREQCOLLECTIONSTACK.pop();
+    }
+
+    u8 GetCurrentDrawingDepth()
+    {
+        return DRAWQUEUE_METADATA.Back().depth;
     }
 
     void AppendToCurrentDrawRequestsCollection(UIDrawRequest *drawRequest)
