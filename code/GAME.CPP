@@ -47,6 +47,16 @@ in that direction. But that doesn't solve the problem of colliding at all with t
 Maybe...for player I can check if that optional normal (basically face normal) is same direction (cos theta)
 as player movement direction and if so ignore that collider?
 
+cuz even if I was using 3D volumes for collisions, the issue persists...If I have three cubes sitting flush
+with each other, and I was running diagonally into them, I might stop moving because I'm colliding at one of
+the seams.
+
+if I'm moving in a direction, I can only collide with surfaces whose normals are in the opposite direction of
+that my movement direction. This is a fact.
+
+I think I just need to be more intentional with assigning colliders? and each surface collider should have
+a resolution normal defined.
+
 */
 
 
@@ -962,8 +972,8 @@ static void TickGame()
     enemy0.root += enemy0.facing * 32.f * g_DeltaTime;
 
     // CALCULATE PLAYER FACING DIRECTION
-    float camYawDelta = mousedelta.x*0.1f;
-    float camPitchDelta = mousedelta.y*0.1f;
+    float camYawDelta = mousedelta.x*0.055f;
+    float camPitchDelta = mousedelta.y*0.055f;
     cameraRotation.y -= camYawDelta;
     cameraRotation.z -= camPitchDelta;
     if (cameraRotation.z > 89.f)
@@ -975,6 +985,12 @@ static void TickGame()
     cameraUp = Normalize(Cross(cameraRight, cameraDirection));
     playerWalkDirectionRight = cameraRight;
     playerWalkDirectionForward = Normalize(Cross(GM_UP_VECTOR, playerWalkDirectionRight));
+
+    // temp crosshair
+    ivec2 guiwh = ivec2(renderTargetGUI.width, renderTargetGUI.height);
+    Gui::PrimitivePanel(Gui::UIRect(guiwh.x/2 - 3, guiwh.y/2 - 3, 6, 6), vec4(0,0,0,1));
+    Gui::PrimitivePanel(Gui::UIRect(guiwh.x/2 - 2, guiwh.y/2 - 2, 4, 4), vec4(1,1,1,1));
+
 
     // PLAYER MOVE
     float moveSpeed = 250.f;
@@ -1349,8 +1365,7 @@ static bool InitializeEverything()
 #endif
 
     SDL_SetWindowMinimumSize(g_MainSDLWindow, 200, 100);
-    SDL_GL_SetSwapInterval(0);
-    // SDL_SetWindowMouseGrab(g_MainSDLWindow, SDL_TRUE);
+    SDL_GL_SetSwapInterval(1);
 
     if (Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 2, 2048) < 0 || Mix_Init(MIX_INIT_OGG) < 0)
         return false;
@@ -1362,14 +1377,28 @@ static bool InitializeEverything()
 
 static void ProcessSDLEvents()
 {
-    mousedelta = vec2(0.f,0.f);
-    ivec2 throwaway;
-    u32 mousestate = SDL_GetMouseState(&throwaway.x, &throwaway.y);
+    // MOUSE
+    ivec2 prevmp = mousepos;
+    u32 mousestate = SDL_GetMouseState(&mousepos.x, &mousepos.y); // mousepos only valid when mouse not relative mode
     u32 mousechanged = mousecurrent ^ mousestate;
     mousepressed = mousechanged & mousestate;
     mousereleased = mousechanged & mousecurrent;
     mousecurrent = mousestate;
+    SDL_bool mouseIsRelative = SDL_GetRelativeMouseMode();
+    if(mouseIsRelative)
+    {
+        ivec2 md;
+        SDL_GetRelativeMouseState(&md.x, &md.y);
+        mousedelta.x = (float)md.x;
+        mousedelta.y = (float)md.y;
+    }
+    else
+    {
+        if (prevmp.x >= 0) { mousedelta.x = float(mousepos.x - prevmp.x); } else { mousedelta.x = 0.f; }
+        if (prevmp.y >= 0) { mousedelta.y = float(mousepos.y - prevmp.y); } else { mousedelta.y = 0.f; }
+    }
 
+    // KEYBOARD
     const u8 *keystate = SDL_GetKeyboardState(NULL);
     u8 keyschanged[256];
     for (int i=0;i<256;++i)
@@ -1380,6 +1409,7 @@ static void ProcessSDLEvents()
         keyscurrent[i] = keystate[i];
     }
 
+    // EVENT HANDLING
     SDL_Event event;
     while (SDL_PollEvent(&event))
     {
@@ -1421,13 +1451,6 @@ static void ProcessSDLEvents()
                 }
                 break;
             }
-
-            case SDL_MOUSEMOTION: 
-            {
-                mousedelta = vec2((float)event.motion.xrel, (float)event.motion.yrel);
-                mousepos = ivec2(event.motion.x, event.motion.y);
-                break;
-            }
         }
 
         Gui::ProcessSDLEvent(event);
@@ -1442,12 +1465,13 @@ int main(int argc, char* argv[])
 
     Stuff();
 
-    if (LoadGameMap(wd_path("buildtest.map").c_str()) == false)
+    if (LoadGameMap(wd_path("walltest.map").c_str()) == false)
         LogError("failed to load game map");
 
     while (!g_ProgramShouldShutdown)
     {
         TickTime();
+        // Sleep(6);
         if (g_DeltaTime > 0.1f) continue; // if delta time is too large, will cause glitches
 
         Gui::NewFrame();
