@@ -3,7 +3,6 @@
 TODO:
 - serialize/deserialize asset database
 - build/load level LIGHT MAP info
-- CREATE GRID MESH STATICALLY AT THE START!!! DONT NEED TO MAKE IT EVERY FRAME (just one grid mesh, scale it and translate it)
 - Move volume mode/tool (don't need whole tool...maybe make brush tool part of this mode? like trenchbroom)
 - Make Simple Brush Tool work on arbitrary surface
 - multi select vertices need to be fixed
@@ -33,8 +32,12 @@ use flat faces for collision? instead of meshes? GJK EPA code accepts 2D meshes
 
 
 Priorty #1 is building the game, not the engine/tech
-Engine work is almost done. Octree collision acceleration, lightmap baking (potentially radiosity), 
-basic skeletal animations, basic navmesh or pathfinding. Those are the hard things left.
+Engine work is almost done. 
+~~Octree collision acceleration~~
+Lightmap baking (potentially radiosity) 
+Skeletal animations
+Navmesh/pathfinding
+Those are the hard things left.
 
 
 I don't really want to support non flat faces
@@ -1223,6 +1226,8 @@ static void RenderMapEditorLayer()
     else
         glDisable(GL_DEPTH_TEST);
     glDisable(GL_CULL_FACE);
+    vec3 drawGridHere = vec3(SnapToMapEditorGrid(editorCameraPosition.x), 0.f, SnapToMapEditorGrid(editorCameraPosition.z));
+    DrawGrid(GRID_INCREMENT, drawGridHere, &perspectiveMatrix, &viewMatrix, renderTargetGame.depthTexId, vec2((float)renderTargetGame.width,(float)renderTargetGame.height));
     PrimitiveDrawAll(&perspectiveMatrix, &viewMatrix, renderTargetGame.depthTexId, vec2((float)renderTargetGame.width,(float)renderTargetGame.height));
 
     // // UseShader(editorShader_Wireframe);
