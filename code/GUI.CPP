@@ -119,6 +119,9 @@ namespace Gui
     void EditorBeginHorizontal();
     void EditorEndHorizontal();
 
+    void EditorBeginGrid(int gridwidth, int gridheight);
+    void EditorEndGrid();
+
     void EditorColorPicker(ui_id id, float *hue, float *saturation, float *value, float *opacity);
 
     void EditorSpacer(int x, int y);
@@ -357,8 +360,10 @@ namespace Gui
     static MemoryLinearBuffer drawRequestsFrameStorageBuffer;
 #define MESAIMGUI_NEW_DRAW_REQUEST(type) new (MEMORY_LINEAR_ALLOCATE(&drawRequestsFrameStorageBuffer, type)) type()
 
+
     struct WindowData
     {
+        // data for layouting within windows and grid items
         ui_id zoneId = null_ui_id;
         UIRect zoneRect;
         int paddingFromLeft = 0;
@@ -366,8 +371,12 @@ namespace Gui
         int topLeftYOffset = 0;
     };
     static std::stack<WindowData> WINDOWSTACK;
-    WindowData *CurrentWindow()
+    static WindowData gridItemData;
+    WindowData *CurrentWindowOrGridItem()
     {
+        if (gridItemData.zoneId != null_ui_id)
+            return &gridItemData;
+
         ASSERT(!WINDOWSTACK.empty());
         return &WINDOWSTACK.top();
     }
@@ -395,7 +404,7 @@ namespace Gui
     void RequestSetHovered(ui_id id)
     {
         anyElementHovered = true;
-        
+
         ASSERT((0xff000000 & id) == 0x00000000);
         u64 idWithEmbeddedDepth = (u64() << 48) | id; 
         hoveredThisFrame.PushBack(idWithEmbeddedDepth);
@@ -928,14 +937,14 @@ namespace Gui
 
     void Window_GetWidthHeight(int *w, int *h)
     {
-        *w = CurrentWindow()->zoneRect.w;
-        *h = CurrentWindow()->zoneRect.h;
+        *w = CurrentWindowOrGridItem()->zoneRect.w;
+        *h = CurrentWindowOrGridItem()->zoneRect.h;
     }
 
     void Window_GetCurrentOffsets(int *x, int *y)
     {
-        *x = CurrentWindow()->zoneRect.x + CurrentWindow()->topLeftXOffset;
-        *y = CurrentWindow()->zoneRect.y + CurrentWindow()->topLeftYOffset;
+        *x = CurrentWindowOrGridItem()->zoneRect.x + CurrentWindowOrGridItem()->topLeftXOffset;
+        *y = CurrentWindowOrGridItem()->zoneRect.y + CurrentWindowOrGridItem()->topLeftYOffset;
     }
 
     void Window_StageLastElementDimension(int x, int y)
@@ -943,19 +952,19 @@ namespace Gui
         if (flag_HorizontalMode)
             lastAddedElementDimension = ivec2(x, GM_max(lastAddedElementDimension.y, y));
         else
-            lastAddedElementDimension = ivec2(x,y);
+            lastAddedElementDimension = ivec2(GM_max(lastAddedElementDimension.x, x), y);
     }
 
     void Window_CommitLastElementDimension()
     {
         if (flag_HorizontalMode)
         {
-            CurrentWindow()->topLeftXOffset += lastAddedElementDimension.x;
+            CurrentWindowOrGridItem()->topLeftXOffset += lastAddedElementDimension.x;
         }
         else
         {
-            CurrentWindow()->topLeftXOffset = CurrentWindow()->paddingFromLeft;
-            CurrentWindow()->topLeftYOffset += lastAddedElementDimension.y;
+            CurrentWindowOrGridItem()->topLeftXOffset = CurrentWindowOrGridItem()->paddingFromLeft;
+            CurrentWindowOrGridItem()->topLeftYOffset += lastAddedElementDimension.y;
         }
     }
 
@@ -1195,6 +1204,65 @@ namespace Gui
         flag_HorizontalMode = false;
         Window_CommitLastElementDimension();
         Window_StageLastElementDimension(0, 0);
+    }
+
+    static int gridWidth = -1;
+    static int gridHeight = -1;
+    static int gridX = -1;
+    static int gridY = -1;
+    static int gridBaseX = -1;
+    static int gridBaseY = -1;
+    static int rowMaxHeight = -1;
+    void EditorBeginGrid(int gridwidth, int gridheight)
+    {
+        Window_CommitLastElementDimension();
+
+        Window_GetCurrentOffsets(&gridBaseX, &gridBaseY);
+
+        gridWidth = gridwidth;
+        gridHeight = gridheight;
+        gridX = 0;
+        gridY = 0;
+    }
+    void EditorBeginGridItem(int itemw, int itemh)
+    {
+        lastAddedElementDimension = ivec2();
+        gridItemData.zoneId = FreshID();
+        gridItemData.paddingFromLeft = 0;
+        gridItemData.topLeftXOffset = 0;
+        gridItemData.topLeftYOffset = 0;
+
+        if (gridX + itemw > gridWidth)
+        {
+            gridX = 0;
+            gridY += rowMaxHeight;
+            rowMaxHeight = itemh;
+        }
+        else
+        {
+            if (rowMaxHeight < itemh)
+                rowMaxHeight = itemh;
+        }
+
+        gridItemData.zoneRect = UIRect(gridBaseX + gridX, gridBaseY + gridY, itemw, itemh);
+
+        gridX += itemw;
+    }
+    void EditorEndGridItem()
+    {
+        ASSERT(gridItemData.zoneId != null_ui_id);
+        gridItemData.zoneId = null_ui_id;
+    }
+    void EditorEndGrid()
+    {
+        Window_StageLastElementDimension(style_paddingLeft + gridWidth + style_paddingRight, 
+            style_paddingTop + gridHeight + style_paddingBottom);
+
+        ASSERT(gridItemData.zoneId == null_ui_id);
+        gridWidth = -1;
+        gridHeight = -1;
+        gridX = -1;
+        gridY = -1;
     }
 
 

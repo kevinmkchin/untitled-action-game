@@ -20,13 +20,13 @@ static const char* __scene_shader_vs =
     "    vec4 vertInClipSpace = projMatrix * viewMatrix * modelMatrix * vec4(vertex_pos, 1.0);\n"
     "    gl_Position = vertInClipSpace;\n"
     "\n"
-    "    const vec4 sunlightWCS = vec4(0.5, -0.9, -0.8, 0.0);\n"
+    "    const vec4 sunlightWCS = vec4(0.5, -0.7, -0.8, 0.0);\n"
     "    vec3 normalWCS = transpose(inverse(mat3(modelMatrix))) * vertex_normal;\n"
     "    \n"
-    "    float ambientIntensity = 0.4;\n"
+    "    float ambientIntensity = 0.6;\n"
     "    float diffuseIntensity = max(0.0, dot(normalize(normalWCS), normalize(-vec3(sunlightWCS))));\n"
     "    vec3 lightAMB = vec3(1.0) * ambientIntensity;\n"
-    "    vec3 lightDIFF = vec3(1.0) * diffuseIntensity;\n"
+    "    vec3 lightDIFF = vec3(0.4) * diffuseIntensity;\n"
     "    LIGHT = min(lightAMB + lightDIFF, vec3(1.0));\n"
     "}";
 
@@ -45,6 +45,33 @@ static const char* __scene_shader_fs =
     "    vec3 COLOR = texture(texture0, uv).xyz;\n"
     "    vec3 TOTAL = COLOR * LIGHT;\n"
     "    out_colour = vec4(TOTAL, 1.0);\n"
+    "}";
+
+static const char* __editor_scene_wireframe_shader_vs =
+    "#version 330\n"
+    "\n"
+    "layout (location = 0) in vec3 vertex_pos;\n"
+    "layout (location = 1) in vec2 vertex_uv;\n"
+    "layout (location = 2) in vec3 vertex_normal;\n"
+    "\n"
+    "uniform mat4 modelMatrix;\n"
+    "uniform mat4 viewMatrix;\n"
+    "uniform mat4 projMatrix;\n"
+    "\n"
+    "void main()\n"
+    "{\n"
+    "    vec4 vertInClipSpace = projMatrix * viewMatrix * modelMatrix * vec4(vertex_pos, 1.0);\n"
+    "    gl_Position = vertInClipSpace;\n"
+    "}";
+
+static const char* __editor_scene_wireframe_shader_fs = 
+    "#version 330\n"
+    "\n"
+    "layout(location = 0) out vec4 out_colour;\n"
+    "\n"
+    "void main()\n"
+    "{\n"
+    "    out_colour = vec4(0.0, 0.0, 0.0, 1.0);\n"
     "}";
 
 static const char* __editor_shader_face_selected_vs =
