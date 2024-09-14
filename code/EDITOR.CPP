@@ -612,6 +612,17 @@ struct editor_session_data_t
 };
 editor_session_data_t Session;
 
+db_tex_t GetTextureByPersistId(u32 persistId)
+{
+    auto textureiter = Assets.Textures.find(persistId);
+    if (textureiter != Assets.Textures.end())
+        return textureiter->second;
+    
+    db_tex_t missingTex;
+    missingTex.gputex = tex_Missing;
+    return missingTex;
+}
+
 db_tex_t LoadNewTextureToDB(const char *path)
 {
     db_tex_t tex;
@@ -662,7 +673,7 @@ void CloseMapEditor()
 
 #define MAPSER_VOLUMES_U64_DIVIDER_START 0x49779b0ef139ca39
 #define MAPSER_VOLUMES_U64_DIVIDER_END   0x9fcf207673e66e63 
-#define DESER_FACE_ADDITIONAL_SIZE 64
+#define DESER_FACE_ADDITIONAL_SIZE 60
 
 
 bool EditorSerializeMap(const char *mapFilePath)
@@ -725,6 +736,8 @@ bool EditorSerializeMap(const char *mapFilePath)
 #endif
                 ByteBufferWrite(&mapbuf, u32, fe->elemId);
             }
+            u32 faceTexturePersistId = f->texture.persistId;
+            ByteBufferWrite(&mapbuf, u32, faceTexturePersistId);
             // leaving some buffer room for additional Face data in the future
             // make sure to decrement as needed and mirror same value on deserialize
             u8 nullbytes[DESER_FACE_ADDITIONAL_SIZE];
@@ -809,22 +822,21 @@ bool EditorDeserializeMap(const char *mapFilePath)
                 faceEdges.push_back((MapEdit::Edge*)DeserElemIdToElem.at(feElemId));
             }
 
+            u32 faceTexturePersistId;
+            ByteBufferRead(&mapbuf, u32, &faceTexturePersistId);
             ByteBufferAdvancePosition(&mapbuf, DESER_FACE_ADDITIONAL_SIZE);
 
-            CreateFace(faceEdges, &owner); // MEM ALLOC
+            MapEdit::Face *face = CreateFace(faceEdges, &owner); // MEM ALLOC
+
+            MY_VERTEX_BUFFER.clear();
+            TriangulateFace_QuickDumb(*face, &MY_VERTEX_BUFFER); // TODO(Kevin): do smarter triangulation...
+            RebindFaceBatchBufferObject(&face->facemesh, (u32) MY_VERTEX_BUFFER.size() * sizeof(float), MY_VERTEX_BUFFER.data());
+            
+            face->texture = GetTextureByPersistId(faceTexturePersistId);
+            face->facemesh.sharedTexture = face->texture.gputex;
         }
 
         EDITOR_MAP_VOLUMES.PushBack(owner);
-        // todo remove this shit
-        for (auto face : owner.faces)
-        {
-            MY_VERTEX_BUFFER.clear();
-            TriangulateFace_QuickDumb(*face, &MY_VERTEX_BUFFER);
-            RebindFaceBatchBufferObject(&face->facemesh, (u32) MY_VERTEX_BUFFER.size() * sizeof(float),
-                MY_VERTEX_BUFFER.data());
-
-            face->facemesh.sharedTexture = tex_Default; // TODO
-        }
     }
 
     ByteBufferRead(&mapbuf, u64, &u64slot);
@@ -965,11 +977,7 @@ bool LoadGameMap(const char *path)
         ASSERT(vb.size() == vertexcount);
         
         FaceBatch batch;
-        auto textureiter = Assets.Textures.find(texturePersistId);
-        if (textureiter != Assets.Textures.end())
-            batch.sharedTexture = textureiter->second.gputex;
-        else
-            batch.sharedTexture = tex_Default;
+        batch.sharedTexture = GetTextureByPersistId(texturePersistId).gputex;
         CreateFaceBatchMeshOnGPU(&batch.idVAO, &batch.idVBO);
         RebindFaceBatchBufferObject(&batch, u32(sizeof(float)*vertexcount), vb.data());
         GameLevelFaceBatches.push_back(batch);

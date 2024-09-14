@@ -1,9 +1,8 @@
 /*
 
 TODO:
-- build/load level texture info
+- serialize/deserialize asset database
 - build/load level LIGHT MAP info
-- ser deser texture info to .emf
 - CREATE GRID MESH STATICALLY AT THE START!!! DONT NEED TO MAKE IT EVERY FRAME (just one grid mesh, scale it and translate it)
 - Move volume mode/tool (don't need whole tool...maybe make brush tool part of this mode? like trenchbroom)
 - Make Simple Brush Tool work on arbitrary surface
@@ -872,8 +871,7 @@ Mix_Chunk *Mixer_LoadChunk(const char *filepath)
 }
 
 
-
-GPUTexture tex_Default;
+GPUTexture tex_Missing;
 Mix_Chunk *sfx_Jump;
 
 std::vector<vec3> GameLevelColliderPoints;
@@ -934,7 +932,7 @@ static void Stuff()
 {
     SDL_SetRelativeMouseMode(SDL_TRUE);
 
-    CreateGPUTextureFromDisk(&tex_Default, wd_path("default.png").c_str());
+    CreateGPUTextureFromDisk(&tex_Missing, wd_path("missing_texture.png").c_str());
     mg_Enemy_Bodyguard = MeshGroupLoad(wd_path("enemy_bodyguard.obj").c_str());
     enemy0.root = vec3(-320, 0, -320);
 
@@ -1099,7 +1097,7 @@ static void RenderGameLayer()
 
     modelMatrix = TranslationMatrix(enemy0.root) * RotationMatrix(DirectionToOrientation(enemy0.facing));
     GLBindMatrix4fv(sceneShader, "modelMatrix", 1, modelMatrix.ptr());
-    GLActiveTextureUnit0(tex_Default.id);
+    GLActiveTextureUnit0(tex_Missing.id);
     MeshGroupRender(&mg_Enemy_Bodyguard);
 
     // PRIMITIVES
@@ -1507,10 +1505,10 @@ int main(int argc, char* argv[])
         Gui::NewFrame();
         ProcessSDLEvents();
 
-        TickGame();
-        DrawGame();
-        //TickMapEditor();
-        //DrawMapEditor();
+        // TickGame();
+        // DrawGame();
+        TickMapEditor();
+        DrawMapEditor();
 
         SDL_GL_SwapWindow(g_MainSDLWindow);
 
