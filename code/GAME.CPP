@@ -1493,24 +1493,24 @@ int main(int argc, char* argv[])
 
     Stuff();
 
-    if (LoadGameMap(wd_path("walltest.map").c_str()) == false)
-        LogError("failed to load game map");
-
     LoadMapEditor();
+
+    if (LoadGameMap(wd_path("textures.map").c_str()) == false)
+        LogError("failed to load game map");
 
     while (!g_ProgramShouldShutdown)
     {
         TickTime();
-        // Sleep(6);
+        Sleep(6);
         if (g_DeltaTime > 0.1f) continue; // if delta time is too large, will cause glitches
 
         Gui::NewFrame();
         ProcessSDLEvents();
 
-        // TickGame();
-        // DrawGame();
-        TickMapEditor();
-        DrawMapEditor();
+        TickGame();
+        DrawGame();
+        //TickMapEditor();
+        //DrawMapEditor();
 
         SDL_GL_SwapWindow(g_MainSDLWindow);
 
