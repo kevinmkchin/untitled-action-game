@@ -848,6 +848,39 @@ static const char* HANDLES_SHADER_FS =
     "}\n";
 static NiceArray<float, 256 * 128> HANDLES_VB;
 
+static u32 GRID_MESH_VAO;
+static u32 GRID_MESH_VBO;
+static GPUShader GRID_MESH_SHADER;
+static const char* GRID_MESH_SHADER_VS =
+    "#version 330 core\n"
+    "layout (location = 0) in vec3 pos;\n"
+    "uniform mat4 projectionMatrix;\n"
+    "uniform mat4 viewMatrix;\n"
+    "uniform mat4 transformMatrix;\n"
+    "out float distance_from_eye;\n"
+    "void main() {\n"
+    "    vec4 viewspace_pos = viewMatrix * transformMatrix * vec4(pos, 1.0);\n"
+    "    gl_Position = projectionMatrix * viewspace_pos;\n"
+    "    distance_from_eye = -viewspace_pos.z;\n"
+    "}\n";
+static const char* GRID_MESH_SHADER_FS =
+    "#version 330 core\n"
+    "out vec4 colour;\n"
+    "uniform vec2 framebufferSize;\n"
+    "uniform sampler2D sceneDepthTexture;\n"
+    "uniform float occludedOpacity;\n"
+    "in float distance_from_eye;\n"
+    "void main() {\n"
+    "    float fadeMult = clamp(exp(-pow((distance_from_eye * 0.0001), 5)), 0.0, 1.0);\n"
+    "    vec2 depthUV = gl_FragCoord.xy / framebufferSize;\n"
+    "    float sceneDepth = texture(sceneDepthTexture, depthUV).r;\n"
+    "    if (sceneDepth < gl_FragCoord.z) {  \n"
+    "        colour = vec4(0.6,0.6,0.6, 0.25 * fadeMult * occludedOpacity);\n"
+    "    } else {\n"
+    "        colour = vec4(0.6,0.6,0.6, 0.25 * fadeMult);\n"
+    "    }\n"
+    "}\n";
+
 void InitPrimitivesAndHandlesSystems()
 {
     glGenVertexArrays(1, &PRIM_VERTEX_POS_AND_COLOR_VAO);
@@ -892,9 +925,50 @@ void InitPrimitivesAndHandlesSystems()
     glBindVertexArray(0);
     GLCreateShaderProgram(HANDLES_SHADER, HANDLES_SHADER_VS, HANDLES_SHADER_FS);
 
+    vec3 gridmeshdata[4001*4];
+    for (int i = -2000; i <= 2000; ++i)
+    {
+        gridmeshdata[(i+2000)*4+0] = vec3((float)i, 0.f, -2000.f);
+        gridmeshdata[(i+2000)*4+1] = vec3((float)i, 0.f, 2000.f);
+        gridmeshdata[(i+2000)*4+2] = vec3(-2000.f, 0.f, (float)i);
+        gridmeshdata[(i+2000)*4+3] = vec3(2000.f, 0.f, (float)i);
+    }
+    glGenVertexArrays(1, &GRID_MESH_VAO);
+    glBindVertexArray(GRID_MESH_VAO);
+    glGenBuffers(1, &GRID_MESH_VBO);
+    glBindBuffer(GL_ARRAY_BUFFER, GRID_MESH_VBO);
+    glBufferData(GL_ARRAY_BUFFER, GLsizeiptr(4001*4*sizeof(vec3)), (void*)gridmeshdata, GL_STATIC_DRAW);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(float)*3, nullptr);
+    glEnableVertexAttribArray(0);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
+    GLCreateShaderProgram(GRID_MESH_SHADER, GRID_MESH_SHADER_VS, GRID_MESH_SHADER_FS);
+
     mousePickingRenderTarget.width = 4;
     mousePickingRenderTarget.height = 4;
     CreateGPUFrameBuffer(&mousePickingRenderTarget);
+}
+
+void DrawGrid(float scale, vec3 translation, const mat4 *projectionMatrix, const mat4 *viewMatrix, GLuint sceneDepthTextureId, vec2 framebufferSize)
+{
+    mat4 transformMatrix = TranslationMatrix(translation) * ScaleMatrix(scale, scale, scale);
+
+    UseShader(GRID_MESH_SHADER);
+    GLBindMatrix4fv(GRID_MESH_SHADER, "projectionMatrix", 1, projectionMatrix->ptr());
+    GLBindMatrix4fv(GRID_MESH_SHADER, "viewMatrix", 1, viewMatrix->ptr());
+    GLBindMatrix4fv(GRID_MESH_SHADER, "transformMatrix", 1, transformMatrix.ptr());
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, sceneDepthTextureId);
+    GLBind1i(GRID_MESH_SHADER, "sceneDepthTexture", 0);
+    GLBind2f(GRID_MESH_SHADER, "framebufferSize", framebufferSize.x, framebufferSize.y);
+
+    GLBind1f(GRID_MESH_SHADER, "occludedOpacity", 0.0f);
+    glBindVertexArray(GRID_MESH_VAO);
+    glBindBuffer(GL_ARRAY_BUFFER, GRID_MESH_VBO);
+    glDrawArrays(GL_LINES, 0, 4001*4);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
 }
 
 void PrimitiveDrawAll(const mat4 *projectionMatrix, const mat4 *viewMatrix, GLuint sceneDepthTextureId, vec2 framebufferSize)

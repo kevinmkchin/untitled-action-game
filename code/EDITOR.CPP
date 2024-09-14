@@ -1205,29 +1205,7 @@ void TickMapEditor()
     }
     activeViewMatrix = ViewMatrixLookAt(editorCameraPosition, editorCameraPosition + cameraDirection, cameraUp);
 
-    // DRAW AXIS AND GRID LINES
-    vec3 intersection_with_xz_plane;
-    if (IntersectPlaneAndLine(vec3(), GM_UP_VECTOR, editorCameraPosition,
-                              -GM_UP_VECTOR,
-                              &intersection_with_xz_plane))
-    {
-        float gridVisualIncrement = GRID_INCREMENT;
-        intersection_with_xz_plane = SnapToMapEditorGrid(intersection_with_xz_plane);
-        float gridoriginx = intersection_with_xz_plane.x;
-        float gridoriginz = intersection_with_xz_plane.z;
-        int linedrawcount = 4000 / (int)gridVisualIncrement;
-        for (int i = -linedrawcount; i < linedrawcount; ++i)
-        {
-            if (float(i) * gridVisualIncrement + gridoriginz != 0.f)
-                PrimitiveDrawLine(vec3(320000.f + gridoriginx, 0.f, float(i) * gridVisualIncrement + gridoriginz),
-                                  vec3(-320000.f + gridoriginx, 0.f, float(i) * gridVisualIncrement + gridoriginz),
-                                  vec4(RGB255TO1(155,155,155), 0.25f));
-            if (float(i) * gridVisualIncrement + gridoriginx != 0.f)
-                PrimitiveDrawLine(vec3(float(i) * gridVisualIncrement + gridoriginx, 0.f, 320000.f + gridoriginz),
-                                  vec3(float(i) * gridVisualIncrement + gridoriginx, 0.f, -320000.f + gridoriginz),
-                                  vec4(RGB255TO1(155,155,155), 0.25f));
-        }
-    }
+    // DRAW AXIS LINES
     PrimitiveDrawLine(vec3(320000.f, 0.f, 0.f), vec3(-320000.f, 0.f, 0.f), vec4(RGB255TO1(205, 56, 9), 0.8f));
     // PrimitiveDrawLine(vec3(0.f, 320000.f, 0.f), vec3(0.f, -320000.f, 0.f), vec4(RGB255TO1(67, 123, 9), 0.8f));
     PrimitiveDrawLine(vec3(0.f, 0.f, 320000.f), vec3(0.f, 0.f, -320000.f), vec4(RGB255TO1(21, 129, 205), 0.8f));
