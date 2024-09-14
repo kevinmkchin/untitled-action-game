@@ -1074,8 +1074,9 @@ static void RenderGameLayer()
     glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_SRC_ALPHA, GL_ONE);
     glEnable(GL_DEPTH_TEST);
 
-    activePerspectiveMatrix = ProjectionMatrixPerspective((90.f/2.f)*GM_DEG2RAD,
-                                                          float(BACKBUFFER_WIDTH) / float(BACKBUFFER_HEIGHT), GAMEPROJECTION_NEARCLIP, GAMEPROJECTION_FARCLIP);
+    float aspectratio = float(BACKBUFFER_WIDTH) / float(BACKBUFFER_HEIGHT);
+    float fovy = HorizontalFOVToVerticalFOV_RadianToRadian(90.f*GM_DEG2RAD, aspectratio); // NOTE(Kevin): have FOV slider in game up to insane value like 170
+    activePerspectiveMatrix = ProjectionMatrixPerspective(fovy, aspectratio, GAMEPROJECTION_NEARCLIP, GAMEPROJECTION_FARCLIP);
     mat4 perspectiveMatrix = activePerspectiveMatrix;
     mat4 viewMatrix = activeViewMatrix;
 
@@ -1122,8 +1123,9 @@ static void RenderMapEditorLayer()
     glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_SRC_ALPHA, GL_ONE);
     glEnable(GL_DEPTH_TEST);
 
-    activePerspectiveMatrix = ProjectionMatrixPerspective((90.f/2.f)*GM_DEG2RAD, float(BACKBUFFER_WIDTH) / float(BACKBUFFER_HEIGHT),
-                                                          GAMEPROJECTION_NEARCLIP, GAMEPROJECTION_FARCLIP);
+    float aspectratio = float(BACKBUFFER_WIDTH) / float(BACKBUFFER_HEIGHT);
+    float fovy = HorizontalFOVToVerticalFOV_RadianToRadian(90.f*GM_DEG2RAD, aspectratio);
+    activePerspectiveMatrix = ProjectionMatrixPerspective(fovy, aspectratio, GAMEPROJECTION_NEARCLIP, GAMEPROJECTION_FARCLIP);
     mat4 perspectiveMatrix = activePerspectiveMatrix;
     mat4 viewMatrix = activeViewMatrix;
 

@@ -4,6 +4,11 @@ vec3 ScreenPointToWorldRay(ivec2 screenspaceCoords);
 vec3 ScreenPointToWorldPoint(ivec2 screenspaceCoords, float z_NDC);
 vec3 WorldPointToScreenPoint(vec3 worldPosition);
 
+float HorizontalFOVToVerticalFOV_RadianToRadian(float FOVXInRadians, float AspectRatio)
+{
+    float FOVY = 2.0f * atan(tan(FOVXInRadians / 2.0f) / AspectRatio);
+    return FOVY;
+}
 
 #define RGB255TO1(r,g,b) ((float)r)/255.f, ((float)g)/255.f, ((float)b)/255.f
 #define RGBHEXTO1(hex) \
