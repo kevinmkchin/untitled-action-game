@@ -1,4 +1,10 @@
 
+struct db_tex_t
+{
+    u32 persistId = 0;
+    BitmapHandle bitmap;
+    GPUTexture gputex;
+};
 
 namespace MapEdit
 {
@@ -28,6 +34,7 @@ namespace MapEdit
 
         // For map editor rendering. Each face is its own mesh. Don't optimize until my PC chugs while map editing.
         FaceBatch facemesh;
+        db_tex_t texture;
         i32 EDITOR_FACES_INDEX = -1;
         bool hovered = false;
 
@@ -586,25 +593,29 @@ namespace MapEdit
 
 // Asset DB
 
-struct db_tex_t
-{
-    u64 persistId = 0;
-    BitmapHandle bitmap;
-    GPUTexture gputex;
-};
-
 struct asset_db_t
 {
     std::map<u64, db_tex_t> Textures;
 };
 asset_db_t Assets;
 
-static u64 session_TexturePersistIdCounter = 0;
+struct editor_session_data_t
+{
+    MapEdit::Face *SelectedFace = NULL;
+
+    db_tex_t SelectedTexture;
+
+    u32 TexturePersistIdCounter = 0;
+
+    // move hotHandleId here
+    // move all the editor session specific data here
+};
+editor_session_data_t Session;
 
 db_tex_t LoadNewTextureToDB(const char *path)
 {
     db_tex_t tex;
-    tex.persistId = ++session_TexturePersistIdCounter;
+    tex.persistId = ++Session.TexturePersistIdCounter;
     ReadImage(tex.bitmap, path);
     if (tex.bitmap.memory != NULL)
     {
@@ -613,22 +624,11 @@ db_tex_t LoadNewTextureToDB(const char *path)
                         GL_RGBA, (tex.bitmap.bitDepth == 3 ? GL_RGB : GL_RGBA));
 
         Assets.Textures.insert({tex.persistId, tex});
-        LogMessage("Loaded %s with texture persist id %lld", path, tex.persistId);
+        LogMessage("Loaded %s with texture persist id %d", path, tex.persistId);
     }
 
     return tex;
 }
-
-struct editor_session_data_t
-{
-    MapEdit::Face *SelectedFace = NULL;
-
-    db_tex_t SelectedTexture;
-
-    // move hotHandleId here
-    // move all the editor session specific data here
-};
-static editor_session_data_t Session;
 
 void SessionResetFaceToolData()
 {
@@ -641,17 +641,17 @@ std::vector<float> MY_VERTEX_BUFFER;
 void LoadMapEditor()
 {
     db_tex_t defaultTexureAsset = LoadNewTextureToDB(wd_path("default.png").c_str());
-    // LoadNewTextureToDB(wd_path("../textures/example_1.jpg").c_str());
-    // LoadNewTextureToDB(wd_path("../textures/example_5.jpg").c_str());
-    // LoadNewTextureToDB(wd_path("../textures/example_7.jpg").c_str());
-    // LoadNewTextureToDB(wd_path("../textures/example_9.jpg").c_str());
-    // LoadNewTextureToDB(wd_path("../textures/example_10.jpg").c_str());
-    // LoadNewTextureToDB(wd_path("../textures/example_14.jpg").c_str());
-    // LoadNewTextureToDB(wd_path("../textures/example_16.jpg").c_str());
-    // LoadNewTextureToDB(wd_path("../textures/example_17.jpg").c_str());
-    // LoadNewTextureToDB(wd_path("../textures/example_18.jpg").c_str());
-    // LoadNewTextureToDB(wd_path("../textures/example_19.jpg").c_str());
-    // LoadNewTextureToDB(wd_path("../textures/example_20.jpg").c_str());
+    LoadNewTextureToDB(wd_path("../textures/example_1.jpg").c_str());
+    LoadNewTextureToDB(wd_path("../textures/example_5.jpg").c_str());
+    LoadNewTextureToDB(wd_path("../textures/example_7.jpg").c_str());
+    LoadNewTextureToDB(wd_path("../textures/example_9.jpg").c_str());
+    LoadNewTextureToDB(wd_path("../textures/example_10.jpg").c_str());
+    LoadNewTextureToDB(wd_path("../textures/example_14.jpg").c_str());
+    LoadNewTextureToDB(wd_path("../textures/example_16.jpg").c_str());
+    LoadNewTextureToDB(wd_path("../textures/example_17.jpg").c_str());
+    LoadNewTextureToDB(wd_path("../textures/example_18.jpg").c_str());
+    LoadNewTextureToDB(wd_path("../textures/example_19.jpg").c_str());
+    LoadNewTextureToDB(wd_path("../textures/example_20.jpg").c_str());
     Session.SelectedTexture = defaultTexureAsset;
 }
 
@@ -822,6 +822,7 @@ bool EditorDeserializeMap(const char *mapFilePath)
             TriangulateFace_QuickDumb(*face, &MY_VERTEX_BUFFER);
             RebindFaceBatchBufferObject(&face->facemesh, (u32) MY_VERTEX_BUFFER.size() * sizeof(float),
                 MY_VERTEX_BUFFER.data());
+
             face->facemesh.sharedTexture = tex_Default; // TODO
         }
     }
@@ -851,17 +852,13 @@ bool BuildGameMap(const char *path)
     for (int i = 0; i < totalfacecount; ++i)
     {
         MapEdit::Face *face = MapEdit::EDITOR_FACES.At(i);
-
-        FaceBatch fb = face->facemesh;
-        GPUTexture tex = fb.sharedTexture;
-        u32 gpuTexId = tex.id;
-
-        if (VertexBuffers.find(gpuTexId) == VertexBuffers.end())
+        db_tex_t tex = face->texture;
+        if (VertexBuffers.find(tex.persistId) == VertexBuffers.end())
         {
-            VertexBuffers.emplace(gpuTexId, std::vector<float>());
+            VertexBuffers.emplace(tex.persistId, std::vector<float>());
         }
 
-        std::vector<float>& vb = VertexBuffers.at(gpuTexId);
+        std::vector<float>& vb = VertexBuffers.at(tex.persistId);
         TriangulateFace_QuickDumb(*face, &vb);
     }
     for (int i = 0; i < totalfacecount; ++i)
@@ -898,10 +895,10 @@ bool BuildGameMap(const char *path)
     ByteBufferWrite(&mapbuf, size_t, numVertexBufs);
     for (auto& vbpair : VertexBuffers)
     {
-        u32 gpuTexId = vbpair.first;
+        u32 texturePersistId = vbpair.first;
         const std::vector<float>& vb = vbpair.second;
 
-        ByteBufferWrite(&mapbuf, u32, gpuTexId); // dont do this, I need tex id in database. make database...
+        ByteBufferWrite(&mapbuf, u32, texturePersistId);
         ByteBufferWrite(&mapbuf, size_t, vb.size());
         ByteBufferWriteBulk(&mapbuf, (void*)vb.data(), sizeof(float)*vb.size());
     }
@@ -956,8 +953,8 @@ bool LoadGameMap(const char *path)
     ByteBufferRead(&mapbuf, size_t, &numVertexBufs);
     for (int i = 0; i < numVertexBufs; ++i)
     {
-        u32 throwaway;
-        ByteBufferRead(&mapbuf, u32, &throwaway);
+        u32 texturePersistId;
+        ByteBufferRead(&mapbuf, u32, &texturePersistId);
 
         size_t vertexcount;
         ByteBufferRead(&mapbuf, size_t, &vertexcount);
@@ -968,7 +965,11 @@ bool LoadGameMap(const char *path)
         ASSERT(vb.size() == vertexcount);
         
         FaceBatch batch;
-        batch.sharedTexture = tex_Default; // TODO
+        auto textureiter = Assets.Textures.find(texturePersistId);
+        if (textureiter != Assets.Textures.end())
+            batch.sharedTexture = textureiter->second.gputex;
+        else
+            batch.sharedTexture = tex_Default;
         CreateFaceBatchMeshOnGPU(&batch.idVAO, &batch.idVBO);
         RebindFaceBatchBufferObject(&batch, u32(sizeof(float)*vertexcount), vb.data());
         GameLevelFaceBatches.push_back(batch);
@@ -1382,7 +1383,7 @@ void TickMapEditor()
                 ShowTextureBrowser = false;
             }
             char displaystr[128] = {0};
-            stbsp_sprintf(displaystr, "ID: %lld\t\t%dx%d", t.persistId, t.gputex.width, t.gputex.height);
+            stbsp_sprintf(displaystr, "ID: %d\t\t%dx%d", t.persistId, t.gputex.width, t.gputex.height);
             Gui::EditorText(displaystr);
 
             Gui::EditorEndGridItem();
@@ -1396,6 +1397,7 @@ void TickMapEditor()
     Gui::EditorLabelledButton("Apply Texture to Volume");
     if (Session.SelectedFace != NULL && Gui::EditorLabelledButton("Apply Texture to Face"))
     {
+        Session.SelectedFace->texture = Session.SelectedTexture; 
         Session.SelectedFace->facemesh.sharedTexture = Session.SelectedTexture.gputex; 
     }
     Gui::EndWindow();
@@ -1899,7 +1901,8 @@ void TickMapEditor()
                         TriangulateFace_QuickDumb(*face, &MY_VERTEX_BUFFER);
                         RebindFaceBatchBufferObject(&face->facemesh, (u32) MY_VERTEX_BUFFER.size() * sizeof(float),
                             MY_VERTEX_BUFFER.data());
-                        face->facemesh.sharedTexture = Session.SelectedTexture.gputex;
+                        face->texture = Session.SelectedTexture; 
+                        face->facemesh.sharedTexture = Session.SelectedTexture.gputex; 
                     }
 
                     simpleBrushToolState = SimpleBrushToolState::NotActive;
