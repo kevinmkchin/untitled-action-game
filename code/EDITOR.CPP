@@ -584,9 +584,81 @@ namespace MapEdit
 
 }
 
+// Asset DB
+
+struct db_tex_t
+{
+    u64 persistId = 0;
+    BitmapHandle bitmap;
+    GPUTexture gputex;
+};
+
+struct asset_db_t
+{
+    std::map<u64, db_tex_t> Textures;
+};
+asset_db_t Assets;
+
+static u64 session_TexturePersistIdCounter = 0;
+
+db_tex_t LoadNewTextureToDB(const char *path)
+{
+    db_tex_t tex;
+    tex.persistId = ++session_TexturePersistIdCounter;
+    ReadImage(tex.bitmap, path);
+    if (tex.bitmap.memory != NULL)
+    {
+        CreateGPUTextureFromBitmap(&tex.gputex, (u8*)tex.bitmap.memory,
+                        tex.bitmap.width,tex.bitmap.height,
+                        GL_RGBA, (tex.bitmap.bitDepth == 3 ? GL_RGB : GL_RGBA));
+
+        Assets.Textures.insert({tex.persistId, tex});
+        LogMessage("Loaded %s with texture persist id %lld", path, tex.persistId);
+    }
+
+    return tex;
+}
+
+struct editor_session_data_t
+{
+    MapEdit::Face *SelectedFace = NULL;
+
+    db_tex_t SelectedTexture;
+
+    // move hotHandleId here
+    // move all the editor session specific data here
+};
+static editor_session_data_t Session;
+
+void SessionResetFaceToolData()
+{
+    Session.SelectedFace = NULL;
+}
 
 NiceArray<MapEdit::Volume, 3200> EDITOR_MAP_VOLUMES;
 std::vector<float> MY_VERTEX_BUFFER;
+
+void LoadMapEditor()
+{
+    db_tex_t defaultTexureAsset = LoadNewTextureToDB(wd_path("default.png").c_str());
+    // LoadNewTextureToDB(wd_path("../textures/example_1.jpg").c_str());
+    // LoadNewTextureToDB(wd_path("../textures/example_5.jpg").c_str());
+    // LoadNewTextureToDB(wd_path("../textures/example_7.jpg").c_str());
+    // LoadNewTextureToDB(wd_path("../textures/example_9.jpg").c_str());
+    // LoadNewTextureToDB(wd_path("../textures/example_10.jpg").c_str());
+    // LoadNewTextureToDB(wd_path("../textures/example_14.jpg").c_str());
+    // LoadNewTextureToDB(wd_path("../textures/example_16.jpg").c_str());
+    // LoadNewTextureToDB(wd_path("../textures/example_17.jpg").c_str());
+    // LoadNewTextureToDB(wd_path("../textures/example_18.jpg").c_str());
+    // LoadNewTextureToDB(wd_path("../textures/example_19.jpg").c_str());
+    // LoadNewTextureToDB(wd_path("../textures/example_20.jpg").c_str());
+    Session.SelectedTexture = defaultTexureAsset;
+}
+
+void CloseMapEditor()
+{
+    // todo
+}
 
 #define MAPSER_VOLUMES_U64_DIVIDER_START 0x49779b0ef139ca39
 #define MAPSER_VOLUMES_U64_DIVIDER_END   0x9fcf207673e66e63 
@@ -750,7 +822,7 @@ bool EditorDeserializeMap(const char *mapFilePath)
             TriangulateFace_QuickDumb(*face, &MY_VERTEX_BUFFER);
             RebindFaceBatchBufferObject(&face->facemesh, (u32) MY_VERTEX_BUFFER.size() * sizeof(float),
                 MY_VERTEX_BUFFER.data());
-            face->facemesh.sharedTexture = tex_Default;
+            face->facemesh.sharedTexture = tex_Default; // TODO
         }
     }
 
@@ -896,7 +968,7 @@ bool LoadGameMap(const char *path)
         ASSERT(vb.size() == vertexcount);
         
         FaceBatch batch;
-        batch.sharedTexture = tex_Default;
+        batch.sharedTexture = tex_Default; // TODO
         CreateFaceBatchMeshOnGPU(&batch.idVAO, &batch.idVBO);
         RebindFaceBatchBufferObject(&batch, u32(sizeof(float)*vertexcount), vb.data());
         GameLevelFaceBatches.push_back(batch);
@@ -1001,19 +1073,6 @@ float GetEditorHandleSize(vec3 worldPosition, float sizeInPixels)
     return (sizeInPixels*32.f / GM_max(screenDist, 0.0001f));
 }
 
-struct editorSessionData
-{
-    MapEdit::Face *SelectedFace = NULL;
-    // move hotHandleId here
-    // move all the editor session specific data here
-};
-static editorSessionData Session;
-
-void SessionResetFaceToolData()
-{
-    Session.SelectedFace = NULL;
-}
-
 
 Octree CollisionTree;
 
@@ -1090,14 +1149,15 @@ void VisualizeOctreeHack()
 
 void TickMapEditor()
 {
+    IsEditorActive = true;
+    SDL_SetRelativeMouseMode(mousecurrent & SDL_BUTTON(SDL_BUTTON_RIGHT) ? SDL_TRUE : SDL_FALSE);
+
     // if (keyspressed[SDL_SCANCODE_J])
     // {
     //     VisualizeOctreeHack();
     // }
     // if (CollisionTree.root.get())
     //     DrawOctreeNode(CollisionTree.root.get());
-
-    SDL_SetRelativeMouseMode(mousecurrent & SDL_BUTTON(SDL_BUTTON_RIGHT) ? SDL_TRUE : SDL_FALSE);
 
     // EDITOR CAMERA MOVE
     if (mousecurrent & SDL_BUTTON(SDL_BUTTON_RIGHT))
@@ -1283,13 +1343,60 @@ void TickMapEditor()
 
 
     Gui::BeginWindow(Gui::UIRect(renderTargetGUI.width - 210, renderTargetGUI.height - 310, 200, 300));
-    Gui::EditorText("TODO");
-    Gui::EditorLabelledButton("Load new texture to database");
+    Gui::EditorText("Texture");
+    
+    static bool ShowTextureBrowser = false;
+    if (Gui::EditorImageButton(Session.SelectedTexture.gputex.id, ivec2(160,160)))
+    {
+        ShowTextureBrowser = true;
+    }
+
+    if (ShowTextureBrowser)
+    {
+        Gui::BeginWindow(Gui::UIRect(0, 0, renderTargetGUI.width, renderTargetGUI.height));
+        
+        Gui::EditorBeginHorizontal();
+        if (Gui::EditorLabelledButton("Close"))
+            ShowTextureBrowser = false;
+        Gui::EditorSpacer(4,0);
+        if (Gui::EditorLabelledButton("Load Textures"))
+        {
+            std::vector<std::string> paths = OpenImageFilesDialog();
+            for (const auto& fp : paths)
+            {
+                db_tex_t loadedtex = LoadNewTextureToDB(fp.c_str());
+            }
+        }
+        Gui::EditorEndHorizontal();
+
+        Gui::EditorSpacer(0,8);
+        Gui::EditorBeginGrid(renderTargetGUI.width, 8000);
+        for (auto& pair : Assets.Textures)
+        {
+            Gui::EditorBeginGridItem(162,186);
+
+            db_tex_t t = pair.second;
+            if (Gui::EditorImageButton(t.gputex.id, ivec2(160,160)))
+            {
+                Session.SelectedTexture = t;
+                ShowTextureBrowser = false;
+            }
+            char displaystr[128] = {0};
+            stbsp_sprintf(displaystr, "ID: %lld\t\t%dx%d", t.persistId, t.gputex.width, t.gputex.height);
+            Gui::EditorText(displaystr);
+
+            Gui::EditorEndGridItem();
+        }
+        Gui::EditorEndGrid();
+
+        Gui::EndWindow();
+    }
+
     // TODO (Kevin): Have shortcuts for these actions so you can go click click shortcut click click shortcut
     Gui::EditorLabelledButton("Apply Texture to Volume");
     if (Session.SelectedFace != NULL && Gui::EditorLabelledButton("Apply Texture to Face"))
     {
-
+        Session.SelectedFace->facemesh.sharedTexture = Session.SelectedTexture.gputex; 
     }
     Gui::EndWindow();
 
@@ -1636,13 +1743,13 @@ void TickMapEditor()
                     vec3 startToEndProjOnToZDirection = Dot(startToEndVector, GM_RIGHT_VECTOR) * GM_RIGHT_VECTOR;
                     vec3 startToEndProjOnToXDirection = Dot(startToEndVector, GM_FORWARD_VECTOR) * GM_FORWARD_VECTOR;
                     PrimitiveDrawLine(rectstartpoint, rectstartpoint + startToEndProjOnToXDirection,
-                                      vec4(RGBHEXTO1(0xff8000), 1.0));
+                                      vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
                     PrimitiveDrawLine(rectstartpoint, rectstartpoint + startToEndProjOnToZDirection,
-                                      vec4(RGBHEXTO1(0xff8000), 1.0));
+                                      vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
                     PrimitiveDrawLine(endpoint, endpoint - startToEndProjOnToXDirection,
-                                      vec4(RGBHEXTO1(0xff8000), 1.0));
+                                      vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
                     PrimitiveDrawLine(endpoint, endpoint - startToEndProjOnToZDirection,
-                                      vec4(RGBHEXTO1(0xff8000), 1.0));
+                                      vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
                 }
                 if (mousereleased & SDL_BUTTON(SDL_BUTTON_LEFT))
                 {
@@ -1715,20 +1822,20 @@ void TickMapEditor()
                 vec3 ceilPointC = floorPointC + height;
                 vec3 ceilPointD = floorPointD + height;
 
-                PrimitiveDrawLine(floorPointA, floorPointB, vec4(RGBHEXTO1(0xff8000), 1.0));
-                PrimitiveDrawLine(floorPointA, floorPointD, vec4(RGBHEXTO1(0xff8000), 1.0));
-                PrimitiveDrawLine(floorPointC, floorPointB, vec4(RGBHEXTO1(0xff8000), 1.0));
-                PrimitiveDrawLine(floorPointC, floorPointD, vec4(RGBHEXTO1(0xff8000), 1.0));
+                PrimitiveDrawLine(floorPointA, floorPointB, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
+                PrimitiveDrawLine(floorPointA, floorPointD, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
+                PrimitiveDrawLine(floorPointC, floorPointB, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
+                PrimitiveDrawLine(floorPointC, floorPointD, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
 
-                PrimitiveDrawLine(floorPointA, ceilPointA, vec4(RGBHEXTO1(0xff8000), 1.0));
-                PrimitiveDrawLine(floorPointB, ceilPointB, vec4(RGBHEXTO1(0xff8000), 1.0));
-                PrimitiveDrawLine(floorPointC, ceilPointC, vec4(RGBHEXTO1(0xff8000), 1.0));
-                PrimitiveDrawLine(floorPointD, ceilPointD, vec4(RGBHEXTO1(0xff8000), 1.0));
+                PrimitiveDrawLine(floorPointA, ceilPointA, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
+                PrimitiveDrawLine(floorPointB, ceilPointB, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
+                PrimitiveDrawLine(floorPointC, ceilPointC, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
+                PrimitiveDrawLine(floorPointD, ceilPointD, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
 
-                PrimitiveDrawLine(ceilPointA, ceilPointB, vec4(RGBHEXTO1(0xff8000), 1.0));
-                PrimitiveDrawLine(ceilPointA, ceilPointD, vec4(RGBHEXTO1(0xff8000), 1.0));
-                PrimitiveDrawLine(ceilPointC, ceilPointB, vec4(RGBHEXTO1(0xff8000), 1.0));
-                PrimitiveDrawLine(ceilPointC, ceilPointD, vec4(RGBHEXTO1(0xff8000), 1.0));
+                PrimitiveDrawLine(ceilPointA, ceilPointB, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
+                PrimitiveDrawLine(ceilPointA, ceilPointD, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
+                PrimitiveDrawLine(ceilPointC, ceilPointB, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
+                PrimitiveDrawLine(ceilPointC, ceilPointD, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
 
                 if (mousereleased & SDL_BUTTON(SDL_BUTTON_LEFT))
                 {
@@ -1792,7 +1899,7 @@ void TickMapEditor()
                         TriangulateFace_QuickDumb(*face, &MY_VERTEX_BUFFER);
                         RebindFaceBatchBufferObject(&face->facemesh, (u32) MY_VERTEX_BUFFER.size() * sizeof(float),
                             MY_VERTEX_BUFFER.data());
-                        face->facemesh.sharedTexture = tex_Default;
+                        face->facemesh.sharedTexture = Session.SelectedTexture.gputex;
                     }
 
                     simpleBrushToolState = SimpleBrushToolState::NotActive;

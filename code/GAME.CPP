@@ -3,7 +3,6 @@
 TODO:
 - build/load level texture info
 - build/load level LIGHT MAP info
-- change editable map format to .emf  
 - ser deser texture info to .emf
 - CREATE GRID MESH STATICALLY AT THE START!!! DONT NEED TO MAKE IT EVERY FRAME (just one grid mesh, scale it and translate it)
 - Move volume mode/tool (don't need whole tool...maybe make brush tool part of this mode? like trenchbroom)
@@ -103,6 +102,7 @@ a resolution normal defined.
 #define STB_DS_IMPLEMENTATION
 #include <stb_ds.h>
 
+#include <map>
 #include <unordered_map>
 #include <unordered_set>
 #include <array>
@@ -130,10 +130,14 @@ typedef int_fast32_t  i32f;
 typedef i16           bool16;
 typedef i32           bool32;
 
-#if (defined _MSC_VER)
-#define ASSERT(predicate) if(!(predicate)) { __debugbreak(); }
+#if INTERNAL_BUILD
+    #if (defined _MSC_VER)
+    #define ASSERT(predicate) if(!(predicate)) { __debugbreak(); }
+    #else
+    #define ASSERT(predicate) if(!(predicate)) { __builtin_trap(); }
+    #endif
 #else
-#define ASSERT(predicate) if(!(predicate)) { __builtin_trap(); }
+    #define ASSERT(predicate)
 #endif
 
 inline std::string wd_path() { return std::string(PROJECT_WORKING_DIR); }
@@ -190,6 +194,8 @@ u8 keysreleased[256] = {0};
 
 i32 BACKBUFFER_WIDTH = -1;
 i32 BACKBUFFER_HEIGHT = -1;
+
+bool IsEditorActive = false;
 
 
 #pragma endregion
@@ -838,6 +844,7 @@ static void RenderFaceBatch(FaceBatch faceBatch)
 
 #pragma region MORE_GLOBAL_VARIABLES
 GPUShader sceneShader;
+GPUShader editorShader_Wireframe;
 GPUShader editorShader_FaceSelected;
 GPUShader finalPassShader;
 GPUFrameBuffer renderTargetGame;
@@ -969,7 +976,7 @@ static void TickGame()
     // ENEMY 0
     vec3 toPlayer = playerControllerRoot - enemy0.root;
     enemy0.facing = Normalize(vec3(toPlayer.x, 0.f, toPlayer.z));
-    enemy0.root += enemy0.facing * 32.f * g_DeltaTime;
+    // enemy0.root += enemy0.facing * 32.f * g_DeltaTime;
 
     // CALCULATE PLAYER FACING DIRECTION
     float camYawDelta = mousedelta.x*0.055f;
@@ -1130,7 +1137,6 @@ static void RenderMapEditorLayer()
 
     GLBindMatrix4fv(sceneShader, "modelMatrix", 1, modelMatrix.ptr());
 
-
     FaceBatch selectedFaceMesh;
     FaceBatch hoveredFaceMesh;
     for (int i = 0; i < MapEdit::EDITOR_FACES.count; ++i)
@@ -1160,7 +1166,11 @@ static void RenderMapEditorLayer()
         if (selectedFaceMesh.idVAO > 0)
         {
             UseShader(editorShader_FaceSelected);
-            GLBind3f(editorShader_FaceSelected, "tint", 1.0f, 0.9f, 0.9f);
+            float sf = (sinf(g_TimeSinceStart * 2.7f) + 1.f) / 2.f;
+            sf *= 0.1f;
+            if (primitivesDepthTest)
+                sf = 0.0f;
+            GLBind3f(editorShader_FaceSelected, "tint", 1.0f, 1.0f-sf, 1.0f-sf);
             GLBindMatrix4fv(editorShader_FaceSelected, "projMatrix", 1, perspectiveMatrix.ptr());
             GLBindMatrix4fv(editorShader_FaceSelected, "viewMatrix", 1, viewMatrix.ptr());
             modelMatrix = mat4();
@@ -1179,7 +1189,6 @@ static void RenderMapEditorLayer()
         }
     }
 
-
     // PRIMITIVES
     // Draw outline of selected faces
     for (int i = 0; i < SELECTED_MAP_VOLUMES_INDICES.count; ++i)
@@ -1190,7 +1199,7 @@ static void RenderMapEditorLayer()
             std::vector<MapEdit::Edge*> faceEdges = selVolFace->GetEdges();
             for (MapEdit::Edge* e : faceEdges)
             {
-                PrimitiveDrawLine(e->a->pos, e->b->pos, vec4(1,0,0,0.5f), 2.f, editorCameraPosition);
+                PrimitiveDrawLine(e->a->pos, e->b->pos, vec4(1,0,0,0.5f), 2.f);
             }
         }
     }
@@ -1215,6 +1224,31 @@ static void RenderMapEditorLayer()
         glDisable(GL_DEPTH_TEST);
     glDisable(GL_CULL_FACE);
     PrimitiveDrawAll(&perspectiveMatrix, &viewMatrix, renderTargetGame.depthTexId, vec2((float)renderTargetGame.width,(float)renderTargetGame.height));
+
+    // // UseShader(editorShader_Wireframe);
+    // // glEnable(GL_CULL_FACE);
+    // // GLBindMatrix4fv(editorShader_Wireframe, "projMatrix", 1, perspectiveMatrix.ptr());
+    // // GLBindMatrix4fv(editorShader_Wireframe, "viewMatrix", 1, viewMatrix.ptr());
+    // // GLBindMatrix4fv(editorShader_Wireframe, "modelMatrix", 1, modelMatrix.ptr());
+    // // glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+    // glEnable(GL_DEPTH_TEST);
+    // for (int i = 0; i < MapEdit::EDITOR_FACES.count; ++i)
+    // {
+    //     MapEdit::Face *editorVolumeFace = MapEdit::EDITOR_FACES.At(i);
+    //     std::vector<MapEdit::Edge*> faceEdges = editorVolumeFace->GetEdges();
+    //     for (MapEdit::Edge* e : faceEdges)
+    //     {
+    //         PrimitiveDrawLine(e->a->pos, e->b->pos, vec4(1,1,1,1), 1.2f);
+    //     }
+    //     // const FaceBatch fb = editorVolumeFace->facemesh;
+    //     // RenderFaceBatch(fb);
+    // }
+    // PrimitiveDrawAll(&perspectiveMatrix, &viewMatrix, renderTargetGame.depthTexId, vec2((float)renderTargetGame.width,(float)renderTargetGame.height));
+    // if (primitivesDepthTest)
+    //     glEnable(GL_DEPTH_TEST);
+    // else
+    //     glDisable(GL_DEPTH_TEST);
+    // glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 }
 
 static void RenderGUILayer()
@@ -1282,6 +1316,7 @@ static void InitGameRenderer()
 
 
     GLCreateShaderProgram(sceneShader, __scene_shader_vs, __scene_shader_fs);
+    GLCreateShaderProgram(editorShader_Wireframe, __editor_scene_wireframe_shader_vs, __editor_scene_wireframe_shader_fs);
     GLCreateShaderProgram(editorShader_FaceSelected, __editor_shader_face_selected_vs, __editor_shader_face_selected_fs);
     GLCreateShaderProgram(finalPassShader, __finalpass_shader_vs, __finalpass_shader_fs);
 
@@ -1365,7 +1400,7 @@ static bool InitializeEverything()
 #endif
 
     SDL_SetWindowMinimumSize(g_MainSDLWindow, 200, 100);
-    SDL_GL_SetSwapInterval(1);
+    SDL_GL_SetSwapInterval(0);
 
     if (Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 2, 2048) < 0 || Mix_Init(MIX_INIT_OGG) < 0)
         return false;
@@ -1384,19 +1419,10 @@ static void ProcessSDLEvents()
     mousepressed = mousechanged & mousestate;
     mousereleased = mousechanged & mousecurrent;
     mousecurrent = mousestate;
-    SDL_bool mouseIsRelative = SDL_GetRelativeMouseMode();
-    if(mouseIsRelative)
-    {
-        ivec2 md;
-        SDL_GetRelativeMouseState(&md.x, &md.y);
-        mousedelta.x = (float)md.x;
-        mousedelta.y = (float)md.y;
-    }
-    else
-    {
-        if (prevmp.x >= 0) { mousedelta.x = float(mousepos.x - prevmp.x); } else { mousedelta.x = 0.f; }
-        if (prevmp.y >= 0) { mousedelta.y = float(mousepos.y - prevmp.y); } else { mousedelta.y = 0.f; }
-    }
+    ivec2 md;
+    SDL_GetRelativeMouseState(&md.x, &md.y);
+    mousedelta.x = (float)md.x;
+    mousedelta.y = (float)md.y;
 
     // KEYBOARD
     const u8 *keystate = SDL_GetKeyboardState(NULL);
@@ -1468,6 +1494,8 @@ int main(int argc, char* argv[])
     if (LoadGameMap(wd_path("walltest.map").c_str()) == false)
         LogError("failed to load game map");
 
+    LoadMapEditor();
+
     while (!g_ProgramShouldShutdown)
     {
         TickTime();
@@ -1477,15 +1505,17 @@ int main(int argc, char* argv[])
         Gui::NewFrame();
         ProcessSDLEvents();
 
-        TickGame();
-        DrawGame();
-        //TickMapEditor();
-        //DrawMapEditor();
+        // TickGame();
+        // DrawGame();
+        TickMapEditor();
+        DrawMapEditor();
 
         SDL_GL_SwapWindow(g_MainSDLWindow);
 
         // printf("LAST FRAME TIME: %.2fms   FPS: %dhz\n", 1000.f * g_UnscaledDeltaTime, (i16)(1.f / g_UnscaledDeltaTime));
     }
+
+    CloseMapEditor();
 
     SDL_DestroyWindow(g_MainSDLWindow);
     SDL_GL_DeleteContext(g_SDLGLContext);
