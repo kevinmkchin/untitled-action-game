@@ -992,7 +992,6 @@ bool LoadGameMap(const char *path)
 
 
 vec3 editorCameraPosition = vec3(600, 500, 600);
-float GRID_INCREMENT = 32.f;
 float DISC_HANDLE_RADIUS = 10.f;
 // These indices are not guaranteed to persist frame to frame. For now (2024-09-04) they index into
 // the huge array of all Volumes EDITOR_MAP_VOLUMES. Things will/should move around within the array. 
@@ -1058,6 +1057,29 @@ vec3 WorldPointToScreenPoint(vec3 worldPosition)
     return vec3(screenspaceRatioX * internalResolutionWidth, screenspaceRatioY * internalResolutionHeight, distanceFromCameraWCS);
 }
 
+/// === GRID DEFINITION ===
+// I want the grid to be defined by a "UP" and a "RIGHT"
+// based on these, I can figure out the orientation of the grid
+float GRID_INCREMENT = 32.f;
+vec3 GRID_ORIGIN = vec3();
+vec3 GRID_UP_VECTOR = GM_UP_VECTOR;
+vec3 GRID_RIGHT_VECTOR = GM_RIGHT_VECTOR;
+
+void ResetGridOriginAndOrientation()
+{
+    GRID_ORIGIN = vec3();
+    GRID_UP_VECTOR = GM_UP_VECTOR;
+    GRID_RIGHT_VECTOR = GM_RIGHT_VECTOR;
+}
+
+quat GetGridOrientation()
+{
+    quat a = RotationFromTo(GM_RIGHT_VECTOR,Normalize(GRID_RIGHT_VECTOR));
+    quat b = RotationFromTo(GM_UP_VECTOR,Normalize(GRID_UP_VECTOR));
+    quat r = CombineRotations(a, b);
+    return r;
+}
+
 float SnapToMapEditorGrid(float beforeSnap)
 {
     int adjustedBeforeSnap = int(roundf(beforeSnap) + ((beforeSnap < 0.f ? -0.5f : 0.5f) * GRID_INCREMENT));
@@ -1068,7 +1090,15 @@ float SnapToMapEditorGrid(float beforeSnap)
 
 vec3 SnapToMapEditorGrid(vec3 beforeSnap)
 {
-    return vec3(SnapToMapEditorGrid(beforeSnap.x), SnapToMapEditorGrid(beforeSnap.y), SnapToMapEditorGrid(beforeSnap.z));
+    vec3 snaptemp = beforeSnap;
+    mat3 rot = QuatToMat3(GetGridOrientation());
+    mat3 invRot = rot.GetInverse();
+    snaptemp = snaptemp - GRID_ORIGIN;
+    snaptemp = invRot * snaptemp;
+    snaptemp = vec3(SnapToMapEditorGrid(snaptemp.x), SnapToMapEditorGrid(snaptemp.y), SnapToMapEditorGrid(snaptemp.z));
+    snaptemp = rot * snaptemp;
+    snaptemp = snaptemp + GRID_ORIGIN;
+    return snaptemp;
 }
 
 float GetEditorHandleSize(vec3 worldPosition, float sizeInPixels)
@@ -1155,6 +1185,40 @@ void VisualizeOctreeHack()
 }
 
 
+u32 PickVolume(MapEdit::Volume *volumes, u32 arraycount)
+{
+    // returns the 1 + index of the volume in the provided array. 0 is nothing picked.
+    for (u32 volumeFrameId = 1; volumeFrameId <= arraycount; ++volumeFrameId)
+    {
+        vec3 idrgb = HandleIdToRGB(volumeFrameId);
+        MapEdit::Volume& vol = volumes[volumeFrameId - 1];
+        for (MapEdit::Face *f : vol.faces)
+        {
+            int count;
+            // TODO(Kevin): instead of triangulate every face every time, probably cache this somehow?
+            MapEdit::TriangulateFace_QuickDumb_WithColor(*f, idrgb, HANDLES_VB.data + HANDLES_VB.count, &count);
+            HANDLES_VB.count += count;
+        }
+    }
+    u32 pickedVolumeFrameId = FlushHandles(mousepos, renderTargetGame, activeViewMatrix, activePerspectiveMatrix, false);
+    return pickedVolumeFrameId;
+}
+
+u32 PickFace(MapEdit::Face **faces, u32 arraycount)
+{
+    // returns 1 + index of the face in the provided array. 0 is nothing picked.
+    for (u32 id = 1; id <= arraycount; ++id)
+    {
+        MapEdit::Face *face = faces[id-1];
+        vec3 idrgb = HandleIdToRGB(id);
+        int count;
+        // TODO(Kevin): instead of triangulate every face every time, probably cache this somehow?
+        MapEdit::TriangulateFace_QuickDumb_WithColor(*face, idrgb, HANDLES_VB.data + HANDLES_VB.count, &count);
+        HANDLES_VB.count += count;
+    }
+    u32 faceId = FlushHandles(mousepos, renderTargetGame, activeViewMatrix, activePerspectiveMatrix, false);
+    return faceId;
+}
 
 void TickMapEditor()
 {
@@ -1396,6 +1460,9 @@ void TickMapEditor()
     }
 
 
+    ResetGridOriginAndOrientation();
+
+
     // === Volume picking ===
     // Triangulation on the fly is efficient but I don't care right now
     // can pick volumes while in most modes
@@ -1406,19 +1473,7 @@ void TickMapEditor()
         editorActiveTool == MapEditorTools::FaceManip;
     if (volumePickable && mousereleased & SDL_BUTTON(SDL_BUTTON_LEFT) && hotHandleId == 0)
     {
-        for (int volumeFrameId = 1; volumeFrameId <= EDITOR_MAP_VOLUMES.count; ++volumeFrameId)
-        {
-            vec3 idrgb = HandleIdToRGB(volumeFrameId);
-            MapEdit::Volume& vol = EDITOR_MAP_VOLUMES.At(volumeFrameId - 1);
-            for (MapEdit::Face *f : vol.faces)
-            {
-                int count;
-                MapEdit::TriangulateFace_QuickDumb_WithColor(*f, idrgb, HANDLES_VB.data + HANDLES_VB.count, &count);
-                HANDLES_VB.count += count;
-            }
-        }
-        u32 pickedVolumeFrameId = FlushHandles(mousepos, renderTargetGame, activeViewMatrix, activePerspectiveMatrix, false);
-
+        u32 pickedVolumeFrameId = PickVolume(EDITOR_MAP_VOLUMES.data, EDITOR_MAP_VOLUMES.count);
         if (pickedVolumeFrameId <= 0)
         {
             SELECTED_MAP_VOLUMES_INDICES.ResetCount();
@@ -1476,15 +1531,7 @@ void TickMapEditor()
         bool lmbReleasedThisFrame = mousereleased & SDL_BUTTON(SDL_BUTTON_LEFT);
         bool lmbIsPressed = mousecurrent & SDL_BUTTON(SDL_BUTTON_LEFT);
 
-        for (u32 id = 1; id <= SELECTABLE_FACES.size(); ++id)
-        {
-            MapEdit::Face *face = SELECTABLE_FACES[id-1];
-            vec3 idrgb = HandleIdToRGB(id);
-            int count;
-            MapEdit::TriangulateFace_QuickDumb_WithColor(*face, idrgb, HANDLES_VB.data + HANDLES_VB.count, &count);
-            HANDLES_VB.count += count;
-        }
-        u32 hoveredFaceId = FlushHandles(mousepos, renderTargetGame, activeViewMatrix, activePerspectiveMatrix, false);
+        u32 hoveredFaceId = PickFace(SELECTABLE_FACES.data(), (u32)SELECTABLE_FACES.size());
 
         if (hoveredFaceId > 0)
         {
@@ -1697,57 +1744,93 @@ void TickMapEditor()
     if (editorActiveTool == MapEditorTools::SimpleBrushTool)
     {
         static vec3 rectstartpoint;
+        static vec3 drawingplanenormal;
+        static vec3 drawinghorizontal;
+        static vec3 drawingvertical;
         static vec3 rectendpoint;
-        static float desiredBrushY_in_world;
         switch (simpleBrushToolState)
         {
             case SimpleBrushToolState::NotActive:
                 if (mousepressed & SDL_BUTTON(SDL_BUTTON_LEFT))
                 {
-                    // todo with drawing brush ON other volumes, do picking first to see on which volume we are drawing,
-                    // then do the mouse ray intersect...although this optimization might not be needed
-
-                    // We only want to draw within a certain radius from the camera. never too far from the camera.
-                    desiredBrushY_in_world = 0.f;
-                    vec3 ws = ScreenPointToWorldPoint(mousepos, 0.f);
-                    vec3 wr = ScreenPointToWorldRay(mousepos);
-                    float f = (desiredBrushY_in_world - ws.y) / wr.y;
-                    if (f > 0.f) // should accept any f... since we want to draw brush in any direction
+                    u32 pickedVolumeFrameId = PickVolume(EDITOR_MAP_VOLUMES.data, EDITOR_MAP_VOLUMES.count);
+                    if (pickedVolumeFrameId > 0)
                     {
+                        MapEdit::Volume& vol = EDITOR_MAP_VOLUMES.At(pickedVolumeFrameId-1);
+                        std::vector<MapEdit::Face*>& faces = vol.faces;
+                        u32 faceIndex = PickFace(faces.data(), (u32)faces.size());
+                        MapEdit::Face *drawingFace = faces[faceIndex-1];
+                        drawingplanenormal = drawingFace->QuickNormal();
+                        vec3 ws = ScreenPointToWorldPoint(mousepos, 0.f);
+                        vec3 wr = ScreenPointToWorldRay(mousepos);
+                        vec3 intersectionPoint;
+                        IntersectPlaneAndLineWithDirections(drawingFace->loopbase->v->pos, drawingplanenormal, ws, wr, &intersectionPoint);
                         simpleBrushToolState = SimpleBrushToolState::DrawingRectangle;
-                        rectstartpoint = SnapToMapEditorGrid(ws + wr * f);
+                        rectstartpoint = intersectionPoint;
                     }
+                    else
+                    {
+                        vec3 ws = ScreenPointToWorldPoint(mousepos, 0.f);
+                        vec3 wr = ScreenPointToWorldRay(mousepos);
+                        float f = (0.f - ws.y) / wr.y;
+                        simpleBrushToolState = SimpleBrushToolState::DrawingRectangle;
+                        rectstartpoint = ws + wr * f;
+                        drawingplanenormal = GM_UP_VECTOR;
+                    }
+                    rectstartpoint = SnapToMapEditorGrid(rectstartpoint);
+                    // no matter what, at least one of these vectors is GM_RIGHT_VECTOR rotated around y-axis.
+                    vec3 flattenedNormal = vec3(drawingplanenormal.x, 0.f, drawingplanenormal.z);
+                    if (Magnitude(flattenedNormal) < 0.001f)
+                        flattenedNormal = GM_FORWARD_VECTOR;
+                    else if (GM_abs(drawingplanenormal.y) < 0.001f)
+                        flattenedNormal = GM_UP_VECTOR;
+                    else
+                        flattenedNormal = Normalize(flattenedNormal);
+                    drawinghorizontal = Normalize(Cross(drawingplanenormal, flattenedNormal));
+                    drawingvertical = Normalize(Cross(drawingplanenormal, drawinghorizontal));
                 }
                 break;
             case SimpleBrushToolState::DrawingRectangle:
+                GRID_ORIGIN = rectstartpoint;
+                GRID_RIGHT_VECTOR = drawinghorizontal;
+                GRID_UP_VECTOR = drawingplanenormal;
                 if (mousecurrent & SDL_BUTTON(SDL_BUTTON_LEFT))
                 {
                     vec3 ws = ScreenPointToWorldPoint(mousepos, 0.f);
                     vec3 wr = ScreenPointToWorldRay(mousepos);
-                    float f = (desiredBrushY_in_world - ws.y) / wr.y;
-                    vec3 endpoint = SnapToMapEditorGrid(ws + wr * f);
+                    vec3 intersection;
+                    IntersectPlaneAndLineWithDirections(rectstartpoint, drawingplanenormal, ws, wr, &intersection);
+                    vec3 endpoint = intersection;
+                    endpoint = SnapToMapEditorGrid(endpoint);
                     vec3 startToEndVector = vec3(endpoint - rectstartpoint);
-                    float d = Magnitude(startToEndVector);
-                    vec3 startToEndProjOnToZDirection = Dot(startToEndVector, GM_RIGHT_VECTOR) * GM_RIGHT_VECTOR;
-                    vec3 startToEndProjOnToXDirection = Dot(startToEndVector, GM_FORWARD_VECTOR) * GM_FORWARD_VECTOR;
-                    PrimitiveDrawLine(rectstartpoint, rectstartpoint + startToEndProjOnToXDirection,
+
+                    // PrimitiveDrawSolidDisc(rectstartpoint, drawingplanenormal, 4, vec4(0,0,1,1));
+                    // PrimitiveDrawSolidDisc(endpoint, drawingplanenormal, 4, vec4(0,0,1,1));
+                    // PrimitiveDrawLine(rectstartpoint, rectstartpoint + drawinghorizontal * 16.f, vec4(0,0,1,1), 2.f); 
+                    // PrimitiveDrawLine(rectstartpoint, rectstartpoint + drawingvertical * 16.f, vec4(0,0,1,1), 2.f); 
+                    vec3 startToEndProjOnToHorizontal = Dot(startToEndVector, drawinghorizontal) * drawinghorizontal;
+                    vec3 startToEndProjOnToVertical = Dot(startToEndVector, drawingvertical) * drawingvertical;
+                    PrimitiveDrawLine(rectstartpoint, rectstartpoint + startToEndProjOnToVertical,
                                       vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
-                    PrimitiveDrawLine(rectstartpoint, rectstartpoint + startToEndProjOnToZDirection,
+                    PrimitiveDrawLine(rectstartpoint, rectstartpoint + startToEndProjOnToHorizontal,
                                       vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
-                    PrimitiveDrawLine(endpoint, endpoint - startToEndProjOnToXDirection,
+                    PrimitiveDrawLine(endpoint, endpoint - startToEndProjOnToVertical,
                                       vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
-                    PrimitiveDrawLine(endpoint, endpoint - startToEndProjOnToZDirection,
+                    PrimitiveDrawLine(endpoint, endpoint - startToEndProjOnToHorizontal,
                                       vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
                 }
                 if (mousereleased & SDL_BUTTON(SDL_BUTTON_LEFT))
                 {
                     vec3 ws = ScreenPointToWorldPoint(mousepos, 0.f);
                     vec3 wr = ScreenPointToWorldRay(mousepos);
-                    float f = (desiredBrushY_in_world - ws.y) / wr.y;
-                    rectendpoint = SnapToMapEditorGrid(ws + wr * f);
+                    vec3 intersection;
+                    IntersectPlaneAndLineWithDirections(rectstartpoint, drawingplanenormal, ws, wr, &intersection);
+                    rectendpoint = intersection;
+                    rectendpoint = SnapToMapEditorGrid(rectendpoint);
                     vec3 startToEndVector = vec3(rectendpoint - rectstartpoint);
-                    float d = Magnitude(startToEndVector);
-                    if (true) // TODO check X and Z values to see if theyre bigger than grid size
+                    vec3 startToEndProjOnToHorizontal = Dot(startToEndVector, drawinghorizontal) * drawinghorizontal;
+                    vec3 startToEndProjOnToVertical = Dot(startToEndVector, drawingvertical) * drawingvertical;
+                    if (Magnitude(startToEndProjOnToHorizontal)+0.05f >= GRID_INCREMENT && Magnitude(startToEndProjOnToVertical)+0.05f >= GRID_INCREMENT)
                         simpleBrushToolState = SimpleBrushToolState::DrawingHeight;
                     else
                         simpleBrushToolState = SimpleBrushToolState::NotActive;
@@ -1757,16 +1840,21 @@ void TickMapEditor()
 
                 break;
             case SimpleBrushToolState::DrawingHeight:
+
                 vec3 startToEndVector = vec3(rectendpoint - rectstartpoint);
-                float zcomponent = Dot(startToEndVector, GM_RIGHT_VECTOR);
-                float xcomponent = Dot(startToEndVector, GM_FORWARD_VECTOR);
-                vec3 startToEndProjOnToZDirection = zcomponent * GM_RIGHT_VECTOR;
-                vec3 startToEndProjOnToXDirection = xcomponent * GM_FORWARD_VECTOR;
+
+                float zcomponent = Dot(startToEndVector, drawinghorizontal);
+                float xcomponent = Dot(startToEndVector, drawingvertical);
+                vec3 startToEndProjOnToHorizontal = zcomponent * drawinghorizontal;
+                vec3 startToEndProjOnToVertical = xcomponent * drawingvertical;
+                
+                GRID_ORIGIN = rectendpoint;
+                GRID_UP_VECTOR = startToEndProjOnToHorizontal;
 
                 // let plane be defined at point rectendpoint with normal -cameraDirection
                 // then the point of intersection between mouse ray and the plane - endrectpoint and project it onto
                 // the direction of translation e.g. GM_UP_VECTOR
-                vec3 drawingSurfaceNormal = GM_UP_VECTOR;
+                vec3 drawingSurfaceNormal = drawingplanenormal;
                 static vec3 height = vec3();
                 static vec3 heightBeforeSnap = vec3();
                 vec3 pn = -cameraDirection;
@@ -1781,9 +1869,9 @@ void TickMapEditor()
                 heightBeforeSnap = trueHeightComp * drawingSurfaceNormal;
 
                 vec3 floorPointA = rectstartpoint;
-                vec3 floorPointB = rectstartpoint + startToEndProjOnToXDirection;
+                vec3 floorPointB = rectstartpoint + startToEndProjOnToVertical;
                 vec3 floorPointC = rectendpoint;
-                vec3 floorPointD = rectendpoint - startToEndProjOnToXDirection;
+                vec3 floorPointD = rectendpoint - startToEndProjOnToVertical;
                 // given how i've set up points ABCD:
                 //      if xcomponent < 0, swap A and B, swap C and D
                 //      if zcomponent < 0, swap B and C, swap A and D

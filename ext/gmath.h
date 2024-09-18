@@ -321,6 +321,8 @@ union mat3
 
     inline mat3 GetTranspose();
 
+    inline mat3 GetInverse();
+
     /** Returns a float pointer to the memory layout of the matrix. Useful
         for uploading data to graphics API. OpenGL uses column-major order.*/
     float* ptr() { return((float*)this); }
@@ -1314,6 +1316,7 @@ inline mat4 mat4::GetInverse()
 
     if (det == 0.f)
     {
+        // Matrix is singular and cannot be inverted
         return mat4();
     }
 
@@ -1326,6 +1329,39 @@ inline mat4 mat4::GetInverse()
     }
 
     return ret;
+}
+
+inline mat3 mat3::GetInverse() // TODO(Kevin): test coverage
+{
+    float a11 = e[0], a21 = e[1], a31 = e[2];
+    float a12 = e[3], a22 = e[4], a32 = e[5];
+    float a13 = e[6], a23 = e[7], a33 = e[8];
+
+    float det = a11 * (a22 * a33 - a32 * a23)
+              - a12 * (a21 * a33 - a31 * a23)
+              + a13 * (a21 * a32 - a31 * a22);
+
+    if (det == 0.0f) 
+    {
+        // Matrix is singular and cannot be inverted
+        return mat3();
+    }
+
+    float invDet = 1.0f / det;
+
+    mat3 inv = {
+        (a22 * a33 - a32 * a23) * invDet,
+        -(a21 * a33 - a31 * a23) * invDet,
+        (a21 * a32 - a31 * a22) * invDet,
+        -(a12 * a33 - a32 * a13) * invDet,
+        (a11 * a33 - a31 * a13) * invDet,
+        -(a11 * a32 - a31 * a12) * invDet,
+        (a12 * a23 - a22 * a13) * invDet,
+        -(a11 * a23 - a21 * a13) * invDet,
+        (a11 * a22 - a21 * a12) * invDet
+    };
+
+    return inv;
 }
 
 inline quat Add(quat a, quat b)

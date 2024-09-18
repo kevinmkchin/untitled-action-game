@@ -1,10 +1,12 @@
 /*
 
 TODO:
+- Move volume mode/tool (don't need whole tool...maybe make brush tool part of this mode? like trenchbroom)
+- Make simple playground level
+- SHOOTING ENEMY
+
 - serialize/deserialize asset database
 - build/load level LIGHT MAP info
-- Move volume mode/tool (don't need whole tool...maybe make brush tool part of this mode? like trenchbroom)
-- Make Simple Brush Tool work on arbitrary surface
 - multi select vertices need to be fixed
 - Edge select
 
@@ -12,6 +14,7 @@ EPICS:
 - Basic layout and structures of maps can be created, they are textured
     - handles (have render pick ID, reference a Vert, or Edge, or Face?)
 - Build maps and load into fps game
+- Lighting
 - Can navigate map with collisions
 - Enemy billboards two behaviour:
     - walk towards player
@@ -1226,8 +1229,14 @@ static void RenderMapEditorLayer()
     else
         glDisable(GL_DEPTH_TEST);
     glDisable(GL_CULL_FACE);
-    vec3 drawGridHere = vec3(SnapToMapEditorGrid(editorCameraPosition.x), 0.f, SnapToMapEditorGrid(editorCameraPosition.z));
-    DrawGrid(GRID_INCREMENT, drawGridHere, &perspectiveMatrix, &viewMatrix, renderTargetGame.depthTexId, vec2((float)renderTargetGame.width,(float)renderTargetGame.height));
+    vec3 gridTranslation = vec3(SnapToMapEditorGrid(editorCameraPosition.x), 0.f, SnapToMapEditorGrid(editorCameraPosition.z));
+    quat gridOrientation = quat();
+    if (GRID_ORIGIN != vec3())
+    {
+        gridTranslation = GRID_ORIGIN;
+        gridOrientation = GetGridOrientation();
+    }
+    DrawGrid(GRID_INCREMENT, gridOrientation, gridTranslation, &perspectiveMatrix, &viewMatrix, renderTargetGame.depthTexId, vec2((float)renderTargetGame.width,(float)renderTargetGame.height));
     PrimitiveDrawAll(&perspectiveMatrix, &viewMatrix, renderTargetGame.depthTexId, vec2((float)renderTargetGame.width,(float)renderTargetGame.height));
 
     // // UseShader(editorShader_Wireframe);
