@@ -685,7 +685,7 @@ struct Octree
 
     std::unique_ptr<OctreeNode> root;
     int maxDepth;
-    int maxObjectsPerNode; // TODO (Kevin): Fun thing to do - compare performance of large scene with this at 100000 and this at something reasonable like 32
+    int maxObjectsPerNode; // TODO(Kevin): Fun thing to do - compare performance of large scene with this at 100000 and this at something reasonable like 32
 
     void Insert(OctreeNode *node, Collider *obj, int depth);
     u8 GetChildIndices(const OctreeNode *node, Collider *obj) ;
