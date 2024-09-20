@@ -1072,12 +1072,13 @@ void ResetGridOriginAndOrientation()
     GRID_RIGHT_VECTOR = GM_RIGHT_VECTOR;
 }
 
-quat GetGridOrientation()
+mat3 GetGridRotationMatrix()
 {
-    quat a = RotationFromTo(GM_RIGHT_VECTOR,Normalize(GRID_RIGHT_VECTOR));
-    quat b = RotationFromTo(GM_UP_VECTOR,Normalize(GRID_UP_VECTOR));
-    quat r = CombineRotations(a, b);
-    return r;
+    mat3 rot;
+    rot.columns[0] = Normalize(Cross(GRID_RIGHT_VECTOR, GRID_UP_VECTOR)); // forward
+    rot.columns[1] = Normalize(GRID_UP_VECTOR); // up
+    rot.columns[2] = Normalize(GRID_RIGHT_VECTOR); // right
+    return rot;
 }
 
 float SnapToMapEditorGrid(float beforeSnap)
@@ -1091,7 +1092,7 @@ float SnapToMapEditorGrid(float beforeSnap)
 vec3 SnapToMapEditorGrid(vec3 beforeSnap)
 {
     vec3 snaptemp = beforeSnap;
-    mat3 rot = QuatToMat3(GetGridOrientation());
+    mat3 rot = GetGridRotationMatrix();
     mat3 invRot = rot.GetInverse();
     snaptemp = snaptemp - GRID_ORIGIN;
     snaptemp = invRot * snaptemp;
@@ -1847,9 +1848,10 @@ void TickMapEditor()
                 float xcomponent = Dot(startToEndVector, drawingvertical);
                 vec3 startToEndProjOnToHorizontal = zcomponent * drawinghorizontal;
                 vec3 startToEndProjOnToVertical = xcomponent * drawingvertical;
-                
+
                 GRID_ORIGIN = rectendpoint;
                 GRID_UP_VECTOR = startToEndProjOnToHorizontal;
+                GRID_RIGHT_VECTOR = startToEndProjOnToVertical;
 
                 // let plane be defined at point rectendpoint with normal -cameraDirection
                 // then the point of intersection between mouse ray and the plane - endrectpoint and project it onto

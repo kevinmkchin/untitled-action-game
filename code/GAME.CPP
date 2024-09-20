@@ -1230,13 +1230,13 @@ static void RenderMapEditorLayer()
         glDisable(GL_DEPTH_TEST);
     glDisable(GL_CULL_FACE);
     vec3 gridTranslation = vec3(SnapToMapEditorGrid(editorCameraPosition.x), 0.f, SnapToMapEditorGrid(editorCameraPosition.z));
-    quat gridOrientation = quat();
+    mat3 gridRotation = mat3();
     if (GRID_ORIGIN != vec3())
     {
         gridTranslation = GRID_ORIGIN;
-        gridOrientation = GetGridOrientation();
+        gridRotation = GetGridRotationMatrix();
     }
-    DrawGrid(GRID_INCREMENT, gridOrientation, gridTranslation, &perspectiveMatrix, &viewMatrix, renderTargetGame.depthTexId, vec2((float)renderTargetGame.width,(float)renderTargetGame.height));
+    DrawGrid(GRID_INCREMENT, gridRotation, gridTranslation, &perspectiveMatrix, &viewMatrix, renderTargetGame.depthTexId, vec2((float)renderTargetGame.width,(float)renderTargetGame.height));
     PrimitiveDrawAll(&perspectiveMatrix, &viewMatrix, renderTargetGame.depthTexId, vec2((float)renderTargetGame.width,(float)renderTargetGame.height));
 
     // // UseShader(editorShader_Wireframe);
