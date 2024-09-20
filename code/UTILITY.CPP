@@ -949,9 +949,9 @@ void InitPrimitivesAndHandlesSystems()
     CreateGPUFrameBuffer(&mousePickingRenderTarget);
 }
 
-void DrawGrid(float scale, quat orientation, vec3 translation, const mat4 *projectionMatrix, const mat4 *viewMatrix, GLuint sceneDepthTextureId, vec2 framebufferSize)
+void DrawGrid(float scale, mat3 rotation, vec3 translation, const mat4 *projectionMatrix, const mat4 *viewMatrix, GLuint sceneDepthTextureId, vec2 framebufferSize)
 {
-    mat4 transformMatrix = TranslationMatrix(translation) * RotationMatrix(orientation) * ScaleMatrix(scale, scale, scale);
+    mat4 transformMatrix = TranslationMatrix(translation) * mat4(rotation) * ScaleMatrix(scale, scale, scale);
 
     UseShader(GRID_MESH_SHADER);
     GLBindMatrix4fv(GRID_MESH_SHADER, "projectionMatrix", 1, projectionMatrix->ptr());
