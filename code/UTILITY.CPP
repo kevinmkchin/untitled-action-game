@@ -244,7 +244,6 @@ struct ByteBuffer
 
 void ByteBufferInit(ByteBuffer* buffer)
 {
-    // TODO(Kevin): If using custom memory alloc, replace the following line
     buffer->data = (uint8_t*) malloc(BYTE_BUFFER_DEFAULT_CAPACITY);
     memset(buffer->data, 0, BYTE_BUFFER_DEFAULT_CAPACITY);
     buffer->position = 0;

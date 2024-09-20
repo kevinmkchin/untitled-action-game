@@ -1,21 +1,19 @@
 /*
 
 TODO:
-- Move volume mode/tool (don't need whole tool...maybe make brush tool part of this mode? like trenchbroom)
-- Make simple playground level
-- SHOOTING ENEMY
+- Make simple textured playground level
+- Skeletal animations
+- Enemy moves and shoots at player
+
 
 - serialize/deserialize asset database
-- build/load level LIGHT MAP info
+- better collision surfaces
+- move volume mode/tool (don't need whole tool...maybe make brush tool part of this mode? like trenchbroom)
 - multi select vertices need to be fixed
-- Edge select
+- edge select
 
 EPICS:
-- Basic layout and structures of maps can be created, they are textured
-    - handles (have render pick ID, reference a Vert, or Edge, or Face?)
-- Build maps and load into fps game
-- Lighting
-- Can navigate map with collisions
+- Lighting (build/load level LIGHT MAP info)
 - Enemy billboards two behaviour:
     - walk towards player
     - stop and shoot after split second to shoot projectile at player, projectile hurts player health
@@ -37,9 +35,9 @@ use flat faces for collision? instead of meshes? GJK EPA code accepts 2D meshes
 Priorty #1 is building the game, not the engine/tech
 Engine work is almost done. 
 ~~Octree collision acceleration~~
-Lightmap baking (potentially radiosity) 
 Skeletal animations
 Navmesh/pathfinding
+Lightmap baking (potentially radiosity) 
 Those are the hard things left.
 
 

@@ -503,7 +503,7 @@ namespace MapEdit
 
     void TriangulateFace_QuickDumb(const Face f, std::vector<float> *vb)
     {
-        // TODO Figure out a good way for triangulating arbitrary simple polygons in 3d space which
+        // TODO(Kevin): Figure out a good way for triangulating arbitrary simple polygons in 3d space which
         // may not have coplanar vertices...and then do delaunay and flipping for nicer triangles...
         // https://swaminathanj.github.io/cg/PolygonTriangulation.html#:~:text=Let%20v%20be%20a%20vertex,has%20at%20least%20two%20ears.
 
@@ -668,13 +668,20 @@ void LoadMapEditor()
 
 void CloseMapEditor()
 {
-    // todo
+    // TODO(Kevin)
 }
 
 #define MAPSER_VOLUMES_U64_DIVIDER_START 0x49779b0ef139ca39
 #define MAPSER_VOLUMES_U64_DIVIDER_END   0x9fcf207673e66e63 
 #define DESER_FACE_ADDITIONAL_SIZE 60
 
+// TODO(Kevin): add binary format file data
+// [4 bytes] : file type identifier
+// [4 bytes] : 0x00000000
+// [4 bytes] : file serial version 
+// [4 bytes] : payload size n
+// [n bytes] : payload
+// [4 bytes] : EOF identifier
 
 bool EditorSerializeMap(const char *mapFilePath)
 {
@@ -1441,7 +1448,7 @@ void TickMapEditor()
         Gui::EndWindow();
     }
 
-    // TODO (Kevin): Have shortcuts for these actions so you can go click click shortcut click click shortcut
+    // TODO(Kevin): Have shortcuts for these actions so you can go click click shortcut click click shortcut
     Gui::EditorLabelledButton("Apply Texture to Volume");
     if (Session.SelectedFace != NULL && Gui::EditorLabelledButton("Apply Texture to Face"))
     {
