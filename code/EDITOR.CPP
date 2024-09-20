@@ -1081,22 +1081,19 @@ mat3 GetGridRotationMatrix()
     return rot;
 }
 
-float SnapToMapEditorGrid(float beforeSnap)
+float SnapToGrid(float beforeSnap)
 {
-    int adjustedBeforeSnap = int(roundf(beforeSnap) + ((beforeSnap < 0.f ? -0.5f : 0.5f) * GRID_INCREMENT));
-    // TODO(Kevin): fix divide by zero when GRID_INCREMENT is less than 1
-    int snapped = adjustedBeforeSnap - adjustedBeforeSnap % (int)(GRID_INCREMENT);
-    return (float)snapped;
+    return roundf(beforeSnap / GRID_INCREMENT) * GRID_INCREMENT;
 }
 
-vec3 SnapToMapEditorGrid(vec3 beforeSnap)
+vec3 SnapToGrid(vec3 beforeSnap)
 {
     vec3 snaptemp = beforeSnap;
     mat3 rot = GetGridRotationMatrix();
     mat3 invRot = rot.GetInverse();
     snaptemp = snaptemp - GRID_ORIGIN;
     snaptemp = invRot * snaptemp;
-    snaptemp = vec3(SnapToMapEditorGrid(snaptemp.x), SnapToMapEditorGrid(snaptemp.y), SnapToMapEditorGrid(snaptemp.z));
+    snaptemp = vec3(SnapToGrid(snaptemp.x), SnapToGrid(snaptemp.y), SnapToGrid(snaptemp.z));
     snaptemp = rot * snaptemp;
     snaptemp = snaptemp + GRID_ORIGIN;
     return snaptemp;
@@ -1569,14 +1566,14 @@ void TickMapEditor()
                 IntersectPlaneAndLineWithDirections(DragPlanePoint, vec3(-cameraDirection.x, 0.f, -cameraDirection.z), worldpos_mouse, worldray_mouse, &intersect);
                 float yTranslation = Dot((intersect - DragPlanePoint), GM_UP_VECTOR);
                 TotalTranslation = vec3(0.f,yTranslation,0.f);
-                TotalTranslation = SnapToMapEditorGrid(TotalTranslation);
+                TotalTranslation = SnapToGrid(TotalTranslation);
             }
             else
             {
                 vec3 intersect;
                 IntersectPlaneAndLine(DragPlanePoint, GM_UP_VECTOR, worldpos_mouse, worldray_mouse, &intersect);
                 TotalTranslation = intersect - DragPlanePoint;
-                TotalTranslation = SnapToMapEditorGrid(TotalTranslation);
+                TotalTranslation = SnapToGrid(TotalTranslation);
             }
 
             if (keyscurrent[SDL_SCANCODE_ESCAPE])
@@ -1674,14 +1671,14 @@ void TickMapEditor()
                 IntersectPlaneAndLineWithDirections(DragPlanePoint, vec3(-cameraDirection.x, 0.f, -cameraDirection.z), worldpos_mouse, worldray_mouse, &intersect);
                 float yTranslation = Dot((intersect - DragPlanePoint), GM_UP_VECTOR);
                 TotalTranslation = vec3(0.f,yTranslation,0.f);
-                TotalTranslation = SnapToMapEditorGrid(TotalTranslation);
+                TotalTranslation = SnapToGrid(TotalTranslation);
             }
             else
             {
                 vec3 intersect;
                 IntersectPlaneAndLine(DragPlanePoint, GM_UP_VECTOR, worldpos_mouse, worldray_mouse, &intersect);
                 TotalTranslation = intersect - DragPlanePoint;
-                TotalTranslation = SnapToMapEditorGrid(TotalTranslation);
+                TotalTranslation = SnapToGrid(TotalTranslation);
             }
 
             if (keyscurrent[SDL_SCANCODE_ESCAPE])
@@ -1778,7 +1775,7 @@ void TickMapEditor()
                         rectstartpoint = ws + wr * f;
                         drawingplanenormal = GM_UP_VECTOR;
                     }
-                    rectstartpoint = SnapToMapEditorGrid(rectstartpoint);
+                    rectstartpoint = SnapToGrid(rectstartpoint);
                     // no matter what, at least one of these vectors is GM_RIGHT_VECTOR rotated around y-axis.
                     vec3 flattenedNormal = vec3(drawingplanenormal.x, 0.f, drawingplanenormal.z);
                     if (Magnitude(flattenedNormal) < 0.001f)
@@ -1802,7 +1799,7 @@ void TickMapEditor()
                     vec3 intersection;
                     IntersectPlaneAndLineWithDirections(rectstartpoint, drawingplanenormal, ws, wr, &intersection);
                     vec3 endpoint = intersection;
-                    endpoint = SnapToMapEditorGrid(endpoint);
+                    endpoint = SnapToGrid(endpoint);
                     vec3 startToEndVector = vec3(endpoint - rectstartpoint);
 
                     // PrimitiveDrawSolidDisc(rectstartpoint, drawingplanenormal, 4, vec4(0,0,1,1));
@@ -1827,7 +1824,7 @@ void TickMapEditor()
                     vec3 intersection;
                     IntersectPlaneAndLineWithDirections(rectstartpoint, drawingplanenormal, ws, wr, &intersection);
                     rectendpoint = intersection;
-                    rectendpoint = SnapToMapEditorGrid(rectendpoint);
+                    rectendpoint = SnapToGrid(rectendpoint);
                     vec3 startToEndVector = vec3(rectendpoint - rectstartpoint);
                     vec3 startToEndProjOnToHorizontal = Dot(startToEndVector, drawinghorizontal) * drawinghorizontal;
                     vec3 startToEndProjOnToVertical = Dot(startToEndVector, drawingvertical) * drawingvertical;
@@ -1866,7 +1863,7 @@ void TickMapEditor()
                 vec3 intersection;
                 IntersectPlaneAndLineWithDirections(pp, pn, wp, wr, &intersection);
                 float trueHeightComp = Dot((intersection - rectendpoint), drawingSurfaceNormal);
-                float heightcomponent = SnapToMapEditorGrid(trueHeightComp);
+                float heightcomponent = SnapToGrid(trueHeightComp);
                 height = heightcomponent * drawingSurfaceNormal;
                 heightBeforeSnap = trueHeightComp * drawingSurfaceNormal;
 
