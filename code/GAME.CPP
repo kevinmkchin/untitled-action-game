@@ -1229,7 +1229,7 @@ static void RenderMapEditorLayer()
     else
         glDisable(GL_DEPTH_TEST);
     glDisable(GL_CULL_FACE);
-    vec3 gridTranslation = vec3(SnapToMapEditorGrid(editorCameraPosition.x), 0.f, SnapToMapEditorGrid(editorCameraPosition.z));
+    vec3 gridTranslation = vec3(SnapToGrid(editorCameraPosition.x), 0.f, SnapToGrid(editorCameraPosition.z));
     mat3 gridRotation = mat3();
     if (GRID_ORIGIN != vec3())
     {
