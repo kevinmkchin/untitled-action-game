@@ -660,7 +660,7 @@ void LoadMapEditor()
     LoadNewTextureToDB(wd_path("../textures/example_14.jpg").c_str());
     LoadNewTextureToDB(wd_path("../textures/example_16.jpg").c_str());
     LoadNewTextureToDB(wd_path("../textures/example_17.jpg").c_str());
-    LoadNewTextureToDB(wd_path("../textures/example_18.jpg").c_str());
+    LoadNewTextureToDB(wd_path("../textures/sld_gegfblock02b_64.jpg").c_str());
     LoadNewTextureToDB(wd_path("../textures/example_19.jpg").c_str());
     LoadNewTextureToDB(wd_path("../textures/example_20.jpg").c_str());
     Session.SelectedTexture = defaultTexureAsset;

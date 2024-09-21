@@ -4,7 +4,8 @@ TODO:
 - Make simple textured playground level
 - Skeletal animations
 - Enemy moves and shoots at player
-
+- Gun model?
+- Player shoots at enemy
 
 - serialize/deserialize asset database
 - better collision surfaces
@@ -58,6 +59,15 @@ that my movement direction. This is a fact.
 
 I think I just need to be more intentional with assigning colliders? and each surface collider should have
 a resolution normal defined.
+
+
+
+Notes:
+
+    64x64 pixel texture for each 32x32 unit in game looks decent
+    
+    try for every 16 units in the game, 1 lightmap sample
+
 
 */
 
@@ -133,12 +143,14 @@ typedef int_fast32_t  i32f;
 typedef i16           bool16;
 typedef i32           bool32;
 
+#if (defined _MSC_VER)
+#define ALWAYSASSERT(predicate) if(!(predicate)) { __debugbreak(); }
+#else
+#define ALWAYSASSERT(predicate) if(!(predicate)) { __builtin_trap(); }
+#endif
+
 #if INTERNAL_BUILD
-    #if (defined _MSC_VER)
-    #define ASSERT(predicate) if(!(predicate)) { __debugbreak(); }
-    #else
-    #define ASSERT(predicate) if(!(predicate)) { __builtin_trap(); }
-    #endif
+    #define ASSERT(predicate) ALWAYSASSERT(predicate)
 #else
     #define ASSERT(predicate)
 #endif
@@ -537,10 +549,6 @@ static void CreateGPUTextureFromBitmap(GPUTexture        *texture,
 
     glGenTextures(1, &texture->id);   // generate texture and grab texture id
     glBindTexture(GL_TEXTURE_2D, texture->id);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT); // wrapping
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, min_filter_mode); // filtering (e.g. GL_NEAREST)
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, mag_filter_mode);
     glTexImage2D(
             GL_TEXTURE_2D,            // texture target type
             0,                        // level-of-detail number n = n-th mipmap reduction image
@@ -551,6 +559,12 @@ static void CreateGPUTextureFromBitmap(GPUTexture        *texture,
             source_format,            // format of data being loaded (source)
             GL_UNSIGNED_BYTE,         // data type of the texture data
             bitmap);                  // data
+    if (min_filter_mode == GL_NEAREST_MIPMAP_LINEAR || min_filter_mode == GL_NEAREST_MIPMAP_NEAREST)
+        glGenerateMipmap(GL_TEXTURE_2D);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT); // wrapping
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, min_filter_mode); // filtering (e.g. GL_NEAREST)
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, mag_filter_mode);
     glBindTexture(GL_TEXTURE_2D, 0);
 }
 
@@ -604,54 +618,58 @@ static void DeleteGPUTexture(GPUTexture *texture)
     texture->format = GL_NONE;
 }
 
-static void GLActiveTextureUnit0(GLuint textureId)
+
+
+struct ModelGLTF
 {
-    // if (textureId == 0)
-    // {
-    //     glActiveTexture(GL_TEXTURE0);
-    //     glBindTexture(GL_TEXTURE_2D, Resources.defaultMissingTexture.textureId);
-    // }
-    // else
-    // {
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, textureId);
-    // }
-}
-
-
-
-struct MeshGroup
-{
-    std::vector<GPUMesh>     meshes;
-    std::vector<GPUTexture>  textures;
-    std::vector<u16>         meshToTextureMap; // stores index of textures element corresponding to mesh
-    std::string              filePath = "";
+    GPUMesh    *meshes   = NULL;
+    GPUTexture *color    = NULL;
+    // animations and bones and shit
 };
 
-static void MeshGroupRender(MeshGroup *meshgroup)
+void FreeModelGLTF(ModelGLTF model)
 {
-    for (size_t i = 0; i < meshgroup->meshes.size(); ++i)
+    ASSERT(arrlen(model.meshes) == arrlen(model.color));
+
+    size_t meshcount = arrlenu(model.meshes);
+    for (size_t i = 0; i < meshcount; ++i)
     {
-        u16 materialIndex = meshgroup->meshToTextureMap[i];
-        if (materialIndex < meshgroup->textures.size())
-        {
-            // GLActiveTextureUnit0(meshgroup->textures[materialIndex].id);
-        }
-        RenderGPUMesh(meshgroup->meshes[i]);
+        DeleteGPUMesh(&model.meshes[i]);
+        DeleteGPUTexture(&model.color[i]);
+    }
+
+    arrfree(model.meshes);
+    arrfree(model.color);
+}
+
+void RenderModelGLTF(ModelGLTF model)
+{
+    size_t meshcount = arrlenu(model.meshes);
+    for (size_t i = 0; i < meshcount; ++i)
+    {
+        GPUMesh    m = model.meshes[i];
+        GPUTexture t = model.color[i];
+
+        // TODO(Kevin): if t.id is 0 then bind MissingTexture 
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, t.id);
+
+        RenderGPUMesh(m);
     }
 }
 
-static GPUMesh __assimpLoadMeshHelper(aiMesh* meshNode)
+GPUMesh ASSIMPMeshToGPUMesh(aiMesh* meshNode)
 {
-    const u8 vb_entries_per_vertex = 8;
-    std::vector<float> vb(meshNode->mNumVertices * vb_entries_per_vertex);
+    const u32 vertexStride = 8;
+
+    std::vector<float> vb(meshNode->mNumVertices * vertexStride);
     std::vector<u32> ib(meshNode->mNumFaces * meshNode->mFaces[0].mNumIndices);
     if (meshNode->mTextureCoords[0])
     {
         for (size_t i = 0; i < meshNode->mNumVertices; ++i)
         {
             // mNormals and mVertices are both mNumVertices in size
-            size_t v_start_index = i * vb_entries_per_vertex;
+            size_t v_start_index = i * vertexStride;
             vb[v_start_index] = meshNode->mVertices[i].x;
             vb[v_start_index + 1] = meshNode->mVertices[i].y;
             vb[v_start_index + 2] = meshNode->mVertices[i].z;
@@ -666,7 +684,7 @@ static GPUMesh __assimpLoadMeshHelper(aiMesh* meshNode)
     {
         for (size_t i = 0; i < meshNode->mNumVertices; ++i)
         {
-            size_t v_start_index = i * vb_entries_per_vertex;
+            size_t v_start_index = i * vertexStride;
             vb[v_start_index] = meshNode->mVertices[i].x;
             vb[v_start_index + 1] = meshNode->mVertices[i].y;
             vb[v_start_index + 2] = meshNode->mVertices[i].z;
@@ -683,7 +701,7 @@ static GPUMesh __assimpLoadMeshHelper(aiMesh* meshNode)
         aiFace face = meshNode->mFaces[i];
         for (size_t j = 0; j < face.mNumIndices; ++j)
         {
-            ib[i * face.mNumIndices + j] = face.mIndices[j]; // prob sometimes not correct to index ib this way
+            ib[i * face.mNumIndices + j] = face.mIndices[j];
         }
     }
 
@@ -692,94 +710,92 @@ static GPUMesh __assimpLoadMeshHelper(aiMesh* meshNode)
     return mesh;
 }
 
-static MeshGroup MeshGroupLoad(const char* fileName)
+bool LoadModelGLTF2Bin(ModelGLTF *model, const char *filepath)
 {
     Assimp::Importer importer;
-    /*  NOTE: To create smooth normals respecting edges sharper than a given angle,
-        use importer.SetPropertyFloat("PP_GSN_MAX_SMOOTHING_ANGLE", 90) along with
-        aiProcess_GenSmoothNormals flag. https://github.com/assimp/assimp/issues/1713
 
-        aiProcess_GenSmoothNormals
-        This flag may not be specified together with #aiProcess_GenNormals. There's
-        a importer property, #AI_CONFIG_PP_GSN_MAX_SMOOTHING_ANGLE which allows you to
-        specify an angle maximum for the normal smoothing algorithm. Normals exceeding
-        this limit are not smoothed, resulting in a 'hard' seam between two faces.
-        Using a decent angle here (e.g. 80 degrees) results in very good visual
-        appearance. To create smooth normals respecting edges sharper than a given angle,
-        use importer.SetPropertyFloat("PP_GSN_MAX_SMOOTHING_ANGLE", 90) along with
-        aiProcess_GenSmoothNormals flag. https://github.com/assimp/assimp/issues/1713
+    const aiScene *scene = importer.ReadFile(filepath,
+        aiProcess_Triangulate);
 
-        aiProcess_JoinIdenticalVertices
-        is compulsory for indexed drawing. This still works with flat shaded geometry
-        because it only joins vertices that are identical in both position and normal.
-        e.g. a flat shaded cube will have 24 vertices after joining because each side
-        of the cube will have 4 unique vertices and the vertices at the corners will
-        not be shared by multiple faces of the cube because they will have different
-        normals even though their positions are the same.
-    */
-    MeshGroup meshGroupToLoadTo;
-
-    const aiScene* scene = importer.ReadFile(fileName,
-        aiProcess_Triangulate
-        | aiProcess_GenNormals
-        | aiProcess_FlipUVs // textures were fucked cuz this line was missing
-        | aiProcess_JoinIdenticalVertices
-    );
-    if (!scene)
+    if (!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode)
     {
-        printf("Model '%s' failed to load: %s\n", fileName, importer.GetErrorString());
-        return meshGroupToLoadTo;
+        LogError("ASSIMP failed to load file at '%s'.\nErr msg: %s", filepath, importer.GetErrorString());
+        return false;
     }
 
+    // == Load and create all the textures ==
+    // For each material, I'm only going to load one texture per texture type.
+    // I'm only going to support embedded textures (GLB).
+    // Assume 8-bit per channel RGBA format for texture input format
 
-    meshGroupToLoadTo.meshes = std::vector<GPUMesh>(scene->mNumMeshes);
-    meshGroupToLoadTo.textures = std::vector<GPUTexture>(scene->mNumMaterials);
-    meshGroupToLoadTo.meshToTextureMap = std::vector<u16>(scene->mNumMeshes);
+    GPUTexture *matEmissiveTextures = NULL;
 
-    // Unpack meshes
-    for (size_t i = 0; i < scene->mNumMeshes; ++i)
+    for (u32 matIndex = 0; matIndex < scene->mNumMaterials; ++matIndex)
     {
-        aiMesh* mesh_node = scene->mMeshes[i];
-        meshGroupToLoadTo.meshes[i] = __assimpLoadMeshHelper(mesh_node);
-        meshGroupToLoadTo.meshToTextureMap[i] = mesh_node->mMaterialIndex;
-    }
+        aiMaterial *mat = scene->mMaterials[matIndex];
 
-    // Load diffuse textures
-    for (size_t i = 0; i < scene->mNumMaterials; ++i)
-    {
-        aiMaterial* mat = scene->mMaterials[i];
-        if (mat->GetTextureCount(aiTextureType_DIFFUSE))
+        GPUTexture gputexEmissive;
+        if (mat->GetTextureCount(aiTextureType_EMISSIVE))
         {
             aiString path;
-            if (mat->GetTexture(aiTextureType_DIFFUSE, 0, &path) == AI_SUCCESS)
+            if (mat->GetTexture(aiTextureType_EMISSIVE, 0, &path) == AI_SUCCESS)
             {
-                int idx = (int)std::string(path.data).find_last_of("\\");
-                std::string texture_file_name = std::string(path.data).substr(idx + 1);
-                std::string model_file_directory = std::string(fileName);
-                idx = GM_max((int)model_file_directory.find_last_of("/"), (int)model_file_directory.find_last_of("\\"));
-                model_file_directory = model_file_directory.substr(0, idx + 1);
+                ALWAYSASSERT(path.C_Str()[0] == '*'); // Assert texture is embedded into the binary
 
-                std::string tex_path = model_file_directory + texture_file_name;
-                CreateGPUTextureFromDisk(&meshGroupToLoadTo.textures[i], tex_path.c_str());
+                int textureIndex = std::atoi(path.C_Str()+1); // Skip the '*' character
+                
+                ALWAYSASSERT(textureIndex >= 0 && textureIndex < (int)scene->mNumTextures);
+
+                aiTexture *texture = scene->mTextures[textureIndex];
+
+                bool compressed = texture->mHeight == 0;
+                u8 *rawPixelData = (u8*)texture->pcData;
+                i32 width = texture->mWidth; // Width is stored in mWidth for uncompressed
+                i32 height = texture->mHeight; // Height is stored in mHeight for uncompressed
+
+                // Uncompress if compressed format (e.g. PNG / JPG)
+                if (compressed)
+                {
+                    u8 *compressedImageData = (u8*)texture->pcData;
+                    i32 channelsInFile;
+                    rawPixelData = stbi_load_from_memory(compressedImageData, texture->mWidth, &width, &height, &channelsInFile, 0);
+                    ALWAYSASSERT(channelsInFile == 4);
+                }
+
+                ALWAYSASSERT(rawPixelData);
+
+                CreateGPUTextureFromBitmap(&gputexEmissive, rawPixelData, width, height, 
+                    GL_RGBA, GL_RGBA, GL_NEAREST, GL_NEAREST);
+
+                if (compressed)
+                {
+                    stbi_image_free(rawPixelData);
+                }
             }
         }
+        arrput(matEmissiveTextures, gputexEmissive);
     }
 
-    return meshGroupToLoadTo;
-}
+    ASSERT(scene->mNumMeshes > 0);
+    ASSERT(model->meshes == NULL);
 
-static void MeshGroupDelete(MeshGroup *modelToDelete)
-{
-    for (auto& mesh : modelToDelete->meshes)
+    arrsetcap(model->meshes, scene->mNumMeshes);
+    arrsetcap(model->color, scene->mNumMeshes);
+
+    for (u32 meshIndex = 0; meshIndex < scene->mNumMeshes; ++meshIndex)
     {
-        DeleteGPUMesh(&mesh);
+        aiMesh* meshNode = scene->mMeshes[meshIndex];
+        GPUMesh gpumesh = ASSIMPMeshToGPUMesh(meshNode);
+        u32 matIndex = meshNode->mMaterialIndex;
+        GPUTexture colorTex = matEmissiveTextures[matIndex];
+
+        arrput(model->meshes, gpumesh);
+        arrput(model->color, colorTex);
     }
-    modelToDelete->meshes.clear();
-    for (auto& texture : modelToDelete->textures)
-    {
-        DeleteGPUTexture(&texture);
-    }
-    modelToDelete->textures.clear();
+
+    arrfree(matEmissiveTextures);
+
+    return true;
 }
 
 
@@ -919,7 +935,6 @@ MeshCollider *BodyguardEnemyColliderAtPos(vec3 worldPos)
     return &bodyguardEnemyCollider;
 }
 
-MeshGroup mg_Enemy_Bodyguard;
 
 struct BodyguardEnemy
 {
@@ -927,6 +942,8 @@ struct BodyguardEnemy
     vec3 facing;
 };
 BodyguardEnemy enemy0;
+
+ModelGLTF model_Knight;
 
 
 #include "EDITOR.CPP"
@@ -937,10 +954,12 @@ static void Stuff()
     SDL_SetRelativeMouseMode(SDL_TRUE);
 
     CreateGPUTextureFromDisk(&tex_Missing, wd_path("missing_texture.png").c_str());
-    mg_Enemy_Bodyguard = MeshGroupLoad(wd_path("enemy_bodyguard.obj").c_str());
-    enemy0.root = vec3(-320, 0, -320);
+    enemy0.root = vec3(-200, 0, -200);
 
     sfx_Jump = Mixer_LoadChunk(wd_path("gunshot-37055.ogg").c_str());
+
+    LoadModelGLTF2Bin(&model_Knight, wd_path("models/knight.glb").c_str());
+
 
 //    FaceBatch fb0;
 //    CreateFaceBatchMeshOnGPU(&fb0.idVAO, &fb0.idVBO);
@@ -1101,8 +1120,7 @@ static void RenderGameLayer()
 
     modelMatrix = TranslationMatrix(enemy0.root) * RotationMatrix(DirectionToOrientation(enemy0.facing));
     GLBindMatrix4fv(sceneShader, "modelMatrix", 1, modelMatrix.ptr());
-    GLActiveTextureUnit0(tex_Missing.id);
-    MeshGroupRender(&mg_Enemy_Bodyguard);
+    RenderModelGLTF(model_Knight);
 
     // PRIMITIVES
     if (keyspressed[SDL_SCANCODE_X])
@@ -1517,10 +1535,10 @@ int main(int argc, char* argv[])
         Gui::NewFrame();
         ProcessSDLEvents();
 
-        // TickGame();
-        // DrawGame();
-        TickMapEditor();
-        DrawMapEditor();
+        TickGame();
+        DrawGame();
+        // TickMapEditor();
+        // DrawMapEditor();
 
         SDL_GL_SwapWindow(g_MainSDLWindow);
 
