@@ -157,6 +157,10 @@ typedef i32           bool32;
 
 inline std::string wd_path() { return std::string(PROJECT_WORKING_DIR); }
 inline std::string wd_path(const std::string& name) { return wd_path() + std::string(name); }
+inline std::string model_path() { return wd_path() + "models/"; }
+inline std::string model_path(const std::string& name) { return wd_path() + "models/" + name; }
+inline std::string texture_path() { return wd_path() + "textures/"; }
+inline std::string texture_path(const std::string& name) { return wd_path() + "textures/" + name; }
 inline std::string data_path() { return wd_path() + "data/"; }
 inline std::string data_path(const std::string& name) { return wd_path() + "data/" + name; }
 
@@ -559,7 +563,10 @@ static void CreateGPUTextureFromBitmap(GPUTexture        *texture,
             source_format,            // format of data being loaded (source)
             GL_UNSIGNED_BYTE,         // data type of the texture data
             bitmap);                  // data
-    if (min_filter_mode == GL_NEAREST_MIPMAP_LINEAR || min_filter_mode == GL_NEAREST_MIPMAP_NEAREST)
+    if (min_filter_mode == GL_NEAREST_MIPMAP_LINEAR || 
+        min_filter_mode == GL_NEAREST_MIPMAP_NEAREST ||
+        min_filter_mode == GL_LINEAR_MIPMAP_NEAREST ||
+        min_filter_mode == GL_LINEAR_MIPMAP_LINEAR)
         glGenerateMipmap(GL_TEXTURE_2D);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT); // wrapping
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
@@ -899,8 +906,8 @@ std::vector<StaticMeshCollider> GameLevelColliders;
 Octree GameLevelCollisionTree;
 std::vector<FaceBatch> GameLevelFaceBatches;
 
-vec3 playerControllerRoot = vec3(100,10,100);
-vec3 cameraRotation = vec3(0,130,-30);
+vec3 playerControllerRoot = vec3(215.f,0.01f,-38.7f);
+vec3 cameraRotation = vec3(0,192.3f,7.56f);// vec3(0,130,-30);
 vec3 cameraDirection;
 vec3 cameraRight;
 vec3 cameraUp;
@@ -1063,6 +1070,8 @@ static void TickGame()
     // PLAYER CAMERA 
     vec3 cameraPosOffsetFromRoot = vec3(0,40,0);
     vec3 cameraPosition = playerControllerRoot + cameraPosOffsetFromRoot;
+    // LogMessage("pos %f, %f, %f", playerControllerRoot.x, playerControllerRoot.y, playerControllerRoot.z);
+    // LogMessage("dir y %f, z %f\n", cameraRotation.y, cameraRotation.z);
 
     static float camLean = 0.f;
     static float desiredCamLean = 0.f;
@@ -1120,7 +1129,7 @@ static void RenderGameLayer()
 
     modelMatrix = TranslationMatrix(enemy0.root) * RotationMatrix(DirectionToOrientation(enemy0.facing));
     GLBindMatrix4fv(sceneShader, "modelMatrix", 1, modelMatrix.ptr());
-    RenderModelGLTF(model_Knight);
+    // RenderModelGLTF(model_Knight);
 
     // PRIMITIVES
     if (keyspressed[SDL_SCANCODE_X])
@@ -1523,7 +1532,7 @@ int main(int argc, char* argv[])
 
     LoadMapEditor();
 
-    if (LoadGameMap(wd_path("textures.map").c_str()) == false)
+    if (LoadGameMap(wd_path("LightTest.map").c_str()) == false)
         LogError("failed to load game map");
 
     while (!g_ProgramShouldShutdown)
@@ -1537,8 +1546,8 @@ int main(int argc, char* argv[])
 
         TickGame();
         DrawGame();
-        // TickMapEditor();
-        // DrawMapEditor();
+        //TickMapEditor();
+        //DrawMapEditor();
 
         SDL_GL_SwapWindow(g_MainSDLWindow);
 

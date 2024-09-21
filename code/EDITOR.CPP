@@ -35,10 +35,13 @@ namespace MapEdit
         // For map editor rendering. Each face is its own mesh. Don't optimize until my PC chugs while map editing.
         FaceBatch facemesh;
         db_tex_t texture;
+        // bool receivelight; mark whether to generate light map
+        // bool hascollision; mark whether to generate collider
+        u32 elemId = 0;
+
         i32 EDITOR_FACES_INDEX = -1;
         bool hovered = false;
 
-        u32 elemId = 0;
 
 
         int RefreshLoopLen()
@@ -652,17 +655,23 @@ std::vector<float> MY_VERTEX_BUFFER;
 void LoadMapEditor()
 {
     db_tex_t defaultTexureAsset = LoadNewTextureToDB(wd_path("default.png").c_str());
-    LoadNewTextureToDB(wd_path("../textures/example_1.jpg").c_str());
-    LoadNewTextureToDB(wd_path("../textures/example_5.jpg").c_str());
-    LoadNewTextureToDB(wd_path("../textures/example_7.jpg").c_str());
-    LoadNewTextureToDB(wd_path("../textures/example_9.jpg").c_str());
-    LoadNewTextureToDB(wd_path("../textures/example_10.jpg").c_str());
-    LoadNewTextureToDB(wd_path("../textures/example_14.jpg").c_str());
-    LoadNewTextureToDB(wd_path("../textures/example_16.jpg").c_str());
-    LoadNewTextureToDB(wd_path("../textures/example_17.jpg").c_str());
-    LoadNewTextureToDB(wd_path("../textures/sld_gegfblock02b_64.jpg").c_str());
-    LoadNewTextureToDB(wd_path("../textures/example_19.jpg").c_str());
-    LoadNewTextureToDB(wd_path("../textures/example_20.jpg").c_str());
+    LoadNewTextureToDB(texture_path("t_bpav2.bmp").c_str());
+    LoadNewTextureToDB(texture_path("t_gf56464.bmp").c_str());
+    LoadNewTextureToDB(texture_path("t_hzdg.bmp").c_str());
+    LoadNewTextureToDB(texture_path("t_kgr2_p.bmp").c_str());
+    LoadNewTextureToDB(texture_path("t_mbrk2_1.bmp").c_str());
+    LoadNewTextureToDB(texture_path("t_vstnfcv.bmp").c_str());
+
+    LoadNewTextureToDB(texture_path("example_5.jpg").c_str());
+    LoadNewTextureToDB(texture_path("example_7.jpg").c_str());
+    LoadNewTextureToDB(texture_path("example_9.jpg").c_str());
+    LoadNewTextureToDB(texture_path("example_10.jpg").c_str());
+    LoadNewTextureToDB(texture_path("example_14.jpg").c_str());
+    LoadNewTextureToDB(texture_path("example_16.jpg").c_str());
+    LoadNewTextureToDB(texture_path("example_17.jpg").c_str());
+    LoadNewTextureToDB(texture_path("sld_gegfblock02b_64.jpg").c_str());
+    LoadNewTextureToDB(texture_path("example_19.jpg").c_str());
+    LoadNewTextureToDB(texture_path("example_20.jpg").c_str());
     Session.SelectedTexture = defaultTexureAsset;
 }
 
