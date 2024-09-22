@@ -489,7 +489,6 @@ namespace MapEdit
     void TriangulateFace_QuickDumb_WithColor(const Face f, vec3 color, float *vbdata, int *out_count)
     {
         std::vector<vec3> verticesInOrder;
-        // std::vector<vec2> ;
         Loop *l = f.loopbase;
         do {
             vec3 p = l->v->pos;
@@ -611,7 +610,99 @@ namespace MapEdit
             vb->push_back(n.y);
             vb->push_back(n.z);
         }
+    }
 
+    void TriangulateFace_QuickDumb_LMUV(const Face f, std::vector<float> *vb)
+    {
+        // TODO(Kevin): Figure out a good way for triangulating arbitrary simple polygons in 3d space which
+        // may not have coplanar vertices...and then do delaunay and flipping for nicer triangles...
+        // https://swaminathanj.github.io/cg/PolygonTriangulation.html#:~:text=Let%20v%20be%20a%20vertex,has%20at%20least%20two%20ears.
+
+        ASSERT(f.looplen > 2);
+        std::vector<vec3> verticesInOrder;
+        std::vector<vec2> lightmapUVs;
+        Loop *l = f.loopbase;
+        do {
+            vec3 p = l->v->pos;
+            verticesInOrder.push_back(p);
+            lightmapUVs.push_back(l->lmuvcache);
+            l = l->loopNext;
+        } while (l != f.loopbase && l != NULL);
+
+        for (int i = 1; i < verticesInOrder.size() - 1; ++i)
+        {
+            vec3 a = verticesInOrder[0];
+            vec3 b = verticesInOrder[i];
+            vec3 c = verticesInOrder[i+1];
+            vec3 n = Normalize(Cross(b-a, c-a));
+
+            vec2 lmuvA = lightmapUVs[0];
+            vec2 lmuvB = lightmapUVs[i];
+            vec2 lmuvC = lightmapUVs[i+1];
+
+            float uvScale = (1.f / (float)THIRTYTWO); // [0,1] being scaled to 32 units
+            float xf = GM_abs(Dot(n, vec3(1.f, 0.f, 0.f)));
+            float yf = GM_abs(Dot(n, vec3(0.f, 1.f, 0.f)));
+            float zf = GM_abs(Dot(n, vec3(0.f, 0.f, 1.f)));
+            float au;
+            float av;
+            float bu;
+            float bv;
+            float cu;
+            float cv;
+            if(xf >= yf && xf >= zf)
+            {
+                au = a.z * uvScale;
+                av = a.y * uvScale;
+                bu = b.z * uvScale;
+                bv = b.y * uvScale;
+                cu = c.z * uvScale;
+                cv = c.y * uvScale;
+            }
+            else if(yf >= xf && yf >= zf)
+            {
+                au = a.x * uvScale;
+                av = a.z * uvScale;
+                bu = b.x * uvScale;
+                bv = b.z * uvScale;
+                cu = c.x * uvScale;
+                cv = c.z * uvScale;
+            }
+            else if(zf >= xf && zf >= yf)
+            {
+                au = a.x * uvScale;
+                av = a.y * uvScale;
+                bu = b.x * uvScale;
+                bv = b.y * uvScale;
+                cu = c.x * uvScale;
+                cv = c.y * uvScale;
+            }
+
+            vb->push_back(a.x);
+            vb->push_back(a.y);
+            vb->push_back(a.z);
+            vb->push_back(lmuvA.x);
+            vb->push_back(lmuvA.y);
+            vb->push_back(n.x);
+            vb->push_back(n.y);
+            vb->push_back(n.z);
+            vb->push_back(b.x);
+            vb->push_back(b.y);
+            vb->push_back(b.z);
+            vb->push_back(lmuvB.x);
+            vb->push_back(lmuvB.y);
+            vb->push_back(n.x);
+            vb->push_back(n.y);
+            vb->push_back(n.z);
+            vb->push_back(c.x);
+            vb->push_back(c.y);
+            vb->push_back(c.z);
+            vb->push_back(lmuvC.x);
+            vb->push_back(lmuvC.y);
+            vb->push_back(n.x);
+            vb->push_back(n.y);
+            vb->push_back(n.z);
+        }
     }
 
 }
@@ -887,6 +978,10 @@ bool EditorDeserializeMap(const char *mapFilePath)
 
 bool BuildGameMap(const char *path)
 {
+    ByteBuffer mapbuf;
+    ByteBufferInit(&mapbuf);
+
+
     // need to save a bunch of FaceBatches (which are basically just meshes)
     // sort by texture, etc. every face using same texture goes into same FaceBatch
     // collider data -> just save the point clouds for mesh colliders and add to Octree while loading into game
@@ -1024,8 +1119,8 @@ bool BuildGameMap(const char *path)
     // indirect lighting between patches
 
     // pack light maps
-    int lightMapAtlasW = 400;
-    int lightMapAtlasH = 400;
+    i32 lightMapAtlasW = 400;
+    i32 lightMapAtlasH = 400;
     vec3 *LIGHT_MAP_ATLAS = NULL;
     arrsetcap(LIGHT_MAP_ATLAS, lightMapAtlasW*lightMapAtlasH);
     stbrp_node *LMPackerNodes = NULL;
@@ -1057,9 +1152,12 @@ bool BuildGameMap(const char *path)
         BlitRect((u8*)LIGHT_MAP_ATLAS, lightMapAtlasW, lightMapAtlasH, (u8*)lmface.norm, lmface.w, lmface.h, rect.x, rect.y, sizeof(vec3));
     }
 
-    CreateGPUTextureFromBitmap(&POSCOLORTESTTEX, (u8*)LIGHT_MAP_ATLAS, lightMapAtlasW, lightMapAtlasH,
-        GL_RGBA, GL_RGB, GL_NEAREST, GL_NEAREST, GL_FLOAT);
+    ByteBufferWrite(&mapbuf, i32, lightMapAtlasW);
+    ByteBufferWrite(&mapbuf, i32, lightMapAtlasH);
+    ByteBufferWriteBulk(&mapbuf, LIGHT_MAP_ATLAS, lightMapAtlasW*lightMapAtlasH*sizeof(vec3));
 
+    // save out light map atlases as part of .MAP
+    arrfree(LIGHT_MAP_ATLAS);
     arrfree(lm_rects);
     arrfree(all_lm_pos);
     arrfree(all_lm_norm);
@@ -1095,12 +1193,8 @@ bool BuildGameMap(const char *path)
         }
 
         std::vector<float>& vb = VertexBuffers.at(tex.persistId);
-        TriangulateFace_QuickDumb(*face, &vb);
+        TriangulateFace_QuickDumb_LMUV(*face, &vb);
     }
-
-    // serialize
-    ByteBuffer mapbuf;
-    ByteBufferInit(&mapbuf);
 
     // colliders
     size_t numColliderPoints = ColliderWorldPoints.size();
@@ -1136,6 +1230,16 @@ bool LoadGameMap(const char *path)
     ByteBuffer mapbuf;
     if (ByteBufferReadFromFile(&mapbuf, path) == 0)
         return false;
+
+    i32 lmw, lmh;
+    ByteBufferRead(&mapbuf, i32, &lmw);
+    ByteBufferRead(&mapbuf, i32, &lmh);
+    vec3 *lightMapData = NULL; 
+    arrsetcap(lightMapData, lmw*lmh);
+    ByteBufferReadBulk(&mapbuf, lightMapData, lmw*lmh*sizeof(vec3));
+    CreateGPUTextureFromBitmap(&POSCOLORTESTTEX, (u8*)lightMapData, lmw, lmh,
+        GL_RGB, GL_RGB, GL_NEAREST, GL_NEAREST, GL_FLOAT);
+    arrfree(lightMapData);
 
     // colliders
     size_t numColliderPoints, numColliderSpans;
@@ -1184,7 +1288,7 @@ bool LoadGameMap(const char *path)
         ASSERT(vb.size() == vertexcount);
         
         FaceBatch batch;
-        batch.sharedTexture = GetTextureByPersistId(texturePersistId).gputex;
+        batch.sharedTexture = POSCOLORTESTTEX;//GetTextureByPersistId(texturePersistId).gputex;
         CreateFaceBatchMeshOnGPU(&batch.idVAO, &batch.idVBO);
         RebindFaceBatchBufferObject(&batch, u32(sizeof(float)*vertexcount), vb.data());
         GameLevelFaceBatches.push_back(batch);
@@ -1427,9 +1531,6 @@ u32 PickFace(MapEdit::Face **faces, u32 arraycount)
 
 void TickMapEditor()
 {
-    if (POSCOLORTESTTEX.id != 0)
-        Gui::PrimitivePanel(Gui::UIRect(100,100,POSCOLORTESTTEX.width,POSCOLORTESTTEX.height), POSCOLORTESTTEX.id);
-
     IsEditorActive = true;
     SDL_SetRelativeMouseMode(mousecurrent & SDL_BUTTON(SDL_BUTTON_RIGHT) ? SDL_TRUE : SDL_FALSE);
 

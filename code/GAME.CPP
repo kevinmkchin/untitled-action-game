@@ -1009,6 +1009,8 @@ static void Stuff()
 
 static void TickGame()
 {
+    //Gui::PrimitivePanel(Gui::UIRect(0,0, 200,200), POSCOLORTESTTEX.id);
+
     // ENEMY 0
     vec3 toPlayer = playerControllerRoot - enemy0.root;
     enemy0.facing = Normalize(vec3(toPlayer.x, 0.f, toPlayer.z));
@@ -1124,19 +1126,14 @@ static void RenderGameLayer()
     GLBindMatrix4fv(gameLevelShader, "projMatrix", 1, perspectiveMatrix.ptr());
     GLBindMatrix4fv(gameLevelShader, "viewMatrix", 1, viewMatrix.ptr());
 
-    mat4 modelMatrix = mat4();
-
-    GLBindMatrix4fv(gameLevelShader, "modelMatrix", 1, modelMatrix.ptr());
-
-
     for (size_t i = 0; i < GameLevelFaceBatches.size(); ++i)
     {
         FaceBatch fb = GameLevelFaceBatches.at(i);
         RenderFaceBatch(fb);
     }
 
-    modelMatrix = TranslationMatrix(enemy0.root) * RotationMatrix(DirectionToOrientation(enemy0.facing));
-    GLBindMatrix4fv(gameLevelShader, "modelMatrix", 1, modelMatrix.ptr());
+    // modelMatrix = TranslationMatrix(enemy0.root) * RotationMatrix(DirectionToOrientation(enemy0.facing));
+    // GLBindMatrix4fv(gameLevelShader, "modelMatrix", 1, modelMatrix.ptr());
     // RenderModelGLTF(model_Knight);
 
     // PRIMITIVES
@@ -1541,7 +1538,7 @@ int main(int argc, char* argv[])
 
     LoadMapEditor();
 
-    if (LoadGameMap(wd_path("LightTest.map").c_str()) == false)
+    if (LoadGameMap(wd_path("LightTest_Normals.map").c_str()) == false)
         LogError("failed to load game map");
 
     while (!g_ProgramShouldShutdown)
@@ -1553,10 +1550,10 @@ int main(int argc, char* argv[])
         Gui::NewFrame();
         ProcessSDLEvents();
 
-        // TickGame();
-        // DrawGame();
-        TickMapEditor();
-        DrawMapEditor();
+        TickGame();
+        DrawGame();
+        //TickMapEditor();
+        //DrawMapEditor();
 
         SDL_GL_SwapWindow(g_MainSDLWindow);
 
