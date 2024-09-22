@@ -1,5 +1,6 @@
 
-static const char* __scene_shader_vs =
+
+static const char* __editor_scene_shader_vs =
     "#version 330\n"
     "\n"
     "layout (location = 0) in vec3 vertex_pos;\n"
@@ -30,7 +31,7 @@ static const char* __scene_shader_vs =
     "    LIGHT = min(lightAMB + lightDIFF, vec3(1.0));\n"
     "}";
 
-static const char* __scene_shader_fs = 
+static const char* __editor_scene_shader_fs = 
     "#version 330\n"
     "\n"
     "in vec2 uv;\n"
