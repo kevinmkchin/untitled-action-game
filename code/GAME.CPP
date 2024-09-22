@@ -1,6 +1,9 @@
 /*
 
 TODO:
+- Light map rect packing + render position or normal as color
+
+
 - Make simple textured playground level
 - Skeletal animations
 - Enemy moves and shoots at player
@@ -107,6 +110,8 @@ Notes:
 #include <stb_sprintf.h>
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
+#define STB_RECT_PACK_IMPLEMENTATION
+#include <stb_rect_pack.h>
 #define STB_TRUETYPE_IMPLEMENTATION
 #include <stb_truetype.h>
 #define VERTEXT_IMPLEMENTATION
@@ -531,13 +536,14 @@ static void DeleteGPUMesh(GPUMesh *mesh)
 }
 
 static void CreateGPUTextureFromBitmap(GPUTexture        *texture,
-                                       unsigned char     *bitmap,
+                                       void              *bitmap,
                                        u32               bitmap_width,
                                        u32               bitmap_height,
                                        GLenum            target_format,
                                        GLenum            source_format,
                                        GLenum            min_filter_mode = GL_NEAREST,
-                                       GLenum            mag_filter_mode = GL_NEAREST)
+                                       GLenum            mag_filter_mode = GL_NEAREST,
+                                       GLenum            pixel_data_type = GL_UNSIGNED_BYTE)
 {
     if (bitmap == NULL)
     {
@@ -561,7 +567,7 @@ static void CreateGPUTextureFromBitmap(GPUTexture        *texture,
             bitmap_height,            // texture height
             0,                        // must be 0 (legacy)
             source_format,            // format of data being loaded (source)
-            GL_UNSIGNED_BYTE,         // data type of the texture data
+            pixel_data_type,          // data type of the texture data
             bitmap);                  // data
     if (min_filter_mode == GL_NEAREST_MIPMAP_LINEAR || 
         min_filter_mode == GL_NEAREST_MIPMAP_NEAREST ||
@@ -583,7 +589,7 @@ static void CreateGPUTextureFromDisk(GPUTexture *texture, const char* filePath, 
         return;
 
     CreateGPUTextureFromBitmap(texture,
-                               (unsigned char*) textureBitmapHandle.memory,
+                               (void*) textureBitmapHandle.memory,
                                textureBitmapHandle.width,textureBitmapHandle.height,
                                targetFormat,
                                (textureBitmapHandle.bitDepth == 3 ? GL_RGB : GL_RGBA));
@@ -756,7 +762,7 @@ bool LoadModelGLTF2Bin(ModelGLTF *model, const char *filepath)
                 aiTexture *texture = scene->mTextures[textureIndex];
 
                 bool compressed = texture->mHeight == 0;
-                u8 *rawPixelData = (u8*)texture->pcData;
+                void *rawPixelData = (void*)texture->pcData;
                 i32 width = texture->mWidth; // Width is stored in mWidth for uncompressed
                 i32 height = texture->mHeight; // Height is stored in mHeight for uncompressed
 
@@ -765,7 +771,7 @@ bool LoadModelGLTF2Bin(ModelGLTF *model, const char *filepath)
                 {
                     u8 *compressedImageData = (u8*)texture->pcData;
                     i32 channelsInFile;
-                    rawPixelData = stbi_load_from_memory(compressedImageData, texture->mWidth, &width, &height, &channelsInFile, 0);
+                    rawPixelData = (void*)stbi_load_from_memory(compressedImageData, texture->mWidth, &width, &height, &channelsInFile, 0);
                     ALWAYSASSERT(channelsInFile == 4);
                 }
 
@@ -869,7 +875,8 @@ static void RenderFaceBatch(FaceBatch faceBatch)
 #include "COLLISION.CPP"
 
 #pragma region MORE_GLOBAL_VARIABLES
-GPUShader sceneShader;
+GPUShader gameLevelShader;
+GPUShader editorShader_Scene;
 GPUShader editorShader_Wireframe;
 GPUShader editorShader_FaceSelected;
 GPUShader finalPassShader;
@@ -897,6 +904,7 @@ Mix_Chunk *Mixer_LoadChunk(const char *filepath)
     return chunk;
 }
 
+GPUTexture POSCOLORTESTTEX;
 
 GPUTexture tex_Missing;
 Mix_Chunk *sfx_Jump;
@@ -1110,15 +1118,15 @@ static void RenderGameLayer()
     mat4 perspectiveMatrix = activePerspectiveMatrix;
     mat4 viewMatrix = activeViewMatrix;
 
-    UseShader(sceneShader);
+    UseShader(gameLevelShader);
     glEnable(GL_CULL_FACE);
 
-    GLBindMatrix4fv(sceneShader, "projMatrix", 1, perspectiveMatrix.ptr());
-    GLBindMatrix4fv(sceneShader, "viewMatrix", 1, viewMatrix.ptr());
+    GLBindMatrix4fv(gameLevelShader, "projMatrix", 1, perspectiveMatrix.ptr());
+    GLBindMatrix4fv(gameLevelShader, "viewMatrix", 1, viewMatrix.ptr());
 
     mat4 modelMatrix = mat4();
 
-    GLBindMatrix4fv(sceneShader, "modelMatrix", 1, modelMatrix.ptr());
+    GLBindMatrix4fv(gameLevelShader, "modelMatrix", 1, modelMatrix.ptr());
 
 
     for (size_t i = 0; i < GameLevelFaceBatches.size(); ++i)
@@ -1128,7 +1136,7 @@ static void RenderGameLayer()
     }
 
     modelMatrix = TranslationMatrix(enemy0.root) * RotationMatrix(DirectionToOrientation(enemy0.facing));
-    GLBindMatrix4fv(sceneShader, "modelMatrix", 1, modelMatrix.ptr());
+    GLBindMatrix4fv(gameLevelShader, "modelMatrix", 1, modelMatrix.ptr());
     // RenderModelGLTF(model_Knight);
 
     // PRIMITIVES
@@ -1158,15 +1166,15 @@ static void RenderMapEditorLayer()
     mat4 perspectiveMatrix = activePerspectiveMatrix;
     mat4 viewMatrix = activeViewMatrix;
 
-    UseShader(sceneShader);
+    UseShader(editorShader_Scene);
     glEnable(GL_CULL_FACE);
 
-    GLBindMatrix4fv(sceneShader, "projMatrix", 1, perspectiveMatrix.ptr());
-    GLBindMatrix4fv(sceneShader, "viewMatrix", 1, viewMatrix.ptr());
+    GLBindMatrix4fv(editorShader_Scene, "projMatrix", 1, perspectiveMatrix.ptr());
+    GLBindMatrix4fv(editorShader_Scene, "viewMatrix", 1, viewMatrix.ptr());
 
     mat4 modelMatrix = mat4();
 
-    GLBindMatrix4fv(sceneShader, "modelMatrix", 1, modelMatrix.ptr());
+    GLBindMatrix4fv(editorShader_Scene, "modelMatrix", 1, modelMatrix.ptr());
 
     FaceBatch selectedFaceMesh;
     FaceBatch hoveredFaceMesh;
@@ -1354,7 +1362,8 @@ static void InitGameRenderer()
     CreateGPUFrameBuffer(&renderTargetGUI);
 
 
-    GLCreateShaderProgram(sceneShader, __scene_shader_vs, __scene_shader_fs);
+    GLLoadShaderProgramFromFile(gameLevelShader, wd_path("__game_level.vert").c_str(), wd_path("__game_level.frag").c_str());
+    GLCreateShaderProgram(editorShader_Scene, __editor_scene_shader_vs, __editor_scene_shader_fs);
     GLCreateShaderProgram(editorShader_Wireframe, __editor_scene_wireframe_shader_vs, __editor_scene_wireframe_shader_fs);
     GLCreateShaderProgram(editorShader_FaceSelected, __editor_shader_face_selected_vs, __editor_shader_face_selected_fs);
     GLCreateShaderProgram(finalPassShader, __finalpass_shader_vs, __finalpass_shader_fs);
@@ -1544,10 +1553,10 @@ int main(int argc, char* argv[])
         Gui::NewFrame();
         ProcessSDLEvents();
 
-        TickGame();
-        DrawGame();
-        //TickMapEditor();
-        //DrawMapEditor();
+        // TickGame();
+        // DrawGame();
+        TickMapEditor();
+        DrawMapEditor();
 
         SDL_GL_SwapWindow(g_MainSDLWindow);
 

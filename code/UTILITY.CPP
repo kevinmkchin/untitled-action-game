@@ -31,6 +31,34 @@ int RandomInt(int min, int max)
     return retval;
 }
 
+// Blit all of B into A at x y
+void BlitRect(u8 *A, int AW, int AH, u8 *B, int BW, int BH, int x, int y, size_t pixelsz)
+{
+    AW *= (int)pixelsz;
+    BW *= (int)pixelsz;
+    x *= (int)pixelsz;
+    for (int row = 0; row < BH; ++row)
+    {
+        int desty = y + row;
+        if (desty < 0 || desty >= AH)
+            continue;
+        u8 *dest = A + (desty * AW + x);
+        u8 *src  = B + row * BW;
+        int cpyw = BW;
+        if (x < 0) 
+        {
+            dest -= x;
+            src -= x;
+            cpyw += x;
+        }
+        if (x + BW > AW) 
+        {
+            cpyw = AW - x;
+        }
+        memcpy(dest, src, cpyw);
+    }
+}
+
 i32 ModifyASCIIBasedOnModifiers(i32 keycodeASCII, bool shift)
 {
     i32 keycode = keycodeASCII;
@@ -234,7 +262,7 @@ template<typename T, int _count> struct NiceArray
 
 struct ByteBuffer
 {
-    uint8_t* data;
+    uint8_t* data = NULL;
     uint32_t position;  // basically the cursor
     uint32_t size;      // currently populated size
     uint32_t capacity;  // currently allocated size

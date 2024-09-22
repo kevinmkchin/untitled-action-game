@@ -6,6 +6,22 @@ struct db_tex_t
     GPUTexture gputex;
 };
 
+
+struct lm_face_t
+{
+    vec3 *pos = NULL;
+    vec3 *norm = NULL;
+    u8   *light = NULL;
+    i32 w = -1;
+    i32 h = -1;
+};
+
+vec3 *all_lm_pos = NULL;
+vec3 *all_lm_norm = NULL;
+u8   *all_lm_light = NULL;
+
+
+
 namespace MapEdit
 {
     struct Edge;
@@ -14,7 +30,7 @@ namespace MapEdit
     struct Face;
     struct Face;
 
-    NiceArray<Face*, 100000> EDITOR_FACES;
+    NiceArray<Face*, 100000> EDITOR_FACES; // TODO(Kevin): make this an implicit array using stb_ds
 
     struct Loop
     {
@@ -25,6 +41,11 @@ namespace MapEdit
         Edge *e = NULL;
         Vert *v = NULL;
         Face *f = NULL;
+
+        // per face vertex data
+        // Verts are shared between faces, so vertex data that is unique to the face
+        // can be put in here. e.g. UVs 
+        vec2 lmuvcache;
     };
 
     struct Face
@@ -35,13 +56,13 @@ namespace MapEdit
         // For map editor rendering. Each face is its own mesh. Don't optimize until my PC chugs while map editing.
         FaceBatch facemesh;
         db_tex_t texture;
+        lm_face_t lightmap;
         // bool receivelight; mark whether to generate light map
         // bool hascollision; mark whether to generate collider
         u32 elemId = 0;
 
         i32 EDITOR_FACES_INDEX = -1;
         bool hovered = false;
-
 
 
         int RefreshLoopLen()
@@ -468,6 +489,7 @@ namespace MapEdit
     void TriangulateFace_QuickDumb_WithColor(const Face f, vec3 color, float *vbdata, int *out_count)
     {
         std::vector<vec3> verticesInOrder;
+        // std::vector<vec2> ;
         Loop *l = f.loopbase;
         do {
             vec3 p = l->v->pos;
@@ -632,7 +654,7 @@ db_tex_t LoadNewTextureToDB(const char *path)
     tex.persistId = ++Session.TexturePersistIdCounter;
     ReadImage(tex.bitmap, path);
     if (tex.bitmap.memory != NULL)
-    {
+    {        
         CreateGPUTextureFromBitmap(&tex.gputex, (u8*)tex.bitmap.memory,
                         tex.bitmap.width,tex.bitmap.height,
                         GL_RGBA, (tex.bitmap.bitDepth == 3 ? GL_RGB : GL_RGBA));
@@ -775,7 +797,6 @@ bool EditorDeserializeMap(const char *mapFilePath)
     std::unordered_map<u32, void*> DeserElemIdToElem;
 
     ByteBuffer mapbuf;
-    ByteBufferInit(&mapbuf);
     if (ByteBufferReadFromFile(&mapbuf, mapFilePath) == 0)
         return false;
 
@@ -863,6 +884,7 @@ bool EditorDeserializeMap(const char *mapFilePath)
     return true;
 }
 
+
 bool BuildGameMap(const char *path)
 {
     // need to save a bunch of FaceBatches (which are basically just meshes)
@@ -876,19 +898,6 @@ bool BuildGameMap(const char *path)
     std::vector<vec3> ColliderWorldPoints;
     std::vector<u32> ColliderSpans;
 
-    // sort faces by their textures
-    for (int i = 0; i < totalfacecount; ++i)
-    {
-        MapEdit::Face *face = MapEdit::EDITOR_FACES.At(i);
-        db_tex_t tex = face->texture;
-        if (VertexBuffers.find(tex.persistId) == VertexBuffers.end())
-        {
-            VertexBuffers.emplace(tex.persistId, std::vector<float>());
-        }
-
-        std::vector<float>& vb = VertexBuffers.at(tex.persistId);
-        TriangulateFace_QuickDumb(*face, &vb);
-    }
     for (int i = 0; i < totalfacecount; ++i)
     {
         MapEdit::Face *face = MapEdit::EDITOR_FACES.At(i);
@@ -905,6 +914,189 @@ bool BuildGameMap(const char *path)
         ColliderSpans.push_back(ColliderSpan);
     }
 
+
+    // LIGHT MAP BAKING
+    Bounds MapBounds = Bounds(vec3(-0.17f, -0.17f, -0.17f), vec3(8000, 8000, 8000));
+    Octree LightMapOcclusionTree = Octree(MapBounds, 8, 32);
+    std::vector<StaticMeshCollider> MapSurfaceColliders(ColliderSpans.size());
+    int iter = 0;
+    // later, when only some surfaces have colliders, can't use ColliderSpan, need to traverse all faces again
+    for (u32 i = 0; i < ColliderSpans.size(); ++i)
+    {
+        u32 span = ColliderSpans[i];
+        StaticMeshCollider& surface = MapSurfaceColliders[i];
+        surface.pointCloudPtr = &ColliderWorldPoints[iter];
+        surface.pointCount = span;
+        surface.debugId = i;
+        iter += span;
+        LightMapOcclusionTree.Insert(&surface);
+    }
+    // LightMapOcclusionTree is complete
+
+    // Single bounce radiosity
+    // Start with emitting patches, of which there are N.
+    // Each emitting patch goes every other patch, of which there are M. O(NM)
+    // Then, each patch (M) goes to every other patch (M) and transfers energy exactly once. O(NMM) 
+
+    stbrp_rect *lm_rects = NULL;
+    // calculate bounds, and divide into patches
+    arrsetcap(all_lm_pos, 312500);
+    arrsetcap(all_lm_norm, 312500);
+    arrsetcap(all_lm_light, 312500);
+    for (int i = 0; i < totalfacecount; ++i)
+    {
+        MapEdit::Face *face = MapEdit::EDITOR_FACES.At(i);
+        
+        lm_face_t lm;
+        // project 3D verts unto 2D plane using basis vectors U and V
+        // find min uv and max uv
+        vec3 v0 = face->loopbase->v->pos;
+        vec3 v1 = face->loopbase->loopNext->v->pos;
+        vec3 v2 = face->loopbase->loopNext->loopNext->v->pos;
+        vec3 fn = Normalize(Cross(v1-v0, v2-v0));
+        vec3 basisU = Normalize(v1-v0);
+        vec3 basisV = Normalize(Cross(fn, basisU));
+
+        vec2 minuv = vec2(FLT_MAX, FLT_MAX);
+        vec2 maxuv = vec2(-FLT_MAX, -FLT_MAX);
+        std::vector<MapEdit::Loop*> loopcycle = face->GetLoopCycle();
+
+        for (MapEdit::Loop *loop : loopcycle)
+        {
+            vec3 p = loop->v->pos;
+            float u = Dot(p-v0, basisU);
+            float v = Dot(p-v0, basisV);
+            minuv.x = fminf(minuv.x, u);
+            minuv.y = fminf(minuv.y, v);
+            maxuv.x = fmaxf(maxuv.x, u);
+            maxuv.y = fmaxf(maxuv.y, v);
+            vec2 basisUV = vec2(u,v);
+            loop->lmuvcache = basisUV; // store basisUV for processing
+        }
+        
+        const float lm_patch_size = 16.f;
+        vec2 dim = maxuv - minuv;
+        dim.x = ceilf(dim.x / lm_patch_size) * lm_patch_size;
+        dim.y = ceilf(dim.y / lm_patch_size) * lm_patch_size;
+
+        // lm uv
+        for (MapEdit::Loop *loop : loopcycle)
+        {
+            // map lm uv to a local [0,1] value
+            // after packing lm rects into larger light map atlas, these will be remapped
+            loop->lmuvcache -= minuv;
+            loop->lmuvcache.x /= dim.x;
+            loop->lmuvcache.y /= dim.y;
+            ASSERT(0.f <= loop->lmuvcache.x && loop->lmuvcache.x <= 1.f);
+            ASSERT(0.f <= loop->lmuvcache.y && loop->lmuvcache.y <= 1.f);
+        }
+
+        // lm data
+        lm.w = (i32)(dim.x / lm_patch_size);
+        lm.h = (i32)(dim.y / lm_patch_size);
+        i32 lmsz = lm.w*lm.h;
+        lm.pos = arraddnptr(all_lm_pos, lmsz);
+        lm.norm = arraddnptr(all_lm_norm, lmsz);
+        lm.light = arraddnptr(all_lm_light, lmsz);
+        for (i32 pi = 0; pi < lmsz; ++pi)
+        {
+            i32 x = pi % lm.w;
+            i32 y = pi / lm.w;
+            float uSampleCenter = minuv.x + lm_patch_size*x + lm_patch_size*0.5f;
+            float vSampleCenter = minuv.y + lm_patch_size*y + lm_patch_size*0.5f;
+            // reverse the projection
+            vec3 p = v0 + uSampleCenter * basisU + vSampleCenter * basisV;
+            lm.pos[pi] = p;
+            lm.norm[pi] = fn;
+            lm.light[pi] = 0;
+        }
+
+        face->lightmap = lm;
+        stbrp_rect rect;
+        rect.id = face->EDITOR_FACES_INDEX;
+        rect.w = lm.w;
+        rect.h = lm.h;
+        arrput(lm_rects, rect);
+    }
+
+    // direct lighting from emissive points and patches
+
+    // indirect lighting between patches
+
+    // pack light maps
+    int lightMapAtlasW = 400;
+    int lightMapAtlasH = 400;
+    vec3 *LIGHT_MAP_ATLAS = NULL;
+    arrsetcap(LIGHT_MAP_ATLAS, lightMapAtlasW*lightMapAtlasH);
+    stbrp_node *LMPackerNodes = NULL;
+    arrsetlen(LMPackerNodes, 1000);
+    stbrp_context LightMapPacker;
+    stbrp_init_target(&LightMapPacker, lightMapAtlasW, lightMapAtlasH, LMPackerNodes, (int)arrlenu(LMPackerNodes));
+    stbrp_pack_rects(&LightMapPacker, lm_rects, (int)arrlenu(lm_rects));
+    arrfree(LMPackerNodes);
+    size_t rectcount = arrlenu(lm_rects);
+    for (size_t i = 0; i < rectcount; ++i)
+    {
+        stbrp_rect rect = lm_rects[i];
+        if (rect.was_packed == 0) continue;
+        //ASSERT(rect.was_packed != 0); // TODO(Kevin): additional light map atlases if couldn't fit into one
+
+        vec2 minuv = vec2((float)rect.x / (float)lightMapAtlasW, (float)rect.y / (float)lightMapAtlasH);
+        vec2 maxuv = vec2((float)(rect.x + rect.w) / (float)lightMapAtlasW, (float)(rect.y + rect.h) / (float)lightMapAtlasH);
+
+        int editorFaceIndex = rect.id;
+        MapEdit::Face *face = MapEdit::EDITOR_FACES.At(editorFaceIndex);
+        std::vector<MapEdit::Loop*> loopcycle = face->GetLoopCycle();
+        for (MapEdit::Loop *loop : loopcycle)
+        {
+            // map lm uv from local to global in light map atlas
+            loop->lmuvcache.x = Lerp(minuv.x, maxuv.x, loop->lmuvcache.x); 
+            loop->lmuvcache.y = Lerp(minuv.y, maxuv.y, loop->lmuvcache.y); 
+        }
+        lm_face_t lmface = face->lightmap;
+        BlitRect((u8*)LIGHT_MAP_ATLAS, lightMapAtlasW, lightMapAtlasH, (u8*)lmface.norm, lmface.w, lmface.h, rect.x, rect.y, sizeof(vec3));
+    }
+
+    CreateGPUTextureFromBitmap(&POSCOLORTESTTEX, (u8*)LIGHT_MAP_ATLAS, lightMapAtlasW, lightMapAtlasH,
+        GL_RGBA, GL_RGB, GL_NEAREST, GL_NEAREST, GL_FLOAT);
+
+    arrfree(lm_rects);
+    arrfree(all_lm_pos);
+    arrfree(all_lm_norm);
+    arrfree(all_lm_light);
+
+
+    // Multithread later
+    // for the indirect calculation, the direct lightmap stays constant, so divide up the indirect lightmap
+    // patches across threads.
+
+
+    // LineCollider ray;
+    // ray.a = vec3(0,4,0);
+    // ray.b = vec3(0,-500,0);
+    // std::unordered_set<Collider*> query = LightMapOcclusionTree.Query(ray);
+    // for (Collider *surface : query)
+    // {
+    //     ColResult result = GJK(surface, &ray);
+    //     if (result.hasCollision)
+    //     {
+    //     }
+    // }
+
+
+    // sort faces by their textures
+    for (int i = 0; i < totalfacecount; ++i)
+    {
+        MapEdit::Face *face = MapEdit::EDITOR_FACES.At(i);
+        db_tex_t tex = face->texture;
+        if (VertexBuffers.find(tex.persistId) == VertexBuffers.end())
+        {
+            VertexBuffers.emplace(tex.persistId, std::vector<float>());
+        }
+
+        std::vector<float>& vb = VertexBuffers.at(tex.persistId);
+        TriangulateFace_QuickDumb(*face, &vb);
+    }
 
     // serialize
     ByteBuffer mapbuf;
@@ -942,7 +1134,6 @@ bool LoadGameMap(const char *path)
 
     // deserialize
     ByteBuffer mapbuf;
-    ByteBufferInit(&mapbuf);
     if (ByteBufferReadFromFile(&mapbuf, path) == 0)
         return false;
 
@@ -1236,6 +1427,9 @@ u32 PickFace(MapEdit::Face **faces, u32 arraycount)
 
 void TickMapEditor()
 {
+    if (POSCOLORTESTTEX.id != 0)
+        Gui::PrimitivePanel(Gui::UIRect(100,100,POSCOLORTESTTEX.width,POSCOLORTESTTEX.height), POSCOLORTESTTEX.id);
+
     IsEditorActive = true;
     SDL_SetRelativeMouseMode(mousecurrent & SDL_BUTTON(SDL_BUTTON_RIGHT) ? SDL_TRUE : SDL_FALSE);
 
