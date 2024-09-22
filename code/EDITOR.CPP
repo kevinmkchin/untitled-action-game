@@ -1103,7 +1103,7 @@ bool BuildGameMap(const char *path)
             vec3 p = v0 + uSampleCenter * basisU + vSampleCenter * basisV;
             lm.pos[pi] = p;
             lm.norm[pi] = fn;
-            lm.light[pi] = 0;
+            lm.light[pi] = pi*255/lmsz;
         }
 
         face->lightmap = lm;
@@ -1121,7 +1121,7 @@ bool BuildGameMap(const char *path)
     // pack light maps
     i32 lightMapAtlasW = 400;
     i32 lightMapAtlasH = 400;
-    vec3 *LIGHT_MAP_ATLAS = NULL;
+    u8 *LIGHT_MAP_ATLAS = NULL;
     arrsetcap(LIGHT_MAP_ATLAS, lightMapAtlasW*lightMapAtlasH);
     stbrp_node *LMPackerNodes = NULL;
     arrsetlen(LMPackerNodes, 1000);
@@ -1149,12 +1149,12 @@ bool BuildGameMap(const char *path)
             loop->lmuvcache.y = Lerp(minuv.y, maxuv.y, loop->lmuvcache.y); 
         }
         lm_face_t lmface = face->lightmap;
-        BlitRect((u8*)LIGHT_MAP_ATLAS, lightMapAtlasW, lightMapAtlasH, (u8*)lmface.norm, lmface.w, lmface.h, rect.x, rect.y, sizeof(vec3));
+        BlitRect((u8*)LIGHT_MAP_ATLAS, lightMapAtlasW, lightMapAtlasH, (u8*)lmface.light, lmface.w, lmface.h, rect.x, rect.y, sizeof(u8));
     }
 
     ByteBufferWrite(&mapbuf, i32, lightMapAtlasW);
     ByteBufferWrite(&mapbuf, i32, lightMapAtlasH);
-    ByteBufferWriteBulk(&mapbuf, LIGHT_MAP_ATLAS, lightMapAtlasW*lightMapAtlasH*sizeof(vec3));
+    ByteBufferWriteBulk(&mapbuf, LIGHT_MAP_ATLAS, lightMapAtlasW*lightMapAtlasH*sizeof(u8));
 
     // save out light map atlases as part of .MAP
     arrfree(LIGHT_MAP_ATLAS);
@@ -1234,11 +1234,11 @@ bool LoadGameMap(const char *path)
     i32 lmw, lmh;
     ByteBufferRead(&mapbuf, i32, &lmw);
     ByteBufferRead(&mapbuf, i32, &lmh);
-    vec3 *lightMapData = NULL; 
+    u8 *lightMapData = NULL; 
     arrsetcap(lightMapData, lmw*lmh);
-    ByteBufferReadBulk(&mapbuf, lightMapData, lmw*lmh*sizeof(vec3));
+    ByteBufferReadBulk(&mapbuf, lightMapData, lmw*lmh*sizeof(u8));
     CreateGPUTextureFromBitmap(&POSCOLORTESTTEX, (u8*)lightMapData, lmw, lmh,
-        GL_RGB, GL_RGB, GL_NEAREST, GL_NEAREST, GL_FLOAT);
+        GL_RGB, GL_RED, GL_NEAREST, GL_NEAREST, GL_UNSIGNED_BYTE);
     arrfree(lightMapData);
 
     // colliders

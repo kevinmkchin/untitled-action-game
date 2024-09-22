@@ -1009,7 +1009,7 @@ static void Stuff()
 
 static void TickGame()
 {
-    //Gui::PrimitivePanel(Gui::UIRect(0,0, 200,200), POSCOLORTESTTEX.id);
+    // Gui::PrimitivePanel(Gui::UIRect(0,0, 400,400), POSCOLORTESTTEX.id);
 
     // ENEMY 0
     vec3 toPlayer = playerControllerRoot - enemy0.root;
@@ -1538,7 +1538,7 @@ int main(int argc, char* argv[])
 
     LoadMapEditor();
 
-    if (LoadGameMap(wd_path("LightTest_Normals.map").c_str()) == false)
+    if (LoadGameMap(wd_path("LightTest_Patches.map").c_str()) == false)
         LogError("failed to load game map");
 
     while (!g_ProgramShouldShutdown)
@@ -1552,8 +1552,8 @@ int main(int argc, char* argv[])
 
         TickGame();
         DrawGame();
-        //TickMapEditor();
-        //DrawMapEditor();
+        // TickMapEditor();
+        // DrawMapEditor();
 
         SDL_GL_SwapWindow(g_MainSDLWindow);
 
