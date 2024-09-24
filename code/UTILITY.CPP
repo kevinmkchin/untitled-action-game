@@ -1011,7 +1011,7 @@ void PrimitiveDrawAll(const mat4 *projectionMatrix, const mat4 *viewMatrix, GLui
         glBindBuffer(GL_ARRAY_BUFFER, PRIM_VERTEX_POS_COLOR_LINEWIDTH_VBO);
         glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr) sizeof(float) * PRIMITIVE_FATLINES_VB.count, PRIMITIVE_FATLINES_VB.data,
                      GL_DYNAMIC_DRAW);
-        glDrawArrays(GL_LINES, 0, PRIMITIVE_FATLINES_VB.count / 7);
+        glDrawArrays(GL_LINES, 0, PRIMITIVE_FATLINES_VB.count / 8);
         glBindBuffer(GL_ARRAY_BUFFER, 0);
         glBindVertexArray(0);
 
