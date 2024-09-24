@@ -5,6 +5,10 @@ struct Collider
 {
     /* Returns the furthest point on the collider along a given direction */
     virtual vec3 FindFurthestPoint(vec3 direction) const = 0;
+
+#if INTERNAL_BUILD
+    int debugId = -1;
+#endif
 };
 
 struct MeshCollider : Collider // kinda wanna remove this... I don't want to use std::vector for pointCloud
@@ -534,6 +538,17 @@ struct Bounds : Collider
         return maxVertexSoFar;
     }
 
+    bool Contains(const vec3 &p) const
+    {
+        vec3 boxMin = center - size / 2.f;
+        vec3 boxMax = center + size / 2.f;
+
+        return 
+            boxMin.x <= p.x && p.x <= boxMax.x &&
+            boxMin.y <= p.y && p.y <= boxMax.y &&
+            boxMin.z <= p.z && p.z <= boxMax.z;
+    }
+
     bool Intersects(const Bounds& other) const 
     {
         return (GM_abs(center.x - other.center.x) * 2.f < (size.x + other.size.x)) &&
@@ -541,47 +556,9 @@ struct Bounds : Collider
                (GM_abs(center.z - other.center.z) * 2.f < (size.z + other.size.z));
     }
 
-    bool Intersects(const LineCollider& line) // Vector3 A, Vector3 B, Vector3 boxMin, Vector3 boxMax) 
+    bool IntersectsOrContains(const LineCollider& line)
     {
-        vec3 A = line.a;
-        vec3 B = line.b;
-        vec3 boxMin = center - size/2.f;
-        vec3 boxMax = center + size/2.f;
-
-        vec3 dir = B - A;
-        float tmin = (boxMin.x - A.x) / dir.x;
-        float tmax = (boxMax.x - A.x) / dir.x;
-
-        if (tmin > tmax) std::swap(tmin, tmax);
-
-        float tymin = (boxMin.y - A.y) / dir.y;
-        float tymax = (boxMax.y - A.y) / dir.y;
-
-        if (tymin > tymax) std::swap(tymin, tymax);
-
-        if ((tmin > tymax) || (tymin > tmax))
-            return false;
-
-        if (tymin > tmin)
-            tmin = tymin;
-        if (tymax < tmax)
-            tmax = tymax;
-
-        float tzmin = (boxMin.z - A.z) / dir.z;
-        float tzmax = (boxMax.z - A.z) / dir.z;
-
-        if (tzmin > tzmax) std::swap(tzmin, tzmax);
-
-        if ((tmin > tzmax) || (tzmin > tmax))
-            return false;
-
-        if (tzmin > tmin)
-            tmin = tzmin;
-        if (tzmax < tmax)
-            tmax = tzmax;
-
-        // Check if intersection occurs within the segment [0, 1]
-        return (tmin <= tmax) && (tmin >= 0) && (tmin <= 1);
+        return Contains(line.a) || Contains(line.b);
     }
 
     // bool Contains(const Bounds& other) const 
@@ -856,7 +833,7 @@ std::unordered_set<Collider*> Octree::QueryNode(OctreeNode *node, const LineColl
 {
     std::unordered_set<Collider*> result;
 
-    if (!node->bounds.Intersects(queryRay)) 
+    if (!node->bounds.IntersectsOrContains(queryRay))
         return result;
 
     if (node->isLeaf) 
