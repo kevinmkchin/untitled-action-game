@@ -29,6 +29,12 @@ Finish implementing Editable Volumes and Atomics
 DONT FORGET:
 Port over Console front and backend
 
+BUGS:
+- (2024-09-24 T480) periodic frame rate drops down to ~59/60fps then back up when in fullscreen mode (both SDL_WINDOW_FULLSCREEN and SDL_WINDOW_FULLSCREEN_DESKTOP)
+                    I don't think it has to do with TickTime - Changing to use SDL_GetTicks64 no effect.
+                    Look into https://wiki.libsdl.org/SDL2/SDL_GetWindowDisplayMode
+                    Also, setting the window size to the screen size when creating window makes SDL enter fullscreen?
+
 
 use flat faces for collision? instead of meshes? GJK EPA code accepts 2D meshes
 
