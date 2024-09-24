@@ -23,11 +23,9 @@ EPICS:
 - Swap to a third 3D gun model, shoot hitscan with different stats at enemies
 
 OTHER:
+Rewrite platforms code in Win32 and remove SDL - FPS mouselook feels janky (lag + stutter when low framerate), yaw and pitch calculation as euler might be dumb. Just write directly to a rotation matrix?
 Finish implementing Editable Volumes and Atomics
 (poly draw) Draw poly on plane then raise to create volume tool
-
-DONT FORGET:
-Port over Console front and backend
 
 BUGS:
 - (2024-09-24 T480) periodic frame rate drops down to ~59/60fps then back up when in fullscreen mode (both SDL_WINDOW_FULLSCREEN and SDL_WINDOW_FULLSCREEN_DESKTOP)
@@ -35,9 +33,13 @@ BUGS:
                     Look into https://wiki.libsdl.org/SDL2/SDL_GetWindowDisplayMode
                     Also, setting the window size to the screen size when creating window makes SDL enter fullscreen?
 
+NOTES:
 
-use flat faces for collision? instead of meshes? GJK EPA code accepts 2D meshes
+    64x64 pixel texture for each 32x32 unit in game looks decent
+    
+    try for every 16 units in the game, 1 lightmap sample
 
+    port over dropdown console?
 
 Priorty #1 is building the game, not the engine/tech
 Engine work is almost done. 
@@ -65,14 +67,6 @@ that my movement direction. This is a fact.
 
 I think I just need to be more intentional with assigning colliders? and each surface collider should have
 a resolution normal defined.
-
-
-
-Notes:
-
-    64x64 pixel texture for each 32x32 unit in game looks decent
-    
-    try for every 16 units in the game, 1 lightmap sample
 
 
 */
