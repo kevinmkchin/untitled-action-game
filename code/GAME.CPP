@@ -1,8 +1,7 @@
 /*
 
 TODO:
-- Light map rect packing + render position or normal as color
-
+- calculate direct and indirect lighting and store in lightmap
 
 - Make simple textured playground level
 - Skeletal animations
@@ -1538,7 +1537,7 @@ int main(int argc, char* argv[])
 
     LoadMapEditor();
 
-    if (LoadGameMap(wd_path("LightTest_Patches.map").c_str()) == false)
+    if (LoadGameMap(wd_path("LightTest_PatchesWithPadding.map").c_str()) == false)
         LogError("failed to load game map");
 
     while (!g_ProgramShouldShutdown)
