@@ -25,6 +25,7 @@ EPICS:
 - Swap to a third 3D gun model, shoot hitscan with different stats at enemies
 
 OTHER:
+Try upgrading to SDL3 first...or to latest SDL2...ugh might still just have to rewrite platforms code
 Rewrite platforms code in Win32 and remove SDL - FPS mouselook feels janky (lag + stutter when low framerate), yaw and pitch calculation as euler might be dumb. Just write directly to a rotation matrix?
 Finish implementing Editable Volumes and Atomics
 (poly draw) Draw poly on plane then raise to create volume tool
@@ -1008,6 +1009,7 @@ static void Stuff()
 
 static void TickGame()
 {
+    PrimitiveDrawSolidDisc(TestLightSource, -cameraDirection, 3.f);
     // Gui::PrimitivePanel(Gui::UIRect(0,0, 400,400), POSCOLORTESTTEX.id);
 
     // ENEMY 0
@@ -1537,7 +1539,7 @@ int main(int argc, char* argv[])
 
     LoadMapEditor();
 
-    if (LoadGameMap(wd_path("LightTest_PatchesWithPadding.map").c_str()) == false)
+    if (LoadGameMap(wd_path("LightTest_Directional.map").c_str()) == false)
         LogError("failed to load game map");
 
     while (!g_ProgramShouldShutdown)
@@ -1551,8 +1553,8 @@ int main(int argc, char* argv[])
 
         TickGame();
         DrawGame();
-        // TickMapEditor();
-        // DrawMapEditor();
+        //TickMapEditor();
+        //DrawMapEditor();
 
         SDL_GL_SwapWindow(g_MainSDLWindow);
 
