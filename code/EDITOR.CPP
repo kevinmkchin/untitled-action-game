@@ -976,6 +976,7 @@ bool EditorDeserializeMap(const char *mapFilePath)
     return true;
 }
 
+vec3 TestLightSource = vec3(0, 110, 0);
 
 bool BuildGameMap(const char *path)
 {
@@ -1109,7 +1110,7 @@ bool BuildGameMap(const char *path)
             vec3 p = v0 + uSampleCenter * basisU + vSampleCenter * basisV;
             lm.pos[pi] = p;
             lm.norm[pi] = fn;
-            lm.light[pi] = pi*255/lmsz;
+            lm.light[pi] = 0;
         }
 
         face->lightmap = lm;
@@ -1122,6 +1123,30 @@ bool BuildGameMap(const char *path)
     }
 
     // direct lighting from emissive points and patches
+    u32 numpatches = (u32)arrlenu(all_lm_norm);
+    ASSERT(numpatches == (u32)arrlenu(all_lm_pos));
+    ASSERT(numpatches == (u32)arrlenu(all_lm_light));
+    for (u32 i = 0; i < numpatches; ++i)
+    {
+        vec3 patch_position = all_lm_pos[i];
+        vec3 patch_normal = all_lm_norm[i];
+        vec3 incidence_ray = TestLightSource - patch_position;
+        float costheta = Dot(Normalize(incidence_ray), patch_normal);
+        if (costheta > 0.f)
+        {
+            // point light attenuation
+            // energy decreases as per the inverse square law, but the linear coefficient exists to cheat
+            // some more aesthetic lighting attenuation.
+            float atten_coeff_linear = 0.001f;
+            float atten_coeff_quadratic = 0.00005f;
+            float dist = Magnitude(incidence_ray);
+            float attenuation = 1.f / (1.f + atten_coeff_linear * dist + atten_coeff_quadratic * dist * dist);
+            float intensity = costheta * attenuation;
+            intensity = GM_min(intensity, 1.0f);
+            u8 lv = u8(intensity * 255.f);
+            all_lm_light[i] = lv;
+        }
+    }
 
     // indirect lighting between patches
 
