@@ -1539,7 +1539,7 @@ int main(int argc, char* argv[])
 
     LoadMapEditor();
 
-    if (LoadGameMap(wd_path("LightTest_Directional.map").c_str()) == false)
+    if (LoadGameMap(wd_path("LightTest_Directional_BetterPadding.map").c_str()) == false)
         LogError("failed to load game map");
 
     while (!g_ProgramShouldShutdown)
