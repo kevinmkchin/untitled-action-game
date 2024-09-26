@@ -1035,11 +1035,6 @@ bool BuildGameMap(const char *path)
     // Each emitting patch goes every other patch, of which there are M. O(NM)
     // Then, each patch (M) goes to every other patch (M) and transfers energy exactly once. O(NMM) 
 
-    const int BiLinFilPad1 = 1;
-    const int BiLinFilPad2 = 2;
-    ASSERT(BiLinFilPad1 == 1);
-    ASSERT(BiLinFilPad2 == 2);
-
     stbrp_rect *lm_rects = NULL;
     // calculate bounds, and divide into patches
     arrsetcap(all_lm_pos, 312500);
@@ -1077,6 +1072,15 @@ bool BuildGameMap(const char *path)
         }
         
         const float lm_patch_size = 16.f;
+        // Adding padding texel around light map for bilinear filtering. 
+        // Resizing the light map dimensions to be 2 units wider and taller (by moving minuv and maxuv)
+        // is the best way to add padding for bilinear filtering. No padding means filtering samples light
+        // maps not belonging to this surface (since everything gets packed into an atlas) and having the
+        // padding copy the corresponding adjacent light map value will create unnatural seams where
+        // surfaces are supposed to connect. By simply making the light maps larger than needed and having
+        // these virtual patches be sampled too creates the most natural bilinear filtering results.
+        minuv -= vec2(lm_patch_size, lm_patch_size);
+        maxuv += vec2(lm_patch_size, lm_patch_size);
         vec2 dim = maxuv - minuv;
         dim.x = ceilf(dim.x / lm_patch_size) * lm_patch_size;
         dim.y = ceilf(dim.y / lm_patch_size) * lm_patch_size;
@@ -1116,9 +1120,8 @@ bool BuildGameMap(const char *path)
         face->lightmap = lm;
         stbrp_rect rect;
         rect.id = face->EDITOR_FACES_INDEX;
-        rect.w = lm.w + BiLinFilPad2;
-        rect.h = lm.h + BiLinFilPad2;
-        // Adding padding texel around light map for bilinear filtering (colored later)
+        rect.w = lm.w;
+        rect.h = lm.h;
         arrput(lm_rects, rect);
     }
 
@@ -1168,8 +1171,8 @@ bool BuildGameMap(const char *path)
         if (rect.was_packed == 0) continue;
         ASSERT(rect.was_packed != 0); // TODO(Kevin): additional light map atlases if couldn't fit into one
 
-        vec2 minuv = vec2((float)(rect.x + BiLinFilPad1) / (float)lightMapAtlasW, (float)(rect.y + BiLinFilPad1) / (float)lightMapAtlasH);
-        vec2 maxuv = vec2((float)(rect.x + rect.w - BiLinFilPad1) / (float)lightMapAtlasW, (float)(rect.y + rect.h - BiLinFilPad1) / (float)lightMapAtlasH);
+        vec2 minuv = vec2((float)(rect.x) / (float)lightMapAtlasW, (float)(rect.y) / (float)lightMapAtlasH);
+        vec2 maxuv = vec2((float)(rect.x + rect.w) / (float)lightMapAtlasW, (float)(rect.y + rect.h) / (float)lightMapAtlasH);
 
         int editorFaceIndex = rect.id;
         MapEdit::Face *face = MapEdit::EDITOR_FACES.At(editorFaceIndex);
@@ -1181,38 +1184,7 @@ bool BuildGameMap(const char *path)
             loop->lmuvcache.y = Lerp(minuv.y, maxuv.y, loop->lmuvcache.y); 
         }
         lm_face_t lmface = face->lightmap;
-        BlitRect((u8*)LIGHT_MAP_ATLAS, lightMapAtlasW, lightMapAtlasH, (u8*)lmface.light, lmface.w, lmface.h, rect.x + BiLinFilPad1, rect.y + BiLinFilPad1, sizeof(u8));
-        
-        // Fill in the padding texels for bilinear filtering
-        // These padding texels just copy the exact same light value from its neighboring texel (which would be N W S E NW SW SE NE)
-        for (int padx = 0; padx < rect.w; ++padx)
-        {
-            int xc = rect.x + padx;
-            int yc0 = rect.y;
-            int yc1 = rect.y + rect.h - 1;
-            if (padx == 0)
-            {
-                LIGHT_MAP_ATLAS[yc0 * lightMapAtlasW + xc] = LIGHT_MAP_ATLAS[(yc0 + 1) * lightMapAtlasW + xc + 1];
-                LIGHT_MAP_ATLAS[yc1 * lightMapAtlasW + xc] = LIGHT_MAP_ATLAS[(yc1 - 1) * lightMapAtlasW + xc + 1];
-                continue;
-            }
-            if (padx == rect.w - 1)
-            {
-                LIGHT_MAP_ATLAS[yc0 * lightMapAtlasW + xc] = LIGHT_MAP_ATLAS[(yc0 + 1) * lightMapAtlasW + xc - 1];
-                LIGHT_MAP_ATLAS[yc1 * lightMapAtlasW + xc] = LIGHT_MAP_ATLAS[(yc1 - 1) * lightMapAtlasW + xc - 1];
-                continue;
-            }
-            LIGHT_MAP_ATLAS[yc0 * lightMapAtlasW + xc] = LIGHT_MAP_ATLAS[(yc0 + 1) * lightMapAtlasW + xc];
-            LIGHT_MAP_ATLAS[yc1 * lightMapAtlasW + xc] = LIGHT_MAP_ATLAS[(yc1 - 1) * lightMapAtlasW + xc];
-        }
-        for (int pady = 1; pady < rect.h - 1; ++pady)
-        {
-            int yc = rect.y + pady;
-            int xc0 = rect.x;
-            int xc1 = rect.x + rect.w - 1;
-            LIGHT_MAP_ATLAS[yc * lightMapAtlasW + xc0] = LIGHT_MAP_ATLAS[yc * lightMapAtlasW + xc0 + 1];
-            LIGHT_MAP_ATLAS[yc * lightMapAtlasW + xc1] = LIGHT_MAP_ATLAS[yc * lightMapAtlasW + xc1 - 1];
-        }
+        BlitRect((u8*)LIGHT_MAP_ATLAS, lightMapAtlasW, lightMapAtlasH, (u8*)lmface.light, lmface.w, lmface.h, rect.x, rect.y, sizeof(u8));
     }
 
     ByteBufferWrite(&mapbuf, i32, lightMapAtlasW);
