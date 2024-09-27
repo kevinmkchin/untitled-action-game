@@ -1,8 +1,24 @@
 /*
 
-TODO:
-- calculate direct and indirect lighting and store in lightmap
+== Light map work ==
+The visual artifacts is part of the charm of my game and engine. Something that differentiates it from the perfect crispy lighting of engines like Godot or Unity.
+I need to embrace the fact that lighting will be crude and not be perfect.
+Automate building and loading for quicker tests, and take lots of screenshots and videos explaining the artifacts and changes.
 
+- I need multiple level layouts and lighting setups and automate the building and loading for quick testing as I tweak the light maps.
+- Revisit octree. Query needs to be far more performant, and it can't be erroneous. Do simpler polygon x line intersection test.
+    - CheckCollision function which does GJK if more complex, and simpler test if just polygon x line
+- If padding texel value is too different from its neighboring texel, then copy the value from the neighboring texel (dilate the texel)
+  and discard the padding texel sample value. It's not just occluded being dark, it's also the not occluded padding texels being too bright.
+- Will look better with more light sources and indirect lighting. We won't use area lights.
+- I think multi-sampling is going to help a lot! and in that slightly "rotated" pattern. Will smooth out shadow edges even without indirect lighting.
+            * 
+          *    *
+             *
+
+
+
+TODO:
 - Make simple textured playground level
 - Skeletal animations
 - Enemy moves and shoots at player
@@ -1539,7 +1555,10 @@ int main(int argc, char* argv[])
 
     LoadMapEditor();
 
-    if (LoadGameMap(wd_path("LightTest_Directional_BetterPadding.map").c_str()) == false)
+    EditorDeserializeMap(wd_path("LightTest.emf").c_str());
+    BuildGameMap(wd_path("buildtest3.map").c_str());
+
+    if (LoadGameMap(wd_path("buildtest3.map").c_str()) == false)
         LogError("failed to load game map");
 
     while (!g_ProgramShouldShutdown)
