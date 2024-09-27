@@ -1,10 +1,22 @@
 
 /// GJK + EPA
 
+enum class ColliderType
+{
+    MESH,
+    POLYGON,
+    SPHERE,
+    LINE,
+    BOUNDS,
+    INVALID,
+};
+
 struct Collider
 {
     /* Returns the furthest point on the collider along a given direction */
     virtual vec3 FindFurthestPoint(vec3 direction) const = 0;
+
+    ColliderType type = ColliderType::INVALID;
 
 #if INTERNAL_BUILD
     int debugId = -1;
@@ -13,6 +25,11 @@ struct Collider
 
 struct MeshCollider : Collider // kinda wanna remove this... I don't want to use std::vector for pointCloud
 {
+    MeshCollider()
+    {
+        type = ColliderType::MESH;
+    }
+
     vec3 FindFurthestPoint(vec3 direction) const override
     {
         vec3 maxVertexSoFar;
@@ -34,6 +51,11 @@ struct MeshCollider : Collider // kinda wanna remove this... I don't want to use
 
 struct StaticMeshCollider : Collider
 {
+    StaticMeshCollider()
+    {
+        type = ColliderType::POLYGON;
+    }
+
     vec3 FindFurthestPoint(vec3 direction) const override
     {
         vec3 maxVertexSoFar;
@@ -59,8 +81,45 @@ struct StaticMeshCollider : Collider
     u32 pointCount = 0;
 };
 
+struct FlatPolygonCollider : Collider
+{
+    FlatPolygonCollider()
+    {
+        type = ColliderType::POLYGON;
+    }
+
+    vec3 FindFurthestPoint(vec3 direction) const override
+    {
+        vec3 maxVertexSoFar;
+        float maxDistanceSoFar = -FLT_MAX;
+#if INTERNAL_BUILD
+        if (pointCount == 0) LogWarning("FlatPolygonCollider has zero points in it...");
+#endif
+        for (u32 i = 0; i < pointCount; ++i)
+        {
+            vec3 pointWCS = pointCloudPtr[i];
+            float distance = Dot(pointWCS, direction);
+            if (distance > maxDistanceSoFar)
+            {
+                maxVertexSoFar = pointWCS;
+                maxDistanceSoFar = distance;
+            }
+        }
+        return maxVertexSoFar;
+    }
+
+    // using pointer into big static array of collider points
+    vec3 *pointCloudPtr = NULL;
+    u32 pointCount = 0;
+};
+
 struct SphereCollider : Collider
 {
+    SphereCollider()
+    {
+        type = ColliderType::SPHERE;
+    }
+
     vec3 FindFurthestPoint(vec3 direction) const override
     {
         vec3 offset = Normalize(direction) * radius;
@@ -73,6 +132,11 @@ struct SphereCollider : Collider
 
 struct LineCollider : Collider
 {
+    LineCollider()
+    {
+        type = ColliderType::LINE;
+    }
+
     vec3 FindFurthestPoint(vec3 direction) const override
     {
         float distanceA = Dot(a, direction);
@@ -265,12 +329,12 @@ static bool GJKNextSimplex(GJKSimplex& capture, vec3& direction)
         return false;
 }
 
-typedef struct GJKEPACollisionInfo
+struct CollisionResult
 {
     vec3 normal;
     float penetrationDepth = 0.f;
     bool hasCollision = false;
-} ColResult;
+};
 
 static std::pair<std::vector<vec4>, int> EPAGetFaceNormals(
     const std::vector<vec3>& polytope,
@@ -330,7 +394,7 @@ static void EPAAddIfUniqueEdge(
 #ifndef EPA_MAX_ITERATIONS
 #define EPA_MAX_ITERATIONS 10
 #endif
-static GJKEPACollisionInfo EPA(GJKSimplex& simplex, const Collider* colA, const Collider* colB)
+static CollisionResult EPA(GJKSimplex& simplex, const Collider* colA, const Collider* colB)
 {
     std::vector<vec3> polytope;
     ASSERT(simplex.size() == 4)
@@ -434,14 +498,14 @@ static GJKEPACollisionInfo EPA(GJKSimplex& simplex, const Collider* colA, const 
         }
     }
 
-    GJKEPACollisionInfo points;
+    CollisionResult points;
     points.normal = minNormal;
     points.penetrationDepth = minDistance + 0.001f;
     points.hasCollision = true;
     return points;
 }
 
-// static GJKEPACollisionInfo CheckSphereCollision(SphereCollider* a, SphereCollider* b)
+// static CollisionResult CheckSphereCollision(SphereCollider* a, SphereCollider* b)
 // {
 //     vec3 aPos = a->GetPosition();
 //     vec3 bPos = b->GetPosition();
@@ -458,7 +522,7 @@ static GJKEPACollisionInfo EPA(GJKSimplex& simplex, const Collider* colA, const 
 //     }
 // }
 
-static GJKEPACollisionInfo GJK(Collider* colA, Collider* colB)
+static CollisionResult GJK(Collider* colA, Collider* colB)
 {
     // colA->TransformCollider();
     // colB->TransformCollider();
@@ -480,7 +544,7 @@ static GJKEPACollisionInfo GJK(Collider* colA, Collider* colB)
         if (Dot(support, direction) <= 0)
         {
             // previous support point was already the furthest along direction
-            GJKEPACollisionInfo collisionInfo;
+            CollisionResult collisionInfo;
             collisionInfo.hasCollision = false;
             return collisionInfo;
         }
@@ -488,13 +552,221 @@ static GJKEPACollisionInfo GJK(Collider* colA, Collider* colB)
         capture.pushFront(support);
         if (GJKNextSimplex(capture, direction))
         {
-            GJKEPACollisionInfo collisionInfo = EPA(capture, colA, colB);
+            CollisionResult collisionInfo = EPA(capture, colA, colB);
             collisionInfo.hasCollision = true;
             return collisionInfo;
         }
     }
 }
 
+// UGH I hate how I'm trying to dispatch based on different collider types
+// fuck this object oriented shit. I know exactly what needs colliding against what,
+// so just code THAT.
+
+
+// assume polygon is flat 2D polygon defined in 3D space
+// assume line is going from A to B, and so resolution normal is from B to A, 
+// and resolution depth is Magnitude(intersection point - B)
+// TODO(Kevin): flag for ignore collision when either a or b of line lies on the polygon
+CollisionResult CollideFlatPolygonXLine(FlatPolygonCollider *polygon, LineCollider *line)
+{
+    ASSERT(polygon->pointCount > 2);
+
+    vec3 pv0 = polygon->pointCloudPtr[0];
+    vec3 pv1 = polygon->pointCloudPtr[1];
+    vec3 pv2 = polygon->pointCloudPtr[2];
+    vec3 edge0 = Normalize(pv1 - pv0);
+    vec3 edge1 = Normalize(pv2 - pv0);
+    for (int i = 3; edge0 == edge1; ++i)
+    {
+        // Make sure the three points are not colinear
+        pv2 = polygon->pointCloudPtr[i]; 
+        edge1 = Normalize(pv2 - pv0);
+    }
+    vec3 normal = Normalize(Cross(edge0, edge1));
+
+    ASSERT(GM_abs(Dot(normal, edge0)) <= 0.0001f);
+
+    // check if finite line intersects the plane on which the polygon lies
+    float t = (Dot(normal, pv1) - Dot(normal, line->a)) / Dot(normal, line->b - line->a);
+    if (t < 0.f || t > 1.f)
+    {
+        return CollisionResult(); // no collision
+    }
+
+    // there may be a collision
+    vec3 IntersectionPoint = line->a + t * (line->b - line->a);
+
+    // project polygon and intersection point into 2D space
+    static NiceArray<vec2, 32> projectedVertices;
+    projectedVertices.ResetCount();
+
+    vec3 basisU = edge0;
+    vec3 basisV = Normalize(Cross(normal, basisU));
+
+    for (u32 i = 0; i < polygon->pointCount; ++i)
+    {
+        vec3 p = polygon->pointCloudPtr[i];
+        float u = Dot(p-pv0, basisU);
+        float v = Dot(p-pv0, basisV);
+        projectedVertices.PushBack(vec2(u, v));
+    }
+
+    vec2 pip; //projectedIntersectionPoint
+    pip.x = Dot(IntersectionPoint-pv0, basisU);
+    pip.y = Dot(IntersectionPoint-pv0, basisV);
+
+    // check if line intersection point with that plane lies within the polygon
+    // https://en.wikipedia.org/wiki/Point_in_polygon
+    // I'm gonna do simple raycasting (even-odd rule) check. It will be good enough
+    // until I ever want to add collision checks against polygons with holes.
+    u32 crossings = 0;
+    for (int i = 0; i < projectedVertices.count; ++i)
+    {
+        vec2 edgeA = projectedVertices.At(i);
+        vec2 edgeB = projectedVertices.At(i != projectedVertices.count-1 ? i+1 : 0);
+
+        if (edgeA == pip) // intersection point is a corner/vertex
+        {
+            crossings = 1;
+            break;
+        }
+
+        if (edgeA.y == edgeB.y && edgeA.y == pip.y)
+        {
+            std::swap(edgeA.x, edgeA.y);
+            std::swap(edgeB.x, edgeB.y);
+            std::swap(pip.x, pip.y);
+        }
+
+        bool withiny = edgeA.y >= pip.y != edgeB.y > pip.y;
+        if (withiny)
+        {
+            float crossingx = (edgeB.x - edgeA.x) * (pip.y - edgeA.y) / (edgeB.y - edgeA.y) + edgeA.x;
+
+            if (pip.x == crossingx) // intersection point is along an edge
+            {
+                crossings = 1;
+                break;
+            }
+
+            if (pip.x < crossingx)
+            {
+                ++crossings;
+            }
+            else
+            {
+                continue;
+            }
+        }
+    }
+    if (crossings & 1)
+    {
+        // then intersection point is inside the polygon (collision)
+        CollisionResult result;
+        result.hasCollision = true;
+        result.normal = Normalize(line->a - line->b);
+        result.penetrationDepth = Magnitude(IntersectionPoint - line->b);
+        return result;
+    }
+    else
+    {
+        // intersection poiont is outside the polygon (no collision)
+        return CollisionResult();
+    }
+}
+
+#if INTERNAL_BUILD
+
+void TestAssert(const char *desc, bool condition)
+{
+    if (condition)
+        LogMessage("TEST PASSED - '%s'", desc);
+    else
+        LogError("TEST FAILED - '%s'", desc);
+}
+
+#define TEST_INITLIST(...) __VA_ARGS__
+
+#define TEST_COLLIDEFLATPOLYGONXLINE(desc, pointcloud, pointcount, linea, lineb, expectedHasCollision) \
+{\
+    vec3 cloud[] = pointcloud;\
+    FlatPolygonCollider polygon;\
+    polygon.pointCloudPtr = cloud;\
+    polygon.pointCount = pointcount;\
+    LineCollider line;\
+    line.a = linea;\
+    line.b = lineb;\
+    CollisionResult result = CollideFlatPolygonXLine(&polygon, &line);\
+    TestAssert(desc, result.hasCollision == expectedHasCollision);\
+}
+
+void Tests_CollideFlatPolygonXLine()
+{
+    LogMessage("Running Tests_CollideFlatPolygonXLine");
+
+    TEST_COLLIDEFLATPOLYGONXLINE("convex polygon with intersection 1",
+        TEST_INITLIST({ {0.0f, 0.0f, 1.0f}, {1.5f, 0.0f, 1.0f}, {2.0f, 2.0f, 1.0f}, {0.0f, 2.0f, 1.0f} }), 4,
+        TEST_INITLIST({0.5f, 0.5f, -1.0f}), TEST_INITLIST({0.5f, 0.5f, 3.0f}), 
+        true);
+
+    TEST_COLLIDEFLATPOLYGONXLINE("line does not intersect polygon 1",
+        TEST_INITLIST({ {0.0f, 0.0f, 1.0f}, {1.5f, 0.0f, 1.0f}, {2.0f, 2.0f, 1.0f}, {0.0f, 2.0f, 1.0f} }), 4,
+        TEST_INITLIST({0.7f, 0.0f, -1.0f}), TEST_INITLIST({0.7f, -1.0f, 3.0f}), 
+        false);
+
+    TEST_COLLIDEFLATPOLYGONXLINE("line does not intersect polygon 2",
+        TEST_INITLIST({ {0.0f, 0.0f, 1.0f}, {1.5f, 0.0f, 1.0f}, {2.0f, 2.0f, 1.0f}, {0.0f, 2.0f, 1.0f} }), 4,
+        TEST_INITLIST({0.7f, 0.0f, -1.0f}), TEST_INITLIST({0.7f, 3.6f, 2.0f}), 
+        false);
+
+    TEST_COLLIDEFLATPOLYGONXLINE("line intersects edge of polygon",
+        TEST_INITLIST({ {0.0f, 0.0f, 1.0f}, {1.5f, 0.0f, 1.0f}, {2.0f, 2.0f, 1.0f}, {0.0f, 2.0f, 1.0f} }), 4,
+        TEST_INITLIST({0.7f, 0.0f, -1.0f}), TEST_INITLIST({0.7f, 0.0f, 3.0f}), 
+        true);
+    
+    TEST_COLLIDEFLATPOLYGONXLINE("line intersects edge of polygon",
+        TEST_INITLIST({ {0.0f, 0.0f, 1.0f}, {1.5f, 0.0f, 1.0f}, {2.0f, 2.0f, 1.0f}, {0.0f, 2.0f, 1.0f} }), 4,
+        TEST_INITLIST({ 0.0f, 1.0f, -1.0f }), TEST_INITLIST({ 0.0f, 1.0f, 3.0f }),
+        true);
+
+    TEST_COLLIDEFLATPOLYGONXLINE("line intersects edge of polygon",
+        TEST_INITLIST({ {0.0f, 0.0f, 1.0f}, {1.5f, 0.0f, 1.0f}, {2.0f, 2.0f, 1.0f}, {0.0f, 2.0f, 1.0f} }), 4,
+        TEST_INITLIST({ 0.9f, 2.0f, -1.0f }), TEST_INITLIST({ 0.9f, 2.0f, 3.0f }),
+        true);
+
+    TEST_COLLIDEFLATPOLYGONXLINE("line intersects corner of polygon",
+       TEST_INITLIST({ {0.0f, 0.0f, 1.0f}, {1.5f, -0.4f, 1.0f}, {2.0f, 2.0f, 1.0f}, {0.0f, 2.0f, 1.0f} }), 4,
+       TEST_INITLIST({1.5f, -0.4f, -1.0f}), TEST_INITLIST({1.5f, -0.4f,  3.0f}),
+       true);
+
+    TEST_COLLIDEFLATPOLYGONXLINE("line intersects corner of polygon",
+       TEST_INITLIST({ {0.0f, 0.0f, 1.0f}, {1.5f, -0.4f, 1.0f}, {2.0f, 2.0f, 1.0f}, {0.0f, 2.0f, 1.0f} }), 4,
+       TEST_INITLIST({ 0.0f, 0.0f, -1.0f }), TEST_INITLIST({ 0.0f, 0.0f,  3.0f }),
+       true);
+}
+
+#endif
+
+// typedef CollisionResult (*CollisionTestFunc)(Collider*,Collider*);
+
+// CollisionTestFunc CollisionCheckDispatchRules[ColliderType::INVALID][ColliderType::INVALID] = {NULL};
+
+// void SetupColliderTypeDispatchRules()
+// {
+//     CollisionCheckDispatchRules[(u8)ColliderType::MESH][(u8)ColliderType::MESH] = GJK_;
+//     CollisionCheckDispatchRules[(u8)ColliderType::POLYGON][(u8)ColliderType::LINE] = CollideFlatPolygonXLine;
+//     CollisionCheckDispatchRules[(u8)ColliderType::LINE][(u8)ColliderType::POLYGON] = CollideFlatPolygonXLine;
+//     CollisionCheckDispatchRules[(u8)ColliderType::MESH][(u8)ColliderType::POLYGON] = GJK_;
+//     CollisionCheckDispatchRules[(u8)ColliderType::POLYGON][(u8)ColliderType::MESH] = GJK_;
+// }
+
+// CollisionResult CheckCollision(Collider *A, Collider *B)
+// {
+//     CollisionTestFunc checkFunc = CollisionCheckDispatchRules[(u8)A->type][(u8)B->type];
+//     ASSERT(checkFunc != NULL);
+//     return checkFunc(A, B);
+// }
 
 
 /// Acceleration with Octree
@@ -504,11 +776,16 @@ struct Bounds : Collider
     vec3 center;
     vec3 size;
 
-    Bounds() {};
+    Bounds()
+    {
+        type = ColliderType::BOUNDS;
+    };
     Bounds(vec3 center, vec3 size)
         : center(center)
         , size(size)
-    {};
+    {
+        type = ColliderType::BOUNDS;
+    };
 
     vec3 FindFurthestPoint(vec3 direction) const override
     {
@@ -594,7 +871,7 @@ Bounds BoundsFromMeshCollider(MeshCollider& meshCollider)
     return bounds;
 }
 
-Bounds BoundsFromStaticMeshCollider(StaticMeshCollider& collider)
+Bounds BoundsFromFlatPolygonCollider(FlatPolygonCollider& collider)
 {
     vec3 min = vec3(FLT_MAX, FLT_MAX, FLT_MAX);
     vec3 max = vec3(-FLT_MAX, -FLT_MAX, -FLT_MAX);
@@ -778,14 +1055,14 @@ u8 Octree::GetChildIndices(const OctreeNode *node, Collider *obj)
     Collider *octant7 = &node->children[7].bounds;
 
     // Note (Kevin): GJK returns true when a collider is lying on the surface of an octant bound
-    ColResult result0 = GJK(octant0, obj);
-    ColResult result1 = GJK(octant1, obj);
-    ColResult result2 = GJK(octant2, obj);
-    ColResult result3 = GJK(octant3, obj);
-    ColResult result4 = GJK(octant4, obj);
-    ColResult result5 = GJK(octant5, obj);
-    ColResult result6 = GJK(octant6, obj);
-    ColResult result7 = GJK(octant7, obj);
+    CollisionResult result0 = GJK(octant0, obj);
+    CollisionResult result1 = GJK(octant1, obj);
+    CollisionResult result2 = GJK(octant2, obj);
+    CollisionResult result3 = GJK(octant3, obj);
+    CollisionResult result4 = GJK(octant4, obj);
+    CollisionResult result5 = GJK(octant5, obj);
+    CollisionResult result6 = GJK(octant6, obj);
+    CollisionResult result7 = GJK(octant7, obj);
 
     u8 childIndices = 0;
     childIndices |= result0.hasCollision ? 0b00000001 : 0;
@@ -854,3 +1131,50 @@ std::unordered_set<Collider*> Octree::QueryNode(OctreeNode *node, const LineColl
 
     return result;
 }
+
+// struct LevelPolygonOctreeNode
+// {
+//     Bounds bounds;
+//     std::vector<Collider*> objects;
+//     std::unique_ptr<LevelPolygonOctreeNode[]> children;
+//     bool isLeaf = true;
+
+//     LevelPolygonOctreeNode()
+//     {}
+
+//     LevelPolygonOctreeNode(const Bounds& bounds)
+//         : bounds(bounds)
+//     {}
+// };
+
+// // octree for flat polygons in the level
+// struct LevelPolygonOctree
+// {
+//     LevelPolygonOctree() {}
+//     LevelPolygonOctree(const Bounds& worldBounds, int maxDepth, int maxObjectsPerNode)
+//         : root(new LevelPolygonOctreeNode(worldBounds))
+//         , maxDepth(maxDepth)
+//         , maxObjectsPerNode(maxObjectsPerNode) 
+//     {}
+
+//     void Insert(FlatPolygonCollider *obj) 
+//     {
+//         Insert(root.get(), obj, 0);
+//     }
+
+//     CollisionResult Query(const LineCollider& queryRay) 
+//     {
+//         return QueryNode(root.get(), queryRay);
+//     }
+
+//     std::unique_ptr<LevelPolygonOctreeNode> root;
+//     int maxDepth;
+//     int maxObjectsPerNode;
+
+//     void Insert(LevelPolygonOctreeNode *node, FlatPolygonCollider *obj, int depth);
+//     u8 GetChildIndices(const LevelPolygonOctreeNode *node, FlatPolygonCollider *obj) ;
+//     void Subdivide(LevelPolygonOctreeNode *node);
+//     void RedistributeObjects(LevelPolygonOctreeNode *node);
+//     CollisionResult QueryNode(LevelPolygonOctreeNode *node, const LineCollider& queryRay);
+// };
+

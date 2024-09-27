@@ -1018,13 +1018,13 @@ bool BuildGameMap(const char *path)
     // LIGHT MAP BAKING
     Bounds MapBounds = Bounds(vec3(-0.17f, -0.17f, -0.17f), vec3(8000, 8000, 8000));
     Octree LightMapOcclusionTree = Octree(MapBounds, 600, 600);
-    std::vector<StaticMeshCollider> MapSurfaceColliders(ColliderSpans.size());
+    std::vector<FlatPolygonCollider> MapSurfaceColliders(ColliderSpans.size());
     int iter = 0;
     // later, when only some surfaces have colliders, can't use ColliderSpan, need to traverse all faces again
     for (u32 i = 0; i < ColliderSpans.size(); ++i)
     {
         u32 span = ColliderSpans[i];
-        StaticMeshCollider& surface = MapSurfaceColliders[i];
+        FlatPolygonCollider& surface = MapSurfaceColliders[i];
         surface.pointCloudPtr = &ColliderWorldPoints[iter];
         surface.pointCount = span;
         surface.debugId = i;
@@ -1164,12 +1164,11 @@ bool BuildGameMap(const char *path)
             // occlusion test
             LineCollider ray_collider;
             ray_collider.a = TestLightSource;
-            ray_collider.b = TestLightSource - incidence_ray * 0.95f;//Normalize(incidence_ray) * GM_max(dist - lm_patch_size, 0.5f);
-            std::unordered_set<Collider*> occlusionQuery = LightMapOcclusionTree.Query(ray_collider);
+            ray_collider.b = TestLightSource - incidence_ray * 0.98f;//Normalize(incidence_ray) * GM_max(dist - lm_patch_size, 0.5f);
             bool occluded = false;
-            for (Collider *surface : occlusionQuery)
+            for (FlatPolygonCollider& surface : MapSurfaceColliders)
             {
-                ColResult result = GJK(surface, &ray_collider);
+                CollisionResult result = CollideFlatPolygonXLine(&surface, &ray_collider);
                 if (result.hasCollision)
                 {
                     occluded = true;
@@ -1330,7 +1329,7 @@ bool LoadGameMap(const char *path)
     for (u32 colliderIndex = 0; colliderIndex < numColliderSpans; ++colliderIndex)
     {
         u32 span = ColliderSpans[colliderIndex];
-        StaticMeshCollider& collider = GameLevelColliders[colliderIndex];
+        FlatPolygonCollider& collider = GameLevelColliders[colliderIndex];
         collider.pointCloudPtr = &GameLevelColliderPoints[GameLevelColliderPointsIterator];
         collider.pointCount = span;
         GameLevelColliderPointsIterator += span;
@@ -1338,7 +1337,7 @@ bool LoadGameMap(const char *path)
     ASSERT(GameLevelCollisionTree.root.get() == NULL); // i don't care. crash for now.
     Bounds GameLevelWorldBound = Bounds(vec3(-0.17f, -0.17f, -0.17f), vec3(8000, 8000, 8000));
     GameLevelCollisionTree = Octree(GameLevelWorldBound, 7, 24); // NOTE(Kevin): maybe I can be smarter about how I'm deciding the values for max tree depth and max count per octant
-    for (StaticMeshCollider& collider : GameLevelColliders)
+    for (FlatPolygonCollider& collider : GameLevelColliders)
     {
         GameLevelCollisionTree.Insert(&collider);
     }

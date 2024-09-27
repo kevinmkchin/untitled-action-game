@@ -5,9 +5,8 @@ The visual artifacts is part of the charm of my game and engine. Something that 
 I need to embrace the fact that lighting will be crude and not be perfect.
 Automate building and loading for quicker tests, and take lots of screenshots and videos explaining the artifacts and changes.
 
+- Revisit octree. Query needs to be far more performant, and it can't be erroneous.
 - I need multiple level layouts and lighting setups and automate the building and loading for quick testing as I tweak the light maps.
-- Revisit octree. Query needs to be far more performant, and it can't be erroneous. Do simpler polygon x line intersection test.
-    - CheckCollision function which does GJK if more complex, and simpler test if just polygon x line
 - If padding texel value is too different from its neighboring texel, then copy the value from the neighboring texel (dilate the texel)
   and discard the padding texel sample value. It's not just occluded being dark, it's also the not occluded padding texels being too bright.
 - Will look better with more light sources and indirect lighting. We won't use area lights.
@@ -17,8 +16,12 @@ Automate building and loading for quicker tests, and take lots of screenshots an
              *
 
 
-
 TODO:
+- aight replace all the dogshit GJK stuff with SPECIFIC collider checks
+    - Do GJK if more complex, and simpler test if just polygon x line
+- make octree better
+
+
 - Make simple textured playground level
 - Skeletal animations
 - Enemy moves and shoots at player
@@ -926,7 +929,7 @@ GPUTexture tex_Missing;
 Mix_Chunk *sfx_Jump;
 
 std::vector<vec3> GameLevelColliderPoints;
-std::vector<StaticMeshCollider> GameLevelColliders;
+std::vector<FlatPolygonCollider> GameLevelColliders;
 Octree GameLevelCollisionTree;
 std::vector<FaceBatch> GameLevelFaceBatches;
 
@@ -1084,7 +1087,7 @@ static void TickGame()
     // NOTE(Kevin): If I wanted, I could do something like sort these potential colliders by walls before floors or something
     for (Collider *levelCollider : pcollisionquery)
     {
-        ColResult result = GJK(levelCollider, pcol);
+        CollisionResult result = GJK(levelCollider, pcol);
         if (result.hasCollision)
         {
             vec3 moveby = result.normal * result.penetrationDepth;
@@ -1554,6 +1557,8 @@ int main(int argc, char* argv[])
     Stuff();
 
     LoadMapEditor();
+
+    Tests_CollideFlatPolygonXLine();
 
     EditorDeserializeMap(wd_path("LightTest.emf").c_str());
     BuildGameMap(wd_path("buildtest3.map").c_str());
