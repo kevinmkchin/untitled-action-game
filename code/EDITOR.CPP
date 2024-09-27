@@ -980,6 +980,9 @@ vec3 TestLightSource = vec3(0, 110, 0);
 
 bool BuildGameMap(const char *path)
 {
+    // TODO(Kevin): remove this chrono shit
+    float TimeAtStartOfBuildGameMap = (float)(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count() * 0.001f);
+
     ByteBuffer mapbuf;
     ByteBufferInit(&mapbuf);
 
@@ -1014,7 +1017,7 @@ bool BuildGameMap(const char *path)
 
     // LIGHT MAP BAKING
     Bounds MapBounds = Bounds(vec3(-0.17f, -0.17f, -0.17f), vec3(8000, 8000, 8000));
-    Octree LightMapOcclusionTree = Octree(MapBounds, 8, 32);
+    Octree LightMapOcclusionTree = Octree(MapBounds, 600, 600);
     std::vector<StaticMeshCollider> MapSurfaceColliders(ColliderSpans.size());
     int iter = 0;
     // later, when only some surfaces have colliders, can't use ColliderSpan, need to traverse all faces again
@@ -1035,6 +1038,7 @@ bool BuildGameMap(const char *path)
     // Each emitting patch goes every other patch, of which there are M. O(NM)
     // Then, each patch (M) goes to every other patch (M) and transfers energy exactly once. O(NMM) 
 
+    const float lm_patch_size = 8.f;
     stbrp_rect *lm_rects = NULL;
     // calculate bounds, and divide into patches
     arrsetcap(all_lm_pos, 312500);
@@ -1071,7 +1075,6 @@ bool BuildGameMap(const char *path)
             loop->lmuvcache = basisUV; // store basisUV for processing
         }
         
-        const float lm_patch_size = 16.f;
         // Adding padding texel around light map for bilinear filtering. 
         // Resizing the light map dimensions to be 2 units wider and taller (by moving minuv and maxuv)
         // is the best way to add padding for bilinear filtering. No padding means filtering samples light
@@ -1129,20 +1132,59 @@ bool BuildGameMap(const char *path)
     u32 numpatches = (u32)arrlenu(all_lm_norm);
     ASSERT(numpatches == (u32)arrlenu(all_lm_pos));
     ASSERT(numpatches == (u32)arrlenu(all_lm_light));
+    u32 progress10 = u32((float)numpatches * 0.1f);
+    u32 progress20 = u32((float)numpatches * 0.2f);
+    u32 progress30 = u32((float)numpatches * 0.3f);
+    u32 progress40 = u32((float)numpatches * 0.4f);
+    u32 progress50 = u32((float)numpatches * 0.5f);
+    u32 progress60 = u32((float)numpatches * 0.6f);
+    u32 progress70 = u32((float)numpatches * 0.7f);
+    u32 progress80 = u32((float)numpatches * 0.8f);
+    u32 progress90 = u32((float)numpatches * 0.9f);
     for (u32 i = 0; i < numpatches; ++i)
     {
+        if (i == progress10) LogMessage("%d/%d", progress10, numpatches);
+        if (i == progress20) LogMessage("%d/%d", progress20, numpatches);
+        if (i == progress30) LogMessage("%d/%d", progress30, numpatches);
+        if (i == progress40) LogMessage("%d/%d", progress40, numpatches);
+        if (i == progress50) LogMessage("%d/%d", progress50, numpatches);
+        if (i == progress60) LogMessage("%d/%d", progress60, numpatches);
+        if (i == progress70) LogMessage("%d/%d", progress70, numpatches);
+        if (i == progress80) LogMessage("%d/%d", progress80, numpatches);
+        if (i == progress90) LogMessage("%d/%d", progress90, numpatches);
+
         vec3 patch_position = all_lm_pos[i];
         vec3 patch_normal = all_lm_norm[i];
         vec3 incidence_ray = TestLightSource - patch_position;
         float costheta = Dot(Normalize(incidence_ray), patch_normal);
         if (costheta > 0.f)
         {
+            float dist = Magnitude(incidence_ray);
+
+            // occlusion test
+            LineCollider ray_collider;
+            ray_collider.a = TestLightSource;
+            ray_collider.b = TestLightSource - incidence_ray * 0.95f;//Normalize(incidence_ray) * GM_max(dist - lm_patch_size, 0.5f);
+            std::unordered_set<Collider*> occlusionQuery = LightMapOcclusionTree.Query(ray_collider);
+            bool occluded = false;
+            for (Collider *surface : occlusionQuery)
+            {
+                ColResult result = GJK(surface, &ray_collider);
+                if (result.hasCollision)
+                {
+                    occluded = true;
+                    break;
+                }
+            }
+
+            if (occluded) 
+                continue;
+
             // point light attenuation
             // energy decreases as per the inverse square law, but the linear coefficient exists to cheat
             // some more aesthetic lighting attenuation.
             float atten_coeff_linear = 0.001f;
             float atten_coeff_quadratic = 0.00005f;
-            float dist = Magnitude(incidence_ray);
             float attenuation = 1.f / (1.f + atten_coeff_linear * dist + atten_coeff_quadratic * dist * dist);
             float intensity = costheta * attenuation;
             intensity = GM_min(intensity, 1.0f);
@@ -1154,8 +1196,8 @@ bool BuildGameMap(const char *path)
     // indirect lighting between patches
 
     // pack light maps
-    i32 lightMapAtlasW = 400;
-    i32 lightMapAtlasH = 400;
+    i32 lightMapAtlasW = 4096;
+    i32 lightMapAtlasH = 4096;
     u8 *LIGHT_MAP_ATLAS = NULL;
     arrsetcap(LIGHT_MAP_ATLAS, lightMapAtlasW*lightMapAtlasH);
     stbrp_node *LMPackerNodes = NULL;
@@ -1204,19 +1246,6 @@ bool BuildGameMap(const char *path)
     // patches across threads.
 
 
-    // LineCollider ray;
-    // ray.a = vec3(0,4,0);
-    // ray.b = vec3(0,-500,0);
-    // std::unordered_set<Collider*> query = LightMapOcclusionTree.Query(ray);
-    // for (Collider *surface : query)
-    // {
-    //     ColResult result = GJK(surface, &ray);
-    //     if (result.hasCollision)
-    //     {
-    //     }
-    // }
-
-
     // sort faces by their textures
     for (int i = 0; i < totalfacecount; ++i)
     {
@@ -1254,6 +1283,12 @@ bool BuildGameMap(const char *path)
 
     bool writtenToFile = ByteBufferWriteToFile(&mapbuf, path) == 1;
     ByteBufferFree(&mapbuf);
+
+    // TODO(Kevin): remove this chrono shit
+    float TimeAtEndOfBuildGameMap = (float)(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count() * 0.001f);
+    float TimeElapsedToBuildGameMapInSeconds = TimeAtEndOfBuildGameMap - TimeAtStartOfBuildGameMap;
+    LogMessage("Took %fs to build.", TimeElapsedToBuildGameMapInSeconds);
+
     return writtenToFile;
 }
 
@@ -1275,7 +1310,7 @@ bool LoadGameMap(const char *path)
     // These light map textures use bilinear texture filtering to allow light values 
     // to be interpolated between the given texture coordinate's neighboring texels. 
     CreateGPUTextureFromBitmap(&POSCOLORTESTTEX, (u8*)lightMapData, lmw, lmh,
-        GL_RGB, GL_RED, GL_LINEAR, GL_LINEAR, GL_UNSIGNED_BYTE);
+        GL_RGB, GL_RED, GL_NEAREST, GL_NEAREST, GL_UNSIGNED_BYTE);
     arrfree(lightMapData);
 
     // colliders
