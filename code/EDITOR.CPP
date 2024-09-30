@@ -1081,10 +1081,10 @@ bool BuildGameMap(const char *path)
     // Each emitting patch goes every other patch, of which there are M. O(NM)
     // Then, each patch (M) goes to every other patch (M) and transfers energy exactly once. O(NMM) 
 
-    const float lm_patch_size = 8.f;
+    const float lm_patch_size = 16.f;
     stbrp_rect *lm_rects = NULL;
     // calculate bounds, and divide into patches
-    arrsetcap(all_lm_pos, 312500);
+    arrsetcap(all_lm_pos, 312500); // patch num cap should be 256^3-1 so about 16 million patches
     arrsetcap(all_lm_norm, 312500);
     arrsetcap(all_lm_light, 312500);
     for (int i = 0; i < totalfacecount; ++i)
@@ -1206,48 +1206,48 @@ bool BuildGameMap(const char *path)
     t8.join();
     t9.join();
 
-    //for (u32 i = 0; i < numpatches; ++i)
-    //{
-    //    if (i == progress10) LogMessage("%d/%d", progress10, numpatches);
-    //    if (i == progress20) LogMessage("%d/%d", progress20, numpatches);
-    //    if (i == progress30) LogMessage("%d/%d", progress30, numpatches);
-    //    if (i == progress40) LogMessage("%d/%d", progress40, numpatches);
-    //    if (i == progress50) LogMessage("%d/%d", progress50, numpatches);
-    //    if (i == progress60) LogMessage("%d/%d", progress60, numpatches);
-    //    if (i == progress70) LogMessage("%d/%d", progress70, numpatches);
-    //    if (i == progress80) LogMessage("%d/%d", progress80, numpatches);
-    //    if (i == progress90) LogMessage("%d/%d", progress90, numpatches);
+    // // indirect lighting between patches
+    // for (u32 i = 0; i < numpatches; ++i)
+    // {
+    //     if (i == progress10) LogMessage("%d/%d", progress10, numpatches);
+    //     if (i == progress20) LogMessage("%d/%d", progress20, numpatches);
+    //     if (i == progress30) LogMessage("%d/%d", progress30, numpatches);
+    //     if (i == progress40) LogMessage("%d/%d", progress40, numpatches);
+    //     if (i == progress50) LogMessage("%d/%d", progress50, numpatches);
+    //     if (i == progress60) LogMessage("%d/%d", progress60, numpatches);
+    //     if (i == progress70) LogMessage("%d/%d", progress70, numpatches);
+    //     if (i == progress80) LogMessage("%d/%d", progress80, numpatches);
+    //     if (i == progress90) LogMessage("%d/%d", progress90, numpatches);
 
-    //    vec3 patch_i_pos = all_lm_pos[i];
-    //    vec3 patch_i_normal = all_lm_norm[i];
+    //     vec3 patch_i_pos = all_lm_pos[i];
+    //     vec3 patch_i_normal = all_lm_norm[i];
 
-    //    for (u32 j = 0; j < numpatches; ++j)
-    //    {
-    //        if (i == j) continue;
+    //     for (u32 j = 0; j < numpatches; ++j)
+    //     {
+    //         if (i == j) continue;
 
-    //        vec3 patch_j_pos = all_lm_pos[j];
-    //        vec3 patch_j_normal = all_lm_norm[j];
+    //         vec3 patch_j_pos = all_lm_pos[j];
+    //         vec3 patch_j_normal = all_lm_norm[j];
 
-    //        vec3 incidence_ray = patch_j_pos - patch_i_pos;
-    //        float costheta = Dot(Normalize(incidence_ray), patch_i_normal);
-    //        if (costheta > 0.f)
-    //        {
-    //            float dist = Magnitude(incidence_ray);
+    //         vec3 incidence_ray = patch_j_pos - patch_i_pos;
+    //         float costheta = Dot(Normalize(incidence_ray), patch_i_normal);
+    //         if (costheta > 0.f)
+    //         {
+    //             float dist = Magnitude(incidence_ray);
 
-    //            // occlusion test
-    //            LineCollider ray_collider;
-    //            ray_collider.a = patch_j_pos;
-    //            ray_collider.b = patch_j_pos - incidence_ray * 0.98f;
-    //            bool occluded = false;
-    //            if (LightMapOcclusionTree.Query(ray_collider))
-    //            {
-    //                occluded = true;
-    //            }
-    //        }
-    //    }
-    //}
+    //             // occlusion test
+    //             LineCollider ray_collider;
+    //             ray_collider.a = patch_j_pos;
+    //             ray_collider.b = patch_j_pos - incidence_ray * 0.98f;
+    //             bool occluded = false;
+    //             if (LightMapOcclusionTree.Query(ray_collider))
+    //             {
+    //                 occluded = true;
+    //             }
+    //         }
+    //     }
+    // }
 
-    // indirect lighting between patches
 
     // pack light maps
     i32 lightMapAtlasW = 4096;
