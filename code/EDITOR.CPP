@@ -977,6 +977,49 @@ bool EditorDeserializeMap(const char *mapFilePath)
 }
 
 vec3 TestLightSource = vec3(0, 110, 0);
+LevelPolygonOctree LightMapOcclusionTree;
+
+void Threaded_DoDirectLightingIntoLightMap(u32 patchIndexStart, u32 patchIndexEnd)
+{
+    // calculate direct lighting for patchIndexStart upto and including patchIndexEnd-1
+
+    for (u32 i = patchIndexStart; i < patchIndexEnd; ++i)
+    {
+        vec3 patch_position = all_lm_pos[i];
+        vec3 patch_normal = all_lm_norm[i];
+        vec3 incidence_ray = TestLightSource - patch_position;
+        float costheta = Dot(Normalize(incidence_ray), patch_normal);
+        if (costheta > 0.f)
+        {
+            float dist = Magnitude(incidence_ray);
+
+            // occlusion test
+            LineCollider ray_collider;
+            ray_collider.a = TestLightSource;
+            ray_collider.b = TestLightSource - incidence_ray * 0.98f;//Normalize(incidence_ray) * GM_max(dist - lm_patch_size, 0.5f);
+            bool occluded = false;
+
+            if (LightMapOcclusionTree.Query(ray_collider))
+            {
+                occluded = true;
+            }
+
+            if (occluded)
+                continue;
+
+            // point light attenuation
+            // energy decreases as per the inverse square law, but the linear coefficient exists to cheat
+            // some more aesthetic lighting attenuation.
+            float atten_coeff_linear = 0.001f;
+            float atten_coeff_quadratic = 0.00005f;
+            float attenuation = 1.f / (1.f + atten_coeff_linear * dist + atten_coeff_quadratic * dist * dist);
+            float intensity = costheta * attenuation;
+            intensity = GM_min(intensity, 1.0f);
+            u8 lv = u8(intensity * 255.f);
+            all_lm_light[i] = lv;
+        }
+    }
+}
 
 bool BuildGameMap(const char *path)
 {
@@ -1017,7 +1060,7 @@ bool BuildGameMap(const char *path)
 
     // LIGHT MAP BAKING
     Bounds MapBounds = Bounds(vec3(-0.17f, -0.17f, -0.17f), vec3(8000, 8000, 8000));
-    LevelPolygonOctree LightMapOcclusionTree = LevelPolygonOctree(MapBounds, 100, 24);
+    LightMapOcclusionTree = LevelPolygonOctree(MapBounds, 100, 24);
     std::vector<FlatPolygonCollider> MapSurfaceColliders(ColliderSpans.size());
     int iter = 0;
     // later, when only some surfaces have colliders, can't use ColliderSpan, need to traverse all faces again
@@ -1038,7 +1081,7 @@ bool BuildGameMap(const char *path)
     // Each emitting patch goes every other patch, of which there are M. O(NM)
     // Then, each patch (M) goes to every other patch (M) and transfers energy exactly once. O(NMM) 
 
-    const float lm_patch_size = 16.f;
+    const float lm_patch_size = 8.f;
     stbrp_rect *lm_rects = NULL;
     // calculate bounds, and divide into patches
     arrsetcap(all_lm_pos, 312500);
@@ -1141,60 +1184,27 @@ bool BuildGameMap(const char *path)
     u32 progress70 = u32((float)numpatches * 0.7f);
     u32 progress80 = u32((float)numpatches * 0.8f);
     u32 progress90 = u32((float)numpatches * 0.9f);
-    for (u32 i = 0; i < numpatches; ++i)
-    {
-        if (i == progress10) LogMessage("%d/%d", progress10, numpatches);
-        if (i == progress20) LogMessage("%d/%d", progress20, numpatches);
-        if (i == progress30) LogMessage("%d/%d", progress30, numpatches);
-        if (i == progress40) LogMessage("%d/%d", progress40, numpatches);
-        if (i == progress50) LogMessage("%d/%d", progress50, numpatches);
-        if (i == progress60) LogMessage("%d/%d", progress60, numpatches);
-        if (i == progress70) LogMessage("%d/%d", progress70, numpatches);
-        if (i == progress80) LogMessage("%d/%d", progress80, numpatches);
-        if (i == progress90) LogMessage("%d/%d", progress90, numpatches);
 
-        vec3 patch_position = all_lm_pos[i];
-        vec3 patch_normal = all_lm_norm[i];
-        vec3 incidence_ray = TestLightSource - patch_position;
-        float costheta = Dot(Normalize(incidence_ray), patch_normal);
-        if (costheta > 0.f)
-        {
-            float dist = Magnitude(incidence_ray);
-
-            // occlusion test
-            LineCollider ray_collider;
-            ray_collider.a = TestLightSource;
-            ray_collider.b = TestLightSource - incidence_ray * 0.98f;//Normalize(incidence_ray) * GM_max(dist - lm_patch_size, 0.5f);
-            bool occluded = false;
-            if (LightMapOcclusionTree.Query(ray_collider))
-            {
-                occluded = true;
-            }
-            //for (FlatPolygonCollider& surface : MapSurfaceColliders)
-            //{
-            //    CollisionResult result = CollideFlatPolygonXLine(&surface, &ray_collider);
-            //    if (result.hasCollision)
-            //    {
-            //        occluded = true;
-            //        break;
-            //    }
-            //}
-
-            if (occluded) 
-                continue;
-
-            // point light attenuation
-            // energy decreases as per the inverse square law, but the linear coefficient exists to cheat
-            // some more aesthetic lighting attenuation.
-            float atten_coeff_linear = 0.001f;
-            float atten_coeff_quadratic = 0.00005f;
-            float attenuation = 1.f / (1.f + atten_coeff_linear * dist + atten_coeff_quadratic * dist * dist);
-            float intensity = costheta * attenuation;
-            intensity = GM_min(intensity, 1.0f);
-            u8 lv = u8(intensity * 255.f);
-            all_lm_light[i] = lv;
-        }
-    }
+    std::thread t0 = std::thread(Threaded_DoDirectLightingIntoLightMap, 0, progress10);
+    std::thread t1 = std::thread(Threaded_DoDirectLightingIntoLightMap, progress10, progress20);
+    std::thread t2 = std::thread(Threaded_DoDirectLightingIntoLightMap, progress20, progress30);
+    std::thread t3 = std::thread(Threaded_DoDirectLightingIntoLightMap, progress30, progress40);
+    std::thread t4 = std::thread(Threaded_DoDirectLightingIntoLightMap, progress40, progress50);
+    std::thread t5 = std::thread(Threaded_DoDirectLightingIntoLightMap, progress50, progress60);
+    std::thread t6 = std::thread(Threaded_DoDirectLightingIntoLightMap, progress60, progress70);
+    std::thread t7 = std::thread(Threaded_DoDirectLightingIntoLightMap, progress70, progress80);
+    std::thread t8 = std::thread(Threaded_DoDirectLightingIntoLightMap, progress80, progress90);
+    std::thread t9 = std::thread(Threaded_DoDirectLightingIntoLightMap, progress90, numpatches);
+    t0.join();
+    t1.join();
+    t2.join();
+    t3.join();
+    t4.join();
+    t5.join();
+    t6.join();
+    t7.join();
+    t8.join();
+    t9.join();
 
     //for (u32 i = 0; i < numpatches; ++i)
     //{
@@ -1354,7 +1364,7 @@ bool LoadGameMap(const char *path)
     // These light map textures use bilinear texture filtering to allow light values 
     // to be interpolated between the given texture coordinate's neighboring texels. 
     CreateGPUTextureFromBitmap(&POSCOLORTESTTEX, (u8*)lightMapData, lmw, lmh,
-        GL_RGB, GL_RED, GL_LINEAR, GL_LINEAR, GL_UNSIGNED_BYTE);
+        GL_RGB, GL_RED, GL_NEAREST, GL_NEAREST, GL_UNSIGNED_BYTE);
     arrfree(lightMapData);
 
     // colliders

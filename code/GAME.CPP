@@ -154,6 +154,7 @@ a resolution normal defined.
 #include <stack>
 #include <memory>
 #include <utility>
+#include <thread>
 
 
 
