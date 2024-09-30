@@ -1,11 +1,18 @@
 /*
 
+Something fucking cool.
+
+Priorty #1 is building the game, not the engine/tech
+
+Just be specific and code exactly that tailored solution e.g. LevelPolygonOctree rather than Octree.
+
+
 == Light map work ==
 The visual artifacts is part of the charm of my game and engine. Something that differentiates it from the perfect crispy lighting of engines like Godot or Unity.
 I need to embrace the fact that lighting will be crude and not be perfect.
 Automate building and loading for quicker tests, and take lots of screenshots and videos explaining the artifacts and changes.
 
-- Revisit octree. Query needs to be far more performant, and it can't be erroneous.
+- [DONE] Revisit octree. Query needs to be far more performant, and it can't be erroneous.
 - I need multiple level layouts and lighting setups and automate the building and loading for quick testing as I tweak the light maps.
 - If padding texel value is too different from its neighboring texel, then copy the value from the neighboring texel (dilate the texel)
   and discard the padding texel sample value. It's not just occluded being dark, it's also the not occluded padding texels being too bright.
@@ -15,18 +22,20 @@ Automate building and loading for quicker tests, and take lots of screenshots an
           *    *
              *
 
+== Indirect Lighting ==
+- Try hemicube solution...
+
+
+
+
 
 TODO:
-- aight replace all the dogshit GJK stuff with SPECIFIC collider checks
-    - Do GJK if more complex, and simpler test if just polygon x line
-- make octree better
-
-
 - Make simple textured playground level
 - Skeletal animations
 - Enemy moves and shoots at player
 - Gun model?
 - Player shoots at enemy
+- replace all the dogshit GJK stuff with SPECIFIC collider checks (GJK for finegrained test on complex meshes; do broader quicker tests; simpler test if just polygon x line)
 
 - serialize/deserialize asset database
 - better collision surfaces
@@ -63,7 +72,6 @@ NOTES:
 
     port over dropdown console?
 
-Priorty #1 is building the game, not the engine/tech
 Engine work is almost done. 
 ~~Octree collision acceleration~~
 Skeletal animations
