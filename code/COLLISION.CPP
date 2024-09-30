@@ -833,9 +833,53 @@ struct Bounds : Collider
                (GM_abs(center.z - other.center.z) * 2.f < (size.z + other.size.z));
     }
 
-    bool IntersectsOrContains(const LineCollider& line)
+    bool Intersects(const FlatPolygonCollider& other) const 
     {
-        return Contains(line.a) || Contains(line.b);
+        for (u32 i = 0; i < other.pointCount; ++i)
+        {
+            if (Contains(other.pointCloudPtr[i]))
+                return true;
+        }
+        return false;
+    }
+
+    // returns true if AABB intersects or wholly contains the line
+    bool LineIntersectsAABB(const vec3 &A, const vec3 &B) 
+    {
+        vec3 dir = B - A;
+        vec3 invDir;
+
+        float tMin = 0.0f;
+        float tMax = 1.0f;
+
+        vec3 boxMin = center - size / 2.f;
+        vec3 boxMax = center + size / 2.f;
+
+        for (int i = 0; i < 3; i++) {
+            if (dir[i] == 0.0f) {
+                // Line is parallel to the axis, check if the point A is within the bounds on this axis
+                if (A[i] < boxMin[i] || A[i] > boxMax[i]) {
+                    return false;  // Line lies outside the bounds, no intersection
+                }
+            }
+            else {
+                // Line is not parallel, calculate intersection using the slab method
+                invDir[i] = 1.0f / dir[i];
+                float t1 = (boxMin[i] - A[i]) * invDir[i];
+                float t2 = (boxMax[i] - A[i]) * invDir[i];
+
+                if (invDir[i] < 0.0f) std::swap(t1, t2);
+
+                // Update the intersection interval
+                tMin = GM_max(tMin, t1);
+                tMax = GM_min(tMax, t2);
+
+                // If tMin exceeds tMax, the line segment does not intersect the AABB
+                if (tMin > tMax) return false;
+            }
+        }
+
+        return true;  // The line segment intersects the AABB
     }
 
     // bool Contains(const Bounds& other) const 
@@ -1110,7 +1154,7 @@ std::unordered_set<Collider*> Octree::QueryNode(OctreeNode *node, const LineColl
 {
     std::unordered_set<Collider*> result;
 
-    if (!node->bounds.IntersectsOrContains(queryRay))
+    if (!node->bounds.LineIntersectsAABB(queryRay.a, queryRay.b))
         return result;
 
     if (node->isLeaf) 
@@ -1132,49 +1176,208 @@ std::unordered_set<Collider*> Octree::QueryNode(OctreeNode *node, const LineColl
     return result;
 }
 
-// struct LevelPolygonOctreeNode
-// {
-//     Bounds bounds;
-//     std::vector<Collider*> objects;
-//     std::unique_ptr<LevelPolygonOctreeNode[]> children;
-//     bool isLeaf = true;
+struct LevelPolygonOctreeNode
+{
+    Bounds bounds;
+    std::vector<FlatPolygonCollider*> objects;
+    std::unique_ptr<LevelPolygonOctreeNode[]> children;
+    bool isLeaf = true;
 
-//     LevelPolygonOctreeNode()
-//     {}
+    LevelPolygonOctreeNode()
+    {}
 
-//     LevelPolygonOctreeNode(const Bounds& bounds)
-//         : bounds(bounds)
-//     {}
-// };
+    LevelPolygonOctreeNode(const Bounds& bounds)
+        : bounds(bounds)
+    {}
+};
 
-// // octree for flat polygons in the level
-// struct LevelPolygonOctree
-// {
-//     LevelPolygonOctree() {}
-//     LevelPolygonOctree(const Bounds& worldBounds, int maxDepth, int maxObjectsPerNode)
-//         : root(new LevelPolygonOctreeNode(worldBounds))
-//         , maxDepth(maxDepth)
-//         , maxObjectsPerNode(maxObjectsPerNode) 
-//     {}
+// octree for flat polygons in the level
+struct LevelPolygonOctree
+{
+    LevelPolygonOctree() {}
+    LevelPolygonOctree(const Bounds& worldBounds, int maxDepth, int maxObjectsPerNode)
+        : root(new LevelPolygonOctreeNode(worldBounds))
+        , maxDepth(maxDepth)
+        , maxObjectsPerNode(maxObjectsPerNode) 
+    {}
 
-//     void Insert(FlatPolygonCollider *obj) 
-//     {
-//         Insert(root.get(), obj, 0);
-//     }
+    void Insert(FlatPolygonCollider *obj) 
+    {
+        Insert(root.get(), obj, 0);
+    }
 
-//     CollisionResult Query(const LineCollider& queryRay) 
-//     {
-//         return QueryNode(root.get(), queryRay);
-//     }
+    bool Query(LineCollider& queryRay) 
+    {
+        return QueryNode(root.get(), queryRay);
+    }
 
-//     std::unique_ptr<LevelPolygonOctreeNode> root;
-//     int maxDepth;
-//     int maxObjectsPerNode;
+    std::unique_ptr<LevelPolygonOctreeNode> root;
+    int maxDepth = -1;
+    int maxObjectsPerNode = -1;
 
-//     void Insert(LevelPolygonOctreeNode *node, FlatPolygonCollider *obj, int depth);
-//     u8 GetChildIndices(const LevelPolygonOctreeNode *node, FlatPolygonCollider *obj) ;
-//     void Subdivide(LevelPolygonOctreeNode *node);
-//     void RedistributeObjects(LevelPolygonOctreeNode *node);
-//     CollisionResult QueryNode(LevelPolygonOctreeNode *node, const LineCollider& queryRay);
-// };
+    void Insert(LevelPolygonOctreeNode *node, FlatPolygonCollider *obj, int depth);
+    u8 GetChildIndices(const LevelPolygonOctreeNode *node, FlatPolygonCollider *obj) ;
+    void Subdivide(LevelPolygonOctreeNode *node);
+    void RedistributeObjects(LevelPolygonOctreeNode *node);
+    bool QueryNode(LevelPolygonOctreeNode *node, LineCollider& queryRay);
+};
 
+void LevelPolygonOctree::Insert(LevelPolygonOctreeNode *node, FlatPolygonCollider *obj, int depth) 
+{
+    if (node->isLeaf) 
+    {
+        node->objects.push_back(obj);
+
+        if (node->objects.size() > maxObjectsPerNode && depth < maxDepth) 
+        {
+            // does not guarantee resolve max obj but will run again if node on next insert if node is still problematic
+            Subdivide(node);
+            RedistributeObjects(node);
+        }
+    } 
+    else 
+    {
+        // can be inserted into multiple children
+
+        u8 indices = GetChildIndices(node, obj);
+
+        if (
+            indices != 0b00000001 &&
+            indices != 0b00000010 &&
+            indices != 0b00000100 &&
+            indices != 0b00001000 &&
+            indices != 0b00010000 &&
+            indices != 0b00100000 &&
+            indices != 0b01000000 &&
+            indices != 0b10000000
+            )
+        {
+            node->objects.push_back(obj);
+            return;
+        }
+
+        if (indices & 0b00000001)
+            Insert(&node->children[0], obj, depth + 1);
+        if (indices & 0b00000010)
+            Insert(&node->children[1], obj, depth + 1);
+        if (indices & 0b00000100)
+            Insert(&node->children[2], obj, depth + 1);
+        if (indices & 0b00001000)
+            Insert(&node->children[3], obj, depth + 1);
+        if (indices & 0b00010000)
+            Insert(&node->children[4], obj, depth + 1);
+        if (indices & 0b00100000)
+            Insert(&node->children[5], obj, depth + 1);
+        if (indices & 0b01000000)
+            Insert(&node->children[6], obj, depth + 1);
+        if (indices & 0b10000000)
+            Insert(&node->children[7], obj, depth + 1);
+    }
+}
+
+void LevelPolygonOctree::Subdivide(LevelPolygonOctreeNode *node)
+{
+    vec3 octantSize = node->bounds.size / 2.0f;
+
+    node->children = std::make_unique<LevelPolygonOctreeNode[]>(8);
+    node->isLeaf = false;
+
+    for (int i = 0; i < 8; ++i) 
+    {
+        vec3 newCenter = node->bounds.center;
+        newCenter.x += octantSize.x * ((i & 1) ? 0.5f : -0.5f);
+        newCenter.y += octantSize.y * ((i & 2) ? 0.5f : -0.5f);
+        newCenter.z += octantSize.z * ((i & 4) ? 0.5f : -0.5f);
+
+        Bounds octant;
+        octant.center = newCenter;
+        octant.size = octantSize;
+        node->children[i] = LevelPolygonOctreeNode(octant);
+    }
+}
+
+void LevelPolygonOctree::RedistributeObjects(LevelPolygonOctreeNode *node) 
+{
+    std::vector<FlatPolygonCollider*> objectsToReinsert = std::move(node->objects);
+    node->objects.clear();
+
+    for (FlatPolygonCollider *obj : objectsToReinsert) 
+    {
+        u8 indices = GetChildIndices(node, obj);
+
+        // keep here if doesn't fit in a single child
+        if (
+            indices != 0b00000001 &&
+            indices != 0b00000010 &&
+            indices != 0b00000100 &&
+            indices != 0b00001000 &&
+            indices != 0b00010000 &&
+            indices != 0b00100000 &&
+            indices != 0b01000000 &&
+            indices != 0b10000000
+            )
+        {
+            node->objects.push_back(obj);
+            continue;
+        }
+
+        ASSERT(indices != 0);
+        if (indices & 0b00000001)
+            node->children[0].objects.push_back(obj);
+        if (indices & 0b00000010)
+            node->children[1].objects.push_back(obj);
+        if (indices & 0b00000100)
+            node->children[2].objects.push_back(obj);
+        if (indices & 0b00001000)
+            node->children[3].objects.push_back(obj);
+        if (indices & 0b00010000)
+            node->children[4].objects.push_back(obj);
+        if (indices & 0b00100000)
+            node->children[5].objects.push_back(obj);
+        if (indices & 0b01000000)
+            node->children[6].objects.push_back(obj);
+        if (indices & 0b10000000)
+            node->children[7].objects.push_back(obj);
+    }
+}
+
+// given a collider and a node, which of its octants does it belong to? up to all of them
+u8 LevelPolygonOctree::GetChildIndices(const LevelPolygonOctreeNode *node, FlatPolygonCollider *obj) 
+{
+    u8 childIndices = 
+        node->children[0].bounds.Intersects(*obj) << 0 |
+        node->children[1].bounds.Intersects(*obj) << 1 |
+        node->children[2].bounds.Intersects(*obj) << 2 |
+        node->children[3].bounds.Intersects(*obj) << 3 |
+        node->children[4].bounds.Intersects(*obj) << 4 |
+        node->children[5].bounds.Intersects(*obj) << 5 |
+        node->children[6].bounds.Intersects(*obj) << 6 |
+        node->children[7].bounds.Intersects(*obj) << 7;
+
+    return childIndices;
+}
+
+bool LevelPolygonOctree::QueryNode(LevelPolygonOctreeNode *node, LineCollider& queryRay) 
+{
+    if (!node->bounds.LineIntersectsAABB(queryRay.a, queryRay.b))
+        return false;
+
+    for (FlatPolygonCollider *polygon : node->objects)
+    {
+        CollisionResult result = CollideFlatPolygonXLine(polygon, &queryRay);
+        if (result.hasCollision)
+            return true;
+    }
+
+    if (!node->isLeaf)
+    {
+        for (int i = 0; i < 8; ++i)
+        {
+            bool collided = QueryNode(&node->children[i], queryRay);
+            if (collided) 
+                return true;
+        }
+    }
+
+    return false;
+}

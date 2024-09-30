@@ -1558,8 +1558,6 @@ int main(int argc, char* argv[])
 
     LoadMapEditor();
 
-    Tests_CollideFlatPolygonXLine();
-
     EditorDeserializeMap(wd_path("LightTest.emf").c_str());
     BuildGameMap(wd_path("buildtest3.map").c_str());
 

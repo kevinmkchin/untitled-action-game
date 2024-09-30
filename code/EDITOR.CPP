@@ -1017,7 +1017,7 @@ bool BuildGameMap(const char *path)
 
     // LIGHT MAP BAKING
     Bounds MapBounds = Bounds(vec3(-0.17f, -0.17f, -0.17f), vec3(8000, 8000, 8000));
-    Octree LightMapOcclusionTree = Octree(MapBounds, 600, 600);
+    LevelPolygonOctree LightMapOcclusionTree = LevelPolygonOctree(MapBounds, 100, 24);
     std::vector<FlatPolygonCollider> MapSurfaceColliders(ColliderSpans.size());
     int iter = 0;
     // later, when only some surfaces have colliders, can't use ColliderSpan, need to traverse all faces again
@@ -1038,7 +1038,7 @@ bool BuildGameMap(const char *path)
     // Each emitting patch goes every other patch, of which there are M. O(NM)
     // Then, each patch (M) goes to every other patch (M) and transfers energy exactly once. O(NMM) 
 
-    const float lm_patch_size = 8.f;
+    const float lm_patch_size = 16.f;
     stbrp_rect *lm_rects = NULL;
     // calculate bounds, and divide into patches
     arrsetcap(all_lm_pos, 312500);
@@ -1166,15 +1166,19 @@ bool BuildGameMap(const char *path)
             ray_collider.a = TestLightSource;
             ray_collider.b = TestLightSource - incidence_ray * 0.98f;//Normalize(incidence_ray) * GM_max(dist - lm_patch_size, 0.5f);
             bool occluded = false;
-            for (FlatPolygonCollider& surface : MapSurfaceColliders)
+            if (LightMapOcclusionTree.Query(ray_collider))
             {
-                CollisionResult result = CollideFlatPolygonXLine(&surface, &ray_collider);
-                if (result.hasCollision)
-                {
-                    occluded = true;
-                    break;
-                }
+                occluded = true;
             }
+            //for (FlatPolygonCollider& surface : MapSurfaceColliders)
+            //{
+            //    CollisionResult result = CollideFlatPolygonXLine(&surface, &ray_collider);
+            //    if (result.hasCollision)
+            //    {
+            //        occluded = true;
+            //        break;
+            //    }
+            //}
 
             if (occluded) 
                 continue;
@@ -1191,6 +1195,47 @@ bool BuildGameMap(const char *path)
             all_lm_light[i] = lv;
         }
     }
+
+    //for (u32 i = 0; i < numpatches; ++i)
+    //{
+    //    if (i == progress10) LogMessage("%d/%d", progress10, numpatches);
+    //    if (i == progress20) LogMessage("%d/%d", progress20, numpatches);
+    //    if (i == progress30) LogMessage("%d/%d", progress30, numpatches);
+    //    if (i == progress40) LogMessage("%d/%d", progress40, numpatches);
+    //    if (i == progress50) LogMessage("%d/%d", progress50, numpatches);
+    //    if (i == progress60) LogMessage("%d/%d", progress60, numpatches);
+    //    if (i == progress70) LogMessage("%d/%d", progress70, numpatches);
+    //    if (i == progress80) LogMessage("%d/%d", progress80, numpatches);
+    //    if (i == progress90) LogMessage("%d/%d", progress90, numpatches);
+
+    //    vec3 patch_i_pos = all_lm_pos[i];
+    //    vec3 patch_i_normal = all_lm_norm[i];
+
+    //    for (u32 j = 0; j < numpatches; ++j)
+    //    {
+    //        if (i == j) continue;
+
+    //        vec3 patch_j_pos = all_lm_pos[j];
+    //        vec3 patch_j_normal = all_lm_norm[j];
+
+    //        vec3 incidence_ray = patch_j_pos - patch_i_pos;
+    //        float costheta = Dot(Normalize(incidence_ray), patch_i_normal);
+    //        if (costheta > 0.f)
+    //        {
+    //            float dist = Magnitude(incidence_ray);
+
+    //            // occlusion test
+    //            LineCollider ray_collider;
+    //            ray_collider.a = patch_j_pos;
+    //            ray_collider.b = patch_j_pos - incidence_ray * 0.98f;
+    //            bool occluded = false;
+    //            if (LightMapOcclusionTree.Query(ray_collider))
+    //            {
+    //                occluded = true;
+    //            }
+    //        }
+    //    }
+    //}
 
     // indirect lighting between patches
 
@@ -1309,7 +1354,7 @@ bool LoadGameMap(const char *path)
     // These light map textures use bilinear texture filtering to allow light values 
     // to be interpolated between the given texture coordinate's neighboring texels. 
     CreateGPUTextureFromBitmap(&POSCOLORTESTTEX, (u8*)lightMapData, lmw, lmh,
-        GL_RGB, GL_RED, GL_NEAREST, GL_NEAREST, GL_UNSIGNED_BYTE);
+        GL_RGB, GL_RED, GL_LINEAR, GL_LINEAR, GL_UNSIGNED_BYTE);
     arrfree(lightMapData);
 
     // colliders
