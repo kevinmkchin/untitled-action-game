@@ -1197,6 +1197,28 @@ void DoDiscHandle(u32 id, vec3 worldpos, vec3 normal, float radius)
     }
 }
 
+void DrawHandlesVertexArray_GL(float *vertexArrayData, u32 vertexArrayDataCount, 
+    u32 fboId, int viewportW, int viewportH, float *projectionMat, float *viewMat)
+{
+    glBindFramebuffer(GL_FRAMEBUFFER, fboId);
+    glViewport(0,0,viewportW,viewportH);
+    glClearColor(0.f,0.f,0.f,1.f); // clear with rgb(id 0)
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glEnable(GL_DEPTH_TEST);
+
+    UseShader(HANDLES_SHADER);
+
+    GLBindMatrix4fv(HANDLES_SHADER, "projectionMatrix", 1, projectionMat);
+    GLBindMatrix4fv(HANDLES_SHADER, "viewMatrix", 1, viewMat);
+
+    glBindVertexArray(HANDLES_VAO);
+    glBindBuffer(GL_ARRAY_BUFFER, HANDLES_VBO);
+    glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)sizeof(float)*vertexArrayDataCount, vertexArrayData, GL_DYNAMIC_DRAW);
+    glDrawArrays(GL_TRIANGLES, 0, vertexArrayDataCount / 6);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
+}
+
 // draw all handles, return id of clicked handle
 u32 FlushHandles(ivec2 clickat, const GPUFrameBuffer activeSceneTarget,
                  const mat4& activeViewMatrix, const mat4& activeProjectionMatrix, bool orthographic)
@@ -1224,23 +1246,9 @@ u32 FlushHandles(ivec2 clickat, const GPUFrameBuffer activeSceneTarget,
         scaledDownFrustum[2][1] -= offsetY;
     }
 
-    glBindFramebuffer(GL_FRAMEBUFFER, mousePickingRenderTarget.fbo);
-    glViewport(0,0,(int)mousePickTargetW,(int)mousePickTargetH);
-    glClearColor(0.f,0.f,0.f,1.f); // clear with rgb(id 0)
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    glEnable(GL_DEPTH_TEST);
-
-    UseShader(HANDLES_SHADER);
-
-    GLBindMatrix4fv(HANDLES_SHADER, "projectionMatrix", 1, scaledDownFrustum.ptr());
-    GLBindMatrix4fv(HANDLES_SHADER, "viewMatrix", 1, activeViewMatrix.ptr());
-
-    glBindVertexArray(HANDLES_VAO);
-    glBindBuffer(GL_ARRAY_BUFFER, HANDLES_VBO);
-    glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)sizeof(float)*HANDLES_VB.count, HANDLES_VB.data, GL_DYNAMIC_DRAW);
-    glDrawArrays(GL_TRIANGLES, 0, HANDLES_VB.count / 6);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-    glBindVertexArray(0);
+    DrawHandlesVertexArray_GL(HANDLES_VB.data, HANDLES_VB.count, 
+        mousePickingRenderTarget.fbo, (int)mousePickTargetW, (int)mousePickTargetH, 
+        scaledDownFrustum.ptr(), activeViewMatrix.ptr());
 
     HANDLES_VB.ResetCount();
 

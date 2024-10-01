@@ -598,7 +598,7 @@ CollisionResult CollideFlatPolygonXLine(FlatPolygonCollider *polygon, LineCollid
     vec3 IntersectionPoint = line->a + t * (line->b - line->a);
 
     // project polygon and intersection point into 2D space
-    NiceArray<vec2, 32> projectedVertices;
+    NiceArray<vec2, 32> projectedVertices; // TODO(Kevin): more than 32 verts
     projectedVertices.ResetCount();
 
     vec3 basisU = edge0;
