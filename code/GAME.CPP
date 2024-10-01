@@ -141,11 +141,15 @@ a resolution normal defined.
 #include <stb_rect_pack.h>
 #define STB_TRUETYPE_IMPLEMENTATION
 #include <stb_truetype.h>
+#define STB_DS_IMPLEMENTATION
+#include <stb_ds.h>
+
 #define VERTEXT_IMPLEMENTATION
 #include <vertext.h>
 #include <gmath.h>
-#define STB_DS_IMPLEMENTATION
-#include <stb_ds.h>
+#if INTERNAL_BUILD
+#include <renderdoc_app.h>
+#endif
 
 #include <map>
 #include <unordered_map>
@@ -246,6 +250,10 @@ u8 keysreleased[256] = {0};
 
 i32 BACKBUFFER_WIDTH = -1;
 i32 BACKBUFFER_HEIGHT = -1;
+
+#if INTERNAL_BUILD
+RENDERDOC_API_1_6_0 *rdoc_api = NULL;
+#endif
 
 bool IsEditorActive = false;
 
@@ -1441,6 +1449,24 @@ static void TickTime()
 
 static bool InitializeEverything()
 {
+#if INTERNAL_BUILD
+    // === RENDER DOC API ===
+    LoadLibrary("renderdoc.dll");
+    if (HMODULE mod = GetModuleHandleA("renderdoc.dll"))
+    {
+        pRENDERDOC_GetAPI RENDERDOC_GetAPI =
+            (pRENDERDOC_GetAPI)GetProcAddress(mod, "RENDERDOC_GetAPI");
+        int ret = RENDERDOC_GetAPI(eRENDERDOC_API_Version_1_1_2, (void **)&rdoc_api);
+        ASSERT(ret == 1);
+        LogMessage("Loaded renderdoc.dll");
+        // rdoc_api->LaunchReplayUI(1, "");
+    }
+    else
+    {
+        LogWarning("Failed to load renderdoc.dll");
+    }
+#endif
+
     g_ProgramShouldShutdown = false;
 
     SDL_SetHint(SDL_HINT_WINDOWS_DPI_AWARENESS, "system"); // https://github.com/MicrosoftDocs/win32/blob/docs/desktop-src/LearnWin32/dpi-and-device-independent-pixels.md#dwm-scaling
