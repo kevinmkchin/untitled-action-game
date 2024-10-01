@@ -1300,7 +1300,7 @@ bool BuildGameMap(const char *path)
     const u32 hemicubeFaceWHalf = hemicubeFaceW/2;
     const u32 hemicubeFaceH = 64;
     const u32 hemicubeFaceHHalf = hemicubeFaceH/2;
-    const float pixelAreaInSolidAngle = GM_PI / (hemicubeFaceW * hemicubeFaceH);
+    const float pixelAreaInSolidAngle = GM_PI / float(2 * hemicubeFaceW * hemicubeFaceH);
     GPUFrameBuffer topFace;
     topFace.width = hemicubeFaceW;
     topFace.height = hemicubeFaceH;
@@ -1492,6 +1492,7 @@ bool BuildGameMap(const char *path)
     u32 all_lmsz = (u32)arrlenu(all_lm_light);
     for (u32 i = 0; i < all_lmsz; ++i)
     {
+        // tbh I could just have the light map atlas use float instead of u8; don't need u8 array then
         all_lm_light[i] = u8(GM_clamp(all_radiosity[i], 0.f, 1.f) * 255.f);
     }
 
