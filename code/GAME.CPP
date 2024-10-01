@@ -1461,7 +1461,6 @@ static bool InitializeEverything()
         int ret = RENDERDOC_GetAPI(eRENDERDOC_API_Version_1_1_2, (void **)&rdoc_api);
         ASSERT(ret == 1);
         LogMessage("Loaded renderdoc.dll");
-        rdoc_api->LaunchReplayUI(1, "");
     }
     else
     {
@@ -1595,8 +1594,9 @@ int main(int argc, char* argv[])
 
     LoadMapEditor();
 
-    // EditorDeserializeMap(wd_path("LightTest.emf").c_str());
-    // BuildGameMap(wd_path("buildtest3.map").c_str());
+    // rdoc_api->LaunchReplayUI(1, "");
+    EditorDeserializeMap(wd_path("LightTest.emf").c_str());
+    BuildGameMap(wd_path("buildtest3.map").c_str());
 
     // Tests_CollideFlatPolygonXLine();
 
@@ -1612,10 +1612,10 @@ int main(int argc, char* argv[])
         Gui::NewFrame();
         ProcessSDLEvents();
 
-        // TickGame();
-        // DrawGame();
-        TickMapEditor();
-        DrawMapEditor();
+        TickGame();
+        DrawGame();
+        // TickMapEditor();
+        // DrawMapEditor();
 
         SDL_GL_SwapWindow(g_MainSDLWindow);
 

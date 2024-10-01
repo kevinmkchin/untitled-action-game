@@ -20,7 +20,9 @@ struct lm_face_t
 vec3 *all_lm_pos = NULL;
 vec3 *all_lm_norm = NULL;
 u8   *all_lm_light = NULL;
+vec3 *all_lm_tangent = NULL;
 vec3 *all_patches_id = NULL;
+float *all_radiosity = NULL;
 
 
 
@@ -1017,8 +1019,7 @@ void Threaded_DoDirectLightingIntoLightMap(u32 patchIndexStart, u32 patchIndexEn
             float attenuation = 1.f / (1.f + atten_coeff_linear * dist + atten_coeff_quadratic * dist * dist);
             float intensity = costheta * attenuation;
             intensity = GM_min(intensity, 1.0f);
-            u8 lv = u8(intensity * 255.f);
-            all_lm_light[i] = lv;
+            all_radiosity[i] = intensity;
         }
     }
 }
@@ -1089,7 +1090,9 @@ bool BuildGameMap(const char *path)
     arrsetcap(all_lm_pos, 312500); // patch num cap should be 256^3-1 so about 16 million patches
     arrsetcap(all_lm_norm, 312500);
     arrsetcap(all_lm_light, 312500);
+    arrsetcap(all_lm_tangent, 312500);
     arrsetcap(all_patches_id, 312500);
+    arrsetcap(all_radiosity, 312500);
     u32 patchCounter = 0;
     for (int i = 0; i < totalfacecount; ++i)
     {
@@ -1154,7 +1157,9 @@ bool BuildGameMap(const char *path)
         lm.pos = arraddnptr(all_lm_pos, lmsz);
         lm.norm = arraddnptr(all_lm_norm, lmsz);
         lm.light = arraddnptr(all_lm_light, lmsz);
+        vec3 *lm_tangent = arraddnptr(all_lm_tangent, lmsz);
         lm.patches_id = arraddnptr(all_patches_id, lmsz);
+        float *lm_radiosity = arraddnptr(all_radiosity, lmsz);
         for (i32 pi = 0; pi < lmsz; ++pi)
         {
             i32 x = pi % lm.w;
@@ -1166,7 +1171,9 @@ bool BuildGameMap(const char *path)
             lm.pos[pi] = p;
             lm.norm[pi] = fn;
             lm.light[pi] = 0;
+            lm_tangent[pi] = basisV;
             lm.patches_id[pi] = HandleIdToRGB(++patchCounter);
+            lm_radiosity[pi] = 0.f;
         }
 
         face->lightmap = lm;
@@ -1289,75 +1296,204 @@ bool BuildGameMap(const char *path)
         GL_RGB, GL_RGB, GL_NEAREST, GL_NEAREST, GL_FLOAT);
     arrfree(PATCHES_ID_ATLAS);
 
-    if(rdoc_api) 
-    {
-        rdoc_api->StartFrameCapture(NULL, NULL);
-    }
-
-    glBindFramebuffer(GL_FRAMEBUFFER, renderTargetGame.fbo);
-    glViewport(0,0,renderTargetGame.width,renderTargetGame.height);
-    glClearColor(0.f,0.f,0.f,1.f); // clear with rgb(id 0)
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    const u32 hemicubeFaceW = 64;
+    const u32 hemicubeFaceWHalf = hemicubeFaceW/2;
+    const u32 hemicubeFaceH = 64;
+    const u32 hemicubeFaceHHalf = hemicubeFaceH/2;
+    const float pixelAreaInSolidAngle = GM_PI / (hemicubeFaceW * hemicubeFaceH);
+    GPUFrameBuffer topFace;
+    topFace.width = hemicubeFaceW;
+    topFace.height = hemicubeFaceH;
+    GPUFrameBuffer sideFace0;
+    sideFace0.width = topFace.width;
+    sideFace0.height = topFace.height;
+    GPUFrameBuffer sideFace1;
+    sideFace1.width = topFace.width;
+    sideFace1.height = topFace.height;
+    GPUFrameBuffer sideFace2;
+    sideFace2.width = topFace.width;
+    sideFace2.height = topFace.height;
+    GPUFrameBuffer sideFace3;
+    sideFace3.width = topFace.width;
+    sideFace3.height = topFace.height;
+    CreateGPUFrameBuffer(&topFace);
+    CreateGPUFrameBuffer(&sideFace0);
+    CreateGPUFrameBuffer(&sideFace1);
+    CreateGPUFrameBuffer(&sideFace2);
+    CreateGPUFrameBuffer(&sideFace3);
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_CULL_FACE);
     UseShader(patchesIDShader);
-    GLBindMatrix4fv(patchesIDShader, "projMatrix", 1, activePerspectiveMatrix.ptr());
-    GLBindMatrix4fv(patchesIDShader, "viewMatrix", 1, activeViewMatrix.ptr());
-    RenderFaceBatch(patchesIdBatch);
 
-    if(rdoc_api) 
+    float HEMICUBE_NEARCLIP = lm_patch_size*0.48f;//4.f;
+    mat4 hemicubePerspectiveMatrix = ProjectionMatrixPerspective(90.f, 1.f, HEMICUBE_NEARCLIP, GAMEPROJECTION_FARCLIP);
+    GLBindMatrix4fv(patchesIDShader, "projMatrix", 1, hemicubePerspectiveMatrix.ptr());
+
+    // if (rdoc_api) rdoc_api->StartFrameCapture(NULL, NULL);
+    for (u32 i = 0; i < numpatches; ++i)
     {
-        if (rdoc_api->EndFrameCapture(NULL, NULL))
+        if (i == progress10) LogMessage("%d/%d", progress10, numpatches);
+        if (i == progress20) LogMessage("%d/%d", progress20, numpatches);
+        if (i == progress30) LogMessage("%d/%d", progress30, numpatches);
+        if (i == progress40) LogMessage("%d/%d", progress40, numpatches);
+        if (i == progress50) LogMessage("%d/%d", progress50, numpatches);
+        if (i == progress60) LogMessage("%d/%d", progress60, numpatches);
+        if (i == progress70) LogMessage("%d/%d", progress70, numpatches);
+        if (i == progress80) LogMessage("%d/%d", progress80, numpatches);
+        if (i == progress90) LogMessage("%d/%d", progress90, numpatches);
+
+        vec3 patch_i_pos = all_lm_pos[i];
+        vec3 patch_i_normal = all_lm_norm[i];
+        vec3 patch_i_tangent = all_lm_tangent[i];
+        vec3 patch_i_other_tangent = Normalize(Cross(patch_i_tangent, patch_i_normal));
+
+        glBindFramebuffer(GL_FRAMEBUFFER, topFace.fbo);
+        glViewport(0,0, topFace.width, topFace.height);
+        glClearColor(0.f,0.f,0.f,1.f); // clear with rgb(id 0)
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        mat4 hemicubeViewMatrix = ViewMatrixLookAt(patch_i_pos, patch_i_pos + patch_i_normal, patch_i_tangent);
+        GLBindMatrix4fv(patchesIDShader, "viewMatrix", 1, hemicubeViewMatrix.ptr());
+        RenderFaceBatch(patchesIdBatch);
+
+        glBindFramebuffer(GL_FRAMEBUFFER, sideFace0.fbo);
+        glViewport(0,0, sideFace0.width, sideFace0.height);
+        glClearColor(0.f,0.f,0.f,1.f); // clear with rgb(id 0)
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        hemicubeViewMatrix = ViewMatrixLookAt(patch_i_pos, patch_i_pos + patch_i_tangent, patch_i_normal);
+        GLBindMatrix4fv(patchesIDShader, "viewMatrix", 1, hemicubeViewMatrix.ptr());
+        RenderFaceBatch(patchesIdBatch);
+
+        glBindFramebuffer(GL_FRAMEBUFFER, sideFace1.fbo);
+        glViewport(0,0, sideFace1.width, sideFace1.height);
+        glClearColor(0.f,0.f,0.f,1.f); // clear with rgb(id 0)
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        hemicubeViewMatrix = ViewMatrixLookAt(patch_i_pos, patch_i_pos - patch_i_tangent, patch_i_normal);
+        GLBindMatrix4fv(patchesIDShader, "viewMatrix", 1, hemicubeViewMatrix.ptr());
+        RenderFaceBatch(patchesIdBatch);
+
+        glBindFramebuffer(GL_FRAMEBUFFER, sideFace2.fbo);
+        glViewport(0,0, sideFace2.width, sideFace2.height);
+        glClearColor(0.f,0.f,0.f,1.f); // clear with rgb(id 0)
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        hemicubeViewMatrix = ViewMatrixLookAt(patch_i_pos, patch_i_pos + patch_i_other_tangent, patch_i_normal);
+        GLBindMatrix4fv(patchesIDShader, "viewMatrix", 1, hemicubeViewMatrix.ptr());
+        RenderFaceBatch(patchesIdBatch);
+
+        glBindFramebuffer(GL_FRAMEBUFFER, sideFace3.fbo);
+        glViewport(0,0, sideFace3.width, sideFace3.height);
+        glClearColor(0.f,0.f,0.f,1.f); // clear with rgb(id 0)
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        hemicubeViewMatrix = ViewMatrixLookAt(patch_i_pos, patch_i_pos - patch_i_other_tangent, patch_i_normal);
+        GLBindMatrix4fv(patchesIDShader, "viewMatrix", 1, hemicubeViewMatrix.ptr());
+        RenderFaceBatch(patchesIdBatch);
+
+        glFlush();
+        glFinish();
+
+        glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+
+        glBindFramebuffer(GL_FRAMEBUFFER, topFace.fbo);
+        u8 hemicubeTopFaceData[hemicubeFaceW*hemicubeFaceH*4];
+        glReadPixels(0, 0, topFace.width, topFace.height, GL_RGBA, GL_UNSIGNED_BYTE, hemicubeTopFaceData);
+
+        glBindFramebuffer(GL_FRAMEBUFFER, sideFace0.fbo);
+        u8 hemicubeSideFace0Data[hemicubeFaceW*hemicubeFaceH*4];
+        glReadPixels(0, 0, sideFace0.width, sideFace0.height, GL_RGBA, GL_UNSIGNED_BYTE, hemicubeSideFace0Data);
+
+        glBindFramebuffer(GL_FRAMEBUFFER, sideFace1.fbo);
+        u8 hemicubeSideFace1Data[hemicubeFaceW*hemicubeFaceH*4];
+        glReadPixels(0, 0, sideFace1.width, sideFace1.height, GL_RGBA, GL_UNSIGNED_BYTE, hemicubeSideFace1Data);
+        
+        glBindFramebuffer(GL_FRAMEBUFFER, sideFace2.fbo);
+        u8 hemicubeSideFace2Data[hemicubeFaceW*hemicubeFaceH*4];
+        glReadPixels(0, 0, sideFace2.width, sideFace2.height, GL_RGBA, GL_UNSIGNED_BYTE, hemicubeSideFace2Data);
+        
+        glBindFramebuffer(GL_FRAMEBUFFER, sideFace3.fbo);
+        u8 hemicubeSideFace3Data[hemicubeFaceW*hemicubeFaceH*4];
+        glReadPixels(0, 0, sideFace3.width, sideFace3.height, GL_RGBA, GL_UNSIGNED_BYTE, hemicubeSideFace3Data);
+
+        for (int p = 0; p < topFace.width * topFace.height; ++p)
         {
-            LogMessage("RenderDoc: Captured frame");
+            u32 patchColorId = hemicubeTopFaceData[p*4] + hemicubeTopFaceData[p*4+1] * 256 + hemicubeTopFaceData[p*4+2] * 256 * 256;
+            if (patchColorId == 0)
+                continue;
+            u32 patchId = patchColorId - 1;
+
+            float x = (float(p % hemicubeFaceW) - float(hemicubeFaceWHalf)) / hemicubeFaceWHalf * 2.f;
+            float y = (float(p / hemicubeFaceW) - float(hemicubeFaceHHalf)) / hemicubeFaceHHalf * 2.f;
+            float r_squared = float(x*x + y*y + 1.f);
+            float differentialFormFactor = pixelAreaInSolidAngle / (GM_PI * r_squared * r_squared);
+
+            all_radiosity[i] += differentialFormFactor * all_radiosity[patchId];
         }
-        else
-            LogWarning("RenderDoc: Frame failed to capture");
+        for (int p = hemicubeFaceW * hemicubeFaceHHalf; p < sideFace0.width * sideFace0.height; ++p)
+        {
+            u32 patchColorId = hemicubeSideFace0Data[p*4] + hemicubeSideFace0Data[p*4+1] * 256 + hemicubeSideFace0Data[p*4+2] * 256 * 256;
+            if (patchColorId == 0)
+                continue;
+            u32 patchId = patchColorId - 1;
+
+            float y = (float(p % hemicubeFaceW) - float(hemicubeFaceWHalf)) / hemicubeFaceWHalf * 2.f;
+            float z = (float(p / hemicubeFaceW) - float(hemicubeFaceHHalf - 1)) / hemicubeFaceHHalf * 2.f;
+            float r_squared = float(y * y + z * z + 1.f);
+            float differentialFormFactor = z * pixelAreaInSolidAngle / (GM_PI * r_squared * r_squared);
+
+            all_radiosity[i] += differentialFormFactor * all_radiosity[patchId];
+        }
+        for (int p = hemicubeFaceW * hemicubeFaceHHalf; p < sideFace0.width * sideFace0.height; ++p)
+        {
+            u32 patchColorId = hemicubeSideFace1Data[p*4] + hemicubeSideFace1Data[p*4+1] * 256 + hemicubeSideFace1Data[p*4+2] * 256 * 256;
+            if (patchColorId == 0)
+                continue;
+            u32 patchId = patchColorId - 1;
+
+            float y = (float(p % hemicubeFaceW) - float(hemicubeFaceWHalf)) / hemicubeFaceWHalf * 2.f;
+            float z = (float(p / hemicubeFaceW) - float(hemicubeFaceHHalf - 1)) / hemicubeFaceHHalf * 2.f;
+            float r_squared = float(y * y + z * z + 1.f);
+            float differentialFormFactor = z * pixelAreaInSolidAngle / (GM_PI * r_squared * r_squared);
+
+            all_radiosity[i] += differentialFormFactor * all_radiosity[patchId];
+        }
+        for (int p = hemicubeFaceW * hemicubeFaceHHalf; p < sideFace0.width * sideFace0.height; ++p)
+        {
+            u32 patchColorId = hemicubeSideFace2Data[p*4] + hemicubeSideFace2Data[p*4+1] * 256 + hemicubeSideFace2Data[p*4+2] * 256 * 256;
+            if (patchColorId == 0)
+                continue;
+            u32 patchId = patchColorId - 1;
+
+            float y = (float(p % hemicubeFaceW) - float(hemicubeFaceWHalf)) / hemicubeFaceWHalf * 2.f;
+            float z = (float(p / hemicubeFaceW) - float(hemicubeFaceHHalf-1)) / hemicubeFaceHHalf * 2.f;
+            float r_squared = float(y * y + z * z + 1.f);
+            float differentialFormFactor = z * pixelAreaInSolidAngle / (GM_PI * r_squared * r_squared);
+
+            all_radiosity[i] += differentialFormFactor * all_radiosity[patchId];
+        }
+        for (int p = hemicubeFaceW * hemicubeFaceHHalf; p < sideFace0.width * sideFace0.height; ++p)
+        {
+            u32 patchColorId = hemicubeSideFace3Data[p*4] + hemicubeSideFace3Data[p*4+1] * 256 + hemicubeSideFace3Data[p*4+2] * 256 * 256;
+            if (patchColorId == 0)
+                continue;
+            u32 patchId = patchColorId - 1;
+
+            float y = (float(p % hemicubeFaceW) - float(hemicubeFaceWHalf)) / hemicubeFaceWHalf * 2.f;
+            float z = (float(p / hemicubeFaceW) - float(hemicubeFaceHHalf - 1)) / hemicubeFaceHHalf * 2.f;
+            float r_squared = float(y * y + z * z + 1.f);
+            float differentialFormFactor = z * pixelAreaInSolidAngle / (GM_PI * r_squared * r_squared);
+
+            all_radiosity[i] += differentialFormFactor * all_radiosity[patchId];
+        }
     }
+    // if (rdoc_api) rdoc_api->EndFrameCapture(NULL, NULL);
 
-    // for (u32 i = 0; i < numpatches; ++i)
-    // {
-    //     if (i == progress10) LogMessage("%d/%d", progress10, numpatches);
-    //     if (i == progress20) LogMessage("%d/%d", progress20, numpatches);
-    //     if (i == progress30) LogMessage("%d/%d", progress30, numpatches);
-    //     if (i == progress40) LogMessage("%d/%d", progress40, numpatches);
-    //     if (i == progress50) LogMessage("%d/%d", progress50, numpatches);
-    //     if (i == progress60) LogMessage("%d/%d", progress60, numpatches);
-    //     if (i == progress70) LogMessage("%d/%d", progress70, numpatches);
-    //     if (i == progress80) LogMessage("%d/%d", progress80, numpatches);
-    //     if (i == progress90) LogMessage("%d/%d", progress90, numpatches);
-
-    //     vec3 patch_i_pos = all_lm_pos[i];
-    //     vec3 patch_i_normal = all_lm_norm[i];
-
-    //     for (u32 j = 0; j < numpatches; ++j)
-    //     {
-    //         if (i == j) continue;
-
-    //         vec3 patch_j_pos = all_lm_pos[j];
-    //         vec3 patch_j_normal = all_lm_norm[j];
-
-    //         vec3 incidence_ray = patch_j_pos - patch_i_pos;
-    //         float costheta = Dot(Normalize(incidence_ray), patch_i_normal);
-    //         if (costheta > 0.f)
-    //         {
-    //             float dist = Magnitude(incidence_ray);
-
-    //             // occlusion test
-    //             LineCollider ray_collider;
-    //             ray_collider.a = patch_j_pos;
-    //             ray_collider.b = patch_j_pos - incidence_ray * 0.98f;
-    //             bool occluded = false;
-    //             if (LightMapOcclusionTree.Query(ray_collider))
-    //             {
-    //                 occluded = true;
-    //             }
-    //         }
-    //     }
-    // }
     DeleteGPUTexture(&patchesIdBatch.sharedTexture);
     DeleteFaceBatchMeshOnGPU(patchesIdBatch.idVAO, patchesIdBatch.idVBO);
 
+    // Convert to u8 light value
+    u32 all_lmsz = (u32)arrlenu(all_lm_light);
+    for (u32 i = 0; i < all_lmsz; ++i)
+    {
+        all_lm_light[i] = u8(GM_clamp(all_radiosity[i], 0.f, 1.f) * 255.f);
+    }
 
     // Blit to light map atlas
     u8 *LIGHT_MAP_ATLAS = NULL;
@@ -1381,6 +1517,8 @@ bool BuildGameMap(const char *path)
     arrfree(all_lm_pos);
     arrfree(all_lm_norm);
     arrfree(all_lm_light);
+    arrfree(all_patches_id);
+    arrfree(all_radiosity);
 
 
     // Multithread later
@@ -1438,7 +1576,7 @@ bool LoadGameMap(const char *path)
     // These light map textures use bilinear texture filtering to allow light values 
     // to be interpolated between the given texture coordinate's neighboring texels. 
     CreateGPUTextureFromBitmap(&POSCOLORTESTTEX, (u8*)lightMapData, lmw, lmh,
-        GL_RGB, GL_RED, GL_NEAREST, GL_NEAREST, GL_UNSIGNED_BYTE);
+        GL_RGB, GL_RED, GL_LINEAR, GL_LINEAR, GL_UNSIGNED_BYTE);
     arrfree(lightMapData);
 
     // colliders
