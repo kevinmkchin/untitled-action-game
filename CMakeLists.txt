@@ -75,6 +75,11 @@ if(WIN32)
         "${ASSIMP_DLL}"
         "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assimp-vc142-mt.dll")
 
+    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_CURRENT_SOURCE_DIR}/ext/renderdoc.dll"
+        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/renderdoc.dll")
+
     target_include_directories(${PROJECT_NAME} 
         PUBLIC 
         ${SDL2_INCLUDE_DIRS}
