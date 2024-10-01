@@ -912,6 +912,7 @@ static void RenderFaceBatch(FaceBatch faceBatch)
 
 #pragma region MORE_GLOBAL_VARIABLES
 GPUShader gameLevelShader;
+GPUShader patchesIDShader;
 GPUShader editorShader_Scene;
 GPUShader editorShader_Wireframe;
 GPUShader editorShader_FaceSelected;
@@ -1397,6 +1398,7 @@ static void InitGameRenderer()
 
 
     GLLoadShaderProgramFromFile(gameLevelShader, wd_path("__game_level.vert").c_str(), wd_path("__game_level.frag").c_str());
+    GLLoadShaderProgramFromFile(patchesIDShader, wd_path("__game_level.vert").c_str(), wd_path("__patches_id.frag").c_str());
     GLCreateShaderProgram(editorShader_Scene, __editor_scene_shader_vs, __editor_scene_shader_fs);
     GLCreateShaderProgram(editorShader_Wireframe, __editor_scene_wireframe_shader_vs, __editor_scene_wireframe_shader_fs);
     GLCreateShaderProgram(editorShader_FaceSelected, __editor_shader_face_selected_vs, __editor_shader_face_selected_fs);
@@ -1459,7 +1461,7 @@ static bool InitializeEverything()
         int ret = RENDERDOC_GetAPI(eRENDERDOC_API_Version_1_1_2, (void **)&rdoc_api);
         ASSERT(ret == 1);
         LogMessage("Loaded renderdoc.dll");
-        // rdoc_api->LaunchReplayUI(1, "");
+        rdoc_api->LaunchReplayUI(1, "");
     }
     else
     {
@@ -1593,8 +1595,10 @@ int main(int argc, char* argv[])
 
     LoadMapEditor();
 
-    EditorDeserializeMap(wd_path("LightTest.emf").c_str());
-    BuildGameMap(wd_path("buildtest3.map").c_str());
+    // EditorDeserializeMap(wd_path("LightTest.emf").c_str());
+    // BuildGameMap(wd_path("buildtest3.map").c_str());
+
+    // Tests_CollideFlatPolygonXLine();
 
     if (LoadGameMap(wd_path("buildtest3.map").c_str()) == false)
         LogError("failed to load game map");
@@ -1608,10 +1612,10 @@ int main(int argc, char* argv[])
         Gui::NewFrame();
         ProcessSDLEvents();
 
-        TickGame();
-        DrawGame();
-        //TickMapEditor();
-        //DrawMapEditor();
+        // TickGame();
+        // DrawGame();
+        TickMapEditor();
+        DrawMapEditor();
 
         SDL_GL_SwapWindow(g_MainSDLWindow);
 
