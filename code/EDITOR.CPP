@@ -12,6 +12,7 @@ struct lm_face_t
     vec3 *pos = NULL;
     vec3 *norm = NULL;
     u8   *light = NULL;
+    vec3 *patches_id = NULL;
     i32 w = -1;
     i32 h = -1;
 };
@@ -19,6 +20,7 @@ struct lm_face_t
 vec3 *all_lm_pos = NULL;
 vec3 *all_lm_norm = NULL;
 u8   *all_lm_light = NULL;
+vec3 *all_patches_id = NULL;
 
 
 
@@ -1081,12 +1083,14 @@ bool BuildGameMap(const char *path)
     // Each emitting patch goes every other patch, of which there are M. O(NM)
     // Then, each patch (M) goes to every other patch (M) and transfers energy exactly once. O(NMM) 
 
-    const float lm_patch_size = 16.f;
+    const float lm_patch_size = 8.f;
     stbrp_rect *lm_rects = NULL;
     // calculate bounds, and divide into patches
     arrsetcap(all_lm_pos, 312500); // patch num cap should be 256^3-1 so about 16 million patches
     arrsetcap(all_lm_norm, 312500);
     arrsetcap(all_lm_light, 312500);
+    arrsetcap(all_patches_id, 312500);
+    u32 patchCounter = 0;
     for (int i = 0; i < totalfacecount; ++i)
     {
         MapEdit::Face *face = MapEdit::EDITOR_FACES.At(i);
@@ -1150,6 +1154,7 @@ bool BuildGameMap(const char *path)
         lm.pos = arraddnptr(all_lm_pos, lmsz);
         lm.norm = arraddnptr(all_lm_norm, lmsz);
         lm.light = arraddnptr(all_lm_light, lmsz);
+        lm.patches_id = arraddnptr(all_patches_id, lmsz);
         for (i32 pi = 0; pi < lmsz; ++pi)
         {
             i32 x = pi % lm.w;
@@ -1161,6 +1166,7 @@ bool BuildGameMap(const char *path)
             lm.pos[pi] = p;
             lm.norm[pi] = fn;
             lm.light[pi] = 0;
+            lm.patches_id[pi] = HandleIdToRGB(++patchCounter);
         }
 
         face->lightmap = lm;
@@ -1170,6 +1176,51 @@ bool BuildGameMap(const char *path)
         rect.h = lm.h;
         arrput(lm_rects, rect);
     }
+
+    // Pack light maps
+    i32 lightMapAtlasW = 4096;
+    i32 lightMapAtlasH = 4096;
+    stbrp_node *LMPackerNodes = NULL;
+    arrsetlen(LMPackerNodes, 1000);
+    stbrp_context LightMapPacker;
+    stbrp_init_target(&LightMapPacker, lightMapAtlasW, lightMapAtlasH, LMPackerNodes, (int)arrlenu(LMPackerNodes));
+    stbrp_pack_rects(&LightMapPacker, lm_rects, (int)arrlenu(lm_rects));
+    arrfree(LMPackerNodes);
+    size_t rectcount = arrlenu(lm_rects);
+    for (size_t i = 0; i < rectcount; ++i)
+    {
+        stbrp_rect rect = lm_rects[i];
+        if (rect.was_packed == 0) continue;
+        ASSERT(rect.was_packed != 0); // TODO(Kevin): additional light map atlases if couldn't fit into one
+
+        vec2 minuv = vec2((float)(rect.x) / (float)lightMapAtlasW, (float)(rect.y) / (float)lightMapAtlasH);
+        vec2 maxuv = vec2((float)(rect.x + rect.w) / (float)lightMapAtlasW, (float)(rect.y + rect.h) / (float)lightMapAtlasH);
+
+        int editorFaceIndex = rect.id;
+        MapEdit::Face *face = MapEdit::EDITOR_FACES.At(editorFaceIndex);
+        std::vector<MapEdit::Loop*> loopcycle = face->GetLoopCycle();
+        for (MapEdit::Loop *loop : loopcycle)
+        {
+            // map lm uv from local to global in light map atlas
+            loop->lmuvcache.x = Lerp(minuv.x, maxuv.x, loop->lmuvcache.x); 
+            loop->lmuvcache.y = Lerp(minuv.y, maxuv.y, loop->lmuvcache.y); 
+        }
+    }
+
+    // Sort faces by their textures and generate vertex buffers
+    for (int i = 0; i < totalfacecount; ++i)
+    {
+        MapEdit::Face *face = MapEdit::EDITOR_FACES.At(i);
+        db_tex_t tex = face->texture;
+        if (VertexBuffers.find(tex.persistId) == VertexBuffers.end())
+        {
+            VertexBuffers.emplace(tex.persistId, std::vector<float>());
+        }
+
+        std::vector<float>& vb = VertexBuffers.at(tex.persistId);
+        TriangulateFace_QuickDumb_LMUV(*face, &vb);
+    }
+
 
     // direct lighting from emissive points and patches
     u32 numpatches = (u32)arrlenu(all_lm_norm);
@@ -1206,7 +1257,64 @@ bool BuildGameMap(const char *path)
     t8.join();
     t9.join();
 
-    // // indirect lighting between patches
+    // indirect lighting between patches
+    //     render the faces with light map value being the color id of the patch
+
+    FaceBatch  patchesIdBatch;
+
+    float *patches_vb = NULL; 
+    for (auto& vbpair : VertexBuffers)
+    {
+        const std::vector<float>& vb = vbpair.second;
+        float *writeto = arraddnptr(patches_vb, vb.size());
+        memcpy(writeto, vb.data(), sizeof(float)*vb.size());
+    }
+    CreateFaceBatchMeshOnGPU(&patchesIdBatch.idVAO, &patchesIdBatch.idVBO);
+    RebindFaceBatchBufferObject(&patchesIdBatch, u32(sizeof(float)*arrlenu(patches_vb)), patches_vb);
+    arrfree(patches_vb);
+
+    vec3 *PATCHES_ID_ATLAS = NULL;
+    arrsetcap(PATCHES_ID_ATLAS, lightMapAtlasW*lightMapAtlasH);
+    for (size_t i = 0; i < rectcount; ++i)
+    {
+        stbrp_rect rect = lm_rects[i];
+        if (rect.was_packed == 0) continue;
+        ASSERT(rect.was_packed != 0);
+        MapEdit::Face *face = MapEdit::EDITOR_FACES.At(rect.id);
+        lm_face_t lmface = face->lightmap;
+        BlitRect((u8*)PATCHES_ID_ATLAS, lightMapAtlasW, lightMapAtlasH, 
+            (u8*)lmface.patches_id, lmface.w, lmface.h, rect.x, rect.y, sizeof(vec3));
+    }
+    CreateGPUTextureFromBitmap(&patchesIdBatch.sharedTexture, (void*)PATCHES_ID_ATLAS, lightMapAtlasW, lightMapAtlasH,
+        GL_RGB, GL_RGB, GL_NEAREST, GL_NEAREST, GL_FLOAT);
+    arrfree(PATCHES_ID_ATLAS);
+
+    if(rdoc_api) 
+    {
+        rdoc_api->StartFrameCapture(NULL, NULL);
+    }
+
+    glBindFramebuffer(GL_FRAMEBUFFER, renderTargetGame.fbo);
+    glViewport(0,0,renderTargetGame.width,renderTargetGame.height);
+    glClearColor(0.f,0.f,0.f,1.f); // clear with rgb(id 0)
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glEnable(GL_DEPTH_TEST);
+    glEnable(GL_CULL_FACE);
+    UseShader(patchesIDShader);
+    GLBindMatrix4fv(patchesIDShader, "projMatrix", 1, activePerspectiveMatrix.ptr());
+    GLBindMatrix4fv(patchesIDShader, "viewMatrix", 1, activeViewMatrix.ptr());
+    RenderFaceBatch(patchesIdBatch);
+
+    if(rdoc_api) 
+    {
+        if (rdoc_api->EndFrameCapture(NULL, NULL))
+        {
+            LogMessage("RenderDoc: Captured frame");
+        }
+        else
+            LogWarning("RenderDoc: Frame failed to capture");
+    }
+
     // for (u32 i = 0; i < numpatches; ++i)
     // {
     //     if (i == progress10) LogMessage("%d/%d", progress10, numpatches);
@@ -1247,48 +1355,28 @@ bool BuildGameMap(const char *path)
     //         }
     //     }
     // }
+    DeleteGPUTexture(&patchesIdBatch.sharedTexture);
+    DeleteFaceBatchMeshOnGPU(patchesIdBatch.idVAO, patchesIdBatch.idVBO);
 
 
-    // pack light maps
-    i32 lightMapAtlasW = 4096;
-    i32 lightMapAtlasH = 4096;
+    // Blit to light map atlas
     u8 *LIGHT_MAP_ATLAS = NULL;
     arrsetcap(LIGHT_MAP_ATLAS, lightMapAtlasW*lightMapAtlasH);
-    stbrp_node *LMPackerNodes = NULL;
-    arrsetlen(LMPackerNodes, 1000);
-    stbrp_context LightMapPacker;
-    stbrp_init_target(&LightMapPacker, lightMapAtlasW, lightMapAtlasH, LMPackerNodes, (int)arrlenu(LMPackerNodes));
-    stbrp_pack_rects(&LightMapPacker, lm_rects, (int)arrlenu(lm_rects));
-    arrfree(LMPackerNodes);
-    size_t rectcount = arrlenu(lm_rects);
     for (size_t i = 0; i < rectcount; ++i)
     {
         stbrp_rect rect = lm_rects[i];
         if (rect.was_packed == 0) continue;
-        ASSERT(rect.was_packed != 0); // TODO(Kevin): additional light map atlases if couldn't fit into one
-
-        vec2 minuv = vec2((float)(rect.x) / (float)lightMapAtlasW, (float)(rect.y) / (float)lightMapAtlasH);
-        vec2 maxuv = vec2((float)(rect.x + rect.w) / (float)lightMapAtlasW, (float)(rect.y + rect.h) / (float)lightMapAtlasH);
-
-        int editorFaceIndex = rect.id;
-        MapEdit::Face *face = MapEdit::EDITOR_FACES.At(editorFaceIndex);
-        std::vector<MapEdit::Loop*> loopcycle = face->GetLoopCycle();
-        for (MapEdit::Loop *loop : loopcycle)
-        {
-            // map lm uv from local to global in light map atlas
-            loop->lmuvcache.x = Lerp(minuv.x, maxuv.x, loop->lmuvcache.x); 
-            loop->lmuvcache.y = Lerp(minuv.y, maxuv.y, loop->lmuvcache.y); 
-        }
+        ASSERT(rect.was_packed != 0);
+        MapEdit::Face *face = MapEdit::EDITOR_FACES.At(rect.id);
         lm_face_t lmface = face->lightmap;
-        BlitRect((u8*)LIGHT_MAP_ATLAS, lightMapAtlasW, lightMapAtlasH, (u8*)lmface.light, lmface.w, lmface.h, rect.x, rect.y, sizeof(u8));
+        BlitRect((u8*)LIGHT_MAP_ATLAS, lightMapAtlasW, lightMapAtlasH, 
+            (u8*)lmface.light, lmface.w, lmface.h, rect.x, rect.y, sizeof(u8));
     }
-
     ByteBufferWrite(&mapbuf, i32, lightMapAtlasW);
     ByteBufferWrite(&mapbuf, i32, lightMapAtlasH);
     ByteBufferWriteBulk(&mapbuf, LIGHT_MAP_ATLAS, lightMapAtlasW*lightMapAtlasH*sizeof(u8));
-
-    // save out light map atlases as part of .MAP
     arrfree(LIGHT_MAP_ATLAS);
+
     arrfree(lm_rects);
     arrfree(all_lm_pos);
     arrfree(all_lm_norm);
@@ -1299,20 +1387,6 @@ bool BuildGameMap(const char *path)
     // for the indirect calculation, the direct lightmap stays constant, so divide up the indirect lightmap
     // patches across threads.
 
-
-    // sort faces by their textures
-    for (int i = 0; i < totalfacecount; ++i)
-    {
-        MapEdit::Face *face = MapEdit::EDITOR_FACES.At(i);
-        db_tex_t tex = face->texture;
-        if (VertexBuffers.find(tex.persistId) == VertexBuffers.end())
-        {
-            VertexBuffers.emplace(tex.persistId, std::vector<float>());
-        }
-
-        std::vector<float>& vb = VertexBuffers.at(tex.persistId);
-        TriangulateFace_QuickDumb_LMUV(*face, &vb);
-    }
 
     // colliders
     size_t numColliderPoints = ColliderWorldPoints.size();
