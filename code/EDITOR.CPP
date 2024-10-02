@@ -1476,7 +1476,8 @@ bool BuildGameMap(const char *path)
         u8 hemicubeSideFace3Data[hemicubeFaceW*hemicubeFaceH*4];
         glReadPixels(0, 0, sideFace3.width, sideFace3.height, GL_RGBA, GL_UNSIGNED_BYTE, hemicubeSideFace3Data);
 
-        for (int p = 0; p < topFace.width * topFace.height; ++p)
+        int HemicubeFaceArea = hemicubeFaceW * hemicubeFaceH;
+        for (int p = 0; p < HemicubeFaceArea; ++p)
         {
             u32 patchColorId = hemicubeTopFaceData[p*4] + hemicubeTopFaceData[p*4+1] * 256 + hemicubeTopFaceData[p*4+2] * 256 * 256;
             if (patchColorId == 0)
@@ -1490,61 +1491,44 @@ bool BuildGameMap(const char *path)
 
             all_radiosity[i] += differentialFormFactor * all_radiosity[patchId];
         }
-        for (int p = hemicubeFaceW * hemicubeFaceHHalf; p < sideFace0.width * sideFace0.height; ++p)
+        for (int p = hemicubeFaceW * hemicubeFaceHHalf; p < HemicubeFaceArea; ++p)
         {
+            float y = (float(p % hemicubeFaceW) - float(hemicubeFaceWHalf)) / hemicubeFaceWHalf * 2.f;
+            float z = (float(p / hemicubeFaceW) - float(hemicubeFaceHHalf - 1)) / hemicubeFaceHHalf * 2.f;
+            float r_squared = float(y * y + z * z + 1.f);
+            float differentialFormFactor = z * pixelAreaInSolidAngle / (GM_PI * r_squared * r_squared);
+
+            float SideFaceYZRadiositiesAccumulator = 0.f;
+
             u32 patchColorId = hemicubeSideFace0Data[p*4] + hemicubeSideFace0Data[p*4+1] * 256 + hemicubeSideFace0Data[p*4+2] * 256 * 256;
-            if (patchColorId == 0)
-                continue;
-            u32 patchId = patchColorId - 1;
+            if (patchColorId != 0)
+            {
+                u32 patchId = patchColorId - 1;
+                SideFaceYZRadiositiesAccumulator += differentialFormFactor * all_radiosity[patchId];
+            }
 
-            float y = (float(p % hemicubeFaceW) - float(hemicubeFaceWHalf)) / hemicubeFaceWHalf * 2.f;
-            float z = (float(p / hemicubeFaceW) - float(hemicubeFaceHHalf - 1)) / hemicubeFaceHHalf * 2.f;
-            float r_squared = float(y * y + z * z + 1.f);
-            float differentialFormFactor = z * pixelAreaInSolidAngle / (GM_PI * r_squared * r_squared);
+            patchColorId = hemicubeSideFace1Data[p*4] + hemicubeSideFace1Data[p*4+1] * 256 + hemicubeSideFace1Data[p*4+2] * 256 * 256;
+            if (patchColorId != 0)
+            {
+                u32 patchId = patchColorId - 1;
+                SideFaceYZRadiositiesAccumulator += differentialFormFactor * all_radiosity[patchId];
+            }
 
-            all_radiosity[i] += differentialFormFactor * all_radiosity[patchId];
-        }
-        for (int p = hemicubeFaceW * hemicubeFaceHHalf; p < sideFace0.width * sideFace0.height; ++p)
-        {
-            u32 patchColorId = hemicubeSideFace1Data[p*4] + hemicubeSideFace1Data[p*4+1] * 256 + hemicubeSideFace1Data[p*4+2] * 256 * 256;
-            if (patchColorId == 0)
-                continue;
-            u32 patchId = patchColorId - 1;
+            patchColorId = hemicubeSideFace2Data[p*4] + hemicubeSideFace2Data[p*4+1] * 256 + hemicubeSideFace2Data[p*4+2] * 256 * 256;
+            if (patchColorId != 0)
+            {
+                u32 patchId = patchColorId - 1;
+                SideFaceYZRadiositiesAccumulator += differentialFormFactor * all_radiosity[patchId];
+            }
 
-            float y = (float(p % hemicubeFaceW) - float(hemicubeFaceWHalf)) / hemicubeFaceWHalf * 2.f;
-            float z = (float(p / hemicubeFaceW) - float(hemicubeFaceHHalf - 1)) / hemicubeFaceHHalf * 2.f;
-            float r_squared = float(y * y + z * z + 1.f);
-            float differentialFormFactor = z * pixelAreaInSolidAngle / (GM_PI * r_squared * r_squared);
+            patchColorId = hemicubeSideFace3Data[p*4] + hemicubeSideFace3Data[p*4+1] * 256 + hemicubeSideFace3Data[p*4+2] * 256 * 256;
+            if (patchColorId != 0)
+            {
+                u32 patchId = patchColorId - 1;
+                SideFaceYZRadiositiesAccumulator += differentialFormFactor * all_radiosity[patchId];
+            }
 
-            all_radiosity[i] += differentialFormFactor * all_radiosity[patchId];
-        }
-        for (int p = hemicubeFaceW * hemicubeFaceHHalf; p < sideFace0.width * sideFace0.height; ++p)
-        {
-            u32 patchColorId = hemicubeSideFace2Data[p*4] + hemicubeSideFace2Data[p*4+1] * 256 + hemicubeSideFace2Data[p*4+2] * 256 * 256;
-            if (patchColorId == 0)
-                continue;
-            u32 patchId = patchColorId - 1;
-
-            float y = (float(p % hemicubeFaceW) - float(hemicubeFaceWHalf)) / hemicubeFaceWHalf * 2.f;
-            float z = (float(p / hemicubeFaceW) - float(hemicubeFaceHHalf-1)) / hemicubeFaceHHalf * 2.f;
-            float r_squared = float(y * y + z * z + 1.f);
-            float differentialFormFactor = z * pixelAreaInSolidAngle / (GM_PI * r_squared * r_squared);
-
-            all_radiosity[i] += differentialFormFactor * all_radiosity[patchId];
-        }
-        for (int p = hemicubeFaceW * hemicubeFaceHHalf; p < sideFace0.width * sideFace0.height; ++p)
-        {
-            u32 patchColorId = hemicubeSideFace3Data[p*4] + hemicubeSideFace3Data[p*4+1] * 256 + hemicubeSideFace3Data[p*4+2] * 256 * 256;
-            if (patchColorId == 0)
-                continue;
-            u32 patchId = patchColorId - 1;
-
-            float y = (float(p % hemicubeFaceW) - float(hemicubeFaceWHalf)) / hemicubeFaceWHalf * 2.f;
-            float z = (float(p / hemicubeFaceW) - float(hemicubeFaceHHalf - 1)) / hemicubeFaceHHalf * 2.f;
-            float r_squared = float(y * y + z * z + 1.f);
-            float differentialFormFactor = z * pixelAreaInSolidAngle / (GM_PI * r_squared * r_squared);
-
-            all_radiosity[i] += differentialFormFactor * all_radiosity[patchId];
+            all_radiosity[i] += SideFaceYZRadiositiesAccumulator;
         }
     }
     // if (rdoc_api) rdoc_api->EndFrameCapture(NULL, NULL);
