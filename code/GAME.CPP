@@ -7,29 +7,9 @@ Priorty #1 is building the game, not the engine/tech
 Just be specific and code exactly that tailored solution e.g. LevelPolygonOctree rather than Octree.
 
 
-== Light map work ==
-The visual artifacts is part of the charm of my game and engine. Something that differentiates it from the perfect crispy lighting of engines like Godot or Unity.
-I need to embrace the fact that lighting will be crude and not be perfect.
-Automate building and loading for quicker tests, and take lots of screenshots and videos explaining the artifacts and changes.
-
-- [DONE] Revisit octree. Query needs to be far more performant, and it can't be erroneous.
-- I need multiple level layouts and lighting setups and automate the building and loading for quick testing as I tweak the light maps.
-- [DOESN'T WORK WELL] If padding texel value is too different from its neighboring texel, then copy the value from the neighboring texel (dilate the texel)
-  and discard the padding texel sample value. It's not just occluded being dark, it's also the not occluded padding texels being too bright.
-- Will look better with more light sources and indirect lighting. We won't use area lights.
-- [DONE] I think multi-sampling is going to help a lot! and in that slightly "rotated" pattern. Will smooth out shadow edges even without indirect lighting.
-            * 
-          *    *
-             *
-
-== Indirect Lighting ==
-- [DONE] Try hemicube solution...
-
-
-
-
-
 TODO:
+- Apply light map to FaceBatch as uv2 and texture as uv1
+- Try multiple level layouts and lighting setups
 - Make simple textured playground level
 - Skeletal animations
 - Enemy moves and shoots at player
@@ -42,6 +22,14 @@ TODO:
 - move volume mode/tool (don't need whole tool...maybe make brush tool part of this mode? like trenchbroom)
 - multi select vertices need to be fixed
 - edge select
+
+Engine work is almost done. 
+~~- Octree collision acceleration~~
+~~- Lightmap baking (potentially radiosity)~~
+- Skeletal animations
+- Navmesh/pathfinding
+- More reliable collisions and colliders
+Those are the hard things left.
 
 EPICS:
 - Lighting (build/load level LIGHT MAP info)
@@ -70,14 +58,10 @@ NOTES:
     
     try for every 16 units in the game, 1 lightmap sample
 
+    Embrace the fact that lighting will be crude and not perfect. The visual artifacts is part of the charm of my game and engine. Something that differentiates it from the perfect crispy lighting of engines like Godot or Unity.
+
     port over dropdown console?
 
-Engine work is almost done. 
-~~Octree collision acceleration~~
-Skeletal animations
-Navmesh/pathfinding
-Lightmap baking (potentially radiosity) 
-Those are the hard things left.
 
 
 I don't really want to support non flat faces
@@ -1047,6 +1031,7 @@ static void Stuff()
 static void TickGame()
 {
     PrimitiveDrawSolidDisc(TestLightSource, -cameraDirection, 3.f);
+    PrimitiveDrawSolidDisc(TestLightSource2, -cameraDirection, 3.f);
     // Gui::PrimitivePanel(Gui::UIRect(0,0, 400,400), POSCOLORTESTTEX.id);
 
     // ENEMY 0
@@ -1597,9 +1582,9 @@ int main(int argc, char* argv[])
 
     // rdoc_api->LaunchReplayUI(1, "");
     EditorDeserializeMap(wd_path("LightTest.emf").c_str());
-    BuildGameMap(wd_path("buildtest3.map").c_str());
+    BuildGameMap(wd_path("buildtest.map").c_str());
 
-    if (LoadGameMap(wd_path("buildtest3.map").c_str()) == false)
+    if (LoadGameMap(wd_path("buildtest.map").c_str()) == false)
         LogError("failed to load game map");
 
     while (!g_ProgramShouldShutdown)

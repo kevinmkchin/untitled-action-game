@@ -981,6 +981,7 @@ bool EditorDeserializeMap(const char *mapFilePath)
 }
 
 vec3 TestLightSource = vec3(0, 110, 0);
+vec3 TestLightSource2 = vec3(150, 110, 0);
 LevelPolygonOctree LightMapOcclusionTree;
 // LightMapPatchSize
 //   4 gives satisfactory results when 32 units is 1m
@@ -1033,7 +1034,7 @@ void Threaded_DoDirectLightingIntoLightMap(u32 patchIndexStart, u32 patchIndexEn
                 // occlusion test
                 LineCollider ray_collider;
                 ray_collider.a = TestLightSource;
-                ray_collider.b = TestLightSource - incidence_ray * 0.98f;//Normalize(incidence_ray) * GM_max(dist - LightMapPatchSize, 0.5f);
+                ray_collider.b = TestLightSource - incidence_ray * 0.98f;
                 bool occluded = false;
 
                 if (LightMapOcclusionTree.Query(ray_collider))
@@ -1041,18 +1042,46 @@ void Threaded_DoDirectLightingIntoLightMap(u32 patchIndexStart, u32 patchIndexEn
                     occluded = true;
                 }
 
-                if (occluded)
-                    continue;
+                if (!occluded)
+                {
+                    // point light attenuation
+                    // energy decreases as per the inverse square law, but the linear coefficient exists to cheat
+                    // some more aesthetic lighting attenuation.
+                    float atten_coeff_linear = 0.022f;
+                    float atten_coeff_quadratic = 0.0019f;
+                    float attenuation = 1.f / (1.f + atten_coeff_linear * dist + atten_coeff_quadratic * dist * dist);
+                    float intensity = costheta * attenuation;
+                    intensity = GM_min(intensity, 1.0f);
+                    SampleIntensityAccumulator += intensity;
+                }
+            }
 
-                // point light attenuation
-                // energy decreases as per the inverse square law, but the linear coefficient exists to cheat
-                // some more aesthetic lighting attenuation.
-                float atten_coeff_linear = 0.001f;
-                float atten_coeff_quadratic = 0.00005f;
-                float attenuation = 1.f / (1.f + atten_coeff_linear * dist + atten_coeff_quadratic * dist * dist);
-                float intensity = costheta * attenuation;
-                intensity = GM_min(intensity, 1.0f);
-                SampleIntensityAccumulator += intensity;
+            vec3 incidence_ray2 = TestLightSource2 - SamplePositions[sample];
+            costheta = Dot(Normalize(incidence_ray2), patch_normal);
+            if (costheta > 0.f)
+            {
+                float dist = Magnitude(incidence_ray2);
+
+                // occlusion test
+                LineCollider ray_collider;
+                ray_collider.a = TestLightSource2;
+                ray_collider.b = TestLightSource2 - incidence_ray2 * 0.98f;
+                bool occluded = false;
+
+                if (LightMapOcclusionTree.Query(ray_collider))
+                {
+                    occluded = true;
+                }
+
+                if (!occluded)
+                {
+                    float atten_coeff_linear = 0.022f;
+                    float atten_coeff_quadratic = 0.0019f;
+                    float attenuation = 1.f / (1.f + atten_coeff_linear * dist + atten_coeff_quadratic * dist * dist);
+                    float intensity = costheta * attenuation;
+                    intensity = GM_min(intensity, 1.0f);
+                    SampleIntensityAccumulator += intensity;
+                }
             }
         }
 
