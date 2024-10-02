@@ -1091,8 +1091,9 @@ void Threaded_DoDirectLightingIntoLightMap(u32 patchIndexStart, u32 patchIndexEn
 
 bool BuildGameMap(const char *path)
 {
-    // TODO(Kevin): remove this chrono shit
-    float TimeAtStartOfBuildGameMap = (float)(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count() * 0.001f);
+    // TODO(Kevin): remove this timing shit
+    u32 TimeAtStartOfBuildGameMap = SDL_GetTicks();
+
 
     ByteBuffer mapbuf;
     ByteBufferInit(&mapbuf);
@@ -1126,7 +1127,9 @@ bool BuildGameMap(const char *path)
     }
 
 
-    // LIGHT MAP BAKING
+    // === LIGHT MAP BAKING ===
+    // As level gets bigger, I need to find a way to reduce patch count. Otherwise
+    // time to bake will continue increasing linearly.
     Bounds MapBounds = Bounds(vec3(-0.17f, -0.17f, -0.17f), vec3(8000, 8000, 8000));
     LightMapOcclusionTree = LevelPolygonOctree(MapBounds, 100, 24);
     std::vector<FlatPolygonCollider> MapSurfaceColliders(ColliderSpans.size());
@@ -1600,9 +1603,9 @@ bool BuildGameMap(const char *path)
     bool writtenToFile = ByteBufferWriteToFile(&mapbuf, path) == 1;
     ByteBufferFree(&mapbuf);
 
-    // TODO(Kevin): remove this chrono shit
-    float TimeAtEndOfBuildGameMap = (float)(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count() * 0.001f);
-    float TimeElapsedToBuildGameMapInSeconds = TimeAtEndOfBuildGameMap - TimeAtStartOfBuildGameMap;
+    // TODO(Kevin): remove this timing shit
+    u32 TimeAtEndOfBuildGameMap = SDL_GetTicks();
+    float TimeElapsedToBuildGameMapInSeconds = (TimeAtEndOfBuildGameMap - TimeAtStartOfBuildGameMap)/1000.f;
     LogMessage("Took %fs to build.", TimeElapsedToBuildGameMapInSeconds);
 
     return writtenToFile;

@@ -7,10 +7,15 @@ Priorty #1 is building the game, not the engine/tech
 Just be specific and code exactly that tailored solution e.g. LevelPolygonOctree rather than Octree.
 
 
-TODO:
+- Pixel Buffer Objects (PBOs) instead of glReadPixels in hemicube rendering code 
+    https://stackoverflow.com/questions/25127751/opengl-read-pixels-faster-than-glreadpixels
 - Apply light map to FaceBatch as uv2 and texture as uv1
-- Try multiple level layouts and lighting setups
-- Make simple textured playground level
+- Perhaps I should have option to just create faces rather than cuboid volumes in my editor. I think Source 2 mainly uses face creation rather than volume. Volume wasteful bcause lots of useless collider faces and light mapped faces.
+- Render hemicube for cluster of patches (perhaps up to 16x16) so then there are 4x4 size patches but one hemicube for 16 patches. Perhaps that achieves something similar to adaptive patch resizing.
+    hemicube_cluster can be any power of 2 size up to 16x16? then if it doesn't fit in 16x16 then we can do a smaller hemicube.
+
+TODO:
+- Multiple light sources
 - Skeletal animations
 - Enemy moves and shoots at player
 - Gun model?
@@ -22,8 +27,7 @@ TODO:
 - move volume mode/tool (don't need whole tool...maybe make brush tool part of this mode? like trenchbroom)
 - multi select vertices need to be fixed
 - edge select
-- Pixel Buffer Objects (PBOs) instead of glReadPixels in hemicube rendering code 
-    https://stackoverflow.com/questions/25127751/opengl-read-pixels-faster-than-glreadpixels
+
 
 Engine work is almost done. 
 ~~- Octree collision acceleration~~
