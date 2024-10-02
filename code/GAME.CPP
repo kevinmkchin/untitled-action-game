@@ -22,7 +22,8 @@ TODO:
 - move volume mode/tool (don't need whole tool...maybe make brush tool part of this mode? like trenchbroom)
 - multi select vertices need to be fixed
 - edge select
-- Pixel Buffer Objects (PBOs) instead of glReadPixels in hemicube rendering code
+- Pixel Buffer Objects (PBOs) instead of glReadPixels in hemicube rendering code 
+    https://stackoverflow.com/questions/25127751/opengl-read-pixels-faster-than-glreadpixels
 
 Engine work is almost done. 
 ~~- Octree collision acceleration~~
@@ -446,6 +447,13 @@ static void UpdateGPUFrameBufferSize(GPUFrameBuffer *buffer, i32 w, i32 h)
         fprintf(stderr, "Failed to change size of Internal FrameBuffer Object.");
     }
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
+static void DeleteGPUFrameBuffer(GPUFrameBuffer *buffer)
+{
+    glDeleteTextures(1, &buffer->colorTexId);
+    glDeleteTextures(1, &buffer->depthTexId);
+    glDeleteBuffers(1, &buffer->fbo);
 }
 
 static void RenderGPUMesh(GPUMesh mesh, GLenum rendermode = GL_TRIANGLES)
