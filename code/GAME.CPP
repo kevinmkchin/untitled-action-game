@@ -14,16 +14,16 @@ Automate building and loading for quicker tests, and take lots of screenshots an
 
 - [DONE] Revisit octree. Query needs to be far more performant, and it can't be erroneous.
 - I need multiple level layouts and lighting setups and automate the building and loading for quick testing as I tweak the light maps.
-- If padding texel value is too different from its neighboring texel, then copy the value from the neighboring texel (dilate the texel)
+- [DOESN'T WORK WELL] If padding texel value is too different from its neighboring texel, then copy the value from the neighboring texel (dilate the texel)
   and discard the padding texel sample value. It's not just occluded being dark, it's also the not occluded padding texels being too bright.
 - Will look better with more light sources and indirect lighting. We won't use area lights.
-- I think multi-sampling is going to help a lot! and in that slightly "rotated" pattern. Will smooth out shadow edges even without indirect lighting.
+- [DONE] I think multi-sampling is going to help a lot! and in that slightly "rotated" pattern. Will smooth out shadow edges even without indirect lighting.
             * 
           *    *
              *
 
 == Indirect Lighting ==
-- Try hemicube solution...
+- [DONE] Try hemicube solution...
 
 
 
