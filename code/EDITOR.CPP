@@ -982,45 +982,80 @@ bool EditorDeserializeMap(const char *mapFilePath)
 
 vec3 TestLightSource = vec3(0, 110, 0);
 LevelPolygonOctree LightMapOcclusionTree;
+// LightMapPatchSize
+//   4 gives satisfactory results when 32 units is 1m
+//   Use bigger size when testing maps for quicker iteration
+//   So far in my testing, light map baking times increase linearly with number of patches
+const float LightMapPatchSize = 8.f;
 
 void Threaded_DoDirectLightingIntoLightMap(u32 patchIndexStart, u32 patchIndexEnd)
 {
     // calculate direct lighting for patchIndexStart upto and including patchIndexEnd-1
 
+    // 4x multisampling with sparse regular grid distribution
+    //  ____ 
+    // | *  |
+    // |   *|
+    // |*   |
+    // |  * |
+    //  ----
+
     for (u32 i = patchIndexStart; i < patchIndexEnd; ++i)
     {
         vec3 patch_position = all_lm_pos[i];
         vec3 patch_normal = all_lm_norm[i];
-        vec3 incidence_ray = TestLightSource - patch_position;
-        float costheta = Dot(Normalize(incidence_ray), patch_normal);
-        if (costheta > 0.f)
+        vec3 patch_basisV = all_lm_tangent[i];
+        vec3 patch_basisU = Normalize(Cross(patch_basisV, patch_normal));
+
+        const float HalfLightMapPatchSz = LightMapPatchSize * 0.5f;
+        vec3 SamplePositions[4];
+        SamplePositions[0] = patch_position
+            + patch_basisU * 0.75f * HalfLightMapPatchSz + patch_basisV * 0.25f * HalfLightMapPatchSz;
+        SamplePositions[1] = patch_position
+            + patch_basisU * -0.25f * HalfLightMapPatchSz + patch_basisV * 0.75f * HalfLightMapPatchSz;
+        SamplePositions[2] = patch_position
+            + patch_basisU * -0.75f * HalfLightMapPatchSz + patch_basisV * -0.25f * HalfLightMapPatchSz;
+        SamplePositions[3] = patch_position
+            + patch_basisU * 0.25f * HalfLightMapPatchSz + patch_basisV * -0.75f * HalfLightMapPatchSz;
+
+        float SampleIntensityAccumulator = 0.f;
+
+        for (u32 sample = 0; sample < 4; ++sample)
         {
-            float dist = Magnitude(incidence_ray);
+            vec3 incidence_ray = TestLightSource - SamplePositions[sample];
 
-            // occlusion test
-            LineCollider ray_collider;
-            ray_collider.a = TestLightSource;
-            ray_collider.b = TestLightSource - incidence_ray * 0.98f;//Normalize(incidence_ray) * GM_max(dist - lm_patch_size, 0.5f);
-            bool occluded = false;
-
-            if (LightMapOcclusionTree.Query(ray_collider))
+            float costheta = Dot(Normalize(incidence_ray), patch_normal);
+            if (costheta > 0.f)
             {
-                occluded = true;
+                float dist = Magnitude(incidence_ray);
+
+                // occlusion test
+                LineCollider ray_collider;
+                ray_collider.a = TestLightSource;
+                ray_collider.b = TestLightSource - incidence_ray * 0.98f;//Normalize(incidence_ray) * GM_max(dist - LightMapPatchSize, 0.5f);
+                bool occluded = false;
+
+                if (LightMapOcclusionTree.Query(ray_collider))
+                {
+                    occluded = true;
+                }
+
+                if (occluded)
+                    continue;
+
+                // point light attenuation
+                // energy decreases as per the inverse square law, but the linear coefficient exists to cheat
+                // some more aesthetic lighting attenuation.
+                float atten_coeff_linear = 0.001f;
+                float atten_coeff_quadratic = 0.00005f;
+                float attenuation = 1.f / (1.f + atten_coeff_linear * dist + atten_coeff_quadratic * dist * dist);
+                float intensity = costheta * attenuation;
+                intensity = GM_min(intensity, 1.0f);
+                SampleIntensityAccumulator += intensity;
             }
-
-            if (occluded)
-                continue;
-
-            // point light attenuation
-            // energy decreases as per the inverse square law, but the linear coefficient exists to cheat
-            // some more aesthetic lighting attenuation.
-            float atten_coeff_linear = 0.001f;
-            float atten_coeff_quadratic = 0.00005f;
-            float attenuation = 1.f / (1.f + atten_coeff_linear * dist + atten_coeff_quadratic * dist * dist);
-            float intensity = costheta * attenuation;
-            intensity = GM_min(intensity, 1.0f);
-            all_radiosity[i] = intensity;
         }
+
+        all_radiosity[i] = SampleIntensityAccumulator * 0.25f;
     }
 }
 
@@ -1084,7 +1119,6 @@ bool BuildGameMap(const char *path)
     // Each emitting patch goes every other patch, of which there are M. O(NM)
     // Then, each patch (M) goes to every other patch (M) and transfers energy exactly once. O(NMM) 
 
-    const float lm_patch_size = 8.f;
     stbrp_rect *lm_rects = NULL;
     // calculate bounds, and divide into patches
     arrsetcap(all_lm_pos, 312500); // patch num cap should be 256^3-1 so about 16 million patches
@@ -1132,11 +1166,11 @@ bool BuildGameMap(const char *path)
         // padding copy the corresponding adjacent light map value will create unnatural seams where
         // surfaces are supposed to connect. By simply making the light maps larger than needed and having
         // these virtual patches be sampled too creates the most natural bilinear filtering results.
-        minuv -= vec2(lm_patch_size, lm_patch_size);
-        maxuv += vec2(lm_patch_size, lm_patch_size);
+        minuv -= vec2(LightMapPatchSize, LightMapPatchSize);
+        maxuv += vec2(LightMapPatchSize, LightMapPatchSize);
         vec2 dim = maxuv - minuv;
-        dim.x = ceilf(dim.x / lm_patch_size) * lm_patch_size;
-        dim.y = ceilf(dim.y / lm_patch_size) * lm_patch_size;
+        dim.x = ceilf(dim.x / LightMapPatchSize) * LightMapPatchSize;
+        dim.y = ceilf(dim.y / LightMapPatchSize) * LightMapPatchSize;
 
         // lm uv
         for (MapEdit::Loop *loop : loopcycle)
@@ -1151,8 +1185,8 @@ bool BuildGameMap(const char *path)
         }
 
         // lm data
-        lm.w = (i32)(dim.x / lm_patch_size);
-        lm.h = (i32)(dim.y / lm_patch_size);
+        lm.w = (i32)(dim.x / LightMapPatchSize);
+        lm.h = (i32)(dim.y / LightMapPatchSize);
         i32 lmsz = lm.w*lm.h;
         lm.pos = arraddnptr(all_lm_pos, lmsz);
         lm.norm = arraddnptr(all_lm_norm, lmsz);
@@ -1164,8 +1198,8 @@ bool BuildGameMap(const char *path)
         {
             i32 x = pi % lm.w;
             i32 y = pi / lm.w;
-            float uSampleCenter = minuv.x + lm_patch_size*x + lm_patch_size*0.5f;
-            float vSampleCenter = minuv.y + lm_patch_size*y + lm_patch_size*0.5f;
+            float uSampleCenter = minuv.x + LightMapPatchSize*x + LightMapPatchSize*0.5f;
+            float vSampleCenter = minuv.y + LightMapPatchSize*y + LightMapPatchSize*0.5f;
             // reverse the projection
             vec3 p = v0 + uSampleCenter * basisU + vSampleCenter * basisV;
             lm.pos[pi] = p;
@@ -1188,7 +1222,7 @@ bool BuildGameMap(const char *path)
     i32 lightMapAtlasW = 4096;
     i32 lightMapAtlasH = 4096;
     stbrp_node *LMPackerNodes = NULL;
-    arrsetlen(LMPackerNodes, 1000);
+    arrsetlen(LMPackerNodes, lightMapAtlasW);
     stbrp_context LightMapPacker;
     stbrp_init_target(&LightMapPacker, lightMapAtlasW, lightMapAtlasH, LMPackerNodes, (int)arrlenu(LMPackerNodes));
     stbrp_pack_rects(&LightMapPacker, lm_rects, (int)arrlenu(lm_rects));
@@ -1325,7 +1359,7 @@ bool BuildGameMap(const char *path)
     glEnable(GL_CULL_FACE);
     UseShader(patchesIDShader);
 
-    float HEMICUBE_NEARCLIP = lm_patch_size*0.48f;//4.f;
+    float HEMICUBE_NEARCLIP = LightMapPatchSize*0.48f;//4.f; // TODO(Kevin): try tweaking this value
     mat4 hemicubePerspectiveMatrix = ProjectionMatrixPerspective(90.f, 1.f, HEMICUBE_NEARCLIP, GAMEPROJECTION_FARCLIP);
     GLBindMatrix4fv(patchesIDShader, "projMatrix", 1, hemicubePerspectiveMatrix.ptr());
 
@@ -1344,14 +1378,14 @@ bool BuildGameMap(const char *path)
 
         vec3 patch_i_pos = all_lm_pos[i];
         vec3 patch_i_normal = all_lm_norm[i];
-        vec3 patch_i_tangent = all_lm_tangent[i];
-        vec3 patch_i_other_tangent = Normalize(Cross(patch_i_tangent, patch_i_normal));
+        vec3 patch_i_basisV = all_lm_tangent[i];
+        vec3 patch_i_basisU = Normalize(Cross(patch_i_basisV, patch_i_normal));
 
         glBindFramebuffer(GL_FRAMEBUFFER, topFace.fbo);
         glViewport(0,0, topFace.width, topFace.height);
         glClearColor(0.f,0.f,0.f,1.f); // clear with rgb(id 0)
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        mat4 hemicubeViewMatrix = ViewMatrixLookAt(patch_i_pos, patch_i_pos + patch_i_normal, patch_i_tangent);
+        mat4 hemicubeViewMatrix = ViewMatrixLookAt(patch_i_pos, patch_i_pos + patch_i_normal, patch_i_basisV);
         GLBindMatrix4fv(patchesIDShader, "viewMatrix", 1, hemicubeViewMatrix.ptr());
         RenderFaceBatch(patchesIdBatch);
 
@@ -1359,7 +1393,7 @@ bool BuildGameMap(const char *path)
         glViewport(0,0, sideFace0.width, sideFace0.height);
         glClearColor(0.f,0.f,0.f,1.f); // clear with rgb(id 0)
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        hemicubeViewMatrix = ViewMatrixLookAt(patch_i_pos, patch_i_pos + patch_i_tangent, patch_i_normal);
+        hemicubeViewMatrix = ViewMatrixLookAt(patch_i_pos, patch_i_pos + patch_i_basisV, patch_i_normal);
         GLBindMatrix4fv(patchesIDShader, "viewMatrix", 1, hemicubeViewMatrix.ptr());
         RenderFaceBatch(patchesIdBatch);
 
@@ -1367,7 +1401,7 @@ bool BuildGameMap(const char *path)
         glViewport(0,0, sideFace1.width, sideFace1.height);
         glClearColor(0.f,0.f,0.f,1.f); // clear with rgb(id 0)
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        hemicubeViewMatrix = ViewMatrixLookAt(patch_i_pos, patch_i_pos - patch_i_tangent, patch_i_normal);
+        hemicubeViewMatrix = ViewMatrixLookAt(patch_i_pos, patch_i_pos - patch_i_basisV, patch_i_normal);
         GLBindMatrix4fv(patchesIDShader, "viewMatrix", 1, hemicubeViewMatrix.ptr());
         RenderFaceBatch(patchesIdBatch);
 
@@ -1375,7 +1409,7 @@ bool BuildGameMap(const char *path)
         glViewport(0,0, sideFace2.width, sideFace2.height);
         glClearColor(0.f,0.f,0.f,1.f); // clear with rgb(id 0)
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        hemicubeViewMatrix = ViewMatrixLookAt(patch_i_pos, patch_i_pos + patch_i_other_tangent, patch_i_normal);
+        hemicubeViewMatrix = ViewMatrixLookAt(patch_i_pos, patch_i_pos + patch_i_basisU, patch_i_normal);
         GLBindMatrix4fv(patchesIDShader, "viewMatrix", 1, hemicubeViewMatrix.ptr());
         RenderFaceBatch(patchesIdBatch);
 
@@ -1383,7 +1417,7 @@ bool BuildGameMap(const char *path)
         glViewport(0,0, sideFace3.width, sideFace3.height);
         glClearColor(0.f,0.f,0.f,1.f); // clear with rgb(id 0)
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        hemicubeViewMatrix = ViewMatrixLookAt(patch_i_pos, patch_i_pos - patch_i_other_tangent, patch_i_normal);
+        hemicubeViewMatrix = ViewMatrixLookAt(patch_i_pos, patch_i_pos - patch_i_basisU, patch_i_normal);
         GLBindMatrix4fv(patchesIDShader, "viewMatrix", 1, hemicubeViewMatrix.ptr());
         RenderFaceBatch(patchesIdBatch);
 

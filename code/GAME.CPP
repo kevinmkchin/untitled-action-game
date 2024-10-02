@@ -1599,8 +1599,6 @@ int main(int argc, char* argv[])
     EditorDeserializeMap(wd_path("LightTest.emf").c_str());
     BuildGameMap(wd_path("buildtest3.map").c_str());
 
-    // Tests_CollideFlatPolygonXLine();
-
     if (LoadGameMap(wd_path("buildtest3.map").c_str()) == false)
         LogError("failed to load game map");
 
