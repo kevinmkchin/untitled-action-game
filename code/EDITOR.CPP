@@ -1024,6 +1024,7 @@ void Threaded_DoDirectLightingIntoLightMap(u32 patchIndexStart, u32 patchIndexEn
         {
             vec3 incidence_ray = TestLightSource - SamplePositions[sample];
 
+            SampleIntensityAccumulator += 0.05f; // Ambient constant
             float costheta = Dot(Normalize(incidence_ray), patch_normal);
             if (costheta > 0.f)
             {
