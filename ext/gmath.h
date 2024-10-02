@@ -18,9 +18,14 @@ Features:
 STANDARDS:
     This library imposes some standards and rules for 3D math:
         - Positive X axis is forward vector. Positive Y axis is up vector. Positive Z
-          axis is right vector.
-        - Therefore, Roll is rotation around X axis, Pitch is rotation around Z axis,
-          and Yaw is rotation around Y axis.
+          axis is right vector. Therefore, the orientation of space uses RIGHT-HANDedness:
+            Cross(Forward, Up) = Right; Cross(Up, Right) = Forward; Cross(Right, Forward) = Up
+        - Roll is rotation around X axis, Pitch is rotation around Z axis, and Yaw is rotation
+          around Y axis. Euler angles follow RIGHT-HANDedness. When converting from Euler angles
+          to a Quaternion orientation, the Euler angles are applied in X-Z-Y order (this is
+          application order not hierarchy order - the conversion behaviour applies X/Roll, then
+          applies Z/Pitch, then applies Y/Yaw).
+        - Vectors and matrices are stored in COLUMN-MAJOR order.
         - Quaternions: gmath uses Quaternions to represent all rotations.
           They are compact, don't suffer from gimbal lock and can easily be interpolated.
 

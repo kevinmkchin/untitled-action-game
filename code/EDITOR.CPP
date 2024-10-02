@@ -39,7 +39,7 @@ namespace MapEdit
 
     struct Loop
     {
-        Loop *loopNext = NULL;
+        Loop *loopNext = NULL; // CCW order
         Loop *loopPrev = NULL;
         Loop *radialNext = NULL;
         Loop *radialPrev = NULL;
@@ -1725,7 +1725,7 @@ void ResetGridOriginAndOrientation()
 mat3 GetGridRotationMatrix()
 {
     mat3 rot;
-    rot.columns[0] = Normalize(Cross(GRID_RIGHT_VECTOR, GRID_UP_VECTOR)); // forward
+    rot.columns[0] = Normalize(Cross(GRID_UP_VECTOR, GRID_RIGHT_VECTOR)); // forward
     rot.columns[1] = Normalize(GRID_UP_VECTOR); // up
     rot.columns[2] = Normalize(GRID_RIGHT_VECTOR); // right
     return rot;
