@@ -22,6 +22,7 @@ TODO:
 - move volume mode/tool (don't need whole tool...maybe make brush tool part of this mode? like trenchbroom)
 - multi select vertices need to be fixed
 - edge select
+- Pixel Buffer Objects (PBOs) instead of glReadPixels in hemicube rendering code
 
 Engine work is almost done. 
 ~~- Octree collision acceleration~~
