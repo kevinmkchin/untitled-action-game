@@ -1365,26 +1365,26 @@ bool BuildGameMap(const char *path)
     const u32 HemicubeFaceH = 64;
     const u32 HemicubeFaceHHalf = HemicubeFaceH/2;
     const float pixelAreaInSolidAngle = GM_PI / float(2 * HemicubeFaceW * HemicubeFaceH);
-    GPUFrameBuffer topFace;
-    topFace.width = HemicubeFaceW;
-    topFace.height = HemicubeFaceH;
-    GPUFrameBuffer sideFace0;
-    sideFace0.width = topFace.width;
-    sideFace0.height = topFace.height;
-    GPUFrameBuffer sideFace1;
-    sideFace1.width = topFace.width;
-    sideFace1.height = topFace.height;
-    GPUFrameBuffer sideFace2;
-    sideFace2.width = topFace.width;
-    sideFace2.height = topFace.height;
-    GPUFrameBuffer sideFace3;
-    sideFace3.width = topFace.width;
-    sideFace3.height = topFace.height;
-    CreateGPUFrameBuffer(&topFace);
-    CreateGPUFrameBuffer(&sideFace0);
-    CreateGPUFrameBuffer(&sideFace1);
-    CreateGPUFrameBuffer(&sideFace2);
-    CreateGPUFrameBuffer(&sideFace3);
+    GPUFrameBuffer HemicubeTopFaceFBO;
+    HemicubeTopFaceFBO.width = HemicubeFaceW;
+    HemicubeTopFaceFBO.height = HemicubeFaceH;
+    GPUFrameBuffer HemicubeSideFace0FBO;
+    HemicubeSideFace0FBO.width = HemicubeTopFaceFBO.width;
+    HemicubeSideFace0FBO.height = HemicubeTopFaceFBO.height;
+    GPUFrameBuffer HemicubeSideFace1FBO;
+    HemicubeSideFace1FBO.width = HemicubeTopFaceFBO.width;
+    HemicubeSideFace1FBO.height = HemicubeTopFaceFBO.height;
+    GPUFrameBuffer HemicubeSideFace2FBO;
+    HemicubeSideFace2FBO.width = HemicubeTopFaceFBO.width;
+    HemicubeSideFace2FBO.height = HemicubeTopFaceFBO.height;
+    GPUFrameBuffer HemicubeSideFace3FBO;
+    HemicubeSideFace3FBO.width = HemicubeTopFaceFBO.width;
+    HemicubeSideFace3FBO.height = HemicubeTopFaceFBO.height;
+    CreateGPUFrameBuffer(&HemicubeTopFaceFBO);
+    CreateGPUFrameBuffer(&HemicubeSideFace0FBO);
+    CreateGPUFrameBuffer(&HemicubeSideFace1FBO);
+    CreateGPUFrameBuffer(&HemicubeSideFace2FBO);
+    CreateGPUFrameBuffer(&HemicubeSideFace3FBO);
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_CULL_FACE);
     UseShader(patchesIDShader);
@@ -1411,40 +1411,40 @@ bool BuildGameMap(const char *path)
         vec3 patch_i_basisV = all_lm_tangent[i];
         vec3 patch_i_basisU = Normalize(Cross(patch_i_basisV, patch_i_normal));
 
-        glBindFramebuffer(GL_FRAMEBUFFER, topFace.fbo);
-        glViewport(0,0, topFace.width, topFace.height);
+        glBindFramebuffer(GL_FRAMEBUFFER, HemicubeTopFaceFBO.fbo);
+        glViewport(0,0, HemicubeTopFaceFBO.width, HemicubeTopFaceFBO.height);
         glClearColor(0.f,0.f,0.f,1.f); // clear with rgb(id 0)
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         mat4 HemicubeViewMatrix = ViewMatrixLookAt(patch_i_pos, patch_i_pos + patch_i_normal, patch_i_basisV);
         GLBindMatrix4fv(patchesIDShader, "viewMatrix", 1, HemicubeViewMatrix.ptr());
         RenderFaceBatch(patchesIdBatch);
 
-        glBindFramebuffer(GL_FRAMEBUFFER, sideFace0.fbo);
-        glViewport(0,0, sideFace0.width, sideFace0.height);
+        glBindFramebuffer(GL_FRAMEBUFFER, HemicubeSideFace0FBO.fbo);
+        glViewport(0,0, HemicubeSideFace0FBO.width, HemicubeSideFace0FBO.height);
         glClearColor(0.f,0.f,0.f,1.f); // clear with rgb(id 0)
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         HemicubeViewMatrix = ViewMatrixLookAt(patch_i_pos, patch_i_pos + patch_i_basisV, patch_i_normal);
         GLBindMatrix4fv(patchesIDShader, "viewMatrix", 1, HemicubeViewMatrix.ptr());
         RenderFaceBatch(patchesIdBatch);
 
-        glBindFramebuffer(GL_FRAMEBUFFER, sideFace1.fbo);
-        glViewport(0,0, sideFace1.width, sideFace1.height);
+        glBindFramebuffer(GL_FRAMEBUFFER, HemicubeSideFace1FBO.fbo);
+        glViewport(0,0, HemicubeSideFace1FBO.width, HemicubeSideFace1FBO.height);
         glClearColor(0.f,0.f,0.f,1.f); // clear with rgb(id 0)
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         HemicubeViewMatrix = ViewMatrixLookAt(patch_i_pos, patch_i_pos - patch_i_basisV, patch_i_normal);
         GLBindMatrix4fv(patchesIDShader, "viewMatrix", 1, HemicubeViewMatrix.ptr());
         RenderFaceBatch(patchesIdBatch);
 
-        glBindFramebuffer(GL_FRAMEBUFFER, sideFace2.fbo);
-        glViewport(0,0, sideFace2.width, sideFace2.height);
+        glBindFramebuffer(GL_FRAMEBUFFER, HemicubeSideFace2FBO.fbo);
+        glViewport(0,0, HemicubeSideFace2FBO.width, HemicubeSideFace2FBO.height);
         glClearColor(0.f,0.f,0.f,1.f); // clear with rgb(id 0)
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         HemicubeViewMatrix = ViewMatrixLookAt(patch_i_pos, patch_i_pos + patch_i_basisU, patch_i_normal);
         GLBindMatrix4fv(patchesIDShader, "viewMatrix", 1, HemicubeViewMatrix.ptr());
         RenderFaceBatch(patchesIdBatch);
 
-        glBindFramebuffer(GL_FRAMEBUFFER, sideFace3.fbo);
-        glViewport(0,0, sideFace3.width, sideFace3.height);
+        glBindFramebuffer(GL_FRAMEBUFFER, HemicubeSideFace3FBO.fbo);
+        glViewport(0,0, HemicubeSideFace3FBO.width, HemicubeSideFace3FBO.height);
         glClearColor(0.f,0.f,0.f,1.f); // clear with rgb(id 0)
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         HemicubeViewMatrix = ViewMatrixLookAt(patch_i_pos, patch_i_pos - patch_i_basisU, patch_i_normal);
@@ -1456,25 +1456,25 @@ bool BuildGameMap(const char *path)
 
         glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 
-        glBindFramebuffer(GL_FRAMEBUFFER, topFace.fbo);
-        u8 TopFaceData[HemicubeFaceW*HemicubeFaceH*4];
-        glReadPixels(0, 0, topFace.width, topFace.height, GL_RGBA, GL_UNSIGNED_BYTE, TopFaceData);
+        glBindFramebuffer(GL_FRAMEBUFFER, HemicubeTopFaceFBO.fbo);
+        u8 HemicubeTopFaceFBOData[HemicubeFaceW*HemicubeFaceH*4];
+        glReadPixels(0, 0, HemicubeTopFaceFBO.width, HemicubeTopFaceFBO.height, GL_RGBA, GL_UNSIGNED_BYTE, HemicubeTopFaceFBOData);
 
-        glBindFramebuffer(GL_FRAMEBUFFER, sideFace0.fbo);
+        glBindFramebuffer(GL_FRAMEBUFFER, HemicubeSideFace0FBO.fbo);
         u8 SF0Data[HemicubeFaceW*HemicubeFaceH*4];
-        glReadPixels(0, 0, sideFace0.width, sideFace0.height, GL_RGBA, GL_UNSIGNED_BYTE, SF0Data);
+        glReadPixels(0, 0, HemicubeSideFace0FBO.width, HemicubeSideFace0FBO.height, GL_RGBA, GL_UNSIGNED_BYTE, SF0Data);
 
-        glBindFramebuffer(GL_FRAMEBUFFER, sideFace1.fbo);
+        glBindFramebuffer(GL_FRAMEBUFFER, HemicubeSideFace1FBO.fbo);
         u8 SF1Data[HemicubeFaceW*HemicubeFaceH*4];
-        glReadPixels(0, 0, sideFace1.width, sideFace1.height, GL_RGBA, GL_UNSIGNED_BYTE, SF1Data);
+        glReadPixels(0, 0, HemicubeSideFace1FBO.width, HemicubeSideFace1FBO.height, GL_RGBA, GL_UNSIGNED_BYTE, SF1Data);
         
-        glBindFramebuffer(GL_FRAMEBUFFER, sideFace2.fbo);
+        glBindFramebuffer(GL_FRAMEBUFFER, HemicubeSideFace2FBO.fbo);
         u8 SF2Data[HemicubeFaceW*HemicubeFaceH*4];
-        glReadPixels(0, 0, sideFace2.width, sideFace2.height, GL_RGBA, GL_UNSIGNED_BYTE, SF2Data);
+        glReadPixels(0, 0, HemicubeSideFace2FBO.width, HemicubeSideFace2FBO.height, GL_RGBA, GL_UNSIGNED_BYTE, SF2Data);
         
-        glBindFramebuffer(GL_FRAMEBUFFER, sideFace3.fbo);
+        glBindFramebuffer(GL_FRAMEBUFFER, HemicubeSideFace3FBO.fbo);
         u8 SF3Data[HemicubeFaceW*HemicubeFaceH*4];
-        glReadPixels(0, 0, sideFace3.width, sideFace3.height, GL_RGBA, GL_UNSIGNED_BYTE, SF3Data);
+        glReadPixels(0, 0, HemicubeSideFace3FBO.width, HemicubeSideFace3FBO.height, GL_RGBA, GL_UNSIGNED_BYTE, SF3Data);
 
         // multithreading the code to process the hemicube pixels has almost no impact
         // bigger gain would be from replacing glReadPixels with Pixel Buffer Objects
@@ -1482,7 +1482,7 @@ bool BuildGameMap(const char *path)
         int HemicubeFaceArea = HemicubeFaceW * HemicubeFaceH;
         for (int p = 0; p < HemicubeFaceArea; ++p)
         {
-            u32 patchColorId = TopFaceData[p*4] + TopFaceData[p*4+1] * 256 + TopFaceData[p*4+2] * 256 * 256;
+            u32 patchColorId = HemicubeTopFaceFBOData[p*4] + HemicubeTopFaceFBOData[p*4+1] * 256 + HemicubeTopFaceFBOData[p*4+2] * 256 * 256;
             if (patchColorId == 0)
                 continue;
             u32 patchId = patchColorId - 1;
@@ -1534,6 +1534,11 @@ bool BuildGameMap(const char *path)
     }
     // if (rdoc_api) rdoc_api->EndFrameCapture(NULL, NULL);
 
+    DeleteGPUFrameBuffer(&HemicubeTopFaceFBO);
+    DeleteGPUFrameBuffer(&HemicubeSideFace0FBO);
+    DeleteGPUFrameBuffer(&HemicubeSideFace1FBO);
+    DeleteGPUFrameBuffer(&HemicubeSideFace2FBO);
+    DeleteGPUFrameBuffer(&HemicubeSideFace3FBO);
     DeleteGPUTexture(&patchesIdBatch.sharedTexture);
     DeleteFaceBatchMeshOnGPU(patchesIdBatch.idVAO, patchesIdBatch.idVBO);
 
