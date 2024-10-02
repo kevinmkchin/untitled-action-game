@@ -1386,6 +1386,7 @@ static void InitGameRenderer()
     // alpha blending func: (srcA) * a + (dstA) * 1 = final alpha output
     glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_SRC_ALPHA, GL_ONE);
     glBlendEquation(GL_FUNC_ADD);
+    glFrontFace(GL_CCW); // OpenGL default is GL_CCW
 
 
     SDL_GL_GetDrawableSize(g_MainSDLWindow, &BACKBUFFER_WIDTH, &BACKBUFFER_HEIGHT);
