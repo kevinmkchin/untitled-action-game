@@ -3,6 +3,7 @@
 == Build ==
 
 Using CMake to generate build for MSVC.
+Consider getting rid of CMake and just invoking MSVC directly.
 
 build           : build debug
 build clean     : clean target
@@ -39,4 +40,6 @@ gmath.h - math
 stb_ds.h - dynamic arrays
 
 See ext\ for any other external libraries.
+
+Consider https://github.com/rxi/cmixer to replace SDL_mixer
 

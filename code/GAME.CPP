@@ -6,13 +6,22 @@ Priorty #1 is building the game, not the engine/tech
 
 Just be specific and code exactly that tailored solution e.g. LevelPolygonOctree rather than Octree.
 
-
+- Take notes on 
+    http://the-witness.net/news/2010/03/graphics-tech-precomputed-lighting/
+    http://the-witness.net/news/2010/09/hemicube-rendering-and-integration/
+    Hugo Elias - Radiosity
+- Make indirect light test scene with just sunlight and a small house/room with window
 - Apply light map to FaceBatch as uv2 and texture as uv1
 - I should have option (by default) to just create faces rather than cuboid volumes in my editor. 
     Volume wasteful bcause lots of useless collider faces and light mapped faces.
     I think Source 2 mainly uses face creation rather than volume.
-- Render hemicube for cluster of patches (perhaps up to 16x16) so then there are 4x4 size patches but one hemicube for 16 patches. Perhaps that achieves something similar to adaptive patch resizing.
+- Maybe render hemicube for cluster of patches (perhaps up to 16x16) so then there are 4x4 size patches but one hemicube for 16 patches. Perhaps that achieves something similar to adaptive patch resizing.
     hemicube_cluster can be any power of 2 size up to 16x16? then if it doesn't fit in 16x16 then we can do a smaller hemicube.
+- Gamma correction
+    Whether vec3 gamma_corrected_color = pow(in_color.rgb, vec3(1.0/2.2)); is necessary
+    will become clear . It should also only be done for game layer? not for most of editor.
+    Definitely not for UI...since their colors have mostly been picked from what looked good on my monitor.
+    GL_SRGB then for textures being loading into game
 
 TODO:
 - Multiple light sources
