@@ -1594,6 +1594,9 @@ int main(int argc, char* argv[])
     LoadMapEditor();
 
     // rdoc_api->LaunchReplayUI(1, "");
+    // if (rdoc_api) rdoc_api->StartFrameCapture(NULL, NULL);
+    // if (rdoc_api) rdoc_api->EndFrameCapture(NULL, NULL);
+    
     EditorDeserializeMap(wd_path("LightTest.emf").c_str());
     BuildGameMap(wd_path("buildtest.map").c_str());
 
