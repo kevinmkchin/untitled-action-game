@@ -222,30 +222,30 @@ inline std::string data_path(const std::string& name) { return wd_path() + "data
 #define STANDARD_LENGTH_DIAGONAL 45
 #define THIRTYTWO STANDARD_LENGTH_IN_GAME_UNITS
 
-SDL_Window *g_MainSDLWindow;
-SDL_GLContext g_SDLGLContext;
-bool g_ProgramShouldShutdown = false;
-float g_DeltaTime = 0.f;
-float g_UnscaledDeltaTime = 0.f;
-float g_GameTimeScale = 1.f;
-float g_CurrentTime = 0.f;
-float g_TimeSinceStart = 0.f;
-u32 mousecurrent;
-u32 mousepressed;
-u32 mousereleased;
-vec2 mousedelta;
-ivec2 mousepos;
-u8 keyscurrent[256] = {0};
-u8 keyspressed[256] = {0};
-u8 keysreleased[256] = {0};
+SDL_Window *SDLMainWindow;
+SDL_GLContext SDLGLContext;
+bool ProgramShutdownRequested = false;
+float DeltaTime = 0.f;
+float UnscaledDeltaTime = 0.f;
+float GameTimeScale = 1.f;
+float CurrentTime = 0.f;
+float TimeSinceStart = 0.f;
+u32 MouseCurrent;
+u32 MousePressed;
+u32 MouseReleased;
+vec2 MouseDelta;
+ivec2 MousePos;
+u8 KeysCurrent[256] = {0};
+u8 KeysPressed[256] = {0};
+u8 KeysReleased[256] = {0};
 
-i32 BACKBUFFER_WIDTH = -1;
-i32 BACKBUFFER_HEIGHT = -1;
+i32 BackbufferWidth = -1;
+i32 BackbufferHeight = -1;
 
 char CurrentWorkingDirectory[128];
 
 #if INTERNAL_BUILD
-RENDERDOC_API_1_6_0 *rdoc_api = NULL;
+RENDERDOC_API_1_6_0 *RDOCAPI = NULL;
 #endif
 
 bool IsEditorActive = false;
@@ -911,18 +911,18 @@ static void RenderFaceBatch(FaceBatch faceBatch)
 #include "COLLISION.CPP"
 
 #pragma region MORE_GLOBAL_VARIABLES
-GPUShader gameLevelShader;
-GPUShader patchesIDShader;
-GPUShader editorShader_Scene;
-GPUShader editorShader_Wireframe;
-GPUShader editorShader_FaceSelected;
-GPUShader finalPassShader;
-GPUFrameBuffer renderTargetGame;
-GPUFrameBuffer renderTargetGUI;
-GPUMesh __final_render_output_quad;
+GPUShader GameLevelShader;
+GPUShader PatchesIDShader;
+GPUShader EditorShader_Scene;
+GPUShader EditorShader_Wireframe;
+GPUShader EditorShader_FaceSelected;
+GPUShader FinalPassShader;
+GPUFrameBuffer RenderTargetGame;
+GPUFrameBuffer RenderTargetGUI;
+GPUMesh FinalRenderOutputQuad;
 float GAMEPROJECTION_NEARCLIP = 4.f; // even 2 works fine to remove z fighting
 float GAMEPROJECTION_FARCLIP = 32000.f;
-bool primitivesDepthTest = false;
+bool DoPrimitivesDepthTest = false;
 #pragma endregion
 
 #include "GUI.CPP"
@@ -941,7 +941,7 @@ Mix_Chunk *Mixer_LoadChunk(const char *filepath)
     return chunk;
 }
 
-GPUTexture POSCOLORTESTTEX;
+GPUTexture Temporary_LightMapVisualizeTex;
 
 GPUTexture tex_Missing;
 Mix_Chunk *sfx_Jump;
@@ -951,40 +951,40 @@ std::vector<FlatPolygonCollider> GameLevelColliders;
 Octree GameLevelCollisionTree;
 std::vector<FaceBatch> GameLevelFaceBatches;
 
-vec3 playerControllerRoot = vec3(215.f,0.01f,-38.7f);
-vec3 cameraRotation = vec3(0,192.3f,7.56f);// vec3(0,130,-30);
-vec3 cameraDirection;
-vec3 cameraRight;
-vec3 cameraUp;
-mat4 activePerspectiveMatrix;
-mat4 activeViewMatrix;
-vec3 playerWalkDirectionForward;
-vec3 playerWalkDirectionRight;
-vec3 playerColliderPoints[] = {
+vec3 PlayerControllerRoot = vec3(215.f, 0.01f, -38.7f);
+vec3 CameraRotation = vec3(0, 192.3f, 7.56f);// vec3(0,130,-30);
+vec3 CameraDirection;
+vec3 CameraRight;
+vec3 CameraUp;
+mat4 ActivePerspectiveMatrix;
+mat4 ActiveViewMatrix;
+vec3 PlayerWalkDirectionForward;
+vec3 PlayerWalkDirectionRight;
+vec3 PlayerColliderPoints[] = {
     vec3(8,0,8), vec3(8,0,-8), vec3(-8,0,8), vec3(-8,0,-8),
     vec3(8,48,8), vec3(8,48,-8), vec3(-8,48,8), vec3(-8,48,-8)
 };
-MeshCollider playerCollider;
+MeshCollider PlayerCollider;
 MeshCollider *PlayerColliderAtPos(vec3 playerWorldPosition)
 {
-    playerCollider.pointCloud.resize(8);
+    PlayerCollider.pointCloud.resize(8);
     for (int i = 0; i < 8; ++i)
-        playerCollider.pointCloud[i] = playerWorldPosition + playerColliderPoints[i];
-    return &playerCollider;
+        PlayerCollider.pointCloud[i] = playerWorldPosition + PlayerColliderPoints[i];
+    return &PlayerCollider;
 }
-float playeryvel = 0.f;
+float PlayerYVel = 0.f;
 
-vec3 bodyguardEnemyColliderPoints[] = {
+vec3 BodyguardEnemyColliderPoints[] = {
     vec3(8,0,8), vec3(8,0,-8), vec3(-8,0,8), vec3(-8,0,-8),
     vec3(8,48,8), vec3(8,48,-8), vec3(-8,48,8), vec3(-8,48,-8)
 };
-MeshCollider bodyguardEnemyCollider;
+MeshCollider BodyguardEnemyCollider;
 MeshCollider *BodyguardEnemyColliderAtPos(vec3 worldPos)
 {
-    bodyguardEnemyCollider.pointCloud.resize(8);
+    BodyguardEnemyCollider.pointCloud.resize(8);
     for (int i = 0; i < 8; ++i)
-        bodyguardEnemyCollider.pointCloud[i] = worldPos + bodyguardEnemyColliderPoints[i];
-    return &bodyguardEnemyCollider;
+        BodyguardEnemyCollider.pointCloud[i] = worldPos + BodyguardEnemyColliderPoints[i];
+    return &BodyguardEnemyCollider;
 }
 
 
@@ -993,9 +993,9 @@ struct BodyguardEnemy
     vec3 root;
     vec3 facing;
 };
-BodyguardEnemy enemy0;
+BodyguardEnemy Enemy0;
 
-ModelGLTF model_Knight;
+ModelGLTF Model_Knight;
 
 
 #include "EDITOR.CPP"
@@ -1006,11 +1006,11 @@ static void Stuff()
     SDL_SetRelativeMouseMode(SDL_TRUE);
 
     CreateGPUTextureFromDisk(&tex_Missing, wd_path("missing_texture.png").c_str());
-    enemy0.root = vec3(-200, 0, -200);
+    Enemy0.root = vec3(-200, 0, -200);
 
     sfx_Jump = Mixer_LoadChunk(wd_path("gunshot-37055.ogg").c_str());
 
-    LoadModelGLTF2Bin(&model_Knight, wd_path("models/knight.glb").c_str());
+    LoadModelGLTF2Bin(&Model_Knight, wd_path("models/knight.glb").c_str());
 
 
 //    FaceBatch fb0;
@@ -1046,32 +1046,32 @@ static void Stuff()
 
 static void TickGame()
 {
-    PrimitiveDrawSolidDisc(TestLightSource, -cameraDirection, 3.f);
-    PrimitiveDrawSolidDisc(TestLightSource2, -cameraDirection, 3.f);
+    PrimitiveDrawSolidDisc(TestLightSource, -CameraDirection, 3.f);
+    PrimitiveDrawSolidDisc(TestLightSource2, -CameraDirection, 3.f);
     // Gui::PrimitivePanel(Gui::UIRect(0,0, 400,400), POSCOLORTESTTEX.id);
 
     // ENEMY 0
-    vec3 toPlayer = playerControllerRoot - enemy0.root;
-    enemy0.facing = Normalize(vec3(toPlayer.x, 0.f, toPlayer.z));
+    vec3 toPlayer = PlayerControllerRoot - Enemy0.root;
+    Enemy0.facing = Normalize(vec3(toPlayer.x, 0.f, toPlayer.z));
     // enemy0.root += enemy0.facing * 32.f * g_DeltaTime;
 
     // CALCULATE PLAYER FACING DIRECTION
-    float camYawDelta = mousedelta.x*0.055f;
-    float camPitchDelta = mousedelta.y*0.055f;
-    cameraRotation.y -= camYawDelta;
-    cameraRotation.z -= camPitchDelta;
-    if (cameraRotation.z > 89.f)
-        cameraRotation.z = 89.f;
-    if (cameraRotation.z < -89.f)
-        cameraRotation.z = -89.f;
-    cameraDirection = Normalize(OrientationToDirection(EulerToQuat(cameraRotation * GM_DEG2RAD)));
-    cameraRight = Normalize(Cross(cameraDirection, GM_UP_VECTOR));
-    cameraUp = Normalize(Cross(cameraRight, cameraDirection));
-    playerWalkDirectionRight = cameraRight;
-    playerWalkDirectionForward = Normalize(Cross(GM_UP_VECTOR, playerWalkDirectionRight));
+    float camYawDelta = MouseDelta.x * 0.055f;
+    float camPitchDelta = MouseDelta.y * 0.055f;
+    CameraRotation.y -= camYawDelta;
+    CameraRotation.z -= camPitchDelta;
+    if (CameraRotation.z > 89.f)
+        CameraRotation.z = 89.f;
+    if (CameraRotation.z < -89.f)
+        CameraRotation.z = -89.f;
+    CameraDirection = Normalize(OrientationToDirection(EulerToQuat(CameraRotation * GM_DEG2RAD)));
+    CameraRight = Normalize(Cross(CameraDirection, GM_UP_VECTOR));
+    CameraUp = Normalize(Cross(CameraRight, CameraDirection));
+    PlayerWalkDirectionRight = CameraRight;
+    PlayerWalkDirectionForward = Normalize(Cross(GM_UP_VECTOR, PlayerWalkDirectionRight));
 
     // temp crosshair
-    ivec2 guiwh = ivec2(renderTargetGUI.width, renderTargetGUI.height);
+    ivec2 guiwh = ivec2(RenderTargetGUI.width, RenderTargetGUI.height);
     Gui::PrimitivePanel(Gui::UIRect(guiwh.x/2 - 3, guiwh.y/2 - 3, 6, 6), vec4(0,0,0,1));
     Gui::PrimitivePanel(Gui::UIRect(guiwh.x/2 - 2, guiwh.y/2 - 2, 4, 4), vec4(1,1,1,1));
 
@@ -1079,28 +1079,28 @@ static void TickGame()
     // PLAYER MOVE
     float moveSpeed = 250.f;
     vec3 playerPositionDelta;
-    if (keyscurrent[SDL_SCANCODE_W])
-        playerPositionDelta += playerWalkDirectionForward * moveSpeed * g_DeltaTime;
-    if (keyscurrent[SDL_SCANCODE_A])
-        playerPositionDelta += -playerWalkDirectionRight * moveSpeed * g_DeltaTime;
-    if (keyscurrent[SDL_SCANCODE_S])
-        playerPositionDelta += -playerWalkDirectionForward * moveSpeed * g_DeltaTime;
-    if (keyscurrent[SDL_SCANCODE_D])
-        playerPositionDelta += playerWalkDirectionRight * moveSpeed * g_DeltaTime;
-    playerControllerRoot += playerPositionDelta;
+    if (KeysCurrent[SDL_SCANCODE_W])
+        playerPositionDelta += PlayerWalkDirectionForward * moveSpeed * DeltaTime;
+    if (KeysCurrent[SDL_SCANCODE_A])
+        playerPositionDelta += -PlayerWalkDirectionRight * moveSpeed * DeltaTime;
+    if (KeysCurrent[SDL_SCANCODE_S])
+        playerPositionDelta += -PlayerWalkDirectionForward * moveSpeed * DeltaTime;
+    if (KeysCurrent[SDL_SCANCODE_D])
+        playerPositionDelta += PlayerWalkDirectionRight * moveSpeed * DeltaTime;
+    PlayerControllerRoot += playerPositionDelta;
     
     static int channelrotationtesting = 0;
-    if (keyspressed[SDL_SCANCODE_SPACE])
+    if (KeysPressed[SDL_SCANCODE_SPACE])
     {
-        playeryvel = 160.f;
+        PlayerYVel = 160.f;
         Mix_VolumeChunk(sfx_Jump, 48);
 //        Mix_PlayChannel(channelrotationtesting++%3, sfx_Jump, 0);
     }
-    playeryvel -= 314.f * g_DeltaTime; // 9.81 m/s * 32 units/m ~= 314 units/s
-    playerControllerRoot.y += playeryvel * g_DeltaTime;
+    PlayerYVel -= 314.f * DeltaTime; // 9.81 m/s * 32 units/m ~= 314 units/s
+    PlayerControllerRoot.y += PlayerYVel * DeltaTime;
 
     // PLAYER RESOLVE COLLISIONS
-    MeshCollider *pcol = PlayerColliderAtPos(playerControllerRoot);
+    MeshCollider *pcol = PlayerColliderAtPos(PlayerControllerRoot);
     Bounds playerBounds = BoundsFromMeshCollider(*pcol);
     std::unordered_set<Collider*> pcollisionquery = GameLevelCollisionTree.Query(playerBounds);
     // NOTE(Kevin): If I wanted, I could do something like sort these potential colliders by walls before floors or something
@@ -1110,15 +1110,15 @@ static void TickGame()
         if (result.hasCollision)
         {
             vec3 moveby = result.normal * result.penetrationDepth;
-            playerControllerRoot += moveby;
+            PlayerControllerRoot += moveby;
             if (Dot(result.normal, GM_UP_VECTOR) > 0.1f)
-                playeryvel = 0.f;
+                PlayerYVel = 0.f;
         }
     }
 
     // PLAYER CAMERA 
     vec3 cameraPosOffsetFromRoot = vec3(0,40,0);
-    vec3 cameraPosition = playerControllerRoot + cameraPosOffsetFromRoot;
+    vec3 cameraPosition = PlayerControllerRoot + cameraPosOffsetFromRoot;
     // LogMessage("pos %f, %f, %f", playerControllerRoot.x, playerControllerRoot.y, playerControllerRoot.z);
     // LogMessage("dir y %f, z %f\n", cameraRotation.y, cameraRotation.z);
 
@@ -1127,25 +1127,25 @@ static void TickGame()
     const float camLeanSpeed = 15;
     const float maxCamLean = 0.07f;
     desiredCamLean = 0.f;
-    if(keyscurrent[SDL_SCANCODE_D])
+    if(KeysCurrent[SDL_SCANCODE_D])
         desiredCamLean += maxCamLean;
-    if(keyscurrent[SDL_SCANCODE_A])
+    if(KeysCurrent[SDL_SCANCODE_A])
         desiredCamLean += -maxCamLean;
-    camLean = Lerp(camLean, desiredCamLean, g_DeltaTime*camLeanSpeed);
+    camLean = Lerp(camLean, desiredCamLean, DeltaTime * camLeanSpeed);
 
-    quat fromto = RotationFromTo(cameraUp, cameraRight);
+    quat fromto = RotationFromTo(CameraUp, CameraRight);
     quat sle = Slerp(quat(), fromto, camLean);
-    vec3 cameraUpWithSway = RotateVector(cameraUp, sle);
-    float dot = Dot(Normalize(Cross(cameraUpWithSway, cameraRight)), cameraDirection);
+    vec3 cameraUpWithSway = RotateVector(CameraUp, sle);
+    float dot = Dot(Normalize(Cross(cameraUpWithSway, CameraRight)), CameraDirection);
     if (dot < 0.99f)
         printf("bad cam up %f\n", dot);
-    activeViewMatrix = ViewMatrixLookAt(cameraPosition, cameraPosition + cameraDirection, cameraUpWithSway);
+    ActiveViewMatrix = ViewMatrixLookAt(cameraPosition, cameraPosition + CameraDirection, cameraUpWithSway);
 }
 
 static void RenderGameLayer()
 {
-    glBindFramebuffer(GL_FRAMEBUFFER, renderTargetGame.fbo);
-    glViewport(0, 0, renderTargetGame.width, renderTargetGame.height);
+    glBindFramebuffer(GL_FRAMEBUFFER, RenderTargetGame.fbo);
+    glViewport(0, 0, RenderTargetGame.width, RenderTargetGame.height);
     glClearColor(0.674f, 0.847f, 1.0f, 1.f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     //RGBHEXTO1(0x6495ed), 1.f);//(RGB255TO1(211, 203, 190), 1.f);//(0.674f, 0.847f, 1.0f, 1.f); //RGB255TO1(46, 88, 120)
@@ -1153,17 +1153,17 @@ static void RenderGameLayer()
     glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_SRC_ALPHA, GL_ONE);
     glEnable(GL_DEPTH_TEST);
 
-    float aspectratio = float(BACKBUFFER_WIDTH) / float(BACKBUFFER_HEIGHT);
+    float aspectratio = float(BackbufferWidth) / float(BackbufferHeight);
     float fovy = HorizontalFOVToVerticalFOV_RadianToRadian(90.f*GM_DEG2RAD, aspectratio); // NOTE(Kevin): have FOV slider in game up to insane value like 170
-    activePerspectiveMatrix = ProjectionMatrixPerspective(fovy, aspectratio, GAMEPROJECTION_NEARCLIP, GAMEPROJECTION_FARCLIP);
-    mat4 perspectiveMatrix = activePerspectiveMatrix;
-    mat4 viewMatrix = activeViewMatrix;
+    ActivePerspectiveMatrix = ProjectionMatrixPerspective(fovy, aspectratio, GAMEPROJECTION_NEARCLIP, GAMEPROJECTION_FARCLIP);
+    mat4 perspectiveMatrix = ActivePerspectiveMatrix;
+    mat4 viewMatrix = ActiveViewMatrix;
 
-    UseShader(gameLevelShader);
+    UseShader(GameLevelShader);
     glEnable(GL_CULL_FACE);
 
-    GLBindMatrix4fv(gameLevelShader, "projMatrix", 1, perspectiveMatrix.ptr());
-    GLBindMatrix4fv(gameLevelShader, "viewMatrix", 1, viewMatrix.ptr());
+    GLBindMatrix4fv(GameLevelShader, "projMatrix", 1, perspectiveMatrix.ptr());
+    GLBindMatrix4fv(GameLevelShader, "viewMatrix", 1, viewMatrix.ptr());
 
     for (size_t i = 0; i < GameLevelFaceBatches.size(); ++i)
     {
@@ -1176,41 +1176,41 @@ static void RenderGameLayer()
     // RenderModelGLTF(model_Knight);
 
     // PRIMITIVES
-    if (keyspressed[SDL_SCANCODE_X])
-        primitivesDepthTest = !primitivesDepthTest;
-    if (primitivesDepthTest)
+    if (KeysPressed[SDL_SCANCODE_X])
+        DoPrimitivesDepthTest = !DoPrimitivesDepthTest;
+    if (DoPrimitivesDepthTest)
         glEnable(GL_DEPTH_TEST);
     else
         glDisable(GL_DEPTH_TEST);
     glDisable(GL_CULL_FACE);
-    PrimitiveDrawAll(&perspectiveMatrix, &viewMatrix, renderTargetGame.depthTexId, vec2((float)renderTargetGame.width,(float)renderTargetGame.height));
+    PrimitiveDrawAll(&perspectiveMatrix, &viewMatrix, RenderTargetGame.depthTexId, vec2((float)RenderTargetGame.width, (float)RenderTargetGame.height));
 }
 
 static void RenderMapEditorLayer()
 {
-    glBindFramebuffer(GL_FRAMEBUFFER, renderTargetGame.fbo);
-    glViewport(0, 0, renderTargetGame.width, renderTargetGame.height);
+    glBindFramebuffer(GL_FRAMEBUFFER, RenderTargetGame.fbo);
+    glViewport(0, 0, RenderTargetGame.width, RenderTargetGame.height);
     glClearColor(0.15f, 0.15f, 0.15f, 1.f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glEnable(GL_BLEND);
     glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_SRC_ALPHA, GL_ONE);
     glEnable(GL_DEPTH_TEST);
 
-    float aspectratio = float(BACKBUFFER_WIDTH) / float(BACKBUFFER_HEIGHT);
+    float aspectratio = float(BackbufferWidth) / float(BackbufferHeight);
     float fovy = HorizontalFOVToVerticalFOV_RadianToRadian(90.f*GM_DEG2RAD, aspectratio);
-    activePerspectiveMatrix = ProjectionMatrixPerspective(fovy, aspectratio, GAMEPROJECTION_NEARCLIP, GAMEPROJECTION_FARCLIP);
-    mat4 perspectiveMatrix = activePerspectiveMatrix;
-    mat4 viewMatrix = activeViewMatrix;
+    ActivePerspectiveMatrix = ProjectionMatrixPerspective(fovy, aspectratio, GAMEPROJECTION_NEARCLIP, GAMEPROJECTION_FARCLIP);
+    mat4 perspectiveMatrix = ActivePerspectiveMatrix;
+    mat4 viewMatrix = ActiveViewMatrix;
 
-    UseShader(editorShader_Scene);
+    UseShader(EditorShader_Scene);
     glEnable(GL_CULL_FACE);
 
-    GLBindMatrix4fv(editorShader_Scene, "projMatrix", 1, perspectiveMatrix.ptr());
-    GLBindMatrix4fv(editorShader_Scene, "viewMatrix", 1, viewMatrix.ptr());
+    GLBindMatrix4fv(EditorShader_Scene, "projMatrix", 1, perspectiveMatrix.ptr());
+    GLBindMatrix4fv(EditorShader_Scene, "viewMatrix", 1, viewMatrix.ptr());
 
     mat4 modelMatrix = mat4();
 
-    GLBindMatrix4fv(editorShader_Scene, "modelMatrix", 1, modelMatrix.ptr());
+    GLBindMatrix4fv(EditorShader_Scene, "modelMatrix", 1, modelMatrix.ptr());
 
     FaceBatch selectedFaceMesh;
     FaceBatch hoveredFaceMesh;
@@ -1240,26 +1240,26 @@ static void RenderMapEditorLayer()
     {
         if (selectedFaceMesh.idVAO > 0)
         {
-            UseShader(editorShader_FaceSelected);
-            float sf = (sinf(g_TimeSinceStart * 2.7f) + 1.f) / 2.f;
+            UseShader(EditorShader_FaceSelected);
+            float sf = (sinf(TimeSinceStart * 2.7f) + 1.f) / 2.f;
             sf *= 0.1f;
-            if (primitivesDepthTest)
+            if (DoPrimitivesDepthTest)
                 sf = 0.0f;
-            GLBind3f(editorShader_FaceSelected, "tint", 1.0f, 1.0f-sf, 1.0f-sf);
-            GLBindMatrix4fv(editorShader_FaceSelected, "projMatrix", 1, perspectiveMatrix.ptr());
-            GLBindMatrix4fv(editorShader_FaceSelected, "viewMatrix", 1, viewMatrix.ptr());
+            GLBind3f(EditorShader_FaceSelected, "tint", 1.0f, 1.0f - sf, 1.0f - sf);
+            GLBindMatrix4fv(EditorShader_FaceSelected, "projMatrix", 1, perspectiveMatrix.ptr());
+            GLBindMatrix4fv(EditorShader_FaceSelected, "viewMatrix", 1, viewMatrix.ptr());
             modelMatrix = mat4();
-            GLBindMatrix4fv(editorShader_FaceSelected, "modelMatrix", 1, modelMatrix.ptr());
+            GLBindMatrix4fv(EditorShader_FaceSelected, "modelMatrix", 1, modelMatrix.ptr());
             RenderFaceBatch(selectedFaceMesh);
         }
         else if (hoveredFaceMesh.idVAO > 0)
         {
-            UseShader(editorShader_FaceSelected);
-            GLBind3f(editorShader_FaceSelected, "tint", 0.9f, 0.9f, 0.0f);
-            GLBindMatrix4fv(editorShader_FaceSelected, "projMatrix", 1, perspectiveMatrix.ptr());
-            GLBindMatrix4fv(editorShader_FaceSelected, "viewMatrix", 1, viewMatrix.ptr());
+            UseShader(EditorShader_FaceSelected);
+            GLBind3f(EditorShader_FaceSelected, "tint", 0.9f, 0.9f, 0.0f);
+            GLBindMatrix4fv(EditorShader_FaceSelected, "projMatrix", 1, perspectiveMatrix.ptr());
+            GLBindMatrix4fv(EditorShader_FaceSelected, "viewMatrix", 1, viewMatrix.ptr());
             modelMatrix = mat4();
-            GLBindMatrix4fv(editorShader_FaceSelected, "modelMatrix", 1, modelMatrix.ptr());
+            GLBindMatrix4fv(EditorShader_FaceSelected, "modelMatrix", 1, modelMatrix.ptr());
             RenderFaceBatch(hoveredFaceMesh);
         }
     }
@@ -1291,9 +1291,9 @@ static void RenderMapEditorLayer()
                                    discHandleColor);
         }
     }
-    if (keyspressed[SDL_SCANCODE_X])
-        primitivesDepthTest = !primitivesDepthTest;
-    if (primitivesDepthTest)
+    if (KeysPressed[SDL_SCANCODE_X])
+        DoPrimitivesDepthTest = !DoPrimitivesDepthTest;
+    if (DoPrimitivesDepthTest)
         glEnable(GL_DEPTH_TEST);
     else
         glDisable(GL_DEPTH_TEST);
@@ -1305,8 +1305,8 @@ static void RenderMapEditorLayer()
         gridTranslation = GRID_ORIGIN;
         gridRotation = GetGridRotationMatrix();
     }
-    DrawGrid(GRID_INCREMENT, gridRotation, gridTranslation, &perspectiveMatrix, &viewMatrix, renderTargetGame.depthTexId, vec2((float)renderTargetGame.width,(float)renderTargetGame.height));
-    PrimitiveDrawAll(&perspectiveMatrix, &viewMatrix, renderTargetGame.depthTexId, vec2((float)renderTargetGame.width,(float)renderTargetGame.height));
+    DrawGrid(GRID_INCREMENT, gridRotation, gridTranslation, &perspectiveMatrix, &viewMatrix, RenderTargetGame.depthTexId, vec2((float)RenderTargetGame.width, (float)RenderTargetGame.height));
+    PrimitiveDrawAll(&perspectiveMatrix, &viewMatrix, RenderTargetGame.depthTexId, vec2((float)RenderTargetGame.width, (float)RenderTargetGame.height));
 
     // // UseShader(editorShader_Wireframe);
     // // glEnable(GL_CULL_FACE);
@@ -1336,8 +1336,8 @@ static void RenderMapEditorLayer()
 
 static void RenderGUILayer()
 {
-    glBindFramebuffer(GL_FRAMEBUFFER, renderTargetGUI.fbo);
-    glViewport(0, 0, renderTargetGUI.width, renderTargetGUI.height);
+    glBindFramebuffer(GL_FRAMEBUFFER, RenderTargetGUI.fbo);
+    glViewport(0, 0, RenderTargetGUI.width, RenderTargetGUI.height);
 //    glDepthRange(0.00001f, 10.f); I should just be doing painters algorithm
     glClearColor(RGB255TO1(244, 194, 194), 0.0f);
 //    glClearDepth(10.f);
@@ -1351,10 +1351,10 @@ static void RenderGUILayer()
 
 static void FinalRenderToBackBuffer()
 {
-    UseShader(finalPassShader);
+    UseShader(FinalPassShader);
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    glViewport(0, 0, BACKBUFFER_WIDTH, BACKBUFFER_HEIGHT);
+    glViewport(0, 0, BackbufferWidth, BackbufferHeight);
 //    glDepthRange(0, 10);
     glClearColor(RGB255TO1(0, 0, 0), 1.f);
 //    glClearDepth(1.f);
@@ -1365,13 +1365,13 @@ static void FinalRenderToBackBuffer()
 
     // Draw game frame
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, renderTargetGame.colorTexId);
-    RenderGPUMesh(__final_render_output_quad);
+    glBindTexture(GL_TEXTURE_2D, RenderTargetGame.colorTexId);
+    RenderGPUMesh(FinalRenderOutputQuad);
 
     // Draw GUI frame
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, renderTargetGUI.colorTexId);
-    RenderGPUMesh(__final_render_output_quad);
+    glBindTexture(GL_TEXTURE_2D, RenderTargetGUI.colorTexId);
+    RenderGPUMesh(FinalRenderOutputQuad);
 
     //    // Draw Debug UI frame
     //    glActiveTexture(GL_TEXTURE0);
@@ -1390,21 +1390,21 @@ static void InitGameRenderer()
     glFrontFace(GL_CCW); // OpenGL default is GL_CCW
 
 
-    SDL_GL_GetDrawableSize(g_MainSDLWindow, &BACKBUFFER_WIDTH, &BACKBUFFER_HEIGHT);
-    renderTargetGame.width = BACKBUFFER_WIDTH;
-    renderTargetGame.height = BACKBUFFER_HEIGHT;
-    CreateGPUFrameBuffer(&renderTargetGame);
-    renderTargetGUI.width = BACKBUFFER_WIDTH/2;
-    renderTargetGUI.height = BACKBUFFER_HEIGHT/2;
-    CreateGPUFrameBuffer(&renderTargetGUI);
+    SDL_GL_GetDrawableSize(SDLMainWindow, &BackbufferWidth, &BackbufferHeight);
+    RenderTargetGame.width = BackbufferWidth;
+    RenderTargetGame.height = BackbufferHeight;
+    CreateGPUFrameBuffer(&RenderTargetGame);
+    RenderTargetGUI.width = BackbufferWidth / 2;
+    RenderTargetGUI.height = BackbufferHeight / 2;
+    CreateGPUFrameBuffer(&RenderTargetGUI);
 
 
-    GLLoadShaderProgramFromFile(gameLevelShader, wd_path("__game_level.vert").c_str(), wd_path("__game_level.frag").c_str());
-    GLLoadShaderProgramFromFile(patchesIDShader, wd_path("__game_level.vert").c_str(), wd_path("__patches_id.frag").c_str());
-    GLCreateShaderProgram(editorShader_Scene, __editor_scene_shader_vs, __editor_scene_shader_fs);
-    GLCreateShaderProgram(editorShader_Wireframe, __editor_scene_wireframe_shader_vs, __editor_scene_wireframe_shader_fs);
-    GLCreateShaderProgram(editorShader_FaceSelected, __editor_shader_face_selected_vs, __editor_shader_face_selected_fs);
-    GLCreateShaderProgram(finalPassShader, __finalpass_shader_vs, __finalpass_shader_fs);
+    GLLoadShaderProgramFromFile(GameLevelShader, wd_path("__game_level.vert").c_str(), wd_path("__game_level.frag").c_str());
+    GLLoadShaderProgramFromFile(PatchesIDShader, wd_path("__game_level.vert").c_str(), wd_path("__patches_id.frag").c_str());
+    GLCreateShaderProgram(EditorShader_Scene, __editor_scene_shader_vs, __editor_scene_shader_fs);
+    GLCreateShaderProgram(EditorShader_Wireframe, __editor_scene_wireframe_shader_vs, __editor_scene_wireframe_shader_fs);
+    GLCreateShaderProgram(EditorShader_FaceSelected, __editor_shader_face_selected_vs, __editor_shader_face_selected_fs);
+    GLCreateShaderProgram(FinalPassShader, __finalpass_shader_vs, __finalpass_shader_fs);
 
 
     float refQuadVertices[16] = {
@@ -1418,7 +1418,7 @@ static void InitGameRenderer()
         0, 1, 3,
         0, 3, 2
     };
-    CreateGPUMesh(&__final_render_output_quad, refQuadVertices, refQuadIndices, 16, 6, 2, 2, 0, GL_STATIC_DRAW);
+    CreateGPUMesh(&FinalRenderOutputQuad, refQuadVertices, refQuadIndices, 16, 6, 2, 2, 0, GL_STATIC_DRAW);
 
     InitPrimitivesAndHandlesSystems();
 }
@@ -1445,10 +1445,10 @@ static void TickTime()
     timeAtLastUpdate = now;
     float deltaTimeInSeconds = elapsedMs * 0.001f; // elapsed time in SECONDS
     float currentTimeInSeconds = (float)(std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count() * 0.001f);
-    g_CurrentTime = currentTimeInSeconds;
-    g_UnscaledDeltaTime = deltaTimeInSeconds;
-    g_TimeSinceStart += g_UnscaledDeltaTime;
-    g_DeltaTime = g_UnscaledDeltaTime * g_GameTimeScale;
+    CurrentTime = currentTimeInSeconds;
+    UnscaledDeltaTime = deltaTimeInSeconds;
+    TimeSinceStart += UnscaledDeltaTime;
+    DeltaTime = UnscaledDeltaTime * GameTimeScale;
 }
 
 static bool InitializeEverything()
@@ -1462,7 +1462,7 @@ static bool InitializeEverything()
     {
         pRENDERDOC_GetAPI RENDERDOC_GetAPI =
             (pRENDERDOC_GetAPI)GetProcAddress(mod, "RENDERDOC_GetAPI");
-        int ret = RENDERDOC_GetAPI(eRENDERDOC_API_Version_1_1_2, (void **)&rdoc_api);
+        int ret = RENDERDOC_GetAPI(eRENDERDOC_API_Version_1_1_2, (void **)&RDOCAPI);
         ASSERT(ret == 1);
         // rdoc_api->SetCaptureFilePathTemplate(...);
         LogMessage("Loaded renderdoc.dll");
@@ -1473,7 +1473,7 @@ static bool InitializeEverything()
     }
 #endif
 
-    g_ProgramShouldShutdown = false;
+    ProgramShutdownRequested = false;
 
     SDL_SetHint(SDL_HINT_WINDOWS_DPI_AWARENESS, "system"); // https://github.com/MicrosoftDocs/win32/blob/docs/desktop-src/LearnWin32/dpi-and-device-independent-pixels.md#dwm-scaling
     SDL_SetHint(SDL_HINT_WINDOWS_DPI_SCALING, "0"); // https://github.com/libsdl-org/SDL/commit/ab81a559f43abc0858c96788f8e00bbb352287e8
@@ -1487,15 +1487,15 @@ static bool InitializeEverything()
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
     SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
 
-    g_MainSDLWindow = SDL_CreateWindow("game",
-                                       SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-                                       2560,
-                                       1440,
+    SDLMainWindow = SDL_CreateWindow("game",
+                                     SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
+                                     2560,
+                                     1440,
                                        SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
 
-    g_SDLGLContext = SDL_GL_CreateContext(g_MainSDLWindow);
+    SDLGLContext = SDL_GL_CreateContext(SDLMainWindow);
 
-    if (g_MainSDLWindow == nullptr || g_SDLGLContext == nullptr) return false;
+    if (SDLMainWindow == nullptr || SDLGLContext == nullptr) return false;
 
 #ifdef MESA_USING_GL3W
     if (gl3w_init())
@@ -1505,7 +1505,7 @@ static bool InitializeEverything()
     }
 #endif
 
-    SDL_SetWindowMinimumSize(g_MainSDLWindow, 200, 100);
+    SDL_SetWindowMinimumSize(SDLMainWindow, 200, 100);
     SDL_GL_SetSwapInterval(0);
 
     if (Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 2, 2048) < 0 || Mix_Init(MIX_INIT_OGG) < 0)
@@ -1519,26 +1519,26 @@ static bool InitializeEverything()
 static void ProcessSDLEvents()
 {
     // MOUSE
-    ivec2 prevmp = mousepos;
-    u32 mousestate = SDL_GetMouseState(&mousepos.x, &mousepos.y); // mousepos only valid when mouse not relative mode
-    u32 mousechanged = mousecurrent ^ mousestate;
-    mousepressed = mousechanged & mousestate;
-    mousereleased = mousechanged & mousecurrent;
-    mousecurrent = mousestate;
+    ivec2 prevmp = MousePos;
+    u32 mousestate = SDL_GetMouseState(&MousePos.x, &MousePos.y); // mousepos only valid when mouse not relative mode
+    u32 mousechanged = MouseCurrent ^ mousestate;
+    MousePressed = mousechanged & mousestate;
+    MouseReleased = mousechanged & MouseCurrent;
+    MouseCurrent = mousestate;
     ivec2 md;
     SDL_GetRelativeMouseState(&md.x, &md.y);
-    mousedelta.x = (float)md.x;
-    mousedelta.y = (float)md.y;
+    MouseDelta.x = (float)md.x;
+    MouseDelta.y = (float)md.y;
 
     // KEYBOARD
     const u8 *keystate = SDL_GetKeyboardState(NULL);
     u8 keyschanged[256];
     for (int i=0;i<256;++i)
     {
-        keyschanged[i] = keyscurrent[i] ^ keystate[i];
-        keyspressed[i] = keyschanged[i] & keystate[i];
-        keysreleased[i] = keyschanged[i] & keyscurrent[i];
-        keyscurrent[i] = keystate[i];
+        keyschanged[i] = KeysCurrent[i] ^ keystate[i];
+        KeysPressed[i] = keyschanged[i] & keystate[i];
+        KeysReleased[i] = keyschanged[i] & KeysCurrent[i];
+        KeysCurrent[i] = keystate[i];
     }
 
     // EVENT HANDLING
@@ -1554,9 +1554,9 @@ static void ProcessSDLEvents()
                     case SDL_WINDOWEVENT_SIZE_CHANGED:
                     case SDL_WINDOWEVENT_RESIZED:
                     {
-                        SDL_GL_GetDrawableSize(g_MainSDLWindow, &BACKBUFFER_WIDTH, &BACKBUFFER_HEIGHT);
-                        UpdateGPUFrameBufferSize(&renderTargetGame, BACKBUFFER_WIDTH, BACKBUFFER_HEIGHT);
-                        UpdateGPUFrameBufferSize(&renderTargetGUI, BACKBUFFER_WIDTH/2, BACKBUFFER_HEIGHT/2);
+                        SDL_GL_GetDrawableSize(SDLMainWindow, &BackbufferWidth, &BackbufferHeight);
+                        UpdateGPUFrameBufferSize(&RenderTargetGame, BackbufferWidth, BackbufferHeight);
+                        UpdateGPUFrameBufferSize(&RenderTargetGUI, BackbufferWidth / 2, BackbufferHeight / 2);
                         break;
                     }
                 }
@@ -1565,7 +1565,7 @@ static void ProcessSDLEvents()
 
             case SDL_QUIT:
             {
-                g_ProgramShouldShutdown = true;
+                ProgramShutdownRequested = true;
                 break;
             }
 
@@ -1575,10 +1575,10 @@ static void ProcessSDLEvents()
 
                 if (sdlkey == SDLK_RETURN && SDL_GetModState() & KMOD_LALT)
                 {
-                    if (SDL_GetWindowFlags(g_MainSDLWindow) & SDL_WINDOW_FULLSCREEN_DESKTOP)
-                        SDL_SetWindowFullscreen(g_MainSDLWindow, 0);
+                    if (SDL_GetWindowFlags(SDLMainWindow) & SDL_WINDOW_FULLSCREEN_DESKTOP)
+                        SDL_SetWindowFullscreen(SDLMainWindow, 0);
                     else
-                        SDL_SetWindowFullscreen(g_MainSDLWindow, SDL_WINDOW_FULLSCREEN_DESKTOP); 
+                        SDL_SetWindowFullscreen(SDLMainWindow, SDL_WINDOW_FULLSCREEN_DESKTOP);
                     event.type = 0;
                 }
                 break;
@@ -1599,9 +1599,9 @@ int main(int argc, char* argv[])
 
     LoadMapEditor();
 
-    // rdoc_api->LaunchReplayUI(1, "");
-    // if (rdoc_api) rdoc_api->StartFrameCapture(NULL, NULL);
-    // if (rdoc_api) rdoc_api->EndFrameCapture(NULL, NULL);
+    // RDOCAPI->LaunchReplayUI(1, "");
+    // if (RDOCAPI) RDOCAPI->StartFrameCapture(NULL, NULL);
+    // if (RDOCAPI) RDOCAPI->EndFrameCapture(NULL, NULL);
 
     EditorDeserializeMap(wd_path("LightTest.emf").c_str());
     BuildGameMap(wd_path("buildtest.map").c_str());
@@ -1609,11 +1609,11 @@ int main(int argc, char* argv[])
     if (LoadGameMap(wd_path("buildtest.map").c_str()) == false)
         LogError("failed to load game map");
 
-    while (!g_ProgramShouldShutdown)
+    while (!ProgramShutdownRequested)
     {
         TickTime();
         Sleep(6);
-        if (g_DeltaTime > 0.1f) continue; // if delta time is too large, will cause glitches
+        if (DeltaTime > 0.1f) continue; // if delta time is too large, will cause glitches
 
         Gui::NewFrame();
         ProcessSDLEvents();
@@ -1623,15 +1623,15 @@ int main(int argc, char* argv[])
         // TickMapEditor();
         // DrawMapEditor();
 
-        SDL_GL_SwapWindow(g_MainSDLWindow);
+        SDL_GL_SwapWindow(SDLMainWindow);
 
         // printf("LAST FRAME TIME: %.2fms   FPS: %dhz\n", 1000.f * g_UnscaledDeltaTime, (i16)(1.f / g_UnscaledDeltaTime));
     }
 
     CloseMapEditor();
 
-    SDL_DestroyWindow(g_MainSDLWindow);
-    SDL_GL_DeleteContext(g_SDLGLContext);
+    SDL_DestroyWindow(SDLMainWindow);
+    SDL_GL_DeleteContext(SDLGLContext);
     SDL_Quit();
     return 0;
 }
