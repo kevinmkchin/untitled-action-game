@@ -2,12 +2,11 @@
 
 in vec2 uv;
 
-layout(location = 0) out vec4 out_colour;
+layout(location = 0) out vec3 out_colour;
 
 uniform sampler2D texture0;
 
 void main()
 {
-    vec3 COLOR = texture(texture0, uv).rgb;
-    out_colour = vec4(COLOR, 1.0);
+    out_colour = texture(texture0, uv).rgb;
 }

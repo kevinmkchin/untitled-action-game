@@ -1371,11 +1371,11 @@ bool BuildGameMap(const char *path)
     GPUFrameBuffer HemicubeFBO; // the cube faces are laid out horizontally
     HemicubeFBO.width = HemicubeFaceW*5;
     HemicubeFBO.height = HemicubeFaceH;
-    CreateGPUFrameBuffer(&HemicubeFBO);
+    CreateGPUFrameBuffer(&HemicubeFBO, GL_RGB);
     u32 HemicubePBO;
     glGenBuffers(1, &HemicubePBO);
     glBindBuffer(GL_PIXEL_PACK_BUFFER, HemicubePBO);
-    const GLsizeiptr PBOSz = HemicubeFaceW*HemicubeFaceH*4*sizeof(u8);
+    const GLsizeiptr PBOSz = HemicubeFaceW*HemicubeFaceH*3*sizeof(u8);
     glBufferData(GL_PIXEL_PACK_BUFFER, 5*PBOSz, NULL, GL_STREAM_READ);
     glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
 
@@ -1397,7 +1397,6 @@ bool BuildGameMap(const char *path)
     glBindBuffer(GL_PIXEL_PACK_BUFFER, HemicubePBO);
     for (u32 i = 0; i < numpatches; ++i)
     {
-        // if (rdoc_api) rdoc_api->StartFrameCapture(NULL, NULL);
         if (i == progress10) LogMessage("%d/%d", progress10, numpatches);
         if (i == progress20) LogMessage("%d/%d", progress20, numpatches);
         if (i == progress30) LogMessage("%d/%d", progress30, numpatches);
@@ -1444,11 +1443,11 @@ bool BuildGameMap(const char *path)
         RenderFaceBatch(patchesIdBatch);
 
         // Putting the glReadPixels together at the end of the draw calls is somehow appreciably faster
-        glReadPixels(0, 0, HemicubeFaceW, HemicubeFaceH, GL_RGBA, GL_UNSIGNED_BYTE, 0);
-        glReadPixels(HemicubeFaceW*1, 0, HemicubeFaceW, HemicubeFaceH, GL_RGBA, GL_UNSIGNED_BYTE, (void*)(PBOSz*1));
-        glReadPixels(HemicubeFaceW*2, 0, HemicubeFaceW, HemicubeFaceH, GL_RGBA, GL_UNSIGNED_BYTE, (void*)(PBOSz*2));
-        glReadPixels(HemicubeFaceW*3, 0, HemicubeFaceW, HemicubeFaceH, GL_RGBA, GL_UNSIGNED_BYTE, (void*)(PBOSz*3));
-        glReadPixels(HemicubeFaceW*4, 0, HemicubeFaceW, HemicubeFaceH, GL_RGBA, GL_UNSIGNED_BYTE, (void*)(PBOSz*4));
+        glReadPixels(0, 0, HemicubeFaceW, HemicubeFaceH, GL_RGB, GL_UNSIGNED_BYTE, 0);
+        glReadPixels(HemicubeFaceW*1, 0, HemicubeFaceW, HemicubeFaceH, GL_RGB, GL_UNSIGNED_BYTE, (void*)(PBOSz*1));
+        glReadPixels(HemicubeFaceW*2, 0, HemicubeFaceW, HemicubeFaceH, GL_RGB, GL_UNSIGNED_BYTE, (void*)(PBOSz*2));
+        glReadPixels(HemicubeFaceW*3, 0, HemicubeFaceW, HemicubeFaceH, GL_RGB, GL_UNSIGNED_BYTE, (void*)(PBOSz*3));
+        glReadPixels(HemicubeFaceW*4, 0, HemicubeFaceW, HemicubeFaceH, GL_RGB, GL_UNSIGNED_BYTE, (void*)(PBOSz*4));
 
         // drawingtimeaccum += (SDL_GetTicks() - drawingstart)/1000.f;
 
@@ -1470,7 +1469,7 @@ bool BuildGameMap(const char *path)
         int HemicubeFaceArea = HemicubeFaceW * HemicubeFaceH;
         for (int p = 0; p < HemicubeFaceArea; ++p)
         {
-            u32 patchColorId = TFData[p*4] + TFData[p*4+1] * 256 + TFData[p*4+2] * 256 * 256;
+            u32 patchColorId = TFData[p*3] + TFData[p*3+1] * 256 + TFData[p*3+2] * 256 * 256;
             if (patchColorId == 0)
                 continue;
             u32 patchId = patchColorId - 1;
@@ -1489,28 +1488,28 @@ bool BuildGameMap(const char *path)
             float r_squared = float(y * y + z * z + 1.f);
             float differentialFormFactor = z * pixelAreaInSolidAngle / (GM_PI * r_squared * r_squared);
 
-            u32 patchColorId = SF0Data[p*4] + SF0Data[p*4+1] * 256 + SF0Data[p*4+2] * 256 * 256;
+            u32 patchColorId = SF0Data[p*3] + SF0Data[p*3+1] * 256 + SF0Data[p*3+2] * 256 * 256;
             if (patchColorId != 0)
             {
                 u32 patchId = patchColorId - 1;
                 RadiositiesAccumulator += differentialFormFactor * all_radiosity[patchId];
             }
 
-            patchColorId = SF1Data[p*4] + SF1Data[p*4+1] * 256 + SF1Data[p*4+2] * 256 * 256;
+            patchColorId = SF1Data[p*3] + SF1Data[p*3+1] * 256 + SF1Data[p*3+2] * 256 * 256;
             if (patchColorId != 0)
             {
                 u32 patchId = patchColorId - 1;
                 RadiositiesAccumulator += differentialFormFactor * all_radiosity[patchId];
             }
 
-            patchColorId = SF2Data[p*4] + SF2Data[p*4+1] * 256 + SF2Data[p*4+2] * 256 * 256;
+            patchColorId = SF2Data[p*3] + SF2Data[p*3+1] * 256 + SF2Data[p*3+2] * 256 * 256;
             if (patchColorId != 0)
             {
                 u32 patchId = patchColorId - 1;
                 RadiositiesAccumulator += differentialFormFactor * all_radiosity[patchId];
             }
 
-            patchColorId = SF3Data[p*4] + SF3Data[p*4+1] * 256 + SF3Data[p*4+2] * 256 * 256;
+            patchColorId = SF3Data[p*3] + SF3Data[p*3+1] * 256 + SF3Data[p*3+2] * 256 * 256;
             if (patchColorId != 0)
             {
                 u32 patchId = patchColorId - 1;
