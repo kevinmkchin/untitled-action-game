@@ -7,10 +7,10 @@ Priorty #1 is building the game, not the engine/tech
 Just be specific and code exactly that tailored solution e.g. LevelPolygonOctree rather than Octree.
 
 
-- Pixel Buffer Objects (PBOs) instead of glReadPixels in hemicube rendering code 
-    https://stackoverflow.com/questions/25127751/opengl-read-pixels-faster-than-glreadpixels
 - Apply light map to FaceBatch as uv2 and texture as uv1
-- Perhaps I should have option to just create faces rather than cuboid volumes in my editor. I think Source 2 mainly uses face creation rather than volume. Volume wasteful bcause lots of useless collider faces and light mapped faces.
+- I should have option (by default) to just create faces rather than cuboid volumes in my editor. 
+    Volume wasteful bcause lots of useless collider faces and light mapped faces.
+    I think Source 2 mainly uses face creation rather than volume.
 - Render hemicube for cluster of patches (perhaps up to 16x16) so then there are 4x4 size patches but one hemicube for 16 patches. Perhaps that achieves something similar to adaptive patch resizing.
     hemicube_cluster can be any power of 2 size up to 16x16? then if it doesn't fit in 16x16 then we can do a smaller hemicube.
 
@@ -105,6 +105,7 @@ a resolution normal defined.
 #if MESA_WINDOWS
 #include <windows.h>
 #include <dwmapi.h>
+#include <direct.h>
 #endif
 
 #if MESA_WINDOWS
@@ -240,6 +241,8 @@ u8 keysreleased[256] = {0};
 
 i32 BACKBUFFER_WIDTH = -1;
 i32 BACKBUFFER_HEIGHT = -1;
+
+char CurrentWorkingDirectory[128];
 
 #if INTERNAL_BUILD
 RENDERDOC_API_1_6_0 *rdoc_api = NULL;
@@ -1450,6 +1453,8 @@ static void TickTime()
 
 static bool InitializeEverything()
 {
+    _getcwd(CurrentWorkingDirectory, 128);
+
 #if INTERNAL_BUILD
     // === RENDER DOC API ===
     LoadLibrary("renderdoc.dll");
@@ -1459,6 +1464,7 @@ static bool InitializeEverything()
             (pRENDERDOC_GetAPI)GetProcAddress(mod, "RENDERDOC_GetAPI");
         int ret = RENDERDOC_GetAPI(eRENDERDOC_API_Version_1_1_2, (void **)&rdoc_api);
         ASSERT(ret == 1);
+        // rdoc_api->SetCaptureFilePathTemplate(...);
         LogMessage("Loaded renderdoc.dll");
     }
     else
