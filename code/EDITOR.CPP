@@ -9,17 +9,17 @@ struct db_tex_t
 
 struct lm_face_t
 {
-    vec3 *pos = NULL;
-    vec3 *norm = NULL;
-    u8   *light = NULL;
-    vec3 *patches_id = NULL;
+    vec3  *pos = NULL;
+    vec3  *norm = NULL;
+    float *light = NULL;
+    vec3  *patches_id = NULL;
     i32 w = -1;
     i32 h = -1;
 };
 
 vec3 *all_lm_pos = NULL;
 vec3 *all_lm_norm = NULL;
-u8   *all_lm_light = NULL;
+float *all_lm_light = NULL;
 vec3 *all_lm_tangent = NULL;
 vec3 *all_patches_id = NULL;
 float *all_radiosity = NULL;
@@ -987,7 +987,8 @@ LevelPolygonOctree LightMapOcclusionTree;
 //   4 gives satisfactory results when 32 units is 1m
 //   Use bigger size when testing maps for quicker iteration
 //   So far in my testing, light map baking times increase linearly with number of patches
-const float LightMapPatchSize = 8.f;
+const float LightMapPatchSize = 4.f;
+const u32 HemicubeFaceW = 100;
 
 void Threaded_DoDirectLightingIntoLightMap(u32 patchIndexStart, u32 patchIndexEnd)
 {
@@ -1022,10 +1023,32 @@ void Threaded_DoDirectLightingIntoLightMap(u32 patchIndexStart, u32 patchIndexEn
         float SampleIntensityAccumulator = 0.f;
 
         for (u32 sample = 0; sample < 4; ++sample)
-        {
-            vec3 incidence_ray = TestLightSource - SamplePositions[sample];
+        {   
+#if SUNLIGHT_TEST
+            vec3 incidence_ray = vec3(-0.16f, 0.9f, 1.f); // direction to sun
+            float costheta = Dot(Normalize(incidence_ray), patch_normal);
+            if (costheta > 0.f)
+            {
+                // occlusion test
+                LineCollider ray_collider;
+                ray_collider.a = patch_position + Normalize(incidence_ray) * 32000.0f;
+                ray_collider.b = patch_position + Normalize(incidence_ray) * 0.2f;
+                bool occluded = false;
 
-            SampleIntensityAccumulator += 0.05f; // Ambient constant
+                if (LightMapOcclusionTree.Query(ray_collider))
+                {
+                    occluded = true;
+                }
+
+                if (!occluded)
+                {
+                    float intensity = costheta;
+                    intensity = GM_min(intensity, 1.0f);
+                    SampleIntensityAccumulator += intensity;
+                }
+            }
+#else
+            vec3 incidence_ray = TestLightSource - SamplePositions[sample];
             float costheta = Dot(Normalize(incidence_ray), patch_normal);
             if (costheta > 0.f)
             {
@@ -1045,11 +1068,11 @@ void Threaded_DoDirectLightingIntoLightMap(u32 patchIndexStart, u32 patchIndexEn
                 if (!occluded)
                 {
                     // point light attenuation
-                    // energy decreases as per the inverse square law, but the linear coefficient exists to cheat
-                    // some more aesthetic lighting attenuation.
-                    float atten_coeff_linear = 0.022f;
-                    float atten_coeff_quadratic = 0.0019f;
-                    float attenuation = 1.f / (1.f + atten_coeff_linear * dist + atten_coeff_quadratic * dist * dist);
+                    // doing quadratic component is too dark when there is no gamma correction
+                    float atten_lin = 0.022f;
+                    float atten_quad = 0.0019f;
+                    float attenuation = 1.f / 
+                        (1.f + atten_lin * dist + atten_quad * dist * dist);
                     float intensity = costheta * attenuation;
                     intensity = GM_min(intensity, 1.0f);
                     SampleIntensityAccumulator += intensity;
@@ -1075,14 +1098,16 @@ void Threaded_DoDirectLightingIntoLightMap(u32 patchIndexStart, u32 patchIndexEn
 
                 if (!occluded)
                 {
-                    float atten_coeff_linear = 0.022f;
-                    float atten_coeff_quadratic = 0.0019f;
-                    float attenuation = 1.f / (1.f + atten_coeff_linear * dist + atten_coeff_quadratic * dist * dist);
+                    float atten_lin = 0.022f;
+                    float atten_quad = 0.0019f;
+                    float attenuation = 1.f / 
+                        (1.f + atten_lin * dist + atten_quad * dist * dist);
                     float intensity = costheta * attenuation;
                     intensity = GM_min(intensity, 1.0f);
                     SampleIntensityAccumulator += intensity;
                 }
             }
+#endif
         }
 
         all_radiosity[i] = SampleIntensityAccumulator * 0.25f;
@@ -1154,12 +1179,12 @@ bool BuildGameMap(const char *path)
 
     stbrp_rect *lm_rects = NULL;
     // calculate bounds, and divide into patches
-    arrsetcap(all_lm_pos, 312500); // patch num cap should be 256^3-1 so about 16 million patches
-    arrsetcap(all_lm_norm, 312500);
-    arrsetcap(all_lm_light, 312500);
-    arrsetcap(all_lm_tangent, 312500);
-    arrsetcap(all_patches_id, 312500);
-    arrsetcap(all_radiosity, 312500);
+    arrsetcap(all_lm_pos, 625000); // patch num cap should be 256^3-1 so about 16 million patches
+    arrsetcap(all_lm_norm, 625000);
+    arrsetcap(all_lm_light, 625000);
+    arrsetcap(all_lm_tangent, 625000);
+    arrsetcap(all_patches_id, 625000);
+    arrsetcap(all_radiosity, 625000);
     u32 patchCounter = 0;
     for (int i = 0; i < totalfacecount; ++i)
     {
@@ -1237,7 +1262,7 @@ bool BuildGameMap(const char *path)
             vec3 p = v0 + uSampleCenter * basisU + vSampleCenter * basisV;
             lm.pos[pi] = p;
             lm.norm[pi] = fn;
-            lm.light[pi] = 0;
+            lm.light[pi] = 0.f;
             lm_tangent[pi] = basisV;
             lm.patches_id[pi] = HandleIdToRGB(++patchCounter);
             lm_radiosity[pi] = 0.f;
@@ -1363,9 +1388,8 @@ bool BuildGameMap(const char *path)
         GL_RGB, GL_RGB, GL_NEAREST, GL_NEAREST, GL_FLOAT);
     arrfree(PATCHES_ID_ATLAS);
 
-    const u32 HemicubeFaceW = 64;
+    const u32 HemicubeFaceH = HemicubeFaceW;
     const u32 HemicubeFaceWHalf = HemicubeFaceW/2;
-    const u32 HemicubeFaceH = 64;
     const u32 HemicubeFaceHHalf = HemicubeFaceH/2;
     const float PixelAreaInSolidAngle = GM_PI / float(2 * HemicubeFaceW * HemicubeFaceH);
     GPUFrameBuffer HemicubeFBO; // the cube faces are laid out horizontally
@@ -1383,8 +1407,8 @@ bool BuildGameMap(const char *path)
     glEnable(GL_CULL_FACE);
     UseShader(PatchesIDShader);
 
-    float HEMICUBE_NEARCLIP = LightMapPatchSize*0.48f; // TODO(Kevin): try tweaking this value
-    mat4 HemicubePerspectiveMatrix = ProjectionMatrixPerspective(90.f, 1.f, HEMICUBE_NEARCLIP, GAMEPROJECTION_FARCLIP);
+    float HEMICUBE_NEARCLIP = 1.f;
+    mat4 HemicubePerspectiveMatrix = ProjectionMatrixPerspective(90.f*GM_DEG2RAD, 1.f, HEMICUBE_NEARCLIP, GAMEPROJECTION_FARCLIP);
     GLBindMatrix4fv(PatchesIDShader, "projMatrix", 1, HemicubePerspectiveMatrix.ptr());
 
     // float mappingtimeaccum = 0.f;
@@ -1397,6 +1421,7 @@ bool BuildGameMap(const char *path)
     glBindBuffer(GL_PIXEL_PACK_BUFFER, HemicubePBO);
     for (u32 i = 0; i < numpatches; ++i)
     {
+        //if (RDOCAPI) RDOCAPI->StartFrameCapture(NULL, NULL);
         if (i == progress10) LogMessage("%d/%d", progress10, numpatches);
         if (i == progress20) LogMessage("%d/%d", progress20, numpatches);
         if (i == progress30) LogMessage("%d/%d", progress30, numpatches);
@@ -1410,6 +1435,9 @@ bool BuildGameMap(const char *path)
         vec3 patch_i_pos = all_lm_pos[i];
         vec3 patch_i_normal = all_lm_norm[i];
         vec3 patch_i_basisV = all_lm_tangent[i];
+        // Random rotation of hemicube trades banding artifacts for noise
+        // banding artifacts is hard to get rid of with just increased hemicube resolution
+        // patch_i_basisV = RotateVector(patch_i_basisV, quat((float)rand()/GM_TWOPI, patch_i_normal));
         vec3 patch_i_basisU = Normalize(Cross(patch_i_basisV, patch_i_normal));
 
         // u32 drawingstart = SDL_GetTicks();
@@ -1522,6 +1550,8 @@ bool BuildGameMap(const char *path)
         glUnmapBuffer(GL_PIXEL_PACK_BUFFER);
 
         all_radiosity[i] += RadiositiesAccumulator;
+
+        if (RDOCAPI) RDOCAPI->EndFrameCapture(NULL, NULL);
     }
     // u32 forloopendms = SDL_GetTicks();
     // float forlooptime = (forloopendms - forloopstartms) / 1000.f;
@@ -1542,12 +1572,11 @@ bool BuildGameMap(const char *path)
     u32 all_lmsz = (u32)arrlenu(all_lm_light);
     for (u32 i = 0; i < all_lmsz; ++i)
     {
-        // tbh I could just have the light map atlas use float instead of u8; don't need u8 array then
-        all_lm_light[i] = u8(GM_clamp(all_radiosity[i], 0.f, 1.f) * 255.f);
+        all_lm_light[i] = all_radiosity[i];//GM_clamp(all_radiosity[i], 0.f, 1.f);
     }
 
     // Blit to light map atlas
-    u8 *LIGHT_MAP_ATLAS = NULL;
+    float *LIGHT_MAP_ATLAS = NULL;
     arrsetcap(LIGHT_MAP_ATLAS, lightMapAtlasW*lightMapAtlasH);
     for (size_t i = 0; i < rectcount; ++i)
     {
@@ -1557,11 +1586,11 @@ bool BuildGameMap(const char *path)
         MapEdit::Face *face = MapEdit::EDITOR_FACES.At(rect.id);
         lm_face_t lmface = face->lightmap;
         BlitRect((u8*)LIGHT_MAP_ATLAS, lightMapAtlasW, lightMapAtlasH, 
-            (u8*)lmface.light, lmface.w, lmface.h, rect.x, rect.y, sizeof(u8));
+            (u8*)lmface.light, lmface.w, lmface.h, rect.x, rect.y, sizeof(float));
     }
     ByteBufferWrite(&mapbuf, i32, lightMapAtlasW);
     ByteBufferWrite(&mapbuf, i32, lightMapAtlasH);
-    ByteBufferWriteBulk(&mapbuf, LIGHT_MAP_ATLAS, lightMapAtlasW*lightMapAtlasH*sizeof(u8));
+    ByteBufferWriteBulk(&mapbuf, LIGHT_MAP_ATLAS, lightMapAtlasW*lightMapAtlasH*sizeof(float));
     arrfree(LIGHT_MAP_ATLAS);
 
     arrfree(lm_rects);
@@ -1616,13 +1645,13 @@ bool LoadGameMap(const char *path)
     i32 lmw, lmh;
     ByteBufferRead(&mapbuf, i32, &lmw);
     ByteBufferRead(&mapbuf, i32, &lmh);
-    u8 *lightMapData = NULL; 
+    float *lightMapData = NULL; 
     arrsetcap(lightMapData, lmw*lmh);
-    ByteBufferReadBulk(&mapbuf, lightMapData, lmw*lmh*sizeof(u8));
+    ByteBufferReadBulk(&mapbuf, lightMapData, lmw*lmh*sizeof(float));
     // These light map textures use bilinear texture filtering to allow light values 
     // to be interpolated between the given texture coordinate's neighboring texels. 
-    CreateGPUTextureFromBitmap(&Temporary_LightMapVisualizeTex, (u8*)lightMapData, lmw, lmh,
-                               GL_RGB, GL_RED, GL_LINEAR, GL_LINEAR, GL_UNSIGNED_BYTE);
+    CreateGPUTextureFromBitmap(&Temporary_LightMapVisualizeTex, lightMapData, lmw, lmh,
+                               GL_R32F, GL_RED, GL_LINEAR, GL_LINEAR, GL_FLOAT);
     arrfree(lightMapData);
 
     // colliders
