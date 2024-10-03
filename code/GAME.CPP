@@ -409,13 +409,13 @@ struct GPUTexture
 
 bool GLHasErrors();
 
-static void CreateGPUFrameBuffer(GPUFrameBuffer *buffer)
+static void CreateGPUFrameBuffer(GPUFrameBuffer *buffer, GLenum colorDepth = GL_RGBA)
 {
     buffer->fbo = 0;
 
     glGenTextures(1, &buffer->colorTexId);
     glBindTexture(GL_TEXTURE_2D, buffer->colorTexId);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, buffer->width, buffer->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    glTexImage2D(GL_TEXTURE_2D, 0, colorDepth, buffer->width, buffer->height, 0, colorDepth, GL_UNSIGNED_BYTE, nullptr);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 
@@ -1596,7 +1596,7 @@ int main(int argc, char* argv[])
     // rdoc_api->LaunchReplayUI(1, "");
     // if (rdoc_api) rdoc_api->StartFrameCapture(NULL, NULL);
     // if (rdoc_api) rdoc_api->EndFrameCapture(NULL, NULL);
-    
+
     EditorDeserializeMap(wd_path("LightTest.emf").c_str());
     BuildGameMap(wd_path("buildtest.map").c_str());
 
