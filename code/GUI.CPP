@@ -417,12 +417,12 @@ namespace Gui
 
     bool MouseWentUp()
     {
-        return mousereleased & SDL_BUTTON(SDL_BUTTON_LEFT);
+        return MouseReleased & SDL_BUTTON(SDL_BUTTON_LEFT);
     }
 
     bool MouseWentDown()
     {
-        return mousepressed & SDL_BUTTON(SDL_BUTTON_LEFT);
+        return MousePressed & SDL_BUTTON(SDL_BUTTON_LEFT);
     }
 
     bool MouseInside(const UIRect& rect)
@@ -1605,8 +1605,8 @@ namespace Gui
     {
         layout->x = 0;
         layout->y = 0;
-        layout->w = BACKBUFFER_WIDTH;
-        layout->h = BACKBUFFER_HEIGHT;
+        layout->w = BackbufferWidth;
+        layout->h = BackbufferHeight;
         UpdateALHContainer(layout);
     }
 
@@ -1740,8 +1740,8 @@ namespace Gui
             {
                 // NOTE(Kevin): For game GUI where window aspect ratio does not match game aspect ratio, must
                 //              map from window mouse pos to gui canvas mouse pos
-                mouseX_InGuiTarget = int(float(mousepos.x) * (float(renderTargetGUI.width) / float(BACKBUFFER_WIDTH)));
-                mouseY_InGuiTarget = int(float(mousepos.y) * (float(renderTargetGUI.height) / float(BACKBUFFER_HEIGHT)));
+                mouseX_InGuiTarget = int(float(MousePos.x) * (float(RenderTargetGUI.width) / float(BackbufferWidth)));
+                mouseY_InGuiTarget = int(float(MousePos.y) * (float(RenderTargetGUI.height) / float(BackbufferHeight)));
             }break;
             case SDL_KEYDOWN:
             {
@@ -2048,8 +2048,8 @@ namespace Gui
 
     void GUIDraw_DrawEverything()
     {
-        i32 kevGuiScreenWidth = renderTargetGUI.width;
-        i32 kevGuiScreenHeight = renderTargetGUI.height;
+        i32 kevGuiScreenWidth = RenderTargetGUI.width;
+        i32 kevGuiScreenHeight = RenderTargetGUI.height;
         mat4 projectionMatrix = ProjectionMatrixOrthographicNoZ(0.f, (float)kevGuiScreenWidth, (float)kevGuiScreenHeight, 0.f);
 
         UseShader(main_ui_shader);

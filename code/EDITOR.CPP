@@ -1367,7 +1367,7 @@ bool BuildGameMap(const char *path)
     const u32 HemicubeFaceWHalf = HemicubeFaceW/2;
     const u32 HemicubeFaceH = 64;
     const u32 HemicubeFaceHHalf = HemicubeFaceH/2;
-    const float pixelAreaInSolidAngle = GM_PI / float(2 * HemicubeFaceW * HemicubeFaceH);
+    const float PixelAreaInSolidAngle = GM_PI / float(2 * HemicubeFaceW * HemicubeFaceH);
     GPUFrameBuffer HemicubeFBO; // the cube faces are laid out horizontally
     HemicubeFBO.width = HemicubeFaceW*5;
     HemicubeFBO.height = HemicubeFaceH;
@@ -1381,11 +1381,11 @@ bool BuildGameMap(const char *path)
 
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_CULL_FACE);
-    UseShader(patchesIDShader);
+    UseShader(PatchesIDShader);
 
     float HEMICUBE_NEARCLIP = LightMapPatchSize*0.48f; // TODO(Kevin): try tweaking this value
-    mat4 hemicubePerspectiveMatrix = ProjectionMatrixPerspective(90.f, 1.f, HEMICUBE_NEARCLIP, GAMEPROJECTION_FARCLIP);
-    GLBindMatrix4fv(patchesIDShader, "projMatrix", 1, hemicubePerspectiveMatrix.ptr());
+    mat4 HemicubePerspectiveMatrix = ProjectionMatrixPerspective(90.f, 1.f, HEMICUBE_NEARCLIP, GAMEPROJECTION_FARCLIP);
+    GLBindMatrix4fv(PatchesIDShader, "projMatrix", 1, HemicubePerspectiveMatrix.ptr());
 
     // float mappingtimeaccum = 0.f;
     // float drawingtimeaccum = 0.f;
@@ -1419,27 +1419,27 @@ bool BuildGameMap(const char *path)
 
         glViewport(0, 0, HemicubeFaceW, HemicubeFaceH);
         mat4 HemicubeViewMatrix = ViewMatrixLookAt(patch_i_pos, patch_i_pos + patch_i_normal, patch_i_basisV);
-        GLBindMatrix4fv(patchesIDShader, "viewMatrix", 1, HemicubeViewMatrix.ptr());
+        GLBindMatrix4fv(PatchesIDShader, "viewMatrix", 1, HemicubeViewMatrix.ptr());
         RenderFaceBatch(patchesIdBatch);
 
         glViewport(HemicubeFaceW*1, 0, HemicubeFaceW, HemicubeFaceH);
         HemicubeViewMatrix = ViewMatrixLookAt(patch_i_pos, patch_i_pos + patch_i_basisV, patch_i_normal);
-        GLBindMatrix4fv(patchesIDShader, "viewMatrix", 1, HemicubeViewMatrix.ptr());
+        GLBindMatrix4fv(PatchesIDShader, "viewMatrix", 1, HemicubeViewMatrix.ptr());
         RenderFaceBatch(patchesIdBatch);
 
         glViewport(HemicubeFaceW*2, 0, HemicubeFaceW, HemicubeFaceH);
         HemicubeViewMatrix = ViewMatrixLookAt(patch_i_pos, patch_i_pos - patch_i_basisV, patch_i_normal);
-        GLBindMatrix4fv(patchesIDShader, "viewMatrix", 1, HemicubeViewMatrix.ptr());
+        GLBindMatrix4fv(PatchesIDShader, "viewMatrix", 1, HemicubeViewMatrix.ptr());
         RenderFaceBatch(patchesIdBatch);
 
         glViewport(HemicubeFaceW*3, 0, HemicubeFaceW, HemicubeFaceH);
         HemicubeViewMatrix = ViewMatrixLookAt(patch_i_pos, patch_i_pos + patch_i_basisU, patch_i_normal);
-        GLBindMatrix4fv(patchesIDShader, "viewMatrix", 1, HemicubeViewMatrix.ptr());
+        GLBindMatrix4fv(PatchesIDShader, "viewMatrix", 1, HemicubeViewMatrix.ptr());
         RenderFaceBatch(patchesIdBatch);
 
         glViewport(HemicubeFaceW*4, 0, HemicubeFaceW, HemicubeFaceH);
         HemicubeViewMatrix = ViewMatrixLookAt(patch_i_pos, patch_i_pos - patch_i_basisU, patch_i_normal);
-        GLBindMatrix4fv(patchesIDShader, "viewMatrix", 1, HemicubeViewMatrix.ptr());
+        GLBindMatrix4fv(PatchesIDShader, "viewMatrix", 1, HemicubeViewMatrix.ptr());
         RenderFaceBatch(patchesIdBatch);
 
         // Putting the glReadPixels together at the end of the draw calls is somehow appreciably faster
@@ -1469,51 +1469,51 @@ bool BuildGameMap(const char *path)
         int HemicubeFaceArea = HemicubeFaceW * HemicubeFaceH;
         for (int p = 0; p < HemicubeFaceArea; ++p)
         {
-            u32 patchColorId = TFData[p*3] + TFData[p*3+1] * 256 + TFData[p*3+2] * 256 * 256;
-            if (patchColorId == 0)
+            u32 PatchColorId = TFData[p*3] + TFData[p*3+1] * 256 + TFData[p*3+2] * 256 * 256;
+            if (PatchColorId == 0)
                 continue;
-            u32 patchId = patchColorId - 1;
+            u32 PatchId = PatchColorId - 1;
 
             float x = (float(p % HemicubeFaceW) - float(HemicubeFaceWHalf)) / HemicubeFaceWHalf * 2.f;
             float y = (float(p / HemicubeFaceW) - float(HemicubeFaceHHalf)) / HemicubeFaceHHalf * 2.f;
             float r_squared = float(x*x + y*y + 1.f);
-            float differentialFormFactor = pixelAreaInSolidAngle / (GM_PI * r_squared * r_squared);
+            float DifferentialFormFactor = PixelAreaInSolidAngle / (GM_PI * r_squared * r_squared);
 
-            RadiositiesAccumulator += differentialFormFactor * all_radiosity[patchId];
+            RadiositiesAccumulator += DifferentialFormFactor * all_radiosity[PatchId];
         }
         for (int p = HemicubeFaceW * HemicubeFaceHHalf; p < HemicubeFaceArea; ++p)
         {
             float y = (float(p % HemicubeFaceW) - float(HemicubeFaceWHalf)) / HemicubeFaceWHalf * 2.f;
             float z = (float(p / HemicubeFaceW) - float(HemicubeFaceHHalf - 1)) / HemicubeFaceHHalf * 2.f;
             float r_squared = float(y * y + z * z + 1.f);
-            float differentialFormFactor = z * pixelAreaInSolidAngle / (GM_PI * r_squared * r_squared);
+            float DifferentialFormFactor = z * PixelAreaInSolidAngle / (GM_PI * r_squared * r_squared);
 
-            u32 patchColorId = SF0Data[p*3] + SF0Data[p*3+1] * 256 + SF0Data[p*3+2] * 256 * 256;
-            if (patchColorId != 0)
+            u32 PatchColorId = SF0Data[p*3] + SF0Data[p*3+1] * 256 + SF0Data[p*3+2] * 256 * 256;
+            if (PatchColorId != 0)
             {
-                u32 patchId = patchColorId - 1;
-                RadiositiesAccumulator += differentialFormFactor * all_radiosity[patchId];
+                u32 PatchId = PatchColorId - 1;
+                RadiositiesAccumulator += DifferentialFormFactor * all_radiosity[PatchId];
             }
 
-            patchColorId = SF1Data[p*3] + SF1Data[p*3+1] * 256 + SF1Data[p*3+2] * 256 * 256;
-            if (patchColorId != 0)
+            PatchColorId = SF1Data[p*3] + SF1Data[p*3+1] * 256 + SF1Data[p*3+2] * 256 * 256;
+            if (PatchColorId != 0)
             {
-                u32 patchId = patchColorId - 1;
-                RadiositiesAccumulator += differentialFormFactor * all_radiosity[patchId];
+                u32 PatchId = PatchColorId - 1;
+                RadiositiesAccumulator += DifferentialFormFactor * all_radiosity[PatchId];
             }
 
-            patchColorId = SF2Data[p*3] + SF2Data[p*3+1] * 256 + SF2Data[p*3+2] * 256 * 256;
-            if (patchColorId != 0)
+            PatchColorId = SF2Data[p*3] + SF2Data[p*3+1] * 256 + SF2Data[p*3+2] * 256 * 256;
+            if (PatchColorId != 0)
             {
-                u32 patchId = patchColorId - 1;
-                RadiositiesAccumulator += differentialFormFactor * all_radiosity[patchId];
+                u32 PatchId = PatchColorId - 1;
+                RadiositiesAccumulator += DifferentialFormFactor * all_radiosity[PatchId];
             }
 
-            patchColorId = SF3Data[p*3] + SF3Data[p*3+1] * 256 + SF3Data[p*3+2] * 256 * 256;
-            if (patchColorId != 0)
+            PatchColorId = SF3Data[p*3] + SF3Data[p*3+1] * 256 + SF3Data[p*3+2] * 256 * 256;
+            if (PatchColorId != 0)
             {
-                u32 patchId = patchColorId - 1;
-                RadiositiesAccumulator += differentialFormFactor * all_radiosity[patchId];
+                u32 PatchId = PatchColorId - 1;
+                RadiositiesAccumulator += DifferentialFormFactor * all_radiosity[PatchId];
             }
         }
 
@@ -1621,8 +1621,8 @@ bool LoadGameMap(const char *path)
     ByteBufferReadBulk(&mapbuf, lightMapData, lmw*lmh*sizeof(u8));
     // These light map textures use bilinear texture filtering to allow light values 
     // to be interpolated between the given texture coordinate's neighboring texels. 
-    CreateGPUTextureFromBitmap(&POSCOLORTESTTEX, (u8*)lightMapData, lmw, lmh,
-        GL_RGB, GL_RED, GL_LINEAR, GL_LINEAR, GL_UNSIGNED_BYTE);
+    CreateGPUTextureFromBitmap(&Temporary_LightMapVisualizeTex, (u8*)lightMapData, lmw, lmh,
+                               GL_RGB, GL_RED, GL_LINEAR, GL_LINEAR, GL_UNSIGNED_BYTE);
     arrfree(lightMapData);
 
     // colliders
@@ -1672,7 +1672,7 @@ bool LoadGameMap(const char *path)
         ASSERT(vb.size() == vertexcount);
         
         FaceBatch batch;
-        batch.sharedTexture = POSCOLORTESTTEX;//GetTextureByPersistId(texturePersistId).gputex;
+        batch.sharedTexture = Temporary_LightMapVisualizeTex;//GetTextureByPersistId(texturePersistId).gputex;
         CreateFaceBatchMeshOnGPU(&batch.idVAO, &batch.idVBO);
         RebindFaceBatchBufferObject(&batch, u32(sizeof(float)*vertexcount), vb.data());
         GameLevelFaceBatches.push_back(batch);
@@ -1720,35 +1720,35 @@ vec3 ScreenPointToWorldRay(ivec2 screenspaceCoords)
     // https://antongerdelan.net/opengl/raycasting.html
     // assuming 3D world view is taking up the entire window
     // Reversing perspective divide not necessary because this is a vector/direction/ray with no intrinsic depth.
-    float x_NDC = ((float)screenspaceCoords.x / (float)BACKBUFFER_WIDTH) * 2.f - 1.f;
-    float y_NDC = (float(BACKBUFFER_HEIGHT - screenspaceCoords.y) / (float)BACKBUFFER_HEIGHT) * 2.f - 1.f;
+    float x_NDC = ((float)screenspaceCoords.x / (float)BackbufferWidth) * 2.f - 1.f;
+    float y_NDC = (float(BackbufferHeight - screenspaceCoords.y) / (float)BackbufferHeight) * 2.f - 1.f;
     vec4 ray_in_clipspace = vec4(x_NDC, y_NDC, -1.f, 1.f);
-    vec4 ray_in_viewspace = activePerspectiveMatrix.GetInverse() * ray_in_clipspace;
+    vec4 ray_in_viewspace = ActivePerspectiveMatrix.GetInverse() * ray_in_clipspace;
     ray_in_viewspace = vec4(ray_in_viewspace.x, ray_in_viewspace.y, -1.f, 0.f);
-    vec3 ray_in_worldspace = Normalize((activeViewMatrix.GetInverse() * ray_in_viewspace).xyz);
+    vec3 ray_in_worldspace = Normalize((ActiveViewMatrix.GetInverse() * ray_in_viewspace).xyz);
     return ray_in_worldspace;
 }
 
 vec3 ScreenPointToWorldPoint(ivec2 screenspaceCoords, float z_NDC)
 {
-    float x_NDC = ((float)screenspaceCoords.x / (float)BACKBUFFER_WIDTH) * 2.f - 1.f;
-    float y_NDC = (float(BACKBUFFER_HEIGHT - screenspaceCoords.y) / (float)BACKBUFFER_HEIGHT) * 2.f - 1.f;
+    float x_NDC = ((float)screenspaceCoords.x / (float)BackbufferWidth) * 2.f - 1.f;
+    float y_NDC = (float(BackbufferHeight - screenspaceCoords.y) / (float)BackbufferHeight) * 2.f - 1.f;
     vec4 point_in_clipspace = vec4(x_NDC, y_NDC, z_NDC, 1.f);
     // For points, reverse perspective divide after the inverse projection matrix transformation because it's easier that way.
-    vec4 point_in_viewspace_before_perspective_divide = activePerspectiveMatrix.GetInverse() * point_in_clipspace;
+    vec4 point_in_viewspace_before_perspective_divide = ActivePerspectiveMatrix.GetInverse() * point_in_clipspace;
     vec4 point_in_viewspace = point_in_viewspace_before_perspective_divide / point_in_viewspace_before_perspective_divide.w;
-    vec4 point_in_worldspace = activeViewMatrix.GetInverse() * point_in_viewspace;
+    vec4 point_in_worldspace = ActiveViewMatrix.GetInverse() * point_in_viewspace;
     return point_in_worldspace.xyz;
 }
 
 vec3 WorldPointToScreenPoint(vec3 worldPosition)
 {
-    vec4 clipspaceCoordinates = activePerspectiveMatrix * activeViewMatrix * vec4(worldPosition, 1.f);
+    vec4 clipspaceCoordinates = ActivePerspectiveMatrix * ActiveViewMatrix * vec4(worldPosition, 1.f);
     float screenspaceRatioX = ((clipspaceCoordinates.x / clipspaceCoordinates.w) + 1.f) / 2.f;
     float screenspaceRatioY = 1.f - (((clipspaceCoordinates.y / clipspaceCoordinates.w) + 1.f) / 2.f);
-    float internalResolutionWidth = (float)BACKBUFFER_WIDTH;
-    float internalResolutionHeight = (float)BACKBUFFER_HEIGHT;
-    float distanceFromCameraWCS = Dot(worldPosition - editorCameraPosition, cameraDirection);
+    float internalResolutionWidth = (float)BackbufferWidth;
+    float internalResolutionHeight = (float)BackbufferHeight;
+    float distanceFromCameraWCS = Dot(worldPosition - editorCameraPosition, CameraDirection);
     return vec3(screenspaceRatioX * internalResolutionWidth, screenspaceRatioY * internalResolutionHeight, distanceFromCameraWCS);
 }
 
@@ -1796,8 +1796,8 @@ vec3 SnapToGrid(vec3 beforeSnap)
 
 float GetEditorHandleSize(vec3 worldPosition, float sizeInPixels)
 {
-    float distanceFromCamera = Dot(worldPosition - editorCameraPosition, cameraDirection);
-    quat camOrientation = EulerToQuat(cameraRotation * GM_DEG2RAD);
+    float distanceFromCamera = Dot(worldPosition - editorCameraPosition, CameraDirection);
+    quat camOrientation = EulerToQuat(CameraRotation * GM_DEG2RAD);
     vec3 screenPos = WorldPointToScreenPoint(editorCameraPosition + RotateVector(vec3(distanceFromCamera, 0, 0), camOrientation));
     vec3 screenPos2 = WorldPointToScreenPoint(editorCameraPosition + RotateVector(vec3(distanceFromCamera, 0, 32.f), camOrientation));
     // scaled by 32 to avoid floating point imprecision
@@ -1893,7 +1893,7 @@ u32 PickVolume(MapEdit::Volume *volumes, u32 arraycount)
             HANDLES_VB.count += count;
         }
     }
-    u32 pickedVolumeFrameId = FlushHandles(mousepos, renderTargetGame, activeViewMatrix, activePerspectiveMatrix, false);
+    u32 pickedVolumeFrameId = FlushHandles(MousePos, RenderTargetGame, ActiveViewMatrix, ActivePerspectiveMatrix, false);
     return pickedVolumeFrameId;
 }
 
@@ -1909,14 +1909,14 @@ u32 PickFace(MapEdit::Face **faces, u32 arraycount)
         MapEdit::TriangulateFace_QuickDumb_WithColor(*face, idrgb, HANDLES_VB.data + HANDLES_VB.count, &count);
         HANDLES_VB.count += count;
     }
-    u32 faceId = FlushHandles(mousepos, renderTargetGame, activeViewMatrix, activePerspectiveMatrix, false);
+    u32 faceId = FlushHandles(MousePos, RenderTargetGame, ActiveViewMatrix, ActivePerspectiveMatrix, false);
     return faceId;
 }
 
 void TickMapEditor()
 {
     IsEditorActive = true;
-    SDL_SetRelativeMouseMode(mousecurrent & SDL_BUTTON(SDL_BUTTON_RIGHT) ? SDL_TRUE : SDL_FALSE);
+    SDL_SetRelativeMouseMode(MouseCurrent & SDL_BUTTON(SDL_BUTTON_RIGHT) ? SDL_TRUE : SDL_FALSE);
 
     // if (keyspressed[SDL_SCANCODE_J])
     // {
@@ -1926,41 +1926,41 @@ void TickMapEditor()
     //     DrawOctreeNode(CollisionTree.root.get());
 
     // EDITOR CAMERA MOVE
-    if (mousecurrent & SDL_BUTTON(SDL_BUTTON_RIGHT))
+    if (MouseCurrent & SDL_BUTTON(SDL_BUTTON_RIGHT))
     {
-        float camYawDelta = mousedelta.x*0.1f;
-        float camPitchDelta = mousedelta.y*0.1f;
-        cameraRotation.y -= camYawDelta;
-        cameraRotation.z -= camPitchDelta;
-        if (cameraRotation.z > 89.f)
-            cameraRotation.z = 89.f;
-        if (cameraRotation.z < -89.f)
-            cameraRotation.z = -89.f;
+        float camYawDelta = MouseDelta.x * 0.1f;
+        float camPitchDelta = MouseDelta.y * 0.1f;
+        CameraRotation.y -= camYawDelta;
+        CameraRotation.z -= camPitchDelta;
+        if (CameraRotation.z > 89.f)
+            CameraRotation.z = 89.f;
+        if (CameraRotation.z < -89.f)
+            CameraRotation.z = -89.f;
     }
-    cameraDirection = Normalize(OrientationToDirection(EulerToQuat(cameraRotation * GM_DEG2RAD)));
-    cameraRight = Normalize(Cross(cameraDirection, GM_UP_VECTOR));
-    cameraUp = Normalize(Cross(cameraRight, cameraDirection));
+    CameraDirection = Normalize(OrientationToDirection(EulerToQuat(CameraRotation * GM_DEG2RAD)));
+    CameraRight = Normalize(Cross(CameraDirection, GM_UP_VECTOR));
+    CameraUp = Normalize(Cross(CameraRight, CameraDirection));
     float moveSpeed = 250.f;
-    if (keyscurrent[SDL_SCANCODE_LSHIFT])
+    if (KeysCurrent[SDL_SCANCODE_LSHIFT])
         moveSpeed *= 2.7f;
     vec3 playerPositionDelta;
-    if (mousecurrent & SDL_BUTTON(SDL_BUTTON_RIGHT))
+    if (MouseCurrent & SDL_BUTTON(SDL_BUTTON_RIGHT))
     {
-        if (keyscurrent[SDL_SCANCODE_W])
-            playerPositionDelta += cameraDirection * moveSpeed * g_DeltaTime;
-        if (keyscurrent[SDL_SCANCODE_A])
-            playerPositionDelta += -cameraRight * moveSpeed * g_DeltaTime;
-        if (keyscurrent[SDL_SCANCODE_S])
-            playerPositionDelta += -cameraDirection * moveSpeed * g_DeltaTime;
-        if (keyscurrent[SDL_SCANCODE_D])
-            playerPositionDelta += cameraRight * moveSpeed * g_DeltaTime;
-        if (keyscurrent[SDL_SCANCODE_Q])
-            playerPositionDelta += -GM_UP_VECTOR * moveSpeed * g_DeltaTime;
-        if (keyscurrent[SDL_SCANCODE_E])
-            playerPositionDelta += GM_UP_VECTOR * moveSpeed * g_DeltaTime;
+        if (KeysCurrent[SDL_SCANCODE_W])
+            playerPositionDelta += CameraDirection * moveSpeed * DeltaTime;
+        if (KeysCurrent[SDL_SCANCODE_A])
+            playerPositionDelta += -CameraRight * moveSpeed * DeltaTime;
+        if (KeysCurrent[SDL_SCANCODE_S])
+            playerPositionDelta += -CameraDirection * moveSpeed * DeltaTime;
+        if (KeysCurrent[SDL_SCANCODE_D])
+            playerPositionDelta += CameraRight * moveSpeed * DeltaTime;
+        if (KeysCurrent[SDL_SCANCODE_Q])
+            playerPositionDelta += -GM_UP_VECTOR * moveSpeed * DeltaTime;
+        if (KeysCurrent[SDL_SCANCODE_E])
+            playerPositionDelta += GM_UP_VECTOR * moveSpeed * DeltaTime;
         editorCameraPosition += playerPositionDelta;
     }
-    activeViewMatrix = ViewMatrixLookAt(editorCameraPosition, editorCameraPosition + cameraDirection, cameraUp);
+    ActiveViewMatrix = ViewMatrixLookAt(editorCameraPosition, editorCameraPosition + CameraDirection, CameraUp);
 
     // DRAW AXIS LINES
     PrimitiveDrawLine(vec3(320000.f, 0.f, 0.f), vec3(-320000.f, 0.f, 0.f), vec4(RGB255TO1(205, 56, 9), 0.8f));
@@ -1970,7 +1970,7 @@ void TickMapEditor()
 
     static u32 hotHandleId = 0;
 
-    Gui::BeginWindow(Gui::UIRect(0,0,renderTargetGUI.width,19));
+    Gui::BeginWindow(Gui::UIRect(0, 0, RenderTargetGUI.width, 19));
     Gui::EditorBeginHorizontal();
     if (Gui::EditorLabelledButton("SAVE"))
     {
@@ -2017,26 +2017,26 @@ void TickMapEditor()
     bool vertToolActive = editorActiveTool == MapEditorTools::VertexManip;
     bool edgeToolActive = editorActiveTool == MapEditorTools::EdgeManip;
     bool faceToolActive = editorActiveTool == MapEditorTools::FaceManip;
-    if (keyspressed[SDL_SCANCODE_1] || Gui::EditorSelectable_2("BRUSH", &brushToolActive))
+    if (KeysPressed[SDL_SCANCODE_1] || Gui::EditorSelectable_2("BRUSH", &brushToolActive))
     {
         editorActiveTool = MapEditorTools::SimpleBrushTool;
         hotHandleId = 0;
         SELECTED_MAP_VOLUMES_INDICES.ResetCount();
         SessionResetFaceToolData();
     }
-    if (keyspressed[SDL_SCANCODE_2] || Gui::EditorSelectable_2("VERT", &vertToolActive))
+    if (KeysPressed[SDL_SCANCODE_2] || Gui::EditorSelectable_2("VERT", &vertToolActive))
     {
         editorActiveTool = MapEditorTools::VertexManip;
         hotHandleId = 0;
         SessionResetFaceToolData();
     }
-    if (keyspressed[SDL_SCANCODE_3] || Gui::EditorSelectable_2("EDGE", &edgeToolActive))
+    if (KeysPressed[SDL_SCANCODE_3] || Gui::EditorSelectable_2("EDGE", &edgeToolActive))
     {
         editorActiveTool = MapEditorTools::EdgeManip;
         hotHandleId = 0;
         SessionResetFaceToolData();
     }
-    if (keyspressed[SDL_SCANCODE_4] || Gui::EditorSelectable_2("FACE", &faceToolActive))
+    if (KeysPressed[SDL_SCANCODE_4] || Gui::EditorSelectable_2("FACE", &faceToolActive))
     {
         editorActiveTool = MapEditorTools::FaceManip;
         hotHandleId = 0;
@@ -2065,7 +2065,7 @@ void TickMapEditor()
 
 
     int volc = SELECTED_MAP_VOLUMES_INDICES.count;
-    Gui::BeginWindow(Gui::UIRect(renderTargetGUI.width - 160, 28, 150, 15 + volc * 15));
+    Gui::BeginWindow(Gui::UIRect(RenderTargetGUI.width - 160, 28, 150, 15 + volc * 15));
     Gui::EditorText((std::string("selected volumes (") + std::to_string(volc) + std::string(")")).c_str());
     for (int i = 0; i < SELECTED_MAP_VOLUMES_INDICES.count; ++i)
     {
@@ -2086,7 +2086,7 @@ void TickMapEditor()
     Gui::EndWindow();
 
 
-    Gui::BeginWindow(Gui::UIRect(renderTargetGUI.width - 210, renderTargetGUI.height - 310, 200, 300));
+    Gui::BeginWindow(Gui::UIRect(RenderTargetGUI.width - 210, RenderTargetGUI.height - 310, 200, 300));
     Gui::EditorText("Texture");
     
     static bool ShowTextureBrowser = false;
@@ -2097,7 +2097,7 @@ void TickMapEditor()
 
     if (ShowTextureBrowser)
     {
-        Gui::BeginWindow(Gui::UIRect(0, 0, renderTargetGUI.width, renderTargetGUI.height));
+        Gui::BeginWindow(Gui::UIRect(0, 0, RenderTargetGUI.width, RenderTargetGUI.height));
         
         Gui::EditorBeginHorizontal();
         if (Gui::EditorLabelledButton("Close"))
@@ -2114,7 +2114,7 @@ void TickMapEditor()
         Gui::EditorEndHorizontal();
 
         Gui::EditorSpacer(0,8);
-        Gui::EditorBeginGrid(renderTargetGUI.width, 8000);
+        Gui::EditorBeginGrid(RenderTargetGUI.width, 8000);
         for (auto& pair : Assets.Textures)
         {
             Gui::EditorBeginGridItem(162,186);
@@ -2164,7 +2164,7 @@ void TickMapEditor()
         editorActiveTool == MapEditorTools::VertexManip ||
         editorActiveTool == MapEditorTools::EdgeManip ||
         editorActiveTool == MapEditorTools::FaceManip;
-    if (volumePickable && mousereleased & SDL_BUTTON(SDL_BUTTON_LEFT) && hotHandleId == 0)
+    if (volumePickable && MouseReleased & SDL_BUTTON(SDL_BUTTON_LEFT) && hotHandleId == 0)
     {
         u32 pickedVolumeFrameId = PickVolume(EDITOR_MAP_VOLUMES.data, EDITOR_MAP_VOLUMES.count);
         if (pickedVolumeFrameId <= 0)
@@ -2174,7 +2174,7 @@ void TickMapEditor()
         }
         else
         {
-            if (!keyscurrent[SDL_SCANCODE_LCTRL])
+            if (!KeysCurrent[SDL_SCANCODE_LCTRL])
             {
                 SELECTED_MAP_VOLUMES_INDICES.ResetCount();
                 SessionResetFaceToolData();
@@ -2220,9 +2220,9 @@ void TickMapEditor()
     {
         static vec3 DragPlanePoint;
 
-        bool lmbPressedThisFrame = mousepressed & SDL_BUTTON(SDL_BUTTON_LEFT);
-        bool lmbReleasedThisFrame = mousereleased & SDL_BUTTON(SDL_BUTTON_LEFT);
-        bool lmbIsPressed = mousecurrent & SDL_BUTTON(SDL_BUTTON_LEFT);
+        bool lmbPressedThisFrame = MousePressed & SDL_BUTTON(SDL_BUTTON_LEFT);
+        bool lmbReleasedThisFrame = MouseReleased & SDL_BUTTON(SDL_BUTTON_LEFT);
+        bool lmbIsPressed = MouseCurrent & SDL_BUTTON(SDL_BUTTON_LEFT);
 
         u32 hoveredFaceId = PickFace(SELECTABLE_FACES.data(), (u32)SELECTABLE_FACES.size());
 
@@ -2241,8 +2241,8 @@ void TickMapEditor()
                 for (MapEdit::Vert *vert : SELECTED_VERTICES)
                     vert->poscache = vert->pos;
 
-                vec3 worldpos_mouse = ScreenPointToWorldPoint(mousepos, 0.f);
-                vec3 worldray_mouse = ScreenPointToWorldRay(mousepos);
+                vec3 worldpos_mouse = ScreenPointToWorldPoint(MousePos, 0.f);
+                vec3 worldray_mouse = ScreenPointToWorldRay(MousePos);
                 IntersectPlaneAndLineWithDirections(face->loopbase->v->pos, face->QuickNormal(), worldpos_mouse, worldray_mouse, &DragPlanePoint);
             }
         }
@@ -2251,14 +2251,14 @@ void TickMapEditor()
         {
             MapEdit::Face *hotFace = SELECTABLE_FACES[hotHandleId-1];
 
-            vec3 worldpos_mouse = ScreenPointToWorldPoint(mousepos, 0.f);
-            vec3 worldray_mouse = ScreenPointToWorldRay(mousepos);
+            vec3 worldpos_mouse = ScreenPointToWorldPoint(MousePos, 0.f);
+            vec3 worldray_mouse = ScreenPointToWorldRay(MousePos);
 
             vec3 TotalTranslation;
-            if (keyscurrent[SDL_SCANCODE_LALT])
+            if (KeysCurrent[SDL_SCANCODE_LALT])
             {
                 vec3 intersect;
-                IntersectPlaneAndLineWithDirections(DragPlanePoint, vec3(-cameraDirection.x, 0.f, -cameraDirection.z), worldpos_mouse, worldray_mouse, &intersect);
+                IntersectPlaneAndLineWithDirections(DragPlanePoint, vec3(-CameraDirection.x, 0.f, -CameraDirection.z), worldpos_mouse, worldray_mouse, &intersect);
                 float yTranslation = Dot((intersect - DragPlanePoint), GM_UP_VECTOR);
                 TotalTranslation = vec3(0.f,yTranslation,0.f);
                 TotalTranslation = SnapToGrid(TotalTranslation);
@@ -2271,7 +2271,7 @@ void TickMapEditor()
                 TotalTranslation = SnapToGrid(TotalTranslation);
             }
 
-            if (keyscurrent[SDL_SCANCODE_ESCAPE])
+            if (KeysCurrent[SDL_SCANCODE_ESCAPE])
             {
                 for (MapEdit::Vert *vert : SELECTED_VERTICES)
                     vert->pos = vert->poscache;
@@ -2309,16 +2309,16 @@ void TickMapEditor()
         static bool AlreadySelectedOnLeftMouseDown = false;
         static vec3 TotalTranslation;
 
-        if (mousepressed & SDL_BUTTON(SDL_BUTTON_LEFT))
+        if (MousePressed & SDL_BUTTON(SDL_BUTTON_LEFT))
         {
-            LCtrlDownOnLeftMouseDown = keyscurrent[SDL_SCANCODE_LCTRL];
+            LCtrlDownOnLeftMouseDown = KeysCurrent[SDL_SCANCODE_LCTRL];
 
             for (u32 id = 1; id <= SELECTABLE_VERTICES.size(); ++id)
             {
                 MapEdit::Vert *vert = SELECTABLE_VERTICES[id-1];
                 DoDiscHandle(id, vert->pos, editorCameraPosition, GetEditorHandleSize(vert->pos, DISC_HANDLE_RADIUS + 4.f));
             }
-            u32 clickedId = FlushHandles(mousepos, renderTargetGame, activeViewMatrix, activePerspectiveMatrix, false);
+            u32 clickedId = FlushHandles(MousePos, RenderTargetGame, ActiveViewMatrix, ActivePerspectiveMatrix, false);
 
             if (clickedId > 0)
             {
@@ -2334,9 +2334,9 @@ void TickMapEditor()
                     hotVert->poscache = hotVert->pos;
                 }
 
-                vec3 worldpos_mouse = ScreenPointToWorldPoint(mousepos, 0.f);
-                vec3 worldray_mouse = ScreenPointToWorldRay(mousepos);
-                IntersectPlaneAndLineWithDirections(hotVert->pos, -cameraDirection, worldpos_mouse, worldray_mouse, &DragPlanePoint);
+                vec3 worldpos_mouse = ScreenPointToWorldPoint(MousePos, 0.f);
+                vec3 worldray_mouse = ScreenPointToWorldRay(MousePos);
+                IntersectPlaneAndLineWithDirections(hotVert->pos, -CameraDirection, worldpos_mouse, worldray_mouse, &DragPlanePoint);
             }
             else if (!LCtrlDownOnLeftMouseDown)
             {
@@ -2352,18 +2352,18 @@ void TickMapEditor()
             }
         }
 
-        if (mousecurrent & SDL_BUTTON(SDL_BUTTON_LEFT) && hotHandleId > 0)
+        if (MouseCurrent & SDL_BUTTON(SDL_BUTTON_LEFT) && hotHandleId > 0)
         {
             MapEdit::Vert *hotVert = SELECTABLE_VERTICES[hotHandleId-1];
 
-            vec3 worldpos_mouse = ScreenPointToWorldPoint(mousepos, 0.f);
-            vec3 worldray_mouse = ScreenPointToWorldRay(mousepos);
+            vec3 worldpos_mouse = ScreenPointToWorldPoint(MousePos, 0.f);
+            vec3 worldray_mouse = ScreenPointToWorldRay(MousePos);
 
             TotalTranslation = vec3();
-            if (keyscurrent[SDL_SCANCODE_LALT])
+            if (KeysCurrent[SDL_SCANCODE_LALT])
             {
                 vec3 intersect;
-                IntersectPlaneAndLineWithDirections(DragPlanePoint, vec3(-cameraDirection.x, 0.f, -cameraDirection.z), worldpos_mouse, worldray_mouse, &intersect);
+                IntersectPlaneAndLineWithDirections(DragPlanePoint, vec3(-CameraDirection.x, 0.f, -CameraDirection.z), worldpos_mouse, worldray_mouse, &intersect);
                 float yTranslation = Dot((intersect - DragPlanePoint), GM_UP_VECTOR);
                 TotalTranslation = vec3(0.f,yTranslation,0.f);
                 TotalTranslation = SnapToGrid(TotalTranslation);
@@ -2376,7 +2376,7 @@ void TickMapEditor()
                 TotalTranslation = SnapToGrid(TotalTranslation);
             }
 
-            if (keyscurrent[SDL_SCANCODE_ESCAPE])
+            if (KeysCurrent[SDL_SCANCODE_ESCAPE])
             {
                 for (MapEdit::Vert *vert : SELECTED_VERTICES)
                     vert->pos = vert->poscache;
@@ -2403,7 +2403,7 @@ void TickMapEditor()
             }
         }
 
-        if (mousereleased & SDL_BUTTON(SDL_BUTTON_LEFT))
+        if (MouseReleased & SDL_BUTTON(SDL_BUTTON_LEFT))
         {
             if (hotHandleId > 0)
             {
@@ -2444,7 +2444,7 @@ void TickMapEditor()
         switch (simpleBrushToolState)
         {
             case SimpleBrushToolState::NotActive:
-                if (mousepressed & SDL_BUTTON(SDL_BUTTON_LEFT))
+                if (MousePressed & SDL_BUTTON(SDL_BUTTON_LEFT))
                 {
                     u32 pickedVolumeFrameId = PickVolume(EDITOR_MAP_VOLUMES.data, EDITOR_MAP_VOLUMES.count);
                     if (pickedVolumeFrameId > 0)
@@ -2454,8 +2454,8 @@ void TickMapEditor()
                         u32 faceIndex = PickFace(faces.data(), (u32)faces.size());
                         MapEdit::Face *drawingFace = faces[faceIndex-1];
                         drawingplanenormal = drawingFace->QuickNormal();
-                        vec3 ws = ScreenPointToWorldPoint(mousepos, 0.f);
-                        vec3 wr = ScreenPointToWorldRay(mousepos);
+                        vec3 ws = ScreenPointToWorldPoint(MousePos, 0.f);
+                        vec3 wr = ScreenPointToWorldRay(MousePos);
                         vec3 intersectionPoint;
                         IntersectPlaneAndLineWithDirections(drawingFace->loopbase->v->pos, drawingplanenormal, ws, wr, &intersectionPoint);
                         simpleBrushToolState = SimpleBrushToolState::DrawingRectangle;
@@ -2463,8 +2463,8 @@ void TickMapEditor()
                     }
                     else
                     {
-                        vec3 ws = ScreenPointToWorldPoint(mousepos, 0.f);
-                        vec3 wr = ScreenPointToWorldRay(mousepos);
+                        vec3 ws = ScreenPointToWorldPoint(MousePos, 0.f);
+                        vec3 wr = ScreenPointToWorldRay(MousePos);
                         float f = (0.f - ws.y) / wr.y;
                         simpleBrushToolState = SimpleBrushToolState::DrawingRectangle;
                         rectstartpoint = ws + wr * f;
@@ -2487,10 +2487,10 @@ void TickMapEditor()
                 GRID_ORIGIN = rectstartpoint;
                 GRID_RIGHT_VECTOR = drawinghorizontal;
                 GRID_UP_VECTOR = drawingplanenormal;
-                if (mousecurrent & SDL_BUTTON(SDL_BUTTON_LEFT))
+                if (MouseCurrent & SDL_BUTTON(SDL_BUTTON_LEFT))
                 {
-                    vec3 ws = ScreenPointToWorldPoint(mousepos, 0.f);
-                    vec3 wr = ScreenPointToWorldRay(mousepos);
+                    vec3 ws = ScreenPointToWorldPoint(MousePos, 0.f);
+                    vec3 wr = ScreenPointToWorldRay(MousePos);
                     vec3 intersection;
                     IntersectPlaneAndLineWithDirections(rectstartpoint, drawingplanenormal, ws, wr, &intersection);
                     vec3 endpoint = intersection;
@@ -2512,10 +2512,10 @@ void TickMapEditor()
                     PrimitiveDrawLine(endpoint, endpoint - startToEndProjOnToHorizontal,
                                       vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
                 }
-                if (mousereleased & SDL_BUTTON(SDL_BUTTON_LEFT))
+                if (MouseReleased & SDL_BUTTON(SDL_BUTTON_LEFT))
                 {
-                    vec3 ws = ScreenPointToWorldPoint(mousepos, 0.f);
-                    vec3 wr = ScreenPointToWorldRay(mousepos);
+                    vec3 ws = ScreenPointToWorldPoint(MousePos, 0.f);
+                    vec3 wr = ScreenPointToWorldRay(MousePos);
                     vec3 intersection;
                     IntersectPlaneAndLineWithDirections(rectstartpoint, drawingplanenormal, ws, wr, &intersection);
                     rectendpoint = intersection;
@@ -2528,7 +2528,7 @@ void TickMapEditor()
                     else
                         simpleBrushToolState = SimpleBrushToolState::NotActive;
                 }
-                if (keyspressed[SDL_SCANCODE_ESCAPE])
+                if (KeysPressed[SDL_SCANCODE_ESCAPE])
                     simpleBrushToolState = SimpleBrushToolState::NotActive;
 
                 break;
@@ -2551,10 +2551,10 @@ void TickMapEditor()
                 vec3 drawingSurfaceNormal = drawingplanenormal;
                 static vec3 height = vec3();
                 static vec3 heightBeforeSnap = vec3();
-                vec3 pn = -cameraDirection;
+                vec3 pn = -CameraDirection;
                 vec3 pp = rectendpoint + heightBeforeSnap;
-                vec3 wp = ScreenPointToWorldPoint(mousepos, 0.f);
-                vec3 wr = ScreenPointToWorldRay(mousepos);
+                vec3 wp = ScreenPointToWorldPoint(MousePos, 0.f);
+                vec3 wr = ScreenPointToWorldRay(MousePos);
                 vec3 intersection;
                 IntersectPlaneAndLineWithDirections(pp, pn, wp, wr, &intersection);
                 float trueHeightComp = Dot((intersection - rectendpoint), drawingSurfaceNormal);
@@ -2607,7 +2607,7 @@ void TickMapEditor()
                 PrimitiveDrawLine(ceilPointC, ceilPointB, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
                 PrimitiveDrawLine(ceilPointC, ceilPointD, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
 
-                if (mousereleased & SDL_BUTTON(SDL_BUTTON_LEFT))
+                if (MouseReleased & SDL_BUTTON(SDL_BUTTON_LEFT))
                 {
                     // if heigth component is zero or too small then just default to current grid increment
 
@@ -2675,7 +2675,7 @@ void TickMapEditor()
 
                     simpleBrushToolState = SimpleBrushToolState::NotActive;
                 }
-                if (keyspressed[SDL_SCANCODE_ESCAPE])
+                if (KeysPressed[SDL_SCANCODE_ESCAPE])
                 {
                     simpleBrushToolState = SimpleBrushToolState::NotActive;
                 }
