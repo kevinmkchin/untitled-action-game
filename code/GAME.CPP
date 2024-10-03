@@ -6,6 +6,7 @@ Priorty #1 is building the game, not the engine/tech
 
 Just be specific and code exactly that tailored solution e.g. LevelPolygonOctree rather than Octree.
 
+- remove one of all_lm_light or all_radiosity
 - Take notes on 
     http://the-witness.net/news/2010/03/graphics-tech-precomputed-lighting/
     http://the-witness.net/news/2010/09/hemicube-rendering-and-integration/
@@ -22,6 +23,7 @@ Just be specific and code exactly that tailored solution e.g. LevelPolygonOctree
     will become clear . It should also only be done for game layer? not for most of editor.
     Definitely not for UI...since their colors have mostly been picked from what looked good on my monitor.
     GL_SRGB then for textures being loading into game
+- Perhaps there's a way to tag and ignore patches that are super far away from actual polygon (enough so that it wouldn't be needed for padding)
 
 TODO:
 - Multiple light sources
@@ -99,7 +101,7 @@ a resolution normal defined.
 
 
 */
-
+#define SUNLIGHT_TEST 1
 
 
 #include <cstdint>
@@ -960,7 +962,11 @@ std::vector<FlatPolygonCollider> GameLevelColliders;
 Octree GameLevelCollisionTree;
 std::vector<FaceBatch> GameLevelFaceBatches;
 
+#if SUNLIGHT_TEST
+vec3 PlayerControllerRoot = vec3(0.f, 0.01f, 0.f);
+#else
 vec3 PlayerControllerRoot = vec3(215.f, 0.01f, -38.7f);
+#endif
 vec3 CameraRotation = vec3(0, 192.3f, 7.56f);// vec3(0,130,-30);
 vec3 CameraDirection;
 vec3 CameraRight;
@@ -1055,8 +1061,10 @@ static void Stuff()
 
 static void TickGame()
 {
+#if !SUNLIGHT_TEST
     PrimitiveDrawSolidDisc(TestLightSource, -CameraDirection, 3.f);
     PrimitiveDrawSolidDisc(TestLightSource2, -CameraDirection, 3.f);
+#endif
     // Gui::PrimitivePanel(Gui::UIRect(0,0, 400,400), POSCOLORTESTTEX.id);
 
     // ENEMY 0
@@ -1608,11 +1616,15 @@ int main(int argc, char* argv[])
 
     LoadMapEditor();
 
-    // RDOCAPI->LaunchReplayUI(1, "");
+    RDOCAPI->LaunchReplayUI(1, "");
     // if (RDOCAPI) RDOCAPI->StartFrameCapture(NULL, NULL);
     // if (RDOCAPI) RDOCAPI->EndFrameCapture(NULL, NULL);
 
+#if SUNLIGHT_TEST
+    EditorDeserializeMap(wd_path("SunlightTestRooms2.emf").c_str());
+#else
     EditorDeserializeMap(wd_path("LightTest.emf").c_str());
+#endif
     BuildGameMap(wd_path("buildtest.map").c_str());
 
     if (LoadGameMap(wd_path("buildtest.map").c_str()) == false)
