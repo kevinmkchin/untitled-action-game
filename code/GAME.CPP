@@ -457,7 +457,7 @@ static void DeleteGPUFrameBuffer(GPUFrameBuffer *buffer)
 {
     glDeleteTextures(1, &buffer->colorTexId);
     glDeleteTextures(1, &buffer->depthTexId);
-    glDeleteBuffers(1, &buffer->fbo);
+    glDeleteFramebuffers(1, &buffer->fbo);
 }
 
 static void RenderGPUMesh(GPUMesh mesh, GLenum rendermode = GL_TRIANGLES)
