@@ -1368,37 +1368,36 @@ bool BuildGameMap(const char *path)
     const u32 HemicubeFaceH = 64;
     const u32 HemicubeFaceHHalf = HemicubeFaceH/2;
     const float pixelAreaInSolidAngle = GM_PI / float(2 * HemicubeFaceW * HemicubeFaceH);
-    GPUFrameBuffer HemicubeTopFaceFBO;
-    HemicubeTopFaceFBO.width = HemicubeFaceW;
-    HemicubeTopFaceFBO.height = HemicubeFaceH;
-    GPUFrameBuffer HemicubeSideFace0FBO;
-    HemicubeSideFace0FBO.width = HemicubeTopFaceFBO.width;
-    HemicubeSideFace0FBO.height = HemicubeTopFaceFBO.height;
-    GPUFrameBuffer HemicubeSideFace1FBO;
-    HemicubeSideFace1FBO.width = HemicubeTopFaceFBO.width;
-    HemicubeSideFace1FBO.height = HemicubeTopFaceFBO.height;
-    GPUFrameBuffer HemicubeSideFace2FBO;
-    HemicubeSideFace2FBO.width = HemicubeTopFaceFBO.width;
-    HemicubeSideFace2FBO.height = HemicubeTopFaceFBO.height;
-    GPUFrameBuffer HemicubeSideFace3FBO;
-    HemicubeSideFace3FBO.width = HemicubeTopFaceFBO.width;
-    HemicubeSideFace3FBO.height = HemicubeTopFaceFBO.height;
-    CreateGPUFrameBuffer(&HemicubeTopFaceFBO);
-    CreateGPUFrameBuffer(&HemicubeSideFace0FBO);
-    CreateGPUFrameBuffer(&HemicubeSideFace1FBO);
-    CreateGPUFrameBuffer(&HemicubeSideFace2FBO);
-    CreateGPUFrameBuffer(&HemicubeSideFace3FBO);
+    GPUFrameBuffer HemicubeFBO; // the cube faces are laid out horizontally
+    HemicubeFBO.width = HemicubeFaceW*5;
+    HemicubeFBO.height = HemicubeFaceH;
+    CreateGPUFrameBuffer(&HemicubeFBO);
+    u32 HemicubePBO;
+    glGenBuffers(1, &HemicubePBO);
+    glBindBuffer(GL_PIXEL_PACK_BUFFER, HemicubePBO);
+    const GLsizeiptr PBOSz = HemicubeFaceW*HemicubeFaceH*4*sizeof(u8);
+    glBufferData(GL_PIXEL_PACK_BUFFER, 5*PBOSz, NULL, GL_STREAM_READ);
+    glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
+
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_CULL_FACE);
     UseShader(patchesIDShader);
 
-    float HEMICUBE_NEARCLIP = LightMapPatchSize*0.48f;//4.f; // TODO(Kevin): try tweaking this value
+    float HEMICUBE_NEARCLIP = LightMapPatchSize*0.48f; // TODO(Kevin): try tweaking this value
     mat4 hemicubePerspectiveMatrix = ProjectionMatrixPerspective(90.f, 1.f, HEMICUBE_NEARCLIP, GAMEPROJECTION_FARCLIP);
     GLBindMatrix4fv(patchesIDShader, "projMatrix", 1, hemicubePerspectiveMatrix.ptr());
 
-    // if (rdoc_api) rdoc_api->StartFrameCapture(NULL, NULL);
+    // float mappingtimeaccum = 0.f;
+    // float drawingtimeaccum = 0.f;
+    // float pixelprocessingtimeaccum = 0.f;
+    // u32 forloopstartms = SDL_GetTicks();
+
+    glBindFramebuffer(GL_FRAMEBUFFER, HemicubeFBO.fbo);
+    glReadBuffer(GL_COLOR_ATTACHMENT0); // Asynchronously read pixel data into the PBO
+    glBindBuffer(GL_PIXEL_PACK_BUFFER, HemicubePBO);
     for (u32 i = 0; i < numpatches; ++i)
     {
+        // if (rdoc_api) rdoc_api->StartFrameCapture(NULL, NULL);
         if (i == progress10) LogMessage("%d/%d", progress10, numpatches);
         if (i == progress20) LogMessage("%d/%d", progress20, numpatches);
         if (i == progress30) LogMessage("%d/%d", progress30, numpatches);
@@ -1414,78 +1413,64 @@ bool BuildGameMap(const char *path)
         vec3 patch_i_basisV = all_lm_tangent[i];
         vec3 patch_i_basisU = Normalize(Cross(patch_i_basisV, patch_i_normal));
 
-        glBindFramebuffer(GL_FRAMEBUFFER, HemicubeTopFaceFBO.fbo);
-        glViewport(0,0, HemicubeTopFaceFBO.width, HemicubeTopFaceFBO.height);
+        // u32 drawingstart = SDL_GetTicks();
+
         glClearColor(0.f,0.f,0.f,1.f); // clear with rgb(id 0)
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        glViewport(0, 0, HemicubeFaceW, HemicubeFaceH);
         mat4 HemicubeViewMatrix = ViewMatrixLookAt(patch_i_pos, patch_i_pos + patch_i_normal, patch_i_basisV);
         GLBindMatrix4fv(patchesIDShader, "viewMatrix", 1, HemicubeViewMatrix.ptr());
         RenderFaceBatch(patchesIdBatch);
 
-        glBindFramebuffer(GL_FRAMEBUFFER, HemicubeSideFace0FBO.fbo);
-        glViewport(0,0, HemicubeSideFace0FBO.width, HemicubeSideFace0FBO.height);
-        glClearColor(0.f,0.f,0.f,1.f); // clear with rgb(id 0)
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        glViewport(HemicubeFaceW*1, 0, HemicubeFaceW, HemicubeFaceH);
         HemicubeViewMatrix = ViewMatrixLookAt(patch_i_pos, patch_i_pos + patch_i_basisV, patch_i_normal);
         GLBindMatrix4fv(patchesIDShader, "viewMatrix", 1, HemicubeViewMatrix.ptr());
         RenderFaceBatch(patchesIdBatch);
 
-        glBindFramebuffer(GL_FRAMEBUFFER, HemicubeSideFace1FBO.fbo);
-        glViewport(0,0, HemicubeSideFace1FBO.width, HemicubeSideFace1FBO.height);
-        glClearColor(0.f,0.f,0.f,1.f); // clear with rgb(id 0)
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        glViewport(HemicubeFaceW*2, 0, HemicubeFaceW, HemicubeFaceH);
         HemicubeViewMatrix = ViewMatrixLookAt(patch_i_pos, patch_i_pos - patch_i_basisV, patch_i_normal);
         GLBindMatrix4fv(patchesIDShader, "viewMatrix", 1, HemicubeViewMatrix.ptr());
         RenderFaceBatch(patchesIdBatch);
 
-        glBindFramebuffer(GL_FRAMEBUFFER, HemicubeSideFace2FBO.fbo);
-        glViewport(0,0, HemicubeSideFace2FBO.width, HemicubeSideFace2FBO.height);
-        glClearColor(0.f,0.f,0.f,1.f); // clear with rgb(id 0)
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        glViewport(HemicubeFaceW*3, 0, HemicubeFaceW, HemicubeFaceH);
         HemicubeViewMatrix = ViewMatrixLookAt(patch_i_pos, patch_i_pos + patch_i_basisU, patch_i_normal);
         GLBindMatrix4fv(patchesIDShader, "viewMatrix", 1, HemicubeViewMatrix.ptr());
         RenderFaceBatch(patchesIdBatch);
 
-        glBindFramebuffer(GL_FRAMEBUFFER, HemicubeSideFace3FBO.fbo);
-        glViewport(0,0, HemicubeSideFace3FBO.width, HemicubeSideFace3FBO.height);
-        glClearColor(0.f,0.f,0.f,1.f); // clear with rgb(id 0)
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        glViewport(HemicubeFaceW*4, 0, HemicubeFaceW, HemicubeFaceH);
         HemicubeViewMatrix = ViewMatrixLookAt(patch_i_pos, patch_i_pos - patch_i_basisU, patch_i_normal);
         GLBindMatrix4fv(patchesIDShader, "viewMatrix", 1, HemicubeViewMatrix.ptr());
         RenderFaceBatch(patchesIdBatch);
 
-        glFlush();
-        glFinish();
+        // Putting the glReadPixels together at the end of the draw calls is somehow appreciably faster
+        glReadPixels(0, 0, HemicubeFaceW, HemicubeFaceH, GL_RGBA, GL_UNSIGNED_BYTE, 0);
+        glReadPixels(HemicubeFaceW*1, 0, HemicubeFaceW, HemicubeFaceH, GL_RGBA, GL_UNSIGNED_BYTE, (void*)(PBOSz*1));
+        glReadPixels(HemicubeFaceW*2, 0, HemicubeFaceW, HemicubeFaceH, GL_RGBA, GL_UNSIGNED_BYTE, (void*)(PBOSz*2));
+        glReadPixels(HemicubeFaceW*3, 0, HemicubeFaceW, HemicubeFaceH, GL_RGBA, GL_UNSIGNED_BYTE, (void*)(PBOSz*3));
+        glReadPixels(HemicubeFaceW*4, 0, HemicubeFaceW, HemicubeFaceH, GL_RGBA, GL_UNSIGNED_BYTE, (void*)(PBOSz*4));
 
-        glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+        // drawingtimeaccum += (SDL_GetTicks() - drawingstart)/1000.f;
 
-        glBindFramebuffer(GL_FRAMEBUFFER, HemicubeTopFaceFBO.fbo);
-        u8 HemicubeTopFaceFBOData[HemicubeFaceW*HemicubeFaceH*4];
-        glReadPixels(0, 0, HemicubeTopFaceFBO.width, HemicubeTopFaceFBO.height, GL_RGBA, GL_UNSIGNED_BYTE, HemicubeTopFaceFBOData);
+        // u32 mappingstart = SDL_GetTicks();
 
-        glBindFramebuffer(GL_FRAMEBUFFER, HemicubeSideFace0FBO.fbo);
-        u8 SF0Data[HemicubeFaceW*HemicubeFaceH*4];
-        glReadPixels(0, 0, HemicubeSideFace0FBO.width, HemicubeSideFace0FBO.height, GL_RGBA, GL_UNSIGNED_BYTE, SF0Data);
+        // Map the PBO to access pixel data in system memory
+        u8 *TFData = (u8*)glMapBuffer(GL_PIXEL_PACK_BUFFER, GL_READ_ONLY); 
+        ASSERT(TFData);
+        u8 *SF0Data = TFData + PBOSz;
+        u8 *SF1Data = TFData + PBOSz*2;
+        u8 *SF2Data = TFData + PBOSz*3;
+        u8 *SF3Data = TFData + PBOSz*4;
 
-        glBindFramebuffer(GL_FRAMEBUFFER, HemicubeSideFace1FBO.fbo);
-        u8 SF1Data[HemicubeFaceW*HemicubeFaceH*4];
-        glReadPixels(0, 0, HemicubeSideFace1FBO.width, HemicubeSideFace1FBO.height, GL_RGBA, GL_UNSIGNED_BYTE, SF1Data);
-        
-        glBindFramebuffer(GL_FRAMEBUFFER, HemicubeSideFace2FBO.fbo);
-        u8 SF2Data[HemicubeFaceW*HemicubeFaceH*4];
-        glReadPixels(0, 0, HemicubeSideFace2FBO.width, HemicubeSideFace2FBO.height, GL_RGBA, GL_UNSIGNED_BYTE, SF2Data);
-        
-        glBindFramebuffer(GL_FRAMEBUFFER, HemicubeSideFace3FBO.fbo);
-        u8 SF3Data[HemicubeFaceW*HemicubeFaceH*4];
-        glReadPixels(0, 0, HemicubeSideFace3FBO.width, HemicubeSideFace3FBO.height, GL_RGBA, GL_UNSIGNED_BYTE, SF3Data);
+        // mappingtimeaccum += (SDL_GetTicks() - mappingstart)/1000.f;
 
-        // multithreading the code to process the hemicube pixels has almost no impact
-        // bigger gain would be from replacing glReadPixels with Pixel Buffer Objects
+        // u32 pixelstart = SDL_GetTicks();
+
         float RadiositiesAccumulator = 0.f;
         int HemicubeFaceArea = HemicubeFaceW * HemicubeFaceH;
         for (int p = 0; p < HemicubeFaceArea; ++p)
         {
-            u32 patchColorId = HemicubeTopFaceFBOData[p*4] + HemicubeTopFaceFBOData[p*4+1] * 256 + HemicubeTopFaceFBOData[p*4+2] * 256 * 256;
+            u32 patchColorId = TFData[p*4] + TFData[p*4+1] * 256 + TFData[p*4+2] * 256 * 256;
             if (patchColorId == 0)
                 continue;
             u32 patchId = patchColorId - 1;
@@ -1532,18 +1517,27 @@ bool BuildGameMap(const char *path)
                 RadiositiesAccumulator += differentialFormFactor * all_radiosity[patchId];
             }
         }
-        
+
+        // pixelprocessingtimeaccum += (SDL_GetTicks() - pixelstart)/1000.f;
+
+        glUnmapBuffer(GL_PIXEL_PACK_BUFFER);
+
         all_radiosity[i] += RadiositiesAccumulator;
     }
-    // if (rdoc_api) rdoc_api->EndFrameCapture(NULL, NULL);
-
-    DeleteGPUFrameBuffer(&HemicubeTopFaceFBO);
-    DeleteGPUFrameBuffer(&HemicubeSideFace0FBO);
-    DeleteGPUFrameBuffer(&HemicubeSideFace1FBO);
-    DeleteGPUFrameBuffer(&HemicubeSideFace2FBO);
-    DeleteGPUFrameBuffer(&HemicubeSideFace3FBO);
+    // u32 forloopendms = SDL_GetTicks();
+    // float forlooptime = (forloopendms - forloopstartms) / 1000.f;
+    // LogMessage("drawingtime %fs", drawingtimeaccum);
+    // LogMessage("mappingtime %fs", mappingtimeaccum);
+    // LogMessage("pixelprocessingtime %fs", pixelprocessingtimeaccum);
+    // LogMessage("forloop %fs", forlooptime);
+    glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glDeleteBuffers(1, &HemicubePBO);
+    DeleteGPUFrameBuffer(&HemicubeFBO);
     DeleteGPUTexture(&patchesIdBatch.sharedTexture);
     DeleteFaceBatchMeshOnGPU(patchesIdBatch.idVAO, patchesIdBatch.idVBO);
+
+
 
     // Convert to u8 light value
     u32 all_lmsz = (u32)arrlenu(all_lm_light);
