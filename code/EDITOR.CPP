@@ -19,10 +19,11 @@ struct lm_face_t
 
 vec3 *all_lm_pos = NULL;
 vec3 *all_lm_norm = NULL;
-float *all_lm_light = NULL;
 vec3 *all_lm_tangent = NULL;
 vec3 *all_patches_id = NULL;
-float *all_radiosity = NULL;
+float *all_light_global = NULL;
+float *all_light_direct = NULL;
+float *all_light_indirect = NULL;
 
 
 
@@ -987,8 +988,8 @@ LevelPolygonOctree LightMapOcclusionTree;
 //   4 gives satisfactory results when 32 units is 1m
 //   Use bigger size when testing maps for quicker iteration
 //   So far in my testing, light map baking times increase linearly with number of patches
-const float LightMapPatchSize = 4.f;
-const u32 HemicubeFaceW = 100;
+const float LightMapPatchSize = 8.f;
+const u32 HemicubeFaceW = 128;
 
 void Threaded_DoDirectLightingIntoLightMap(u32 patchIndexStart, u32 patchIndexEnd)
 {
@@ -1110,7 +1111,7 @@ void Threaded_DoDirectLightingIntoLightMap(u32 patchIndexStart, u32 patchIndexEn
 #endif
         }
 
-        all_radiosity[i] = SampleIntensityAccumulator * 0.25f;
+        all_light_direct[i] = SampleIntensityAccumulator * 0.25f;
     }
 }
 
@@ -1181,10 +1182,11 @@ bool BuildGameMap(const char *path)
     // calculate bounds, and divide into patches
     arrsetcap(all_lm_pos, 625000); // patch num cap should be 256^3-1 so about 16 million patches
     arrsetcap(all_lm_norm, 625000);
-    arrsetcap(all_lm_light, 625000);
+    arrsetcap(all_light_global, 625000);
     arrsetcap(all_lm_tangent, 625000);
     arrsetcap(all_patches_id, 625000);
-    arrsetcap(all_radiosity, 625000);
+    arrsetcap(all_light_direct, 625000);
+    arrsetcap(all_light_indirect, 625000);
     u32 patchCounter = 0;
     for (int i = 0; i < totalfacecount; ++i)
     {
@@ -1248,10 +1250,11 @@ bool BuildGameMap(const char *path)
         i32 lmsz = lm.w*lm.h;
         lm.pos = arraddnptr(all_lm_pos, lmsz);
         lm.norm = arraddnptr(all_lm_norm, lmsz);
-        lm.light = arraddnptr(all_lm_light, lmsz);
+        lm.light = arraddnptr(all_light_global, lmsz);
         vec3 *lm_tangent = arraddnptr(all_lm_tangent, lmsz);
         lm.patches_id = arraddnptr(all_patches_id, lmsz);
-        float *lm_radiosity = arraddnptr(all_radiosity, lmsz);
+        float *lm_direct = arraddnptr(all_light_direct, lmsz);
+        float *lm_indirect = arraddnptr(all_light_indirect, lmsz);
         for (i32 pi = 0; pi < lmsz; ++pi)
         {
             i32 x = pi % lm.w;
@@ -1265,7 +1268,8 @@ bool BuildGameMap(const char *path)
             lm.light[pi] = 0.f;
             lm_tangent[pi] = basisV;
             lm.patches_id[pi] = HandleIdToRGB(++patchCounter);
-            lm_radiosity[pi] = 0.f;
+            lm_direct[pi] = 0.f;
+            lm_indirect[pi] = 0.f;
         }
 
         face->lightmap = lm;
@@ -1324,7 +1328,7 @@ bool BuildGameMap(const char *path)
     // direct lighting from emissive points and patches
     u32 numpatches = (u32)arrlenu(all_lm_norm);
     ASSERT(numpatches == (u32)arrlenu(all_lm_pos));
-    ASSERT(numpatches == (u32)arrlenu(all_lm_light));
+    ASSERT(numpatches == (u32)arrlenu(all_light_global));
     u32 progress10 = u32((float)numpatches * 0.1f);
     u32 progress20 = u32((float)numpatches * 0.2f);
     u32 progress30 = u32((float)numpatches * 0.3f);
@@ -1391,6 +1395,8 @@ bool BuildGameMap(const char *path)
     const u32 HemicubeFaceH = HemicubeFaceW;
     const u32 HemicubeFaceWHalf = HemicubeFaceW/2;
     const u32 HemicubeFaceHHalf = HemicubeFaceH/2;
+    const int HemicubeFaceArea = HemicubeFaceW * HemicubeFaceH;
+    const int HemicubeFaceAreaHalf = HemicubeFaceW * HemicubeFaceHHalf;
     const float PixelAreaInSolidAngle = GM_PI / float(2 * HemicubeFaceW * HemicubeFaceH);
     GPUFrameBuffer HemicubeFBO; // the cube faces are laid out horizontally
     HemicubeFBO.width = HemicubeFaceW*5;
@@ -1404,7 +1410,7 @@ bool BuildGameMap(const char *path)
     glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
 
     glEnable(GL_DEPTH_TEST);
-    glEnable(GL_CULL_FACE);
+    glDisable(GL_CULL_FACE);
     UseShader(PatchesIDShader);
 
     float HEMICUBE_NEARCLIP = 1.f;
@@ -1416,143 +1422,244 @@ bool BuildGameMap(const char *path)
     // float pixelprocessingtimeaccum = 0.f;
     // u32 forloopstartms = SDL_GetTicks();
 
+    static float MultiplierMapTop[HemicubeFaceW*HemicubeFaceH];
+    static float MultiplierMapSide[HemicubeFaceW*HemicubeFaceHHalf];
+    float MultiplierBeforeNormalizeSum = 0.f;
+    for (int p = 0; p < HemicubeFaceArea; ++p)
+    {
+        // +0.5f for center of pixel
+        float XNorm = (float(p / HemicubeFaceW) + 0.5f) / float(HemicubeFaceHHalf) - 1.f;
+        float ZNorm = (float(p % HemicubeFaceW) + 0.5f) / float(HemicubeFaceWHalf) - 1.f;
+        float RSquared = XNorm*XNorm + ZNorm*ZNorm + 1.f;
+
+        // Since X and Z are normalized to [-1,1], distance in Y from patch to face is 1
+        vec3 PatchToPixelDir = Normalize(vec3(XNorm, 1.f, ZNorm));
+        vec3 CameraDirection = vec3(0.f, 1.f, 0.f);
+        float CosTheta = Dot(PatchToPixelDir, CameraDirection);
+
+        // For Top face, the surface normal is equal to CameraDirection. 
+        // Therefore, Lambert's Cosine Law gives the same result as CosTheta 
+        // I can just do CosTheta * CosTheta
+
+        // NOTE(Kevin): The way I'm calculating the Form Factor here may be incorrect...
+        // https://www.ludicon.com/castano/blog/articles/hemicube-rendering-and-integration/
+        // https://dl.acm.org/doi/pdf/10.1145/325165.325171
+
+        float SolidAngleSubtendedByPixel = CosTheta/RSquared;
+        float MultiplierBeforeNormalize = SolidAngleSubtendedByPixel * CosTheta;
+        MultiplierBeforeNormalizeSum += MultiplierBeforeNormalize;
+
+        MultiplierMapTop[p] = MultiplierBeforeNormalize;
+    }
+    for (int p = HemicubeFaceAreaHalf; p < HemicubeFaceArea; ++p)
+    {
+        float YNorm = (float(p / HemicubeFaceW) + 0.5f) / float(HemicubeFaceHHalf) - 1.f;
+        float ZNorm = (float(p % HemicubeFaceW) + 0.5f) / float(HemicubeFaceWHalf) - 1.f;
+        float RSquared = YNorm*YNorm + ZNorm*ZNorm + 1.f;
+
+        vec3 PatchToPixelDir = Normalize(vec3(1.f, YNorm, ZNorm));
+        vec3 CameraDirection = vec3(1.f, 0.f, 0.f);
+        float CosTheta = Dot(PatchToPixelDir, CameraDirection);
+        vec3 SurfaceNormal = vec3(0.f, 1.f, 0.f);
+        float LambertsCosineLaw = Dot(SurfaceNormal, PatchToPixelDir);
+
+        float SolidAngleSubtendedByPixel = CosTheta/RSquared;
+        float MultiplierBeforeNormalize = SolidAngleSubtendedByPixel * LambertsCosineLaw;
+        MultiplierBeforeNormalizeSum += MultiplierBeforeNormalize * 4.f; // x4 cuz 4 side faces
+
+        MultiplierMapSide[p-HemicubeFaceAreaHalf] = MultiplierBeforeNormalize;
+    }
+    // Normalize MultiplierMap such that the sum of all pixels add up to 1
+    for (int p = 0; p < HemicubeFaceArea; ++p)
+        MultiplierMapTop[p] /= MultiplierBeforeNormalizeSum;
+    for (int p = HemicubeFaceAreaHalf; p < HemicubeFaceArea; ++p)
+        MultiplierMapSide[p-HemicubeFaceAreaHalf] /= MultiplierBeforeNormalizeSum;
+    // float YO = 0.f;
+    // for (int p = 0; p < HemicubeFaceArea; ++p)
+    // {
+    //     YO += MultiplierMapTop[p];
+    // }
+    // for (int p = HemicubeFaceAreaHalf; p < HemicubeFaceArea; ++p)
+    // {
+    //     YO += MultiplierMapSide[p-HemicubeFaceAreaHalf] * 4;
+    // }
+    // LogMessage("%f", YO);
+
+    // CreateGPUTextureFromBitmap(&Temporary_TestTex0, MultiplierMapTop, HemicubeFaceW, HemicubeFaceH, 
+    //     GL_RGB, GL_RGB, GL_NEAREST, GL_NEAREST, GL_FLOAT);
+    // CreateGPUTextureFromBitmap(&Temporary_TestTex1, MultiplierMapSide, HemicubeFaceW, HemicubeFaceHHalf, 
+    //     GL_RGB, GL_RGB, GL_NEAREST, GL_NEAREST, GL_FLOAT);
+
+
+    // Copy direct light values into global to prep for first light bounce
+    u32 all_lmsz = (u32)arrlenu(all_light_global);
+    for (u32 i = 0; i < all_lmsz; ++i)
+    {
+        // this could be memcpy
+        all_light_global[i] = all_light_direct[i];
+    }
+
     glBindFramebuffer(GL_FRAMEBUFFER, HemicubeFBO.fbo);
     glReadBuffer(GL_COLOR_ATTACHMENT0); // Asynchronously read pixel data into the PBO
     glBindBuffer(GL_PIXEL_PACK_BUFFER, HemicubePBO);
-    for (u32 i = 0; i < numpatches; ++i)
+    for (int bounces = 0; bounces < 2; ++bounces)
     {
-        //if (RDOCAPI) RDOCAPI->StartFrameCapture(NULL, NULL);
-        if (i == progress10) LogMessage("%d/%d", progress10, numpatches);
-        if (i == progress20) LogMessage("%d/%d", progress20, numpatches);
-        if (i == progress30) LogMessage("%d/%d", progress30, numpatches);
-        if (i == progress40) LogMessage("%d/%d", progress40, numpatches);
-        if (i == progress50) LogMessage("%d/%d", progress50, numpatches);
-        if (i == progress60) LogMessage("%d/%d", progress60, numpatches);
-        if (i == progress70) LogMessage("%d/%d", progress70, numpatches);
-        if (i == progress80) LogMessage("%d/%d", progress80, numpatches);
-        if (i == progress90) LogMessage("%d/%d", progress90, numpatches);
-
-        vec3 patch_i_pos = all_lm_pos[i];
-        vec3 patch_i_normal = all_lm_norm[i];
-        vec3 patch_i_basisV = all_lm_tangent[i];
-        // Random rotation of hemicube trades banding artifacts for noise
-        // banding artifacts is hard to get rid of with just increased hemicube resolution
-        // patch_i_basisV = RotateVector(patch_i_basisV, quat((float)rand()/GM_TWOPI, patch_i_normal));
-        vec3 patch_i_basisU = Normalize(Cross(patch_i_basisV, patch_i_normal));
-
-        // u32 drawingstart = SDL_GetTicks();
-
-        glClearColor(0.f,0.f,0.f,1.f); // clear with rgb(id 0)
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-        glViewport(0, 0, HemicubeFaceW, HemicubeFaceH);
-        mat4 HemicubeViewMatrix = ViewMatrixLookAt(patch_i_pos, patch_i_pos + patch_i_normal, patch_i_basisV);
-        GLBindMatrix4fv(PatchesIDShader, "viewMatrix", 1, HemicubeViewMatrix.ptr());
-        RenderFaceBatch(patchesIdBatch);
-
-        glViewport(HemicubeFaceW*1, 0, HemicubeFaceW, HemicubeFaceH);
-        HemicubeViewMatrix = ViewMatrixLookAt(patch_i_pos, patch_i_pos + patch_i_basisV, patch_i_normal);
-        GLBindMatrix4fv(PatchesIDShader, "viewMatrix", 1, HemicubeViewMatrix.ptr());
-        RenderFaceBatch(patchesIdBatch);
-
-        glViewport(HemicubeFaceW*2, 0, HemicubeFaceW, HemicubeFaceH);
-        HemicubeViewMatrix = ViewMatrixLookAt(patch_i_pos, patch_i_pos - patch_i_basisV, patch_i_normal);
-        GLBindMatrix4fv(PatchesIDShader, "viewMatrix", 1, HemicubeViewMatrix.ptr());
-        RenderFaceBatch(patchesIdBatch);
-
-        glViewport(HemicubeFaceW*3, 0, HemicubeFaceW, HemicubeFaceH);
-        HemicubeViewMatrix = ViewMatrixLookAt(patch_i_pos, patch_i_pos + patch_i_basisU, patch_i_normal);
-        GLBindMatrix4fv(PatchesIDShader, "viewMatrix", 1, HemicubeViewMatrix.ptr());
-        RenderFaceBatch(patchesIdBatch);
-
-        glViewport(HemicubeFaceW*4, 0, HemicubeFaceW, HemicubeFaceH);
-        HemicubeViewMatrix = ViewMatrixLookAt(patch_i_pos, patch_i_pos - patch_i_basisU, patch_i_normal);
-        GLBindMatrix4fv(PatchesIDShader, "viewMatrix", 1, HemicubeViewMatrix.ptr());
-        RenderFaceBatch(patchesIdBatch);
-
-        // Putting the glReadPixels together at the end of the draw calls is somehow appreciably faster
-        glReadPixels(0, 0, HemicubeFaceW, HemicubeFaceH, GL_RGB, GL_UNSIGNED_BYTE, 0);
-        glReadPixels(HemicubeFaceW*1, 0, HemicubeFaceW, HemicubeFaceH, GL_RGB, GL_UNSIGNED_BYTE, (void*)(PBOSz*1));
-        glReadPixels(HemicubeFaceW*2, 0, HemicubeFaceW, HemicubeFaceH, GL_RGB, GL_UNSIGNED_BYTE, (void*)(PBOSz*2));
-        glReadPixels(HemicubeFaceW*3, 0, HemicubeFaceW, HemicubeFaceH, GL_RGB, GL_UNSIGNED_BYTE, (void*)(PBOSz*3));
-        glReadPixels(HemicubeFaceW*4, 0, HemicubeFaceW, HemicubeFaceH, GL_RGB, GL_UNSIGNED_BYTE, (void*)(PBOSz*4));
-
-        // drawingtimeaccum += (SDL_GetTicks() - drawingstart)/1000.f;
-
-        // u32 mappingstart = SDL_GetTicks();
-
-        // Map the PBO to access pixel data in system memory
-        u8 *TFData = (u8*)glMapBuffer(GL_PIXEL_PACK_BUFFER, GL_READ_ONLY); 
-        ASSERT(TFData);
-        u8 *SF0Data = TFData + PBOSz;
-        u8 *SF1Data = TFData + PBOSz*2;
-        u8 *SF2Data = TFData + PBOSz*3;
-        u8 *SF3Data = TFData + PBOSz*4;
-
-        // mappingtimeaccum += (SDL_GetTicks() - mappingstart)/1000.f;
-
-        // u32 pixelstart = SDL_GetTicks();
-
-        float RadiositiesAccumulator = 0.f;
-        int HemicubeFaceArea = HemicubeFaceW * HemicubeFaceH;
-        for (int p = 0; p < HemicubeFaceArea; ++p)
+        for (u32 i = 0; i < numpatches; ++i)
         {
-            u32 PatchColorId = TFData[p*3] + TFData[p*3+1] * 256 + TFData[p*3+2] * 256 * 256;
-            if (PatchColorId == 0)
-                continue;
-            u32 PatchId = PatchColorId - 1;
+            // if (RDOCAPI) RDOCAPI->StartFrameCapture(NULL, NULL);
+            if (i == progress10) LogMessage("%d/%d", progress10, numpatches);
+            if (i == progress20) LogMessage("%d/%d", progress20, numpatches);
+            if (i == progress30) LogMessage("%d/%d", progress30, numpatches);
+            if (i == progress40) LogMessage("%d/%d", progress40, numpatches);
+            if (i == progress50) LogMessage("%d/%d", progress50, numpatches);
+            if (i == progress60) LogMessage("%d/%d", progress60, numpatches);
+            if (i == progress70) LogMessage("%d/%d", progress70, numpatches);
+            if (i == progress80) LogMessage("%d/%d", progress80, numpatches);
+            if (i == progress90) LogMessage("%d/%d", progress90, numpatches);
 
-            float x = (float(p % HemicubeFaceW) - float(HemicubeFaceWHalf)) / HemicubeFaceWHalf * 2.f;
-            float y = (float(p / HemicubeFaceW) - float(HemicubeFaceHHalf)) / HemicubeFaceHHalf * 2.f;
-            float r_squared = float(x*x + y*y + 1.f);
-            float DifferentialFormFactor = PixelAreaInSolidAngle / (GM_PI * r_squared * r_squared);
+            vec3 patch_i_pos = all_lm_pos[i];
+            vec3 patch_i_normal = all_lm_norm[i];
+            vec3 patch_i_basisV = all_lm_tangent[i];
+            // Random rotation of hemicube trades banding artifacts for noise
+            // banding artifacts is hard to get rid of with just increased hemicube resolution
+            // patch_i_basisV = RotateVector(patch_i_basisV, quat((float)rand()/GM_TWOPI, patch_i_normal));
+            vec3 patch_i_basisU = Normalize(Cross(patch_i_basisV, patch_i_normal));
 
-            RadiositiesAccumulator += DifferentialFormFactor * all_radiosity[PatchId];
+            // u32 drawingstart = SDL_GetTicks();
+
+            glClearColor(0.f,0.f,0.f,1.f); // clear with rgb(id 0)
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+            glViewport(0, 0, HemicubeFaceW, HemicubeFaceH);
+            mat4 HemicubeViewMatrix = ViewMatrixLookAt(patch_i_pos, patch_i_pos + patch_i_normal, patch_i_basisV);
+            GLBindMatrix4fv(PatchesIDShader, "viewMatrix", 1, HemicubeViewMatrix.ptr());
+            RenderFaceBatch(patchesIdBatch);
+
+            glViewport(HemicubeFaceW*1, 0, HemicubeFaceW, HemicubeFaceH);
+            HemicubeViewMatrix = ViewMatrixLookAt(patch_i_pos, patch_i_pos + patch_i_basisV, patch_i_normal);
+            GLBindMatrix4fv(PatchesIDShader, "viewMatrix", 1, HemicubeViewMatrix.ptr());
+            RenderFaceBatch(patchesIdBatch);
+
+            glViewport(HemicubeFaceW*2, 0, HemicubeFaceW, HemicubeFaceH);
+            HemicubeViewMatrix = ViewMatrixLookAt(patch_i_pos, patch_i_pos - patch_i_basisV, patch_i_normal);
+            GLBindMatrix4fv(PatchesIDShader, "viewMatrix", 1, HemicubeViewMatrix.ptr());
+            RenderFaceBatch(patchesIdBatch);
+
+            glViewport(HemicubeFaceW*3, 0, HemicubeFaceW, HemicubeFaceH);
+            HemicubeViewMatrix = ViewMatrixLookAt(patch_i_pos, patch_i_pos + patch_i_basisU, patch_i_normal);
+            GLBindMatrix4fv(PatchesIDShader, "viewMatrix", 1, HemicubeViewMatrix.ptr());
+            RenderFaceBatch(patchesIdBatch);
+
+            glViewport(HemicubeFaceW*4, 0, HemicubeFaceW, HemicubeFaceH);
+            HemicubeViewMatrix = ViewMatrixLookAt(patch_i_pos, patch_i_pos - patch_i_basisU, patch_i_normal);
+            GLBindMatrix4fv(PatchesIDShader, "viewMatrix", 1, HemicubeViewMatrix.ptr());
+            RenderFaceBatch(patchesIdBatch);
+
+            // Putting the glReadPixels together at the end of the draw calls is somehow appreciably faster
+            glReadPixels(0, 0, HemicubeFaceW, HemicubeFaceH, GL_RGB, GL_UNSIGNED_BYTE, 0);
+            glReadPixels(HemicubeFaceW*1, 0, HemicubeFaceW, HemicubeFaceH, GL_RGB, GL_UNSIGNED_BYTE, (void*)(PBOSz*1));
+            glReadPixels(HemicubeFaceW*2, 0, HemicubeFaceW, HemicubeFaceH, GL_RGB, GL_UNSIGNED_BYTE, (void*)(PBOSz*2));
+            glReadPixels(HemicubeFaceW*3, 0, HemicubeFaceW, HemicubeFaceH, GL_RGB, GL_UNSIGNED_BYTE, (void*)(PBOSz*3));
+            glReadPixels(HemicubeFaceW*4, 0, HemicubeFaceW, HemicubeFaceH, GL_RGB, GL_UNSIGNED_BYTE, (void*)(PBOSz*4));
+
+            // drawingtimeaccum += (SDL_GetTicks() - drawingstart)/1000.f;
+
+            // u32 mappingstart = SDL_GetTicks();
+
+            // Map the PBO to access pixel data in system memory
+            u8 *TFData = (u8*)glMapBuffer(GL_PIXEL_PACK_BUFFER, GL_READ_ONLY); 
+            ASSERT(TFData);
+            u8 *SF0Data = TFData + PBOSz;
+            u8 *SF1Data = TFData + PBOSz*2;
+            u8 *SF2Data = TFData + PBOSz*3;
+            u8 *SF3Data = TFData + PBOSz*4;
+
+            // mappingtimeaccum += (SDL_GetTicks() - mappingstart)/1000.f;
+
+            // u32 pixelstart = SDL_GetTicks();
+
+            int BackfacePixelCount = 0;
+            float RadiositiesAccumulator = 0.f;
+
+            for (int p = 0; p < HemicubeFaceArea; ++p)
+            {
+                u32 PatchColorId = TFData[p*3] + TFData[p*3+1] * 256 + TFData[p*3+2] * 256 * 256;
+                if (PatchColorId == 16777215)
+                {
+                    ++BackfacePixelCount;
+                    if (BackfacePixelCount >= HemicubeFaceArea*0.2)
+                        break; // TODO(Kevin): extrapolation from valid neighboring samples
+                    else
+                        continue;
+                }
+
+                if (PatchColorId == 0)
+                    continue;
+
+                u32 PatchId = PatchColorId - 1;
+
+                float DifferentialFormFactor = MultiplierMapTop[p];
+                
+                RadiositiesAccumulator += DifferentialFormFactor * all_light_global[PatchId];
+            }
+            if (BackfacePixelCount < HemicubeFaceArea*0.2)
+            {
+                for (int p = HemicubeFaceAreaHalf; p < HemicubeFaceArea; ++p)
+                {
+                    float DifferentialFormFactor = MultiplierMapSide[p-HemicubeFaceAreaHalf];
+
+                    u32 PatchColorId = SF0Data[p*3] + SF0Data[p*3+1] * 256 + SF0Data[p*3+2] * 256 * 256;
+                    if (PatchColorId != 0 && PatchColorId != 16777215)
+                    {
+                        u32 PatchId = PatchColorId - 1;
+                        RadiositiesAccumulator += DifferentialFormFactor * all_light_global[PatchId];
+                    }
+
+                    PatchColorId = SF1Data[p*3] + SF1Data[p*3+1] * 256 + SF1Data[p*3+2] * 256 * 256;
+                    if (PatchColorId != 0 && PatchColorId != 16777215)
+                    {
+                        u32 PatchId = PatchColorId - 1;
+                        RadiositiesAccumulator += DifferentialFormFactor * all_light_global[PatchId];
+                    }
+
+                    PatchColorId = SF2Data[p*3] + SF2Data[p*3+1] * 256 + SF2Data[p*3+2] * 256 * 256;
+                    if (PatchColorId != 0 && PatchColorId != 16777215)
+                    {
+                        u32 PatchId = PatchColorId - 1;
+                        RadiositiesAccumulator += DifferentialFormFactor * all_light_global[PatchId];
+                    }
+
+                    PatchColorId = SF3Data[p*3] + SF3Data[p*3+1] * 256 + SF3Data[p*3+2] * 256 * 256;
+                    if (PatchColorId != 0 && PatchColorId != 16777215)
+                    {
+                        u32 PatchId = PatchColorId - 1;
+                        RadiositiesAccumulator += DifferentialFormFactor * all_light_global[PatchId];
+                    }
+                }
+
+                // this is incorrect because subsequent accesses to all_light_direct[i] will have "bounced"
+                // value.
+                all_light_indirect[i] = RadiositiesAccumulator;
+            }
+
+            // pixelprocessingtimeaccum += (SDL_GetTicks() - pixelstart)/1000.f;
+
+            glUnmapBuffer(GL_PIXEL_PACK_BUFFER);
+
+            if (RDOCAPI) RDOCAPI->EndFrameCapture(NULL, NULL);
         }
-        for (int p = HemicubeFaceW * HemicubeFaceHHalf; p < HemicubeFaceArea; ++p)
+
+        // update global illumination values
+        u32 all_lmsz = (u32)arrlenu(all_light_global);
+        for (u32 i = 0; i < all_lmsz; ++i)
         {
-            float y = (float(p % HemicubeFaceW) - float(HemicubeFaceWHalf)) / HemicubeFaceWHalf * 2.f;
-            float z = (float(p / HemicubeFaceW) - float(HemicubeFaceHHalf - 1)) / HemicubeFaceHHalf * 2.f;
-            float r_squared = float(y * y + z * z + 1.f);
-            float DifferentialFormFactor = z * PixelAreaInSolidAngle / (GM_PI * r_squared * r_squared);
-
-            u32 PatchColorId = SF0Data[p*3] + SF0Data[p*3+1] * 256 + SF0Data[p*3+2] * 256 * 256;
-            if (PatchColorId != 0)
-            {
-                u32 PatchId = PatchColorId - 1;
-                RadiositiesAccumulator += DifferentialFormFactor * all_radiosity[PatchId];
-            }
-
-            PatchColorId = SF1Data[p*3] + SF1Data[p*3+1] * 256 + SF1Data[p*3+2] * 256 * 256;
-            if (PatchColorId != 0)
-            {
-                u32 PatchId = PatchColorId - 1;
-                RadiositiesAccumulator += DifferentialFormFactor * all_radiosity[PatchId];
-            }
-
-            PatchColorId = SF2Data[p*3] + SF2Data[p*3+1] * 256 + SF2Data[p*3+2] * 256 * 256;
-            if (PatchColorId != 0)
-            {
-                u32 PatchId = PatchColorId - 1;
-                RadiositiesAccumulator += DifferentialFormFactor * all_radiosity[PatchId];
-            }
-
-            PatchColorId = SF3Data[p*3] + SF3Data[p*3+1] * 256 + SF3Data[p*3+2] * 256 * 256;
-            if (PatchColorId != 0)
-            {
-                u32 PatchId = PatchColorId - 1;
-                RadiositiesAccumulator += DifferentialFormFactor * all_radiosity[PatchId];
-            }
+            all_light_global[i] = all_light_direct[i] + all_light_indirect[i];//GM_clamp(all_light_direct[i], 0.f, 1.f);
         }
 
-        // pixelprocessingtimeaccum += (SDL_GetTicks() - pixelstart)/1000.f;
-
-        glUnmapBuffer(GL_PIXEL_PACK_BUFFER);
-
-        all_radiosity[i] += RadiositiesAccumulator;
-
-        if (RDOCAPI) RDOCAPI->EndFrameCapture(NULL, NULL);
+        LogMessage("Finished bounce %d", bounces + 1);
     }
+
+
     // u32 forloopendms = SDL_GetTicks();
     // float forlooptime = (forloopendms - forloopstartms) / 1000.f;
     // LogMessage("drawingtime %fs", drawingtimeaccum);
@@ -1565,15 +1672,6 @@ bool BuildGameMap(const char *path)
     DeleteGPUFrameBuffer(&HemicubeFBO);
     DeleteGPUTexture(&patchesIdBatch.sharedTexture);
     DeleteFaceBatchMeshOnGPU(patchesIdBatch.idVAO, patchesIdBatch.idVBO);
-
-
-
-    // Convert to u8 light value
-    u32 all_lmsz = (u32)arrlenu(all_lm_light);
-    for (u32 i = 0; i < all_lmsz; ++i)
-    {
-        all_lm_light[i] = all_radiosity[i];//GM_clamp(all_radiosity[i], 0.f, 1.f);
-    }
 
     // Blit to light map atlas
     float *LIGHT_MAP_ATLAS = NULL;
@@ -1596,9 +1694,10 @@ bool BuildGameMap(const char *path)
     arrfree(lm_rects);
     arrfree(all_lm_pos);
     arrfree(all_lm_norm);
-    arrfree(all_lm_light);
+    arrfree(all_light_global);
     arrfree(all_patches_id);
-    arrfree(all_radiosity);
+    arrfree(all_light_direct);
+    arrfree(all_light_indirect);
 
 
     // colliders
