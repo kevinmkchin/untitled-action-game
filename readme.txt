@@ -1,24 +1,22 @@
 
 
-== Build ==
+== Build for Windows ==
 
-Using CMake to generate build for MSVC.
-Consider getting rid of CMake and just invoking MSVC directly.
+BUILD.BAT calls MSVC cl.exe
 
-build           : build debug
-build clean     : clean target
-build debug     : output to build\Debug\
-build release   : output to build\Release\. No debug info. Faster.
+build           : output to build\Debug\ with debug mode /Zi flag and creates PDB
+build release   : output to build\Release\ with full optimizations /O2 flag
 
-Copies required dlls from ext\
-Inject data into BUILDINFO.H
+There is also a CMakeLists.txt but this might not be kept up to date. There primarily for IDEs.
 
 
 == RenderDoc Integration ==
 
 https://renderdoc.org/docs/in_application_api.html
 
-RenderDoc graphics debugger is linked dynamically at program start. The RenderDoc overlay should appear in program.
+RenderDoc graphics debugger is linked dynamically at program start. The RenderDoc overlay should appear in program. 
+
+Press Home key to launch debugger UI.
 
 API:
     RDOCAPI->LaunchReplayUI(1, "");
@@ -30,8 +28,7 @@ Captures saved to C:\Users\Kevin\AppData\Local\Temp\RenderDoc but can be changed
 
 == Debugging ==
 
-PDB file should be generated when building in debug mode.
-For some reason, data breakpoints don't work when opening Visual Studio at CMake source dir, but it works if open generated solutions or open executable file.
+PDB file generated when building in debug mode.
 
 
 == Development ==

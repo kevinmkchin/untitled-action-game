@@ -1,7 +1,0 @@
-#pragma once
-
-#cmakedefine PROJECT_WORKING_DIR "@PROJECT_WORKING_DIR@"
-#cmakedefine MESA_WINDOWS @MESA_WINDOWS@
-#cmakedefine MESA_MACOSX @MESA_MACOSX@
-
-#cmakedefine INTERNAL_BUILD @INTERNAL_BUILD@

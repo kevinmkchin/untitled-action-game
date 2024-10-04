@@ -6,6 +6,9 @@ Priorty #1 is building the game, not the engine/tech
 
 Just be specific and code exactly that tailored solution e.g. LevelPolygonOctree rather than Octree.
 
+Handcrafted with love.
+
+
 - Revisit lightmap data transfers and buffers
     Larger Hemicube atlas for download. Also I have so many intermediate buffers for light.
 - Render backfaces with special tag color (also upgrade to 32 bit) to detect overlap w/ geometry.
@@ -1617,10 +1620,6 @@ int main(int argc, char* argv[])
 
     LoadMapEditor();
 
-    RDOCAPI->LaunchReplayUI(1, "");
-    // if (RDOCAPI) RDOCAPI->StartFrameCapture(NULL, NULL);
-    // if (RDOCAPI) RDOCAPI->EndFrameCapture(NULL, NULL);
-
 #if SUNLIGHT_TEST
     EditorDeserializeMap(wd_path("SunlightTestRooms2.emf").c_str());
 #else
@@ -1639,6 +1638,10 @@ int main(int argc, char* argv[])
 
         Gui::NewFrame();
         ProcessSDLEvents();
+
+        if (RDOCAPI && KeysPressed[SDL_SCANCODE_HOME])
+            if (RDOCAPI->ShowReplayUI() == 0)
+                RDOCAPI->LaunchReplayUI(1, "");
 
         TickGame();
         DrawGame();
