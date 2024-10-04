@@ -6,38 +6,37 @@ Priorty #1 is building the game, not the engine/tech
 
 Just be specific and code exactly that tailored solution e.g. LevelPolygonOctree rather than Octree.
 
-- remove one of all_lm_light or all_radiosity
-- Take notes on 
-    http://the-witness.net/news/2010/03/graphics-tech-precomputed-lighting/
-    http://the-witness.net/news/2010/09/hemicube-rendering-and-integration/
-    Hugo Elias - Radiosity
-- Make indirect light test scene with just sunlight and a small house/room with window
+- Revisit lightmap data transfers and buffers
+    Larger Hemicube atlas for download. Also I have so many intermediate buffers for light.
+- Render backfaces with special tag color (also upgrade to 32 bit) to detect overlap w/ geometry.
+    Need some tolerance. Extrapolate from nearest valid samples if bad hemicube sample.
+    Could I do multiple hemicube samples per texel? then discard the bad ones and average only good ones. If there are no good ones then only then extrapolate.
+- Adaptive hemicube drawing method to reduce hemicube count.
+    Fill another texture for whether texel is hemicube sampled or interpolated and save and load that to visualize. UV2 stays the same, but I can switch between which texture is active to show that debug info. Also print hemicube rendered / num patches to see ratio.
+
+
 - Apply light map to FaceBatch as uv2 and texture as uv1
 - I should have option (by default) to just create faces rather than cuboid volumes in my editor. 
     Volume wasteful bcause lots of useless collider faces and light mapped faces.
     I think Source 2 mainly uses face creation rather than volume.
-- Maybe render hemicube for cluster of patches (perhaps up to 16x16) so then there are 4x4 size patches but one hemicube for 16 patches. Perhaps that achieves something similar to adaptive patch resizing.
-    hemicube_cluster can be any power of 2 size up to 16x16? then if it doesn't fit in 16x16 then we can do a smaller hemicube.
-- Gamma correction
-    Whether vec3 gamma_corrected_color = pow(in_color.rgb, vec3(1.0/2.2)); is necessary
-    will become clear . It should also only be done for game layer? not for most of editor.
-    Definitely not for UI...since their colors have mostly been picked from what looked good on my monitor.
-    GL_SRGB then for textures being loading into game
 - Perhaps there's a way to tag and ignore patches that are super far away from actual polygon (enough so that it wouldn't be needed for padding)
+
 
 TODO:
 - Multiple light sources
 - Skeletal animations
+- Better collision surfaces
 - Enemy moves and shoots at player
 - Gun model?
 - Player shoots at enemy
-- replace all the dogshit GJK stuff with SPECIFIC collider checks (GJK for finegrained test on complex meshes; do broader quicker tests; simpler test if just polygon x line)
-
+- Replace all the dogshit GJK stuff with SPECIFIC collider checks (GJK for finegrained narrow-phase test on complex meshes; do quicker broad-phase tests; simpler test if just polygon x line)
+    Bullets can check a Line from position last frame to position this frame against Polygon (face). 
+    "Ball" projectiles could also do that? Then narrow-phase sphere against polygon. Most projectiles even flying enemies will be spheres (at least against level geometry).
 - serialize/deserialize asset database
-- better collision surfaces
 - move volume mode/tool (don't need whole tool...maybe make brush tool part of this mode? like trenchbroom)
 - multi select vertices need to be fixed
 - edge select
+- Gamma correction - set GL_SRGB for textures being loaded into game so that they are not gamma corrected twice
 
 
 Engine work is almost done. 
@@ -72,10 +71,10 @@ BUGS:
 NOTES:
 
     64x64 pixel texture for each 32x32 unit in game looks decent
-    
-    try for every 16 units in the game, 1 lightmap sample
 
     Embrace the fact that lighting will be crude and not perfect. The visual artifacts is part of the charm of my game and engine. Something that differentiates it from the perfect crispy lighting of engines like Godot or Unity.
+
+    Ultimately, the game will very much have my identity. From some UI looking crusty, or enemy animations being janky, but that personal touch is part of the charm of an indie game like this.
 
     port over dropdown console?
 
@@ -102,7 +101,6 @@ a resolution normal defined.
 
 */
 #define SUNLIGHT_TEST 1
-
 
 #include <cstdint>
 #include <cassert>
@@ -953,6 +951,8 @@ Mix_Chunk *Mixer_LoadChunk(const char *filepath)
 }
 
 GPUTexture Temporary_LightMapVisualizeTex;
+GPUTexture Temporary_TestTex0;
+GPUTexture Temporary_TestTex1;
 
 GPUTexture tex_Missing;
 Mix_Chunk *sfx_Jump;
@@ -1065,7 +1065,8 @@ static void TickGame()
     PrimitiveDrawSolidDisc(TestLightSource, -CameraDirection, 3.f);
     PrimitiveDrawSolidDisc(TestLightSource2, -CameraDirection, 3.f);
 #endif
-    // Gui::PrimitivePanel(Gui::UIRect(0,0, 400,400), POSCOLORTESTTEX.id);
+    // Gui::PrimitivePanel(Gui::UIRect(0,0, 400,400), Temporary_TestTex0.id);
+    // Gui::PrimitivePanel(Gui::UIRect(0,400, 400,200), Temporary_TestTex1.id);
 
     // ENEMY 0
     vec3 toPlayer = PlayerControllerRoot - Enemy0.root;
