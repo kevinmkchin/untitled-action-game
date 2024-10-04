@@ -22,16 +22,27 @@ set CommonLinkerFlags=/incremental:no /opt:ref /subsystem:console shell32.lib op
 :: Debug or Release
 set OutputExecutable=GAME.exe
 if "%1"=="release" (
-    set OutputFolder=Release
-    set CommonCompilerFlags=%CommonCompilerFlags% /O2 /DNDEBUG
-    echo Build %OutputExecutable% in Release mode
+    goto SetRelease
+) else if "%1"=="r" (
+    goto SetRelease
 ) else (
-    set OutputFolder=Debug
-    set CommonCompilerFlags=%CommonCompilerFlags% /Zi
-    echo Build %OutputExecutable% in Debug mode
+    goto SetDebug
 )
 
+:SetDebug
+set OutputFolder=Debug
+set CommonCompilerFlags=%CommonCompilerFlags% /Zi
+echo Build %OutputExecutable% in Debug mode
+goto StartBuild
+
+:SetRelease
+set OutputFolder=Release
+set CommonCompilerFlags=%CommonCompilerFlags% /O2 /DNDEBUG
+echo Build %OutputExecutable% in Release mode
+goto StartBuild
+
 :: COPY DLLS ::
+:StartBuild
 if not exist build mkdir build
 if not exist build\%OutputFolder% mkdir build\%OutputFolder%
 if not exist build\%OutputFolder%\SDL2.dll copy ext\sdl\lib\x64\SDL2.dll build\%OutputFolder%\SDL2.dll > nul

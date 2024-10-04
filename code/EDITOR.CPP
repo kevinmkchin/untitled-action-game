@@ -1026,7 +1026,8 @@ void Threaded_DoDirectLightingIntoLightMap(u32 patchIndexStart, u32 patchIndexEn
         for (u32 sample = 0; sample < 4; ++sample)
         {   
 #if SUNLIGHT_TEST
-            vec3 incidence_ray = vec3(-0.16f, 0.9f, 1.f); // direction to sun
+            // vec3 incidence_ray = vec3(-0.16f, 0.9f, 1.f); // direction to sun
+            vec3 incidence_ray = vec3(-0.16f, 0.9f, -0.16f); // direction to sun
             float costheta = Dot(Normalize(incidence_ray), patch_normal);
             if (costheta > 0.f)
             {
@@ -1441,11 +1442,12 @@ bool BuildGameMap(const char *path)
         // Therefore, Lambert's Cosine Law gives the same result as CosTheta 
         // I can just do CosTheta * CosTheta
 
-        // NOTE(Kevin): The way I'm calculating the Form Factor here may be incorrect...
-        // https://www.ludicon.com/castano/blog/articles/hemicube-rendering-and-integration/
-        // https://dl.acm.org/doi/pdf/10.1145/325165.325171
+        // NOTE(Kevin): Ignacio Castano does SolidAngleOfPixel * CosTheta(for Lambert's law)
+        // That's the multiplier for the incoming radiance at that pixel
+        // See https://www.ludicon.com/castano/blog/articles/irradiance-caching-part-1/
 
         float SolidAngleSubtendedByPixel = CosTheta/RSquared;
+        // NOTE(Kevin): CosTheta=1/r, so can simplify to SolidAngle = CosTheta^3
         float MultiplierBeforeNormalize = SolidAngleSubtendedByPixel * CosTheta;
         MultiplierBeforeNormalizeSum += MultiplierBeforeNormalize;
 
@@ -1734,6 +1736,8 @@ bool LoadGameMap(const char *path)
     // to be interpolated between the given texture coordinate's neighboring texels. 
     CreateGPUTextureFromBitmap(&Temporary_LightMapVisualizeTex, lightMapData, lmw, lmh,
                                GL_R32F, GL_RED, GL_LINEAR, GL_LINEAR, GL_FLOAT);
+    CreateGPUTextureFromBitmap(&Temporary_TestTex0, lightMapData, lmw, lmh,
+                               GL_R32F, GL_RED, GL_NEAREST, GL_NEAREST, GL_FLOAT);
     arrfree(lightMapData);
 
     // colliders
