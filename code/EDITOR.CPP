@@ -1474,21 +1474,6 @@ bool BuildGameMap(const char *path)
         MultiplierMapTop[p] /= MultiplierBeforeNormalizeSum;
     for (int p = HemicubeFaceAreaHalf; p < HemicubeFaceArea; ++p)
         MultiplierMapSide[p-HemicubeFaceAreaHalf] /= MultiplierBeforeNormalizeSum;
-    // float YO = 0.f;
-    // for (int p = 0; p < HemicubeFaceArea; ++p)
-    // {
-    //     YO += MultiplierMapTop[p];
-    // }
-    // for (int p = HemicubeFaceAreaHalf; p < HemicubeFaceArea; ++p)
-    // {
-    //     YO += MultiplierMapSide[p-HemicubeFaceAreaHalf] * 4;
-    // }
-    // LogMessage("%f", YO);
-
-    // CreateGPUTextureFromBitmap(&Temporary_TestTex0, MultiplierMapTop, HemicubeFaceW, HemicubeFaceH, 
-    //     GL_RGB, GL_RGB, GL_NEAREST, GL_NEAREST, GL_FLOAT);
-    // CreateGPUTextureFromBitmap(&Temporary_TestTex1, MultiplierMapSide, HemicubeFaceW, HemicubeFaceHHalf, 
-    //     GL_RGB, GL_RGB, GL_NEAREST, GL_NEAREST, GL_FLOAT);
 
 
     // Copy direct light values into global to prep for first light bounce
@@ -1637,8 +1622,6 @@ bool BuildGameMap(const char *path)
                     }
                 }
 
-                // this is incorrect because subsequent accesses to all_light_direct[i] will have "bounced"
-                // value.
                 all_light_indirect[i] = RadiositiesAccumulator;
             }
 
