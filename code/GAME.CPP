@@ -9,19 +9,20 @@ Just be specific and code exactly that tailored solution e.g. LevelPolygonOctree
 Handcrafted with love.
 
 
+- Irradiance Caching!!!
+    Reduce hemicube sample count (adaptive sampling)
+    Able to extrapolate irradiance values across surface
+    Bad hemicube samples are corrected for free via extrapolation. Just need to detect and discard bad samples.
+
 - Revisit lightmap data transfers and buffers
     Larger Hemicube atlas for download. Also I have so many intermediate buffers for light.
-- Render backfaces with special tag color (also upgrade to 32 bit) to detect overlap w/ geometry.
-    Need some tolerance. Extrapolate from nearest valid samples if bad hemicube sample.
-    Could I do multiple hemicube samples per texel? then discard the bad ones and average only good ones. If there are no good ones then only then extrapolate.
-- Adaptive hemicube drawing method to reduce hemicube count.
-    Fill another texture for whether texel is hemicube sampled or interpolated and save and load that to visualize. UV2 stays the same, but I can switch between which texture is active to show that debug info. Also print hemicube rendered / num patches to see ratio.
 
 
 - Apply light map to FaceBatch as uv2 and texture as uv1
 - I should have option (by default) to just create faces rather than cuboid volumes in my editor. 
     Volume wasteful bcause lots of useless collider faces and light mapped faces.
     I think Source 2 mainly uses face creation rather than volume.
+      Best workflow is extrude faces and extrude edges.
 - Perhaps there's a way to tag and ignore patches that are super far away from actual polygon (enough so that it wouldn't be needed for padding)
 
 
@@ -38,7 +39,9 @@ TODO:
 - serialize/deserialize asset database
 - move volume mode/tool (don't need whole tool...maybe make brush tool part of this mode? like trenchbroom)
 - multi select vertices need to be fixed
-- edge select
+- Edge select
+- Edge loop
+- Toggle element translation along axis
 - Gamma correction - set GL_SRGB for textures being loaded into game so that they are not gamma corrected twice
 
 
@@ -80,6 +83,10 @@ NOTES:
     Ultimately, the game will very much have my identity. From some UI looking crusty, or enemy animations being janky, but that personal touch is part of the charm of an indie game like this.
 
     port over dropdown console?
+
+    Fun ideas:
+        FOV slider in game up to insane value like 170
+        Allow turning bilinear filtering for light maps off
 
 
 
@@ -1070,6 +1077,16 @@ static void TickGame()
 #endif
     // Gui::PrimitivePanel(Gui::UIRect(0,0, 400,400), Temporary_TestTex0.id);
     // Gui::PrimitivePanel(Gui::UIRect(0,400, 400,200), Temporary_TestTex1.id);
+    if (KeysPressed[SDL_SCANCODE_F1])
+    {
+        for (FaceBatch& batch : GameLevelFaceBatches)
+            batch.sharedTexture = Temporary_LightMapVisualizeTex;
+    }
+    if (KeysPressed[SDL_SCANCODE_F2])
+    {
+        for (FaceBatch& batch : GameLevelFaceBatches)
+            batch.sharedTexture = Temporary_TestTex0;
+    }
 
     // ENEMY 0
     vec3 toPlayer = PlayerControllerRoot - Enemy0.root;
@@ -1175,7 +1192,7 @@ static void RenderGameLayer()
     glEnable(GL_DEPTH_TEST);
 
     float aspectratio = float(BackbufferWidth) / float(BackbufferHeight);
-    float fovy = HorizontalFOVToVerticalFOV_RadianToRadian(90.f*GM_DEG2RAD, aspectratio); // NOTE(Kevin): have FOV slider in game up to insane value like 170
+    float fovy = HorizontalFOVToVerticalFOV_RadianToRadian(90.f*GM_DEG2RAD, aspectratio);
     ActivePerspectiveMatrix = ProjectionMatrixPerspective(fovy, aspectratio, GAMEPROJECTION_NEARCLIP, GAMEPROJECTION_FARCLIP);
     mat4 perspectiveMatrix = ActivePerspectiveMatrix;
     mat4 viewMatrix = ActiveViewMatrix;

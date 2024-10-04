@@ -26,11 +26,6 @@ API:
 Captures saved to C:\Users\Kevin\AppData\Local\Temp\RenderDoc but can be changed with RDOCAPI->SetCaptureFilePathTemplate.
 
 
-== Debugging ==
-
-PDB file generated when building in debug mode.
-
-
 == Development ==
 
 gmath.h - math
