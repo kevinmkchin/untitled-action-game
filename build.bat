@@ -64,7 +64,7 @@ if %ShowMSVCOptions%==1 (
     echo %CommonLinkerFlags%
     echo:
 )
-echo Build started: %time%
+set BuildStartTime=%time%
 if %IsInternalBuild%==0 (echo INTERNAL_BUILD 0) else (echo INTERNAL_BUILD 1) 
 echo:
 pushd build
@@ -75,7 +75,7 @@ if %errorlevel% neq 0 (
     exit /b %errorlevel%
 ) else (
     echo Output to build\%OutputFolder%\%OutputExecutable%
-    echo Build finished: %time%
+    call timer.cmd %BuildStartTime% %time%
 )
 
 
