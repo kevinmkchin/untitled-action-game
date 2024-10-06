@@ -43,7 +43,8 @@ TODO:
 - Edge loop
 - Toggle element translation along axis
 - Gamma correction - set GL_SRGB for textures being loaded into game so that they are not gamma corrected twice
-
+- do GL_LINEAR_MIPMAP_LINEAR for minification filter for game textures
+- Anisotropic filtering https://www.khronos.org/opengl/wiki/Sampler_Object#Anisotropic_filtering
 
 Engine work is almost done. 
 ~~- Octree collision acceleration~~

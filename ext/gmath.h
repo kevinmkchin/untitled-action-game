@@ -1369,6 +1369,44 @@ inline mat3 mat3::GetInverse() // TODO(Kevin): test coverage
     return inv;
 }
 
+// returns 3x3 matrix product of a and row major representation of b
+inline mat3 MatrixProduct(vec3 a, vec3 b)
+{
+    mat3 ret;
+    ret[0][0] = a.x*b.x;
+    ret[0][1] = a.y*b.x;
+    ret[0][2] = a.z*b.x;
+    ret[1][0] = a.x*b.y;
+    ret[1][1] = a.y*b.y;
+    ret[1][2] = a.z*b.y;
+    ret[2][0] = a.x*b.z;
+    ret[2][1] = a.y*b.z;
+    ret[2][2] = a.z*b.z;
+    return ret;
+}
+
+inline mat4 MatrixProduct(vec4 a, vec4 b)
+{
+    mat3 ret;
+    ret[0][0] = a.x*b.x;
+    ret[0][1] = a.y*b.x;
+    ret[0][2] = a.z*b.x;
+    ret[0][3] = a.w*b.x;
+    ret[1][0] = a.x*b.y;
+    ret[1][1] = a.y*b.y;
+    ret[1][2] = a.z*b.y;
+    ret[1][3] = a.w*b.y;
+    ret[2][0] = a.x*b.z;
+    ret[2][1] = a.y*b.z;
+    ret[2][2] = a.z*b.z;
+    ret[2][3] = a.w*b.z;
+    ret[3][0] = a.x*b.w;
+    ret[3][1] = a.y*b.w;
+    ret[3][2] = a.z*b.w;
+    ret[3][3] = a.w*b.w;
+    return ret;
+}
+
 inline quat Add(quat a, quat b)
 {
     a.x += b.x;
