@@ -1,19 +1,24 @@
 #version 330
 
 in vec2 uv;
+in vec3 FragWorldPos;
 
-layout(location = 0) out vec3 FragColor;
+layout(location = 0) out vec4 FragmentWorldPosAndRadiance;
 
-uniform sampler2D texture0;
+uniform sampler2D RadianceMap;
+
 
 void main()
 {
+    // FragmentWorldPosAndRadiance.rgb = vec3(texture(RadianceMap, uv).r);
+    // FragmentWorldPosAndRadiance.a = 1.f;
+    FragmentWorldPosAndRadiance.rgb = FragWorldPos;
     if (gl_FrontFacing)
     {
-        FragColor = texture(texture0, uv).rgb;
+        FragmentWorldPosAndRadiance.a = texture(RadianceMap, uv).r;
     }
     else
     {
-        FragColor = vec3(1.0); // TAGGING BACKFACE AS WHITE TO BE ABLE TO DETECT IT WHEN READ BACK
+        FragmentWorldPosAndRadiance = vec4(32.67, 67.32, 62.37, 0.0);
     }
 }

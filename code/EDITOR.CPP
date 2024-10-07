@@ -11,8 +11,10 @@ struct lm_face_t
 {
     vec3  *pos = NULL;
     vec3  *norm = NULL;
+    vec3  *tangent = NULL;
+    // vec3  *patches_id = NULL;
     float *light = NULL;
-    vec3  *patches_id = NULL;
+    float *light_indirect = NULL;
     i32 w = -1;
     i32 h = -1;
 };
@@ -20,7 +22,7 @@ struct lm_face_t
 vec3 *all_lm_pos = NULL;
 vec3 *all_lm_norm = NULL;
 vec3 *all_lm_tangent = NULL;
-vec3 *all_patches_id = NULL;
+// vec3 *all_patches_id = NULL;
 float *all_light_global = NULL;
 float *all_light_direct = NULL;
 float *all_light_indirect = NULL;
@@ -984,12 +986,132 @@ bool EditorDeserializeMap(const char *mapFilePath)
 vec3 TestLightSource = vec3(0, 110, 0);
 vec3 TestLightSource2 = vec3(150, 110, 0);
 LevelPolygonOctree LightMapOcclusionTree;
-// LightMapPatchSize
-//   4 gives satisfactory results when 32 units is 1m
-//   Use bigger size when testing maps for quicker iteration
-//   So far in my testing, light map baking times increase linearly with number of patches
-const float LightMapPatchSize = 8.f;
-const u32 HemicubeFaceW = 128;
+const float LightMapPatchSize = 4.f;
+const u32 HemicubeFaceW = 64;
+
+struct occlusion_hessian_tri_vert
+{
+    vec3 r;
+    vec3 rnext;
+    vec3 e;
+
+    vec3 WorldR;
+};
+
+struct occlusion_hessian_tri 
+{
+    occlusion_hessian_tri_vert v0; //r0, r1, e0
+    occlusion_hessian_tri_vert v1; //r1, r2, e1
+    occlusion_hessian_tri_vert v2; //r2, r0, e2
+
+    float Radiance; // radiance of furthest vertex
+
+    occlusion_hessian_tri_vert& operator[] (int i)
+    {
+        return ((occlusion_hessian_tri_vert*)this)[i];
+    }
+};
+
+occlusion_hessian_tri *OccHessTriangles = NULL;
+
+// make 2 triangles:
+// x0,y0 -> x0,y1 -> x1,y0   x0,y1 -> x1,y1 -> x1,y0
+void OccHessTriangulate2x2(int x0, int y0, int x1, int y1, float *Data, vec3 SamplePoint,
+    vec3 to00, vec3 to01, vec3 to10, vec3 to11)
+{
+    int index = y0 * HemicubeFaceW * 4 + x0 * 4;
+    vec3 WorldPos_x0y0 = { Data[index], Data[index+1], Data[index+2] };
+    float Radiance_x0y0 = Data[index+3];
+    index = y1 * HemicubeFaceW * 4 + x0 * 4;
+    vec3 WorldPos_x0y1 = { Data[index], Data[index+1], Data[index+2] };
+    float Radiance_x0y1 = Data[index+3];
+    index = y0 * HemicubeFaceW * 4 + x1 * 4;
+    vec3 WorldPos_x1y0 = { Data[index], Data[index+1], Data[index+2] };
+    float Radiance_x1y0 = Data[index+3];
+    index = y1 * HemicubeFaceW * 4 + x1 * 4;
+    vec3 WorldPos_x1y1 = { Data[index], Data[index+1], Data[index+2] };
+    float Radiance_x1y1 = Data[index+3];
+
+    // Ray hits nothing
+    if (WorldPos_x0y0.x == 0.8115956f && 
+        WorldPos_x0y0.y == 0.3775576f && 
+        WorldPos_x0y0.z == 0.5555464f)
+    {
+        WorldPos_x0y0 = SamplePoint + Normalize(to00) * 10000.f;
+        Radiance_x0y0 = 0.f;
+    }
+    if (WorldPos_x0y1.x == 0.8115956f && 
+        WorldPos_x0y1.y == 0.3775576f && 
+        WorldPos_x0y1.z == 0.5555464f)
+    {
+        WorldPos_x0y1 = SamplePoint + Normalize(to01) * 10000.f;
+        Radiance_x0y1 = 0.f;
+    }
+    if (WorldPos_x1y0.x == 0.8115956f && 
+        WorldPos_x1y0.y == 0.3775576f && 
+        WorldPos_x1y0.z == 0.5555464f)
+    {
+        WorldPos_x1y0 = SamplePoint + Normalize(to10) * 10000.f;
+        Radiance_x1y0 = 0.f;
+    }
+    if (WorldPos_x1y1.x == 0.8115956f && 
+        WorldPos_x1y1.y == 0.3775576f && 
+        WorldPos_x1y1.z == 0.5555464f)
+    {
+        WorldPos_x1y1 = SamplePoint + Normalize(to11) * 10000.f;
+        Radiance_x1y1 = 0.f;
+    }
+
+    // TODO Check if fragment data we read back signals backface
+
+    float dist_x0y0 = Magnitude(WorldPos_x0y0 - SamplePoint);
+    float dist_x0y1 = Magnitude(WorldPos_x0y1 - SamplePoint);
+    float dist_x1y0 = Magnitude(WorldPos_x1y0 - SamplePoint);
+    float dist_x1y1 = Magnitude(WorldPos_x1y1 - SamplePoint);
+    float TriRadiance = 0.f;
+
+    vec3 ri, riplus1;
+    occlusion_hessian_tri Tri0, Tri1;
+
+    float furthestDistTri0 = GM_max(dist_x0y0, GM_max(dist_x0y1, dist_x1y0));
+    if (furthestDistTri0 == dist_x0y0) TriRadiance = Radiance_x0y0;
+    if (furthestDistTri0 == dist_x0y1) TriRadiance = Radiance_x0y1;
+    if (furthestDistTri0 == dist_x1y0) TriRadiance = Radiance_x1y0;
+    Tri0.Radiance = TriRadiance;
+
+    ri = WorldPos_x0y0 - SamplePoint;
+    riplus1 = WorldPos_x0y1 - SamplePoint;
+    Tri0.v0 = { ri, riplus1, riplus1 - ri, WorldPos_x0y0 };
+
+    ri = WorldPos_x0y1 - SamplePoint;
+    riplus1 = WorldPos_x1y0 - SamplePoint;
+    Tri0.v1 = { ri, riplus1, riplus1 - ri, WorldPos_x0y1 };
+
+    ri = WorldPos_x1y0 - SamplePoint;
+    riplus1 = WorldPos_x0y0 - SamplePoint;
+    Tri0.v2 = { ri, riplus1, riplus1 - ri, WorldPos_x1y0 };
+
+    float furthestDistTri1 = GM_max(dist_x0y1, GM_max(dist_x1y1, dist_x1y0));
+    if (furthestDistTri1 == dist_x0y1) TriRadiance = Radiance_x0y1;
+    if (furthestDistTri1 == dist_x1y1) TriRadiance = Radiance_x1y1;
+    if (furthestDistTri1 == dist_x1y0) TriRadiance = Radiance_x1y0;
+    Tri1.Radiance = TriRadiance;
+
+    ri = WorldPos_x0y1 - SamplePoint;
+    riplus1 = WorldPos_x1y1 - SamplePoint;
+    Tri1.v0 = { ri, riplus1, riplus1 - ri, WorldPos_x0y1 };
+
+    ri = WorldPos_x1y1 - SamplePoint;
+    riplus1 = WorldPos_x1y0 - SamplePoint;
+    Tri1.v1 = { ri, riplus1, riplus1 - ri, WorldPos_x1y1 };
+
+    ri = WorldPos_x1y0 - SamplePoint;
+    riplus1 = WorldPos_x0y1 - SamplePoint;
+    Tri1.v2 = { ri, riplus1, riplus1 - ri, WorldPos_x1y0 };
+
+    arrput(OccHessTriangles, Tri0);
+    arrput(OccHessTriangles, Tri1);
+}
 
 void Threaded_DoDirectLightingIntoLightMap(u32 patchIndexStart, u32 patchIndexEnd)
 {
@@ -1026,8 +1148,8 @@ void Threaded_DoDirectLightingIntoLightMap(u32 patchIndexStart, u32 patchIndexEn
         for (u32 sample = 0; sample < 4; ++sample)
         {   
 #if SUNLIGHT_TEST
-            // vec3 incidence_ray = vec3(-0.16f, 0.9f, 1.f); // direction to sun
-            vec3 incidence_ray = vec3(-0.16f, 0.9f, -0.16f); // direction to sun
+            vec3 incidence_ray = vec3(-1.0f, 0.9f, -0.16f); // direction to sun
+            // vec3 incidence_ray = vec3(-0.16f, 0.9f, -0.16f); // direction to sun
             float costheta = Dot(Normalize(incidence_ray), patch_normal);
             if (costheta > 0.f)
             {
@@ -1071,7 +1193,7 @@ void Threaded_DoDirectLightingIntoLightMap(u32 patchIndexStart, u32 patchIndexEn
                 {
                     // point light attenuation
                     // doing quadratic component is too dark when there is no gamma correction
-                    float atten_lin = 0.022f;
+                    float atten_lin = 0.09f;
                     float atten_quad = 0.0019f;
                     float attenuation = 1.f / 
                         (1.f + atten_lin * dist + atten_quad * dist * dist);
@@ -1081,38 +1203,39 @@ void Threaded_DoDirectLightingIntoLightMap(u32 patchIndexStart, u32 patchIndexEn
                 }
             }
 
-            vec3 incidence_ray2 = TestLightSource2 - SamplePositions[sample];
-            costheta = Dot(Normalize(incidence_ray2), patch_normal);
-            if (costheta > 0.f)
-            {
-                float dist = Magnitude(incidence_ray2);
+            // vec3 incidence_ray2 = TestLightSource2 - SamplePositions[sample];
+            // costheta = Dot(Normalize(incidence_ray2), patch_normal);
+            // if (costheta > 0.f)
+            // {
+            //     float dist = Magnitude(incidence_ray2);
 
-                // occlusion test
-                LineCollider ray_collider;
-                ray_collider.a = TestLightSource2;
-                ray_collider.b = TestLightSource2 - incidence_ray2 * 0.98f;
-                bool occluded = false;
+            //     // occlusion test
+            //     LineCollider ray_collider;
+            //     ray_collider.a = TestLightSource2;
+            //     ray_collider.b = TestLightSource2 - incidence_ray2 * 0.98f;
+            //     bool occluded = false;
 
-                if (LightMapOcclusionTree.Query(ray_collider))
-                {
-                    occluded = true;
-                }
+            //     if (LightMapOcclusionTree.Query(ray_collider))
+            //     {
+            //         occluded = true;
+            //     }
 
-                if (!occluded)
-                {
-                    float atten_lin = 0.022f;
-                    float atten_quad = 0.0019f;
-                    float attenuation = 1.f / 
-                        (1.f + atten_lin * dist + atten_quad * dist * dist);
-                    float intensity = costheta * attenuation;
-                    intensity = GM_min(intensity, 1.0f);
-                    SampleIntensityAccumulator += intensity;
-                }
-            }
+            //     if (!occluded)
+            //     {
+            //         float atten_lin = 0.022f;
+            //         float atten_quad = 0.0019f;
+            //         float attenuation = 1.f / 
+            //             (1.f + atten_lin * dist + atten_quad * dist * dist);
+            //         float intensity = costheta * attenuation;
+            //         intensity = GM_min(intensity, 1.0f);
+            //         SampleIntensityAccumulator += intensity;
+            //     }
+            // }
 #endif
         }
 
         all_light_direct[i] = SampleIntensityAccumulator * 0.25f;
+        all_light_global[i] = all_light_direct[i];
     }
 }
 
@@ -1185,10 +1308,10 @@ bool BuildGameMap(const char *path)
     arrsetcap(all_lm_norm, 625000);
     arrsetcap(all_light_global, 625000);
     arrsetcap(all_lm_tangent, 625000);
-    arrsetcap(all_patches_id, 625000);
+    // arrsetcap(all_patches_id, 625000);
     arrsetcap(all_light_direct, 625000);
     arrsetcap(all_light_indirect, 625000);
-    u32 patchCounter = 0;
+    // u32 patchCounter = 0;
     for (int i = 0; i < totalfacecount; ++i)
     {
         MapEdit::Face *face = MapEdit::EDITOR_FACES.At(i);
@@ -1252,10 +1375,10 @@ bool BuildGameMap(const char *path)
         lm.pos = arraddnptr(all_lm_pos, lmsz);
         lm.norm = arraddnptr(all_lm_norm, lmsz);
         lm.light = arraddnptr(all_light_global, lmsz);
-        vec3 *lm_tangent = arraddnptr(all_lm_tangent, lmsz);
-        lm.patches_id = arraddnptr(all_patches_id, lmsz);
+        lm.tangent = arraddnptr(all_lm_tangent, lmsz);
+        // lm.patches_id = arraddnptr(all_patches_id, lmsz);
         float *lm_direct = arraddnptr(all_light_direct, lmsz);
-        float *lm_indirect = arraddnptr(all_light_indirect, lmsz);
+        lm.light_indirect = arraddnptr(all_light_indirect, lmsz);
         for (i32 pi = 0; pi < lmsz; ++pi)
         {
             i32 x = pi % lm.w;
@@ -1266,11 +1389,11 @@ bool BuildGameMap(const char *path)
             vec3 p = v0 + uSampleCenter * basisU + vSampleCenter * basisV;
             lm.pos[pi] = p;
             lm.norm[pi] = fn;
+            lm.tangent[pi] = basisV;
+            // lm.patches_id[pi] = HandleIdToRGB(++patchCounter);
             lm.light[pi] = 0.f;
-            lm_tangent[pi] = basisV;
-            lm.patches_id[pi] = HandleIdToRGB(++patchCounter);
             lm_direct[pi] = 0.f;
-            lm_indirect[pi] = 0.f;
+            lm.light_indirect[pi] = 0.f;
         }
 
         face->lightmap = lm;
@@ -1290,8 +1413,8 @@ bool BuildGameMap(const char *path)
     stbrp_init_target(&LightMapPacker, lightMapAtlasW, lightMapAtlasH, LMPackerNodes, (int)arrlenu(LMPackerNodes));
     stbrp_pack_rects(&LightMapPacker, lm_rects, (int)arrlenu(lm_rects));
     arrfree(LMPackerNodes);
-    size_t rectcount = arrlenu(lm_rects);
-    for (size_t i = 0; i < rectcount; ++i)
+    size_t LightMapRectsCount = arrlenu(lm_rects);
+    for (size_t i = 0; i < LightMapRectsCount; ++i)
     {
         stbrp_rect rect = lm_rects[i];
         if (rect.was_packed == 0) continue;
@@ -1364,7 +1487,7 @@ bool BuildGameMap(const char *path)
     // indirect lighting between patches
     //     render the faces with light map value being the color id of the patch
 
-    FaceBatch  patchesIdBatch;
+    FaceBatch SceneLightingModel;
 
     float *patches_vb = NULL; 
     for (auto& vbpair : VertexBuffers)
@@ -1373,25 +1496,16 @@ bool BuildGameMap(const char *path)
         float *writeto = arraddnptr(patches_vb, vb.size());
         memcpy(writeto, vb.data(), sizeof(float)*vb.size());
     }
-    CreateFaceBatchMeshOnGPU(&patchesIdBatch.idVAO, &patchesIdBatch.idVBO);
-    RebindFaceBatchBufferObject(&patchesIdBatch, u32(sizeof(float)*arrlenu(patches_vb)), patches_vb);
+    CreateFaceBatchMeshOnGPU(&SceneLightingModel.idVAO, &SceneLightingModel.idVBO);
+    RebindFaceBatchBufferObject(&SceneLightingModel, u32(sizeof(float)*arrlenu(patches_vb)), patches_vb);
     arrfree(patches_vb);
 
-    vec3 *PATCHES_ID_ATLAS = NULL;
-    arrsetcap(PATCHES_ID_ATLAS, lightMapAtlasW*lightMapAtlasH);
-    for (size_t i = 0; i < rectcount; ++i)
-    {
-        stbrp_rect rect = lm_rects[i];
-        if (rect.was_packed == 0) continue;
-        ASSERT(rect.was_packed != 0);
-        MapEdit::Face *face = MapEdit::EDITOR_FACES.At(rect.id);
-        lm_face_t lmface = face->lightmap;
-        BlitRect((u8*)PATCHES_ID_ATLAS, lightMapAtlasW, lightMapAtlasH, 
-            (u8*)lmface.patches_id, lmface.w, lmface.h, rect.x, rect.y, sizeof(vec3));
-    }
-    CreateGPUTextureFromBitmap(&patchesIdBatch.sharedTexture, (void*)PATCHES_ID_ATLAS, lightMapAtlasW, lightMapAtlasH,
-        GL_RGB, GL_RGB, GL_NEAREST, GL_NEAREST, GL_FLOAT);
-    arrfree(PATCHES_ID_ATLAS);
+    // DECLARE LIGHT MAP ATLAS
+    float *LIGHT_MAP_ATLAS = NULL;
+    arrsetcap(LIGHT_MAP_ATLAS, lightMapAtlasW*lightMapAtlasH);
+    CreateGPUTextureFromBitmap(&SceneLightingModel.sharedTexture, (void*)LIGHT_MAP_ATLAS, 
+        lightMapAtlasW, lightMapAtlasH, GL_R32F, GL_RED, GL_LINEAR, GL_LINEAR, GL_FLOAT);
+
 
     const u32 HemicubeFaceH = HemicubeFaceW;
     const u32 HemicubeFaceWHalf = HemicubeFaceW/2;
@@ -1402,12 +1516,12 @@ bool BuildGameMap(const char *path)
     GPUFrameBuffer HemicubeFBO; // the cube faces are laid out horizontally
     HemicubeFBO.width = HemicubeFaceW*5;
     HemicubeFBO.height = HemicubeFaceH;
-    CreateGPUFrameBuffer(&HemicubeFBO, GL_RGB);
+    CreateGPUFrameBuffer(&HemicubeFBO, GL_RGBA32F, GL_RGBA, GL_FLOAT);
     u32 HemicubePBO;
     glGenBuffers(1, &HemicubePBO);
     glBindBuffer(GL_PIXEL_PACK_BUFFER, HemicubePBO);
-    const GLsizeiptr PBOSz = HemicubeFaceW*HemicubeFaceH*3*sizeof(u8);
-    glBufferData(GL_PIXEL_PACK_BUFFER, 5*PBOSz, NULL, GL_STREAM_READ);
+    const GLsizeiptr PBOSz = HemicubeFaceW * HemicubeFaceH * 4;
+    glBufferData(GL_PIXEL_PACK_BUFFER, 5*PBOSz*sizeof(float), NULL, GL_STREAM_READ);
     glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
 
     glEnable(GL_DEPTH_TEST);
@@ -1418,223 +1532,292 @@ bool BuildGameMap(const char *path)
     mat4 HemicubePerspectiveMatrix = ProjectionMatrixPerspective(90.f*GM_DEG2RAD, 1.f, HEMICUBE_NEARCLIP, GAMEPROJECTION_FARCLIP);
     GLBindMatrix4fv(PatchesIDShader, "projMatrix", 1, HemicubePerspectiveMatrix.ptr());
 
-    // float mappingtimeaccum = 0.f;
-    // float drawingtimeaccum = 0.f;
-    // float pixelprocessingtimeaccum = 0.f;
-    // u32 forloopstartms = SDL_GetTicks();
-
-    static float MultiplierMapTop[HemicubeFaceW*HemicubeFaceH];
-    static float MultiplierMapSide[HemicubeFaceW*HemicubeFaceHHalf];
-    float MultiplierBeforeNormalizeSum = 0.f;
-    for (int p = 0; p < HemicubeFaceArea; ++p)
-    {
-        // +0.5f for center of pixel
-        float XNorm = (float(p / HemicubeFaceW) + 0.5f) / float(HemicubeFaceHHalf) - 1.f;
-        float ZNorm = (float(p % HemicubeFaceW) + 0.5f) / float(HemicubeFaceWHalf) - 1.f;
-        float RSquared = XNorm*XNorm + ZNorm*ZNorm + 1.f;
-
-        // Since X and Z are normalized to [-1,1], distance in Y from patch to face is 1
-        vec3 PatchToPixelDir = Normalize(vec3(XNorm, 1.f, ZNorm));
-        vec3 CameraDirection = vec3(0.f, 1.f, 0.f);
-        float CosTheta = Dot(PatchToPixelDir, CameraDirection);
-
-        // For Top face, the surface normal is equal to CameraDirection. 
-        // Therefore, Lambert's Cosine Law gives the same result as CosTheta 
-        // I can just do CosTheta * CosTheta
-
-        // NOTE(Kevin): Ignacio Castano does SolidAngleOfPixel * CosTheta(for Lambert's law)
-        // That's the multiplier for the incoming radiance at that pixel
-        // See https://www.ludicon.com/castano/blog/articles/irradiance-caching-part-1/
-
-        float SolidAngleSubtendedByPixel = CosTheta/RSquared;
-        // NOTE(Kevin): CosTheta=1/r, so can simplify to SolidAngle = CosTheta^3
-        float MultiplierBeforeNormalize = SolidAngleSubtendedByPixel * CosTheta;
-        MultiplierBeforeNormalizeSum += MultiplierBeforeNormalize;
-
-        MultiplierMapTop[p] = MultiplierBeforeNormalize;
-    }
-    for (int p = HemicubeFaceAreaHalf; p < HemicubeFaceArea; ++p)
-    {
-        float YNorm = (float(p / HemicubeFaceW) + 0.5f) / float(HemicubeFaceHHalf) - 1.f;
-        float ZNorm = (float(p % HemicubeFaceW) + 0.5f) / float(HemicubeFaceWHalf) - 1.f;
-        float RSquared = YNorm*YNorm + ZNorm*ZNorm + 1.f;
-
-        vec3 PatchToPixelDir = Normalize(vec3(1.f, YNorm, ZNorm));
-        vec3 CameraDirection = vec3(1.f, 0.f, 0.f);
-        float CosTheta = Dot(PatchToPixelDir, CameraDirection);
-        vec3 SurfaceNormal = vec3(0.f, 1.f, 0.f);
-        float LambertsCosineLaw = Dot(SurfaceNormal, PatchToPixelDir);
-
-        float SolidAngleSubtendedByPixel = CosTheta/RSquared;
-        float MultiplierBeforeNormalize = SolidAngleSubtendedByPixel * LambertsCosineLaw;
-        MultiplierBeforeNormalizeSum += MultiplierBeforeNormalize * 4.f; // x4 cuz 4 side faces
-
-        MultiplierMapSide[p-HemicubeFaceAreaHalf] = MultiplierBeforeNormalize;
-    }
-    // Normalize MultiplierMap such that the sum of all pixels add up to 1
-    for (int p = 0; p < HemicubeFaceArea; ++p)
-        MultiplierMapTop[p] /= MultiplierBeforeNormalizeSum;
-    for (int p = HemicubeFaceAreaHalf; p < HemicubeFaceArea; ++p)
-        MultiplierMapSide[p-HemicubeFaceAreaHalf] /= MultiplierBeforeNormalizeSum;
-
-
-    // Copy direct light values into global to prep for first light bounce
-    u32 all_lmsz = (u32)arrlenu(all_light_global);
-    for (u32 i = 0; i < all_lmsz; ++i)
-    {
-        // this could be memcpy
-        all_light_global[i] = all_light_direct[i];
-    }
-
     glBindFramebuffer(GL_FRAMEBUFFER, HemicubeFBO.fbo);
     glReadBuffer(GL_COLOR_ATTACHMENT0); // Asynchronously read pixel data into the PBO
     glBindBuffer(GL_PIXEL_PACK_BUFFER, HemicubePBO);
-    for (int bounces = 0; bounces < 2; ++bounces)
+
+    // I just need an array of triangles
+    //int NumTriangles = 2*(HemicubeFaceW*HemicubeFaceW+HemicubeFaceW*HemicubeFaceWHalf*4;
+    arrsetcap(OccHessTriangles, 100000);
+    for (int bounces = 0; bounces < 1; ++bounces)
     {
-        for (u32 i = 0; i < numpatches; ++i)
+        // Copy the radiance info thus far to use for first light bounce
+        // Would be just direct lighting for first bounce, but future bounces
+        // would be direct light + accumulated indirect light.
+        for (size_t i = 0; i < LightMapRectsCount; ++i)
         {
-            // if (RDOCAPI) RDOCAPI->StartFrameCapture(NULL, NULL);
-            if (i == progress10) LogMessage("%d/%d", progress10, numpatches);
-            if (i == progress20) LogMessage("%d/%d", progress20, numpatches);
-            if (i == progress30) LogMessage("%d/%d", progress30, numpatches);
-            if (i == progress40) LogMessage("%d/%d", progress40, numpatches);
-            if (i == progress50) LogMessage("%d/%d", progress50, numpatches);
-            if (i == progress60) LogMessage("%d/%d", progress60, numpatches);
-            if (i == progress70) LogMessage("%d/%d", progress70, numpatches);
-            if (i == progress80) LogMessage("%d/%d", progress80, numpatches);
-            if (i == progress90) LogMessage("%d/%d", progress90, numpatches);
+            stbrp_rect rect = lm_rects[i];
+            if (rect.was_packed == 0) continue;
+            ASSERT(rect.was_packed != 0);
+            MapEdit::Face *face = MapEdit::EDITOR_FACES.At(rect.id);
+            lm_face_t lmface = face->lightmap;
+            BlitRect((u8*)LIGHT_MAP_ATLAS, lightMapAtlasW, lightMapAtlasH, 
+                (u8*)lmface.light, lmface.w, lmface.h, rect.x, rect.y, sizeof(float));
+        }
+        // Update SceneLightingModel to use the updated radiance information
+        UpdateGPUTextureFromBitmap(&SceneLightingModel.sharedTexture, (u8*)LIGHT_MAP_ATLAS,
+            lightMapAtlasW, lightMapAtlasH);
 
-            vec3 patch_i_pos = all_lm_pos[i];
-            vec3 patch_i_normal = all_lm_norm[i];
-            vec3 patch_i_basisV = all_lm_tangent[i];
-            // Random rotation of hemicube trades banding artifacts for noise
-            // banding artifacts is hard to get rid of with just increased hemicube resolution
-            // patch_i_basisV = RotateVector(patch_i_basisV, quat((float)rand()/GM_TWOPI, patch_i_normal));
-            vec3 patch_i_basisU = Normalize(Cross(patch_i_basisV, patch_i_normal));
+        // Iterate through faces and process irradiance per face!
+        // Flat faces can't/shouldn't share irradiance cache entries anyways.
+        //      Debugging: process just one face
+        for (int FaceIndex = 1; FaceIndex < 2; ++FaceIndex)
+        {
+            MapEdit::Face *Face = MapEdit::EDITOR_FACES.At(FaceIndex);
+            lm_face_t& FaceLightMap = Face->lightmap;
 
-            // u32 drawingstart = SDL_GetTicks();
+            // TODO reset "cache" - just an array for now
 
-            glClearColor(0.f,0.f,0.f,1.f); // clear with rgb(id 0)
-            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-            glViewport(0, 0, HemicubeFaceW, HemicubeFaceH);
-            mat4 HemicubeViewMatrix = ViewMatrixLookAt(patch_i_pos, patch_i_pos + patch_i_normal, patch_i_basisV);
-            GLBindMatrix4fv(PatchesIDShader, "viewMatrix", 1, HemicubeViewMatrix.ptr());
-            RenderFaceBatch(patchesIdBatch);
-
-            glViewport(HemicubeFaceW*1, 0, HemicubeFaceW, HemicubeFaceH);
-            HemicubeViewMatrix = ViewMatrixLookAt(patch_i_pos, patch_i_pos + patch_i_basisV, patch_i_normal);
-            GLBindMatrix4fv(PatchesIDShader, "viewMatrix", 1, HemicubeViewMatrix.ptr());
-            RenderFaceBatch(patchesIdBatch);
-
-            glViewport(HemicubeFaceW*2, 0, HemicubeFaceW, HemicubeFaceH);
-            HemicubeViewMatrix = ViewMatrixLookAt(patch_i_pos, patch_i_pos - patch_i_basisV, patch_i_normal);
-            GLBindMatrix4fv(PatchesIDShader, "viewMatrix", 1, HemicubeViewMatrix.ptr());
-            RenderFaceBatch(patchesIdBatch);
-
-            glViewport(HemicubeFaceW*3, 0, HemicubeFaceW, HemicubeFaceH);
-            HemicubeViewMatrix = ViewMatrixLookAt(patch_i_pos, patch_i_pos + patch_i_basisU, patch_i_normal);
-            GLBindMatrix4fv(PatchesIDShader, "viewMatrix", 1, HemicubeViewMatrix.ptr());
-            RenderFaceBatch(patchesIdBatch);
-
-            glViewport(HemicubeFaceW*4, 0, HemicubeFaceW, HemicubeFaceH);
-            HemicubeViewMatrix = ViewMatrixLookAt(patch_i_pos, patch_i_pos - patch_i_basisU, patch_i_normal);
-            GLBindMatrix4fv(PatchesIDShader, "viewMatrix", 1, HemicubeViewMatrix.ptr());
-            RenderFaceBatch(patchesIdBatch);
-
-            // Putting the glReadPixels together at the end of the draw calls is somehow appreciably faster
-            glReadPixels(0, 0, HemicubeFaceW, HemicubeFaceH, GL_RGB, GL_UNSIGNED_BYTE, 0);
-            glReadPixels(HemicubeFaceW*1, 0, HemicubeFaceW, HemicubeFaceH, GL_RGB, GL_UNSIGNED_BYTE, (void*)(PBOSz*1));
-            glReadPixels(HemicubeFaceW*2, 0, HemicubeFaceW, HemicubeFaceH, GL_RGB, GL_UNSIGNED_BYTE, (void*)(PBOSz*2));
-            glReadPixels(HemicubeFaceW*3, 0, HemicubeFaceW, HemicubeFaceH, GL_RGB, GL_UNSIGNED_BYTE, (void*)(PBOSz*3));
-            glReadPixels(HemicubeFaceW*4, 0, HemicubeFaceW, HemicubeFaceH, GL_RGB, GL_UNSIGNED_BYTE, (void*)(PBOSz*4));
-
-            // drawingtimeaccum += (SDL_GetTicks() - drawingstart)/1000.f;
-
-            // u32 mappingstart = SDL_GetTicks();
-
-            // Map the PBO to access pixel data in system memory
-            u8 *TFData = (u8*)glMapBuffer(GL_PIXEL_PACK_BUFFER, GL_READ_ONLY); 
-            ASSERT(TFData);
-            u8 *SF0Data = TFData + PBOSz;
-            u8 *SF1Data = TFData + PBOSz*2;
-            u8 *SF2Data = TFData + PBOSz*3;
-            u8 *SF3Data = TFData + PBOSz*4;
-
-            // mappingtimeaccum += (SDL_GetTicks() - mappingstart)/1000.f;
-
-            // u32 pixelstart = SDL_GetTicks();
-
-            int BackfacePixelCount = 0;
-            float RadiositiesAccumulator = 0.f;
-
-            for (int p = 0; p < HemicubeFaceArea; ++p)
+            u32 NumTexelsOnFace = FaceLightMap.w * FaceLightMap.h;
+            for (u32 i = 13000; i < 13100; ++i)
             {
-                u32 PatchColorId = TFData[p*3] + TFData[p*3+1] * 256 + TFData[p*3+2] * 256 * 256;
-                if (PatchColorId == 16777215)
-                {
-                    ++BackfacePixelCount;
-                    if (BackfacePixelCount >= HemicubeFaceArea*0.2)
-                        break; // TODO(Kevin): extrapolation from valid neighboring samples
-                    else
-                        continue;
-                }
-
-                if (PatchColorId == 0)
-                    continue;
-
-                u32 PatchId = PatchColorId - 1;
-
-                float DifferentialFormFactor = MultiplierMapTop[p];
+                // if (RDOCAPI) RDOCAPI->StartFrameCapture(NULL, NULL);
                 
-                RadiositiesAccumulator += DifferentialFormFactor * all_light_global[PatchId];
-            }
-            if (BackfacePixelCount < HemicubeFaceArea*0.2)
-            {
+                vec3 patch_i_pos = *(FaceLightMap.pos + i); // rename to texel
+                vec3 patch_i_normal = *(FaceLightMap.norm + i);
+                vec3 patch_i_basisV = *(FaceLightMap.tangent + i);
+
+                // TODO check if texel should be sampled - this should be computed at texel-creation
+                //      time by checking distance from polygon and coverage. This is an optimization step. 
+                //      if yes, keep going
+                //      if no, continue to next texel
+
+
+                // TODO check if texel position is covered by any existing irradiance cache entries
+                //      if yes, continue to next texel
+                //      if no, continue to hemicube sampling
+
+
+                // Random rotation of hemicube trades banding artifacts for noise
+                // banding artifacts is hard to get rid of with just increased hemicube resolution
+                patch_i_basisV = RotateVector(patch_i_basisV, quat((float)rand()/GM_TWOPI, patch_i_normal));
+                vec3 patch_i_basisU = Normalize(Cross(patch_i_basisV, patch_i_normal));
+
+                // Special float to mark hemicube pixels that no fragments were drawn on
+                // If a ray was cast in direction of texel to hemicube pixel then it would hit nothing 
+                // OpenGL docs say values specified by glClearColor are clamped to the range [0,1]
+                // but somehow I could read these values back even when they were bigger than 1...
+                glClearColor(0.8115956f,0.3775576f,0.5555464f,0.f);
+                glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+                glViewport(0, 0, HemicubeFaceW, HemicubeFaceH);
+                mat4 HemicubeViewMatrix = ViewMatrixLookAt(patch_i_pos, patch_i_pos + patch_i_normal, patch_i_basisV);
+                GLBindMatrix4fv(PatchesIDShader, "viewMatrix", 1, HemicubeViewMatrix.ptr());
+                RenderFaceBatch(SceneLightingModel);
+
+                // if top face is "front", then 
+
+                // up face
+                glViewport(HemicubeFaceW*1, 0, HemicubeFaceW, HemicubeFaceH);
+                HemicubeViewMatrix = ViewMatrixLookAt(patch_i_pos, patch_i_pos + patch_i_basisV, patch_i_normal);
+                GLBindMatrix4fv(PatchesIDShader, "viewMatrix", 1, HemicubeViewMatrix.ptr());
+                RenderFaceBatch(SceneLightingModel);
+
+                // down face
+                glViewport(HemicubeFaceW*2, 0, HemicubeFaceW, HemicubeFaceH);
+                HemicubeViewMatrix = ViewMatrixLookAt(patch_i_pos, patch_i_pos - patch_i_basisV, patch_i_normal);
+                GLBindMatrix4fv(PatchesIDShader, "viewMatrix", 1, HemicubeViewMatrix.ptr());
+                RenderFaceBatch(SceneLightingModel);
+
+                // left face
+                glViewport(HemicubeFaceW*3, 0, HemicubeFaceW, HemicubeFaceH);
+                HemicubeViewMatrix = ViewMatrixLookAt(patch_i_pos, patch_i_pos + patch_i_basisU, patch_i_normal);
+                GLBindMatrix4fv(PatchesIDShader, "viewMatrix", 1, HemicubeViewMatrix.ptr());
+                RenderFaceBatch(SceneLightingModel);
+
+                // right face
+                glViewport(HemicubeFaceW*4, 0, HemicubeFaceW, HemicubeFaceH);
+                HemicubeViewMatrix = ViewMatrixLookAt(patch_i_pos, patch_i_pos - patch_i_basisU, patch_i_normal);
+                GLBindMatrix4fv(PatchesIDShader, "viewMatrix", 1, HemicubeViewMatrix.ptr());
+                RenderFaceBatch(SceneLightingModel);
+
+                if (RDOCAPI) RDOCAPI->EndFrameCapture(NULL, NULL);
+
+                // Putting the glReadPixels together at the end of the draw calls is somehow appreciably faster
+                glReadPixels(0, 0, HemicubeFaceW, HemicubeFaceH, GL_RGBA, GL_FLOAT, 0);
+                glReadPixels(HemicubeFaceW*1, 0, HemicubeFaceW, HemicubeFaceH, GL_RGBA, GL_FLOAT, (void*)(PBOSz*sizeof(float)*1));
+                glReadPixels(HemicubeFaceW*2, 0, HemicubeFaceW, HemicubeFaceH, GL_RGBA, GL_FLOAT, (void*)(PBOSz*sizeof(float)*2));
+                glReadPixels(HemicubeFaceW*3, 0, HemicubeFaceW, HemicubeFaceH, GL_RGBA, GL_FLOAT, (void*)(PBOSz*sizeof(float)*3));
+                glReadPixels(HemicubeFaceW*4, 0, HemicubeFaceW, HemicubeFaceH, GL_RGBA, GL_FLOAT, (void*)(PBOSz*sizeof(float)*4));
+
+
+                // Map the PBO to access pixel data in system memory
+                float *TFData = (float*)glMapBuffer(GL_PIXEL_PACK_BUFFER, GL_READ_ONLY); 
+                ASSERT(TFData);
+                float *SF0Data = TFData + PBOSz;
+                float *SF1Data = TFData + PBOSz*2;
+                float *SF2Data = TFData + PBOSz*3;
+                float *SF3Data = TFData + PBOSz*4;
+
+
+                int BackfacePixelCount = 0;
+                
+                // start mesh creation
+                arrsetlen(OccHessTriangles, 0);
+
+                bool FlagBadSample = false;
+
+                // TODO BACKFACE DETECTION AND WHAT DO I DO THEN
+                // if (RadianceFromFragment == -1.f)
+                // {
+                //     // backface!
+                //     // how about, if there's ANY backfaces at all it's not a valid sample point?
+                //     FlagBadSample = true;
+                //     break;
+                // }
+
+                for (int p = 0; p < HemicubeFaceArea; ++p)
+                {
+                    int x0 = p % HemicubeFaceW;
+                    int y0 = p / HemicubeFaceW;
+                    if (x0 >= HemicubeFaceW - 1 || y0 >= HemicubeFaceH - 1)
+                        continue;
+                    int x1 = x0 + 1;
+                    int y1 = y0 + 1;
+
+                    float x0norm = (float(x0) + 0.5f) / float(HemicubeFaceHHalf) - 1.f;
+                    float y0norm = (float(y0) + 0.5f) / float(HemicubeFaceWHalf) - 1.f;
+                    float x1norm = (float(x1) + 0.5f) / float(HemicubeFaceWHalf) - 1.f;
+                    float y1norm = (float(y1) + 0.5f) / float(HemicubeFaceWHalf) - 1.f;
+
+                    vec3 WorldVectorTo_x0y0 = x0norm * -patch_i_basisU + y0norm * patch_i_basisV + patch_i_normal;
+                    vec3 WorldVectorTo_x0y1 = x0norm * -patch_i_basisU + y1norm * patch_i_basisV + patch_i_normal;
+                    vec3 WorldVectorTo_x1y0 = x1norm * -patch_i_basisU + y0norm * patch_i_basisV + patch_i_normal;
+                    vec3 WorldVectorTo_x1y1 = x1norm * -patch_i_basisU + y1norm * patch_i_basisV + patch_i_normal;
+
+                    OccHessTriangulate2x2(x0,y0,x1,y1,TFData,patch_i_pos,
+                        WorldVectorTo_x0y0,WorldVectorTo_x0y1,
+                        WorldVectorTo_x1y0,WorldVectorTo_x1y1);
+                }
                 for (int p = HemicubeFaceAreaHalf; p < HemicubeFaceArea; ++p)
                 {
-                    float DifferentialFormFactor = MultiplierMapSide[p-HemicubeFaceAreaHalf];
+                    int x0 = p % HemicubeFaceW;
+                    int y0 = p / HemicubeFaceW;
+                    if (x0 >= HemicubeFaceW - 1 || y0 >= HemicubeFaceH - 1)
+                        continue;
+                    int x1 = x0 + 1;
+                    int y1 = y0 + 1;
+                    
+                    float x0norm = (float(x0) + 0.5f) / float(HemicubeFaceHHalf) - 1.f;
+                    float y0norm = (float(y0) + 0.5f) / float(HemicubeFaceWHalf) - 1.f;
+                    float x1norm = (float(x1) + 0.5f) / float(HemicubeFaceWHalf) - 1.f;
+                    float y1norm = (float(y1) + 0.5f) / float(HemicubeFaceWHalf) - 1.f;
 
-                    u32 PatchColorId = SF0Data[p*3] + SF0Data[p*3+1] * 256 + SF0Data[p*3+2] * 256 * 256;
-                    if (PatchColorId != 0 && PatchColorId != 16777215)
-                    {
-                        u32 PatchId = PatchColorId - 1;
-                        RadiositiesAccumulator += DifferentialFormFactor * all_light_global[PatchId];
-                    }
+                    vec3 WorldVectorTo_x0y0 = x0norm * patch_i_basisU + y0norm * patch_i_normal + patch_i_basisV;
+                    vec3 WorldVectorTo_x0y1 = x0norm * patch_i_basisU + y1norm * patch_i_normal + patch_i_basisV;
+                    vec3 WorldVectorTo_x1y0 = x1norm * patch_i_basisU + y0norm * patch_i_normal + patch_i_basisV;
+                    vec3 WorldVectorTo_x1y1 = x1norm * patch_i_basisU + y1norm * patch_i_normal + patch_i_basisV;
 
-                    PatchColorId = SF1Data[p*3] + SF1Data[p*3+1] * 256 + SF1Data[p*3+2] * 256 * 256;
-                    if (PatchColorId != 0 && PatchColorId != 16777215)
-                    {
-                        u32 PatchId = PatchColorId - 1;
-                        RadiositiesAccumulator += DifferentialFormFactor * all_light_global[PatchId];
-                    }
+                    OccHessTriangulate2x2(x0,y0,x1,y1,SF0Data,patch_i_pos,
+                        WorldVectorTo_x0y0,WorldVectorTo_x0y1,
+                        WorldVectorTo_x1y0,WorldVectorTo_x1y1);
 
-                    PatchColorId = SF2Data[p*3] + SF2Data[p*3+1] * 256 + SF2Data[p*3+2] * 256 * 256;
-                    if (PatchColorId != 0 && PatchColorId != 16777215)
-                    {
-                        u32 PatchId = PatchColorId - 1;
-                        RadiositiesAccumulator += DifferentialFormFactor * all_light_global[PatchId];
-                    }
+                    WorldVectorTo_x0y0 = x0norm * -patch_i_basisU + y0norm * patch_i_normal - patch_i_basisV;
+                    WorldVectorTo_x0y1 = x0norm * -patch_i_basisU + y1norm * patch_i_normal - patch_i_basisV;
+                    WorldVectorTo_x1y0 = x1norm * -patch_i_basisU + y0norm * patch_i_normal - patch_i_basisV;
+                    WorldVectorTo_x1y1 = x1norm * -patch_i_basisU + y1norm * patch_i_normal - patch_i_basisV;
 
-                    PatchColorId = SF3Data[p*3] + SF3Data[p*3+1] * 256 + SF3Data[p*3+2] * 256 * 256;
-                    if (PatchColorId != 0 && PatchColorId != 16777215)
-                    {
-                        u32 PatchId = PatchColorId - 1;
-                        RadiositiesAccumulator += DifferentialFormFactor * all_light_global[PatchId];
-                    }
+                    OccHessTriangulate2x2(x0,y0,x1,y1,SF1Data,patch_i_pos,
+                        WorldVectorTo_x0y0,WorldVectorTo_x0y1,
+                        WorldVectorTo_x1y0,WorldVectorTo_x1y1);
+
+                    WorldVectorTo_x0y0 = x0norm * -patch_i_basisV + y0norm * patch_i_normal + patch_i_basisU;
+                    WorldVectorTo_x0y1 = x0norm * -patch_i_basisV + y1norm * patch_i_normal + patch_i_basisU;
+                    WorldVectorTo_x1y0 = x1norm * -patch_i_basisV + y0norm * patch_i_normal + patch_i_basisU;
+                    WorldVectorTo_x1y1 = x1norm * -patch_i_basisV + y1norm * patch_i_normal + patch_i_basisU;
+
+                    OccHessTriangulate2x2(x0,y0,x1,y1,SF2Data,patch_i_pos,
+                        WorldVectorTo_x0y0,WorldVectorTo_x0y1,
+                        WorldVectorTo_x1y0,WorldVectorTo_x1y1);
+
+                    WorldVectorTo_x0y0 = x0norm * patch_i_basisV + y0norm * patch_i_normal - patch_i_basisU;
+                    WorldVectorTo_x0y1 = x0norm * patch_i_basisV + y1norm * patch_i_normal - patch_i_basisU;
+                    WorldVectorTo_x1y0 = x1norm * patch_i_basisV + y0norm * patch_i_normal - patch_i_basisU;
+                    WorldVectorTo_x1y1 = x1norm * patch_i_basisV + y1norm * patch_i_normal - patch_i_basisU;
+
+                    OccHessTriangulate2x2(x0,y0,x1,y1,SF3Data,patch_i_pos,
+                        WorldVectorTo_x0y0,WorldVectorTo_x0y1,
+                        WorldVectorTo_x1y0,WorldVectorTo_x1y1);
                 }
 
-                all_light_indirect[i] = RadiositiesAccumulator;
+                // TODO Triangles in faces are done, but triangles between faces need to be stitched
+
+
+                // At this point, the triangulation is complete
+                float IrradianceSample = 0.f;
+                vec3 IrradianceGradient = {};
+                mat3 IrradianceHessian = {};
+                float TESTING_TriangleFormFactorSum = 0.f;
+                u32 TriangleCount = (u32)arrlenu(OccHessTriangles);
+                for (u32 tri = 0; tri < TriangleCount; ++tri)
+                {
+                    occlusion_hessian_tri Triangle = OccHessTriangles[tri];
+
+                    float TriangleFormFactor = 0.f;
+                    vec3 GradientOfFormFactor;
+                    mat3 HessianOfFormFactor;
+                    for (int v = 0; v < 3; ++v)
+                    {
+                        occlusion_hessian_tri_vert Vert = Triangle[v];
+
+                        // Triangle form factor
+                        // https://web.archive.org/web/20240421111046/https://inria.hal.science/inria-00098630/document
+                        vec3 CrossProd = Cross(Vert.r, Vert.rnext);
+                        float Gamma = acosf(Dot(Normalize(Vert.r), Normalize(Vert.rnext)));
+                        float I1 = Gamma / Magnitude(CrossProd);
+                        TriangleFormFactor += I1 * Dot(patch_i_normal, CrossProd);
+
+
+                        // TODO Gradient of form factor
+                        // GradientOfFormFactor += ;
+
+                        // TODO Hessian of form factor
+                        // HessianOfFormFactor += ;
+
+                    }
+                    TriangleFormFactor *= GM_ONEOVERTWOPI;
+                    GradientOfFormFactor *= GM_ONEOVERTWOPI;
+                    HessianOfFormFactor = Mul(HessianOfFormFactor, GM_ONEOVERPI);
+
+                    IrradianceSample += Triangle.Radiance * TriangleFormFactor;
+                    IrradianceGradient += Triangle.Radiance * GradientOfFormFactor;
+                    IrradianceHessian = Add(IrradianceHessian, Mul(HessianOfFormFactor, Triangle.Radiance));
+
+                    TESTING_TriangleFormFactorSum += TriangleFormFactor;
+                }
+
+                // Check what sum of TriangleFormFactor is. It SHOULD be close to 1.
+                LogMessage("Triangle form factor sum %f", TESTING_TriangleFormFactorSum);
+                LogMessage("Irradiance Sample %f", IrradianceSample);
+
+                // TODO Create cache entry for this face.
+                //      Calculate Cache Radius
+
+
+                glUnmapBuffer(GL_PIXEL_PACK_BUFFER);
             }
 
-            // pixelprocessingtimeaccum += (SDL_GetTicks() - pixelstart)/1000.f;
+            // TODO Irradiance Cache population is complete for this face
+            //      Now go through every texel of this face again and perform interpolation!
+            //      Unless the texel was a hemicube sampled texel (exact irradiance known)
+            //      need to communicate that somehow
+            // set just the all_light_indirect buffer
+            for (u32 i = 0; i < NumTexelsOnFace; ++i)
+            {
+                // TODO check if texel should be sampled or ignored
+                // if (ignore) 
+                //     continue;
 
-            glUnmapBuffer(GL_PIXEL_PACK_BUFFER);
+                // if should be sampled, then it must be covered by at least one cache entry
+                // if it is not covered, then something went wrong!!!
 
-            if (RDOCAPI) RDOCAPI->EndFrameCapture(NULL, NULL);
+                float IrradianceAtTexel = 0.f;
+                FaceLightMap.light_indirect[i] = IrradianceAtTexel;
+            }
+            // At this point, all_light_indirect for the texels we care about have been updated
         }
 
-        // update global illumination values
+        // Update global illumination buffer
         u32 all_lmsz = (u32)arrlenu(all_light_global);
         for (u32 i = 0; i < all_lmsz; ++i)
         {
@@ -1643,25 +1826,48 @@ bool BuildGameMap(const char *path)
 
         LogMessage("Finished bounce %d", bounces + 1);
     }
+    // At this point, global illumination computation is complete
+
+    // TODO
+    u32 all_lmsz = (u32)arrlenu(all_light_global);
+    for (u32 i = 0; i < all_lmsz; ++i)
+    {
+        all_light_global[i] = all_light_direct[i];
+    }
 
 
-    // u32 forloopendms = SDL_GetTicks();
-    // float forlooptime = (forloopendms - forloopstartms) / 1000.f;
-    // LogMessage("drawingtime %fs", drawingtimeaccum);
-    // LogMessage("mappingtime %fs", mappingtimeaccum);
-    // LogMessage("pixelprocessingtime %fs", pixelprocessingtimeaccum);
-    // LogMessage("forloop %fs", forlooptime);
+    u32 TriangleCount = (u32)arrlenu(OccHessTriangles);
+    for (u32 tri = 0; tri < TriangleCount; ++tri)
+    {
+        occlusion_hessian_tri Triangle = OccHessTriangles[tri];
+
+        for (int v = 0; v < 3; ++v)
+        {
+            occlusion_hessian_tri_vert Vert = Triangle[v];
+            MyFuckingMesh.push_back(Vert.WorldR.x);
+            MyFuckingMesh.push_back(Vert.WorldR.y);
+            MyFuckingMesh.push_back(Vert.WorldR.z);
+            MyFuckingMesh.push_back(Triangle.Radiance);
+            MyFuckingMesh.push_back(Triangle.Radiance);
+            MyFuckingMesh.push_back(Triangle.Radiance);
+        }   
+    }
+
+
+
+
+
+
+
     glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glDeleteBuffers(1, &HemicubePBO);
     DeleteGPUFrameBuffer(&HemicubeFBO);
-    DeleteGPUTexture(&patchesIdBatch.sharedTexture);
-    DeleteFaceBatchMeshOnGPU(patchesIdBatch.idVAO, patchesIdBatch.idVBO);
+    DeleteGPUTexture(&SceneLightingModel.sharedTexture);
+    DeleteFaceBatchMeshOnGPU(SceneLightingModel.idVAO, SceneLightingModel.idVBO);
 
-    // Blit to light map atlas
-    float *LIGHT_MAP_ATLAS = NULL;
-    arrsetcap(LIGHT_MAP_ATLAS, lightMapAtlasW*lightMapAtlasH);
-    for (size_t i = 0; i < rectcount; ++i)
+    // Final blit to light map atlas
+    for (size_t i = 0; i < LightMapRectsCount; ++i)
     {
         stbrp_rect rect = lm_rects[i];
         if (rect.was_packed == 0) continue;
@@ -1680,9 +1886,10 @@ bool BuildGameMap(const char *path)
     arrfree(all_lm_pos);
     arrfree(all_lm_norm);
     arrfree(all_light_global);
-    arrfree(all_patches_id);
+    // arrfree(all_patches_id);
     arrfree(all_light_direct);
     arrfree(all_light_indirect);
+    arrfree(OccHessTriangles);
 
 
     // colliders

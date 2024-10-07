@@ -43,7 +43,9 @@ STANDARDS:
 #define GM_RIGHT_VECTOR vec3(0.f,0.f,1.f)
 #define GM_LEFT_VECTOR (-GM_RIGHT_VECTOR)
 #define GM_PI 3.141592653589f
+#define GM_ONEOVERPI 0.318309886f
 #define GM_TWOPI 6.28318530718f
+#define GM_ONEOVERTWOPI 0.159154943f
 #define GM_HALFPI 1.570796f
 #define GM_QUARTERPI 0.785398f
 #define GM_D2R GM_DEG2RAD
@@ -968,6 +970,15 @@ inline vec3 Lerp(vec3 from, vec3 to, float ratio) { return((1.0f - ratio) * from
 inline vec4 Lerp(vec4 from, vec4 to, float ratio) { return((1.0f - ratio) * from + to * ratio); }
 
 
+inline mat3 Add(const mat3& a, const mat3& b)
+{
+    mat3 ret;
+    ret[0] = a[0] + b[0];
+    ret[1] = a[1] + b[1];
+    ret[2] = a[2] + b[2];
+    return ret;
+}
+
 inline mat3 Mul(const mat3& a, const mat3& b)
 {
     mat3 res;
@@ -990,6 +1001,25 @@ inline mat3 Mul(const mat3& a, const mat3& b)
 inline vec3 Mul(const mat3& A, vec3 v)
 {
     return A[0] * v.x + A[1] * v.y + A[2] * v.z;
+}
+
+inline mat3 Mul(const mat3& A, float v) // NEED TEST and maybe operator
+{
+    mat3 ret;
+    ret[0] = A[0] * v;
+    ret[1] = A[1] * v;
+    ret[2] = A[2] * v;
+    return ret;
+}
+
+inline mat4 Add(const mat4& a, const mat4& b)
+{
+    mat4 ret;
+    ret[0] = a[0] + b[0];
+    ret[1] = a[1] + b[1];
+    ret[2] = a[2] + b[2];
+    ret[3] = a[3] + b[3];
+    return ret;
 }
 
 inline mat4 Mul(const mat4& a, const mat4& b)
@@ -1022,6 +1052,16 @@ inline mat4 Mul(const mat4& a, const mat4& b)
 inline vec4 Mul(const mat4& A, vec4 v)
 {
     return A[0] * v.x + A[1] * v.y + A[2] * v.z + A[3] * v.w;
+}
+
+inline mat4 Mul(const mat4& A, float v) // NEED TEST and maybe operator
+{
+    mat4 ret;
+    ret[0] = A[0] * v;
+    ret[1] = A[1] * v;
+    ret[1] = A[1] * v;
+    ret[3] = A[3] * v;
+    return ret;
 }
 
 inline vec3 operator*(mat3 A, vec3 v) { return(Mul(A, v)); }
