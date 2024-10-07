@@ -8,7 +8,7 @@ IF "%1"=="-r" goto run-release
 goto run-debug
 
 :run-vs
-devenv build\Debug.game.exe
+devenv build\Debug\game.exe
 goto end
 
 :run-subl

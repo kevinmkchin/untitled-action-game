@@ -10,6 +10,11 @@ Handcrafted with love.
 
 
 - Irradiance Caching!!!
+    My Irradiance Caching implementation might be marginally slower than drawing hemicube
+    at every single texel at a big patch size like 8x8 or 4x4. BUT! The point of it is that
+    I can scale down the patch size (i.e. way more texels per surface) and irradiance caching
+    should perform better than drawing millions of hemicubes. Only one way to find out.
+
     Reduce hemicube sample count (adaptive sampling)
     Able to extrapolate irradiance values across surface
     Bad hemicube samples are corrected for free via extrapolation. Just need to detect and discard bad samples.
@@ -23,7 +28,6 @@ Handcrafted with love.
     Volume wasteful bcause lots of useless collider faces and light mapped faces.
     I think Source 2 mainly uses face creation rather than volume.
       Best workflow is extrude faces and extrude edges.
-- Perhaps there's a way to tag and ignore patches that are super far away from actual polygon (enough so that it wouldn't be needed for padding)
 
 
 TODO:
@@ -270,6 +274,8 @@ RENDERDOC_API_1_6_0 *RDOCAPI = NULL;
 
 bool IsEditorActive = false;
 
+std::vector<float> MyFuckingMesh;
+
 
 #pragma endregion
 
@@ -427,18 +433,22 @@ struct GPUTexture
     GLuint id = 0; // ID for the texture in GPU memory
     i32 width = 0;
     i32 height = 0;
-    GLenum  format = GL_NONE; // format / bitdepth of texture (GL_RGB would be 3 byte bit depth)
+    // https://registry.khronos.org/OpenGL-Refpages/gl4/html/glTexImage2D.xhtml
+    GLenum TargetFormat = GL_NONE; // internalformat
+    GLenum SourceFormat = GL_NONE; // pixel data format
+    GLenum PixelDataType = GL_NONE; // pixel data type
 };
 
 bool GLHasErrors();
 
-static void CreateGPUFrameBuffer(GPUFrameBuffer *buffer, GLenum colorDepth = GL_RGBA)
+static void CreateGPUFrameBuffer(GPUFrameBuffer *buffer, 
+    GLenum TargetFormat = GL_RGBA, GLenum SourceFormat = GL_RGBA, GLenum type = GL_UNSIGNED_BYTE)
 {
     buffer->fbo = 0;
 
     glGenTextures(1, &buffer->colorTexId);
     glBindTexture(GL_TEXTURE_2D, buffer->colorTexId);
-    glTexImage2D(GL_TEXTURE_2D, 0, colorDepth, buffer->width, buffer->height, 0, colorDepth, GL_UNSIGNED_BYTE, nullptr);
+    glTexImage2D(GL_TEXTURE_2D, 0, TargetFormat, buffer->width, buffer->height, 0, SourceFormat, type, nullptr);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 
@@ -611,7 +621,9 @@ static void CreateGPUTextureFromBitmap(GPUTexture        *texture,
 
     texture->width = bitmap_width;
     texture->height = bitmap_height;
-    texture->format = source_format;
+    texture->TargetFormat = target_format;
+    texture->SourceFormat = source_format;
+    texture->PixelDataType = pixel_data_type;
 
     glGenTextures(1, &texture->id);   // generate texture and grab texture id
     glBindTexture(GL_TEXTURE_2D, texture->id);
@@ -664,12 +676,12 @@ static void UpdateGPUTextureFromBitmap(GPUTexture *texture, unsigned char *bitma
     glTexImage2D(
         GL_TEXTURE_2D,            // texture target type
         0,                        // level-of-detail number n = n-th mipmap reduction image
-        texture->format,          // format of data to store (target): num of color components
+        texture->TargetFormat,    // format of data to store (target): num of color components
         w,                        // texture width
         h,                        // texture height
         0,                        // must be 0 (legacy)
-        texture->format,          // format of data being loaded (source)
-        GL_UNSIGNED_BYTE,         // data type of the texture data
+        texture->SourceFormat,    // format of data being loaded (source)
+        texture->PixelDataType,   // data type of the texture data
         bitmap);                  // data
     glBindTexture(GL_TEXTURE_2D, 0);
 }
@@ -684,7 +696,9 @@ static void DeleteGPUTexture(GPUTexture *texture)
     texture->id = 0;
     texture->width = 0;
     texture->height = 0;
-    texture->format = GL_NONE;
+    texture->TargetFormat = GL_NONE;
+    texture->SourceFormat = GL_NONE;
+    texture->PixelDataType = GL_NONE;
 }
 
 
@@ -1074,7 +1088,7 @@ static void TickGame()
 {
 #if !SUNLIGHT_TEST
     PrimitiveDrawSolidDisc(TestLightSource, -CameraDirection, 3.f);
-    PrimitiveDrawSolidDisc(TestLightSource2, -CameraDirection, 3.f);
+    // PrimitiveDrawSolidDisc(TestLightSource2, -CameraDirection, 3.f);
 #endif
     // Gui::PrimitivePanel(Gui::UIRect(0,0, 400,400), Temporary_TestTex0.id);
     // Gui::PrimitivePanel(Gui::UIRect(0,400, 400,200), Temporary_TestTex1.id);
@@ -1223,6 +1237,10 @@ static void RenderGameLayer()
         glDisable(GL_DEPTH_TEST);
     glDisable(GL_CULL_FACE);
     PrimitiveDrawAll(&perspectiveMatrix, &viewMatrix, RenderTargetGame.depthTexId, vec2((float)RenderTargetGame.width, (float)RenderTargetGame.height));
+
+    // TODO
+    //DrawHandlesVertexArray_GL(MyFuckingMesh.data(), MyFuckingMesh.size(), RenderTargetGame.fbo, 
+    //    RenderTargetGame.width, RenderTargetGame.height, perspectiveMatrix.ptr(), viewMatrix.ptr());
 }
 
 static void RenderMapEditorLayer()
@@ -1439,7 +1457,7 @@ static void InitGameRenderer()
 
 
     GLLoadShaderProgramFromFile(GameLevelShader, wd_path("__game_level.vert").c_str(), wd_path("__game_level.frag").c_str());
-    GLLoadShaderProgramFromFile(PatchesIDShader, wd_path("__game_level.vert").c_str(), wd_path("__patches_id.frag").c_str());
+    GLLoadShaderProgramFromFile(PatchesIDShader, wd_path("__patches_id.vert").c_str(), wd_path("__patches_id.frag").c_str());
     GLCreateShaderProgram(EditorShader_Scene, __editor_scene_shader_vs, __editor_scene_shader_fs);
     GLCreateShaderProgram(EditorShader_Wireframe, __editor_scene_wireframe_shader_vs, __editor_scene_wireframe_shader_fs);
     GLCreateShaderProgram(EditorShader_FaceSelected, __editor_shader_face_selected_vs, __editor_shader_face_selected_fs);
@@ -1638,8 +1656,11 @@ int main(int argc, char* argv[])
 
     LoadMapEditor();
 
+    // RDOCAPI->LaunchReplayUI(1, "");
+
 #if SUNLIGHT_TEST
-    EditorDeserializeMap(wd_path("SunlightTestRooms2.emf").c_str());
+    EditorDeserializeMap(wd_path("House.emf").c_str());
+    // EditorDeserializeMap(wd_path("IrradianceCachingTest.emf").c_str());
 #else
     EditorDeserializeMap(wd_path("LightTest.emf").c_str());
 #endif
@@ -1667,8 +1688,6 @@ int main(int argc, char* argv[])
         // DrawMapEditor();
 
         SDL_GL_SwapWindow(SDLMainWindow);
-
-        // printf("LAST FRAME TIME: %.2fms   FPS: %dhz\n", 1000.f * g_UnscaledDeltaTime, (i16)(1.f / g_UnscaledDeltaTime));
     }
 
     CloseMapEditor();
