@@ -987,7 +987,10 @@ vec3 TestLightSource = vec3(0, 110, 0);
 vec3 TestLightSource2 = vec3(150, 110, 0);
 LevelPolygonOctree LightMapOcclusionTree;
 const float LightMapPatchSize = 4.f;
-const u32 HemicubeFaceW = 64;
+const int HemicubeFaceW = 64;
+const int HemicubeFaceH = HemicubeFaceW;
+const int HemicubeFaceWHalf = HemicubeFaceW/2;
+const int HemicubeFaceHHalf = HemicubeFaceH/2;
 
 struct occlusion_hessian_tri_vert
 {
@@ -1014,103 +1017,167 @@ struct occlusion_hessian_tri
 
 occlusion_hessian_tri *OccHessTriangles = NULL;
 
-// make 2 triangles:
-// x0,y0 -> x0,y1 -> x1,y0   x0,y1 -> x1,y1 -> x1,y0
-void OccHessTriangulate2x2(int x0, int y0, int x1, int y1, float *Data, vec3 SamplePoint,
-    vec3 to00, vec3 to01, vec3 to10, vec3 to11)
+
+// Generic create two triangles between 4 pixels
+// THE WINDING ORDER MATTERS FOR FORM FACTOR CALCULATION
+void OccHessTriangulateStitchSides(
+    int AStart, int ALast, int AStride, float *AFaceData, vec3 ARight, vec3 AUp, vec3 AForward,  
+    int BStart, int BLast, int BStride, float *BFaceData, vec3 BRight, vec3 BUp, vec3 BForward,
+    vec3 SamplePoint, bool SkipRightEdge = false, int *BackFaceCount = NULL)
 {
-    int index = y0 * HemicubeFaceW * 4 + x0 * 4;
-    vec3 WorldPos_x0y0 = { Data[index], Data[index+1], Data[index+2] };
-    float Radiance_x0y0 = Data[index+3];
-    index = y1 * HemicubeFaceW * 4 + x0 * 4;
-    vec3 WorldPos_x0y1 = { Data[index], Data[index+1], Data[index+2] };
-    float Radiance_x0y1 = Data[index+3];
-    index = y0 * HemicubeFaceW * 4 + x1 * 4;
-    vec3 WorldPos_x1y0 = { Data[index], Data[index+1], Data[index+2] };
-    float Radiance_x1y0 = Data[index+3];
-    index = y1 * HemicubeFaceW * 4 + x1 * 4;
-    vec3 WorldPos_x1y1 = { Data[index], Data[index+1], Data[index+2] };
-    float Radiance_x1y1 = Data[index+3];
-
-    // Ray hits nothing
-    if (WorldPos_x0y0.x == 0.8115956f && 
-        WorldPos_x0y0.y == 0.3775576f && 
-        WorldPos_x0y0.z == 0.5555464f)
+    // two triangles: pa0 -> pb0 -> pa1   pb0 -> pb1 -> pa1
+    int pa0 = AStart;
+    int pa1 = AStart + AStride;
+    int pb0 = BStart;
+    int pb1 = BStart + BStride;
+    while (pa0 != ALast)
     {
-        WorldPos_x0y0 = SamplePoint + Normalize(to00) * 10000.f;
-        Radiance_x0y0 = 0.f;
+        if (SkipRightEdge && pa0 % HemicubeFaceW == HemicubeFaceW-1)
+        {
+            pa0 += AStride;
+            pa1 += AStride;
+            pb0 += BStride;
+            pb1 += BStride;
+            continue;
+        }
+
+        // figure out world vector from sample point to the pixel in case it hits nothing or backface
+        float ax0norm = (float(pa0 % HemicubeFaceW) + 0.5f) / float(HemicubeFaceHHalf) - 1.f;
+        float ay0norm = (float(pa0 / HemicubeFaceW) + 0.5f) / float(HemicubeFaceWHalf) - 1.f;
+        float ax1norm = (float(pa1 % HemicubeFaceW) + 0.5f) / float(HemicubeFaceWHalf) - 1.f;
+        float ay1norm = (float(pa1 / HemicubeFaceW) + 0.5f) / float(HemicubeFaceWHalf) - 1.f;
+
+        float bx0norm = (float(pb0 % HemicubeFaceW) + 0.5f) / float(HemicubeFaceHHalf) - 1.f;
+        float by0norm = (float(pb0 / HemicubeFaceW) + 0.5f) / float(HemicubeFaceWHalf) - 1.f;
+        float bx1norm = (float(pb1 % HemicubeFaceW) + 0.5f) / float(HemicubeFaceWHalf) - 1.f;
+        float by1norm = (float(pb1 / HemicubeFaceW) + 0.5f) / float(HemicubeFaceWHalf) - 1.f;
+
+        vec3 WorldVectorTo_pa0 = ax0norm * ARight + ay0norm * AUp + AForward;
+        vec3 WorldVectorTo_pa1 = ax1norm * ARight + ay1norm * AUp + AForward;
+        vec3 WorldVectorTo_pb0 = bx0norm * BRight + by0norm * BUp + BForward;
+        vec3 WorldVectorTo_pb1 = bx1norm * BRight + by1norm * BUp + BForward;
+
+        // index hemicube pixels
+        vec3  WorldPos_pa0 = { AFaceData[pa0*4], AFaceData[pa0*4+1], AFaceData[pa0*4+2] };
+        float Radiance_pa0 = AFaceData[pa0*4+3];
+        vec3  WorldPos_pa1 = { AFaceData[pa1*4], AFaceData[pa1*4+1], AFaceData[pa1*4+2] };
+        float Radiance_pa1 = AFaceData[pa1*4+3];
+        vec3  WorldPos_pb0 = { BFaceData[pb0*4], BFaceData[pb0*4+1], BFaceData[pb0*4+2] };
+        float Radiance_pb0 = BFaceData[pb0*4+3];
+        vec3  WorldPos_pb1 = { BFaceData[pb1*4], BFaceData[pb1*4+1], BFaceData[pb1*4+2] };
+        float Radiance_pb1 = BFaceData[pb1*4+3];
+
+// NOTE(Kevin): I don't love the way I'm tagging NOTHING and BACKFACE pixels...
+#define RAY_HITS_NOTHING(pos) (pos.x == 0.8115956f && pos.y == 0.3775576f && pos.z == 0.5555464f)
+        if (RAY_HITS_NOTHING(WorldPos_pa0))
+        {
+            WorldPos_pa0 = SamplePoint + Normalize(WorldVectorTo_pa0) * 10000.f;
+            Radiance_pa0 = 0.f;
+        }
+        if (RAY_HITS_NOTHING(WorldPos_pa1))
+        {
+            WorldPos_pa1 = SamplePoint + Normalize(WorldVectorTo_pa1) * 10000.f;
+            Radiance_pa1 = 0.f;
+        }
+        if (RAY_HITS_NOTHING(WorldPos_pb0))
+        {
+            WorldPos_pb0 = SamplePoint + Normalize(WorldVectorTo_pb0) * 10000.f;
+            Radiance_pb0 = 0.f;
+        }
+        if (RAY_HITS_NOTHING(WorldPos_pb1))
+        {
+            WorldPos_pb1 = SamplePoint + Normalize(WorldVectorTo_pb1) * 10000.f;
+            Radiance_pb1 = 0.f;
+        }
+#undef RAY_HITS_NOTHING
+#define RAY_HITS_BACKFACE(rad, pos) (GM_abs(rad - 0.802f) < 0.001f && pos.x == 0.326f)
+        // then just pretend as ray hit nothing (i.e. sky)
+        if (RAY_HITS_BACKFACE(Radiance_pa0, WorldPos_pa0))
+        {
+            WorldPos_pa0 = SamplePoint + Normalize(WorldVectorTo_pa0) * 10000.f;
+            Radiance_pa0 = 0.f;
+            if (BackFaceCount != NULL) 
+                ++(*BackFaceCount);
+        }
+        if (RAY_HITS_BACKFACE(Radiance_pa1, WorldPos_pa1))
+        {
+            WorldPos_pa1 = SamplePoint + Normalize(WorldVectorTo_pa1) * 10000.f;
+            Radiance_pa1 = 0.f;
+            if (BackFaceCount != NULL) 
+                ++(*BackFaceCount);
+        }
+        if (RAY_HITS_BACKFACE(Radiance_pb0, WorldPos_pb0))
+        {
+            WorldPos_pb0 = SamplePoint + Normalize(WorldVectorTo_pb0) * 10000.f;
+            Radiance_pb0 = 0.f;
+            if (BackFaceCount != NULL) 
+                ++(*BackFaceCount);
+        }
+        if (RAY_HITS_BACKFACE(Radiance_pb1, WorldPos_pb1))
+        {
+            WorldPos_pb1 = SamplePoint + Normalize(WorldVectorTo_pb1) * 10000.f;
+            Radiance_pb1 = 0.f;
+            if (BackFaceCount != NULL) 
+                ++(*BackFaceCount);
+        }
+#undef RAY_HITS_BACKFACE
+
+        // triangulate
+        vec3 ri, riplus1;
+        occlusion_hessian_tri Tri0, Tri1;
+
+        vec3 Verts[] = { WorldPos_pa0, WorldPos_pa1, WorldPos_pb0, WorldPos_pb1 };
+        float Radia[] = { Radiance_pa0, Radiance_pa1, Radiance_pb0, Radiance_pb1 };
+
+        float dist_0 = Magnitude(Verts[0] - SamplePoint);
+        float dist_1 = Magnitude(Verts[1] - SamplePoint);
+        float dist_2 = Magnitude(Verts[2] - SamplePoint);
+        float dist_3 = Magnitude(Verts[3] - SamplePoint);
+
+        float furthestDistTri0 = GM_max(dist_0, GM_max(dist_1, dist_2));
+        if (furthestDistTri0 == dist_0) Tri0.Radiance = Radia[0];
+        if (furthestDistTri0 == dist_1) Tri0.Radiance = Radia[1];
+        if (furthestDistTri0 == dist_2) Tri0.Radiance = Radia[2];
+
+        float furthestDistTri1 = GM_max(dist_1, GM_max(dist_3, dist_2));
+        if (furthestDistTri1 == dist_1) Tri1.Radiance = Radia[1];
+        if (furthestDistTri1 == dist_3) Tri1.Radiance = Radia[3];
+        if (furthestDistTri1 == dist_2) Tri1.Radiance = Radia[2];
+
+        ri = Verts[0] - SamplePoint;
+        riplus1 = Verts[1] - SamplePoint;
+        Tri0.v0 = { ri, riplus1, riplus1 - ri, Verts[0] };
+
+        ri = Verts[1] - SamplePoint;
+        riplus1 = Verts[2] - SamplePoint;
+        Tri0.v1 = { ri, riplus1, riplus1 - ri, Verts[1] };
+
+        ri = Verts[2] - SamplePoint;
+        riplus1 = Verts[0] - SamplePoint;
+        Tri0.v2 = { ri, riplus1, riplus1 - ri, Verts[2] };
+
+        ri = Verts[1] - SamplePoint;
+        riplus1 = Verts[3] - SamplePoint;
+        Tri1.v0 = { ri, riplus1, riplus1 - ri, Verts[1] };
+
+        ri = Verts[3] - SamplePoint;
+        riplus1 = Verts[2] - SamplePoint;
+        Tri1.v1 = { ri, riplus1, riplus1 - ri, Verts[3] };
+
+        ri = Verts[2] - SamplePoint;
+        riplus1 = Verts[1] - SamplePoint;
+        Tri1.v2 = { ri, riplus1, riplus1 - ri, Verts[2] };
+
+        arrput(OccHessTriangles, Tri0);
+        arrput(OccHessTriangles, Tri1);
+
+        // then move pixel indices
+        pa0 += AStride;
+        pa1 += AStride;
+        pb0 += BStride;
+        pb1 += BStride;
     }
-    if (WorldPos_x0y1.x == 0.8115956f && 
-        WorldPos_x0y1.y == 0.3775576f && 
-        WorldPos_x0y1.z == 0.5555464f)
-    {
-        WorldPos_x0y1 = SamplePoint + Normalize(to01) * 10000.f;
-        Radiance_x0y1 = 0.f;
-    }
-    if (WorldPos_x1y0.x == 0.8115956f && 
-        WorldPos_x1y0.y == 0.3775576f && 
-        WorldPos_x1y0.z == 0.5555464f)
-    {
-        WorldPos_x1y0 = SamplePoint + Normalize(to10) * 10000.f;
-        Radiance_x1y0 = 0.f;
-    }
-    if (WorldPos_x1y1.x == 0.8115956f && 
-        WorldPos_x1y1.y == 0.3775576f && 
-        WorldPos_x1y1.z == 0.5555464f)
-    {
-        WorldPos_x1y1 = SamplePoint + Normalize(to11) * 10000.f;
-        Radiance_x1y1 = 0.f;
-    }
-
-    // TODO Check if fragment data we read back signals backface
-
-    float dist_x0y0 = Magnitude(WorldPos_x0y0 - SamplePoint);
-    float dist_x0y1 = Magnitude(WorldPos_x0y1 - SamplePoint);
-    float dist_x1y0 = Magnitude(WorldPos_x1y0 - SamplePoint);
-    float dist_x1y1 = Magnitude(WorldPos_x1y1 - SamplePoint);
-    float TriRadiance = 0.f;
-
-    vec3 ri, riplus1;
-    occlusion_hessian_tri Tri0, Tri1;
-
-    float furthestDistTri0 = GM_max(dist_x0y0, GM_max(dist_x0y1, dist_x1y0));
-    if (furthestDistTri0 == dist_x0y0) TriRadiance = Radiance_x0y0;
-    if (furthestDistTri0 == dist_x0y1) TriRadiance = Radiance_x0y1;
-    if (furthestDistTri0 == dist_x1y0) TriRadiance = Radiance_x1y0;
-    Tri0.Radiance = TriRadiance;
-
-    ri = WorldPos_x0y0 - SamplePoint;
-    riplus1 = WorldPos_x0y1 - SamplePoint;
-    Tri0.v0 = { ri, riplus1, riplus1 - ri, WorldPos_x0y0 };
-
-    ri = WorldPos_x0y1 - SamplePoint;
-    riplus1 = WorldPos_x1y0 - SamplePoint;
-    Tri0.v1 = { ri, riplus1, riplus1 - ri, WorldPos_x0y1 };
-
-    ri = WorldPos_x1y0 - SamplePoint;
-    riplus1 = WorldPos_x0y0 - SamplePoint;
-    Tri0.v2 = { ri, riplus1, riplus1 - ri, WorldPos_x1y0 };
-
-    float furthestDistTri1 = GM_max(dist_x0y1, GM_max(dist_x1y1, dist_x1y0));
-    if (furthestDistTri1 == dist_x0y1) TriRadiance = Radiance_x0y1;
-    if (furthestDistTri1 == dist_x1y1) TriRadiance = Radiance_x1y1;
-    if (furthestDistTri1 == dist_x1y0) TriRadiance = Radiance_x1y0;
-    Tri1.Radiance = TriRadiance;
-
-    ri = WorldPos_x0y1 - SamplePoint;
-    riplus1 = WorldPos_x1y1 - SamplePoint;
-    Tri1.v0 = { ri, riplus1, riplus1 - ri, WorldPos_x0y1 };
-
-    ri = WorldPos_x1y1 - SamplePoint;
-    riplus1 = WorldPos_x1y0 - SamplePoint;
-    Tri1.v1 = { ri, riplus1, riplus1 - ri, WorldPos_x1y1 };
-
-    ri = WorldPos_x1y0 - SamplePoint;
-    riplus1 = WorldPos_x0y1 - SamplePoint;
-    Tri1.v2 = { ri, riplus1, riplus1 - ri, WorldPos_x1y0 };
-
-    arrput(OccHessTriangles, Tri0);
-    arrput(OccHessTriangles, Tri1);
+    ASSERT(pb0 == BLast); // parameters were set up wrong then
 }
 
 void Threaded_DoDirectLightingIntoLightMap(u32 patchIndexStart, u32 patchIndexEnd)
@@ -1507,9 +1574,6 @@ bool BuildGameMap(const char *path)
         lightMapAtlasW, lightMapAtlasH, GL_R32F, GL_RED, GL_LINEAR, GL_LINEAR, GL_FLOAT);
 
 
-    const u32 HemicubeFaceH = HemicubeFaceW;
-    const u32 HemicubeFaceWHalf = HemicubeFaceW/2;
-    const u32 HemicubeFaceHHalf = HemicubeFaceH/2;
     const int HemicubeFaceArea = HemicubeFaceW * HemicubeFaceH;
     const int HemicubeFaceAreaHalf = HemicubeFaceW * HemicubeFaceHHalf;
     const float PixelAreaInSolidAngle = GM_PI / float(2 * HemicubeFaceW * HemicubeFaceH);
@@ -1642,105 +1706,140 @@ bool BuildGameMap(const char *path)
 
 
                 // Map the PBO to access pixel data in system memory
-                float *TFData = (float*)glMapBuffer(GL_PIXEL_PACK_BUFFER, GL_READ_ONLY); 
-                ASSERT(TFData);
-                float *SF0Data = TFData + PBOSz;
-                float *SF1Data = TFData + PBOSz*2;
-                float *SF2Data = TFData + PBOSz*3;
-                float *SF3Data = TFData + PBOSz*4;
+                float *FrontFaceData = (float*)glMapBuffer(GL_PIXEL_PACK_BUFFER, GL_READ_ONLY); 
+                ASSERT(FrontFaceData);
+                float *UpFaceData = FrontFaceData + PBOSz;
+                float *DownFaceData = FrontFaceData + PBOSz*2;
+                float *LeftFaceData = FrontFaceData + PBOSz*3;
+                float *RightFaceData = FrontFaceData + PBOSz*4;
 
 
-                int BackfacePixelCount = 0;
-                
                 // start mesh creation
                 arrsetlen(OccHessTriangles, 0);
+                int BackfacePixelCount = 0;
+                const int BotLeft = 0;
+                const int BotRight = HemicubeFaceW-1;
+                const int TopLeft = HemicubeFaceArea-HemicubeFaceW;
+                const int TopRight = HemicubeFaceArea-1;
+                const int HalfLeft = HemicubeFaceAreaHalf;
+                const int HalfRight = HemicubeFaceAreaHalf+HemicubeFaceW-1;
 
-                bool FlagBadSample = false;
+                // front face
+                OccHessTriangulateStitchSides(
+                    BotLeft, TopRight-HemicubeFaceW, 1, FrontFaceData,
+                    -patch_i_basisU, patch_i_basisV, patch_i_normal,
+                    BotLeft+HemicubeFaceW, TopRight, 1, FrontFaceData, 
+                    -patch_i_basisU, patch_i_basisV, patch_i_normal,
+                    patch_i_pos, true, &BackfacePixelCount);
 
-                // TODO BACKFACE DETECTION AND WHAT DO I DO THEN
-                // if (RadianceFromFragment == -1.f)
-                // {
-                //     // backface!
-                //     // how about, if there's ANY backfaces at all it's not a valid sample point?
-                //     FlagBadSample = true;
-                //     break;
-                // }
+                // up face
+                OccHessTriangulateStitchSides(
+                    HalfLeft, TopRight-HemicubeFaceW, 1, UpFaceData,
+                    patch_i_basisU, patch_i_normal, patch_i_basisV,
+                    HalfLeft+HemicubeFaceW, TopRight, 1, UpFaceData, 
+                    patch_i_basisU, patch_i_normal, patch_i_basisV,
+                    patch_i_pos, true, &BackfacePixelCount);
 
-                for (int p = 0; p < HemicubeFaceArea; ++p)
+                // down face
+                OccHessTriangulateStitchSides(
+                    HalfLeft, TopRight-HemicubeFaceW, 1, DownFaceData,
+                    -patch_i_basisU, patch_i_normal, -patch_i_basisV,
+                    HalfLeft+HemicubeFaceW, TopRight, 1, DownFaceData, 
+                    -patch_i_basisU, patch_i_normal, -patch_i_basisV,
+                    patch_i_pos, true, &BackfacePixelCount);
+
+                // left face
+                OccHessTriangulateStitchSides(
+                    HalfLeft, TopRight-HemicubeFaceW, 1, LeftFaceData,
+                    -patch_i_basisV, patch_i_normal, patch_i_basisU,
+                    HalfLeft+HemicubeFaceW, TopRight, 1, LeftFaceData, 
+                    -patch_i_basisV, patch_i_normal, patch_i_basisU,
+                    patch_i_pos, true, &BackfacePixelCount);
+
+                // right
+                OccHessTriangulateStitchSides(
+                    HalfLeft, TopRight-HemicubeFaceW, 1, RightFaceData,
+                    patch_i_basisV, patch_i_normal, -patch_i_basisU,
+                    HalfLeft+HemicubeFaceW, TopRight, 1, RightFaceData, 
+                    patch_i_basisV, patch_i_normal, -patch_i_basisU,
+                    patch_i_pos, true, &BackfacePixelCount);
+
+                float BackfaceTolerance = 0.1f;
+                if (BackfacePixelCount > int(BackfaceTolerance * (HemicubeFaceArea + HemicubeFaceAreaHalf * 4)))
                 {
-                    int x0 = p % HemicubeFaceW;
-                    int y0 = p / HemicubeFaceW;
-                    if (x0 >= HemicubeFaceW - 1 || y0 >= HemicubeFaceH - 1)
-                        continue;
-                    int x1 = x0 + 1;
-                    int y1 = y0 + 1;
-
-                    float x0norm = (float(x0) + 0.5f) / float(HemicubeFaceHHalf) - 1.f;
-                    float y0norm = (float(y0) + 0.5f) / float(HemicubeFaceWHalf) - 1.f;
-                    float x1norm = (float(x1) + 0.5f) / float(HemicubeFaceWHalf) - 1.f;
-                    float y1norm = (float(y1) + 0.5f) / float(HemicubeFaceWHalf) - 1.f;
-
-                    vec3 WorldVectorTo_x0y0 = x0norm * -patch_i_basisU + y0norm * patch_i_basisV + patch_i_normal;
-                    vec3 WorldVectorTo_x0y1 = x0norm * -patch_i_basisU + y1norm * patch_i_basisV + patch_i_normal;
-                    vec3 WorldVectorTo_x1y0 = x1norm * -patch_i_basisU + y0norm * patch_i_basisV + patch_i_normal;
-                    vec3 WorldVectorTo_x1y1 = x1norm * -patch_i_basisU + y1norm * patch_i_basisV + patch_i_normal;
-
-                    OccHessTriangulate2x2(x0,y0,x1,y1,TFData,patch_i_pos,
-                        WorldVectorTo_x0y0,WorldVectorTo_x0y1,
-                        WorldVectorTo_x1y0,WorldVectorTo_x1y1);
-                }
-                for (int p = HemicubeFaceAreaHalf; p < HemicubeFaceArea; ++p)
-                {
-                    int x0 = p % HemicubeFaceW;
-                    int y0 = p / HemicubeFaceW;
-                    if (x0 >= HemicubeFaceW - 1 || y0 >= HemicubeFaceH - 1)
-                        continue;
-                    int x1 = x0 + 1;
-                    int y1 = y0 + 1;
-                    
-                    float x0norm = (float(x0) + 0.5f) / float(HemicubeFaceHHalf) - 1.f;
-                    float y0norm = (float(y0) + 0.5f) / float(HemicubeFaceWHalf) - 1.f;
-                    float x1norm = (float(x1) + 0.5f) / float(HemicubeFaceWHalf) - 1.f;
-                    float y1norm = (float(y1) + 0.5f) / float(HemicubeFaceWHalf) - 1.f;
-
-                    vec3 WorldVectorTo_x0y0 = x0norm * patch_i_basisU + y0norm * patch_i_normal + patch_i_basisV;
-                    vec3 WorldVectorTo_x0y1 = x0norm * patch_i_basisU + y1norm * patch_i_normal + patch_i_basisV;
-                    vec3 WorldVectorTo_x1y0 = x1norm * patch_i_basisU + y0norm * patch_i_normal + patch_i_basisV;
-                    vec3 WorldVectorTo_x1y1 = x1norm * patch_i_basisU + y1norm * patch_i_normal + patch_i_basisV;
-
-                    OccHessTriangulate2x2(x0,y0,x1,y1,SF0Data,patch_i_pos,
-                        WorldVectorTo_x0y0,WorldVectorTo_x0y1,
-                        WorldVectorTo_x1y0,WorldVectorTo_x1y1);
-
-                    WorldVectorTo_x0y0 = x0norm * -patch_i_basisU + y0norm * patch_i_normal - patch_i_basisV;
-                    WorldVectorTo_x0y1 = x0norm * -patch_i_basisU + y1norm * patch_i_normal - patch_i_basisV;
-                    WorldVectorTo_x1y0 = x1norm * -patch_i_basisU + y0norm * patch_i_normal - patch_i_basisV;
-                    WorldVectorTo_x1y1 = x1norm * -patch_i_basisU + y1norm * patch_i_normal - patch_i_basisV;
-
-                    OccHessTriangulate2x2(x0,y0,x1,y1,SF1Data,patch_i_pos,
-                        WorldVectorTo_x0y0,WorldVectorTo_x0y1,
-                        WorldVectorTo_x1y0,WorldVectorTo_x1y1);
-
-                    WorldVectorTo_x0y0 = x0norm * -patch_i_basisV + y0norm * patch_i_normal + patch_i_basisU;
-                    WorldVectorTo_x0y1 = x0norm * -patch_i_basisV + y1norm * patch_i_normal + patch_i_basisU;
-                    WorldVectorTo_x1y0 = x1norm * -patch_i_basisV + y0norm * patch_i_normal + patch_i_basisU;
-                    WorldVectorTo_x1y1 = x1norm * -patch_i_basisV + y1norm * patch_i_normal + patch_i_basisU;
-
-                    OccHessTriangulate2x2(x0,y0,x1,y1,SF2Data,patch_i_pos,
-                        WorldVectorTo_x0y0,WorldVectorTo_x0y1,
-                        WorldVectorTo_x1y0,WorldVectorTo_x1y1);
-
-                    WorldVectorTo_x0y0 = x0norm * patch_i_basisV + y0norm * patch_i_normal - patch_i_basisU;
-                    WorldVectorTo_x0y1 = x0norm * patch_i_basisV + y1norm * patch_i_normal - patch_i_basisU;
-                    WorldVectorTo_x1y0 = x1norm * patch_i_basisV + y0norm * patch_i_normal - patch_i_basisU;
-                    WorldVectorTo_x1y1 = x1norm * patch_i_basisV + y1norm * patch_i_normal - patch_i_basisU;
-
-                    OccHessTriangulate2x2(x0,y0,x1,y1,SF3Data,patch_i_pos,
-                        WorldVectorTo_x0y0,WorldVectorTo_x0y1,
-                        WorldVectorTo_x1y0,WorldVectorTo_x1y1);
+                    // TODO this hemicube is not a valid sample point
+                    //      cancel and move to next texel?
                 }
 
-                // TODO Triangles in faces are done, but triangles between faces need to be stitched
+                // Triangles in faces are done, but triangles between faces need to be stitched
+
+                // bottom of front face and top of bottom face
+                OccHessTriangulateStitchSides(
+                    TopLeft, TopRight, 1, DownFaceData,
+                    -patch_i_basisU, patch_i_normal, -patch_i_basisV,
+                    BotLeft, BotRight, 1, FrontFaceData, 
+                    -patch_i_basisU, patch_i_basisV, patch_i_normal,
+                    patch_i_pos);
+
+                // right of front face and top of right face
+                OccHessTriangulateStitchSides(
+                    TopLeft, TopRight, 1, RightFaceData,
+                    patch_i_basisV, patch_i_normal, -patch_i_basisU,
+                    BotRight, TopRight, HemicubeFaceW, FrontFaceData,
+                    -patch_i_basisU, patch_i_basisV, patch_i_normal,
+                    patch_i_pos);
+
+                // top of front face and top of up face
+                OccHessTriangulateStitchSides(
+                    TopLeft, TopRight, 1, UpFaceData,
+                    patch_i_basisU, patch_i_normal, patch_i_basisV,
+                    TopRight, TopLeft, -1, FrontFaceData,
+                    -patch_i_basisU, patch_i_basisV, patch_i_normal,
+                    patch_i_pos);
+
+                // left of front face and top of left face
+                OccHessTriangulateStitchSides(
+                    TopLeft, TopRight, 1, LeftFaceData,
+                    -patch_i_basisV, patch_i_normal, patch_i_basisU,
+                    TopLeft, BotLeft, -HemicubeFaceW, FrontFaceData,
+                    -patch_i_basisU, patch_i_basisV, patch_i_normal,
+                    patch_i_pos);
+
+                // right of left face and left of bottom face
+                OccHessTriangulateStitchSides(
+                    HalfLeft, TopLeft, HemicubeFaceW, DownFaceData,
+                    -patch_i_basisU, patch_i_normal, -patch_i_basisV,
+                    HalfRight, TopRight, HemicubeFaceW, LeftFaceData, 
+                    -patch_i_basisV, patch_i_normal, patch_i_basisU, 
+                    patch_i_pos);
+
+                // right of bottom face and left of right face
+                OccHessTriangulateStitchSides(
+                    HalfLeft, TopLeft, HemicubeFaceW, RightFaceData,
+                    patch_i_basisV, patch_i_normal, -patch_i_basisU,
+                    HalfRight, TopRight, HemicubeFaceW, DownFaceData,
+                    -patch_i_basisU, patch_i_normal, -patch_i_basisV, 
+                    patch_i_pos);
+
+                // right of right face and left of up face
+                OccHessTriangulateStitchSides(
+                    HalfLeft, TopLeft, HemicubeFaceW, UpFaceData,
+                    patch_i_basisU, patch_i_normal, patch_i_basisV,
+                    HalfRight, TopRight, HemicubeFaceW, RightFaceData,
+                    patch_i_basisV, patch_i_normal, -patch_i_basisU, 
+                    patch_i_pos);
+
+                // right of up face and left of left face
+                OccHessTriangulateStitchSides(
+                    HalfLeft, TopLeft, HemicubeFaceW, LeftFaceData,
+                    -patch_i_basisV, patch_i_normal, patch_i_basisU,
+                    HalfRight, TopRight, HemicubeFaceW, UpFaceData,
+                    patch_i_basisU, patch_i_normal, patch_i_basisV, 
+                    patch_i_pos);
+
+                // FUCK IT SKIPPING THE CORNERS CUZ THEY DON'T CONTRIBUTE MUCH FORM FACTOR
+                // Could've stitched top right pixel of left face, bottom left of front, 
+                // top left of bottom for one corner triangle. Then 3 corners left.
 
 
                 // At this point, the triangulation is complete
@@ -1765,8 +1864,12 @@ bool BuildGameMap(const char *path)
                         vec3 CrossProd = Cross(Vert.r, Vert.rnext);
                         float Gamma = acosf(Dot(Normalize(Vert.r), Normalize(Vert.rnext)));
                         float I1 = Gamma / Magnitude(CrossProd);
-                        TriangleFormFactor += I1 * Dot(patch_i_normal, CrossProd);
-
+                        float mixt = Dot(patch_i_normal, CrossProd);
+                        TriangleFormFactor -= I1 * mixt;
+                        // Holzschuch and Sillion 1998 do subtraction here
+                        // Somehow that only makes sense if the triangle is in counter clockwise winding order
+                        // Otherwise form factor is negative...
+                        // and then for gradient they sum and then negate...weird
 
                         // TODO Gradient of form factor
                         // GradientOfFormFactor += ;

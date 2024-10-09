@@ -19,6 +19,6 @@ void main()
     }
     else
     {
-        FragmentWorldPosAndRadiance = vec4(32.67, 67.32, 62.37, 0.0);
+        FragmentWorldPosAndRadiance = vec4(0.326, 0.789, 0.982, 0.802);
     }
 }
