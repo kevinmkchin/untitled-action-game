@@ -3,22 +3,21 @@
 in vec2 uv;
 in vec3 FragWorldPos;
 
-layout(location = 0) out vec4 FragmentWorldPosAndRadiance;
+layout(location = 0) out vec4 FragmentColorAndDepth;
 
 uniform sampler2D RadianceMap;
 
 
 void main()
 {
-    // FragmentWorldPosAndRadiance.rgb = vec3(texture(RadianceMap, uv).r);
-    // FragmentWorldPosAndRadiance.a = 1.f;
-    FragmentWorldPosAndRadiance.rgb = FragWorldPos;
+    FragmentColorAndDepth.rgb = vec3(texture(RadianceMap, uv).r);
+
     if (gl_FrontFacing)
     {
-        FragmentWorldPosAndRadiance.a = texture(RadianceMap, uv).r;
+        FragmentColorAndDepth.a = 0.0;
     }
     else
     {
-        FragmentWorldPosAndRadiance = vec4(0.326, 0.789, 0.982, 0.802);
+        FragmentColorAndDepth.a = 0.69;
     }
 }
