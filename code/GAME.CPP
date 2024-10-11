@@ -9,16 +9,10 @@ Just be specific and code exactly that tailored solution e.g. LevelPolygonOctree
 Handcrafted with love.
 
 
-- Irradiance Caching!!!
-    My Irradiance Caching implementation might be marginally slower than drawing hemicube
-    at every single texel at a big patch size like 8x8 or 4x4. BUT! The point of it is that
-    I can scale down the patch size (i.e. way more texels per surface) and irradiance caching
-    should perform better than drawing millions of hemicubes. Only one way to find out.
 
-    Reduce hemicube sample count (adaptive sampling)
-    Able to extrapolate irradiance values across surface
-    Bad hemicube samples are corrected for free via extrapolation. Just need to detect and discard bad samples.
-
+- Touch up hemicube sampling code:
+    - Interpolate (w/o irrad caching) for patches that clip backface to reduce artifacts
+    - Texels too far from face polygon should be marked as ignore for hemicube. worst case distance: magnitude(1.5*texelsize, 0.5*texelsize)
 - Revisit lightmap data transfers and buffers
     Larger Hemicube atlas for download. Also I have so many intermediate buffers for light.
 
@@ -29,9 +23,10 @@ Handcrafted with love.
     I think Source 2 mainly uses face creation rather than volume.
       Best workflow is extrude faces and extrude edges.
 
+- Let face colliders store face normal to prevent collisions if same direction as movement
+
 
 TODO:
-- Multiple light sources
 - Skeletal animations
 - Better collision surfaces
 - Enemy moves and shoots at player
@@ -273,8 +268,6 @@ RENDERDOC_API_1_6_0 *RDOCAPI = NULL;
 #endif
 
 bool IsEditorActive = false;
-
-std::vector<float> MyFuckingMesh;
 
 
 #pragma endregion
@@ -1237,10 +1230,6 @@ static void RenderGameLayer()
         glDisable(GL_DEPTH_TEST);
     glDisable(GL_CULL_FACE);
     PrimitiveDrawAll(&perspectiveMatrix, &viewMatrix, RenderTargetGame.depthTexId, vec2((float)RenderTargetGame.width, (float)RenderTargetGame.height));
-
-    // TODO
-    //DrawHandlesVertexArray_GL(MyFuckingMesh.data(), MyFuckingMesh.size(), RenderTargetGame.fbo, 
-    //    RenderTargetGame.width, RenderTargetGame.height, perspectiveMatrix.ptr(), viewMatrix.ptr());
 }
 
 static void RenderMapEditorLayer()
