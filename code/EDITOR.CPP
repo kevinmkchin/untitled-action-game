@@ -2070,7 +2070,7 @@ bool BuildGameMap(const char *path)
                 for (u32 j = 0; j < CacheSize; ++j)
                 {
                     const irradiance_cache_entry& CacheEntry = IrradianceCache[j];
-                    vec3 TranslationDelta = CacheEntry.Position - TexelPos;
+                    vec3 TranslationDelta = TexelPos - CacheEntry.Position;
                     float LenDelta = Magnitude(TranslationDelta);
                     if (LenDelta <= 0.001f)
                     {
