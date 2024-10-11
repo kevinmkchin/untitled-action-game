@@ -1103,6 +1103,11 @@ static void TickGame()
             batch.sharedTexture = Temporary_TestTex0;
     }
 
+    // for (const irradiance_cache_entry& CacheEntry : IrradianceCache)
+    // {
+    //     PrimitiveDrawSolidDiscOutline(CacheEntry.Position, CacheEntry.Normal, CacheEntry.Radius, vec4(1.f,1.f,1.f,1.f));
+    // }
+
     // ENEMY 0
     vec3 toPlayer = PlayerControllerRoot - Enemy0.root;
     Enemy0.facing = Normalize(vec3(toPlayer.x, 0.f, toPlayer.z));
@@ -1239,7 +1244,8 @@ static void RenderGameLayer()
     PrimitiveDrawAll(&perspectiveMatrix, &viewMatrix, RenderTargetGame.depthTexId, vec2((float)RenderTargetGame.width, (float)RenderTargetGame.height));
 
     // TODO
-    //DrawHandlesVertexArray_GL(MyFuckingMesh.data(), MyFuckingMesh.size(), RenderTargetGame.fbo, 
+    // glEnable(GL_CULL_FACE);
+    // DrawHandlesVertexArray_GL(MyFuckingMesh.data(), (u32)MyFuckingMesh.size(), RenderTargetGame.fbo, 
     //    RenderTargetGame.width, RenderTargetGame.height, perspectiveMatrix.ptr(), viewMatrix.ptr());
 }
 

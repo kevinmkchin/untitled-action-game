@@ -815,7 +815,7 @@ static const char* FATLINES_SHADER_FS =
     "    }\n"
     "}\n";
 
-static NiceArray<float, 256000> PRIMITIVE_LINES_VB;
+static NiceArray<float, 2560000> PRIMITIVE_LINES_VB;
 static GPUShader LINES_SHADER;
 static const char* LINES_SHADER_VS =
     "#version 330 core\n"
@@ -1070,6 +1070,34 @@ void PrimitiveDrawAll(const mat4 *projectionMatrix, const mat4 *viewMatrix, GLui
     }
 }
 
+void PrimitiveDrawSolidDiscOutline(vec3 center, vec3 normal, float radius, vec4 color)
+{
+    vec3 tangent = Normalize(Cross(normal == GM_UP_VECTOR ? GM_RIGHT_VECTOR : GM_UP_VECTOR, normal));
+    quat q = quat(GM_DEG2RAD * 30.f, normal);
+    for(int i = 0; i < 12; ++i)
+    {
+        vec3 b = center + tangent * radius;
+        tangent = RotateVector(tangent, q);
+        vec3 c = center + tangent * radius;
+
+        PRIMITIVE_LINES_VB.PushBack(b.x);
+        PRIMITIVE_LINES_VB.PushBack(b.y);
+        PRIMITIVE_LINES_VB.PushBack(b.z);
+        PRIMITIVE_LINES_VB.PushBack(color.x);
+        PRIMITIVE_LINES_VB.PushBack(color.y);
+        PRIMITIVE_LINES_VB.PushBack(color.z);
+        PRIMITIVE_LINES_VB.PushBack(color.w);
+
+        PRIMITIVE_LINES_VB.PushBack(c.x);
+        PRIMITIVE_LINES_VB.PushBack(c.y);
+        PRIMITIVE_LINES_VB.PushBack(c.z);
+        PRIMITIVE_LINES_VB.PushBack(color.x);
+        PRIMITIVE_LINES_VB.PushBack(color.y);
+        PRIMITIVE_LINES_VB.PushBack(color.z);
+        PRIMITIVE_LINES_VB.PushBack(color.w);
+    }
+}
+
 void PrimitiveDrawSolidDisc(vec3 center, vec3 normal, float radius, vec4 color)
 {
     vec3 tangent = Normalize(Cross(normal == GM_UP_VECTOR ? GM_RIGHT_VECTOR : GM_UP_VECTOR, normal));
@@ -1200,11 +1228,11 @@ void DoDiscHandle(u32 id, vec3 worldpos, vec3 normal, float radius)
 void DrawHandlesVertexArray_GL(float *vertexArrayData, u32 vertexArrayDataCount, 
     u32 fboId, int viewportW, int viewportH, float *projectionMat, float *viewMat)
 {
-    glBindFramebuffer(GL_FRAMEBUFFER, fboId);
-    glViewport(0,0,viewportW,viewportH);
-    glClearColor(0.f,0.f,0.f,1.f); // clear with rgb(id 0)
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    glEnable(GL_DEPTH_TEST);
+    // glBindFramebuffer(GL_FRAMEBUFFER, fboId);
+    // glViewport(0,0,viewportW,viewportH);
+    // glClearColor(0.f,0.f,0.f,1.f); // clear with rgb(id 0)
+    // glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    // glEnable(GL_DEPTH_TEST);
 
     UseShader(HANDLES_SHADER);
 

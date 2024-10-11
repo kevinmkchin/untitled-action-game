@@ -987,7 +987,7 @@ vec3 TestLightSource = vec3(0, 110, 0);
 vec3 TestLightSource2 = vec3(150, 110, 0);
 LevelPolygonOctree LightMapOcclusionTree;
 const float LightMapPatchSize = 4.f;
-const int HemicubeFaceW = 64;
+const int HemicubeFaceW = 24;
 const int HemicubeFaceH = HemicubeFaceW;
 const int HemicubeFaceWHalf = HemicubeFaceW/2;
 const int HemicubeFaceHHalf = HemicubeFaceH/2;
@@ -1015,8 +1015,17 @@ struct occlusion_hessian_tri
     }
 };
 
-occlusion_hessian_tri *OccHessTriangles = NULL;
+struct irradiance_cache_entry
+{
+    vec3  Position;
+    vec3  Normal;
+    float Irradiance;
+    vec3  Gradient;
+    float Radius;
+};
 
+occlusion_hessian_tri *OccHessTriangles = NULL;
+std::vector<irradiance_cache_entry> IrradianceCache;
 
 // Generic create two triangles between 4 pixels
 // THE WINDING ORDER MATTERS FOR FORM FACTOR CALCULATION
@@ -1071,22 +1080,22 @@ void OccHessTriangulateStitchSides(
 #define RAY_HITS_NOTHING(pos) (pos.x == 0.8115956f && pos.y == 0.3775576f && pos.z == 0.5555464f)
         if (RAY_HITS_NOTHING(WorldPos_pa0))
         {
-            WorldPos_pa0 = SamplePoint + Normalize(WorldVectorTo_pa0) * 10000.f;
+            WorldPos_pa0 = SamplePoint + Normalize(WorldVectorTo_pa0) * 5000.f;
             Radiance_pa0 = 0.f;
         }
         if (RAY_HITS_NOTHING(WorldPos_pa1))
         {
-            WorldPos_pa1 = SamplePoint + Normalize(WorldVectorTo_pa1) * 10000.f;
+            WorldPos_pa1 = SamplePoint + Normalize(WorldVectorTo_pa1) * 5000.f;
             Radiance_pa1 = 0.f;
         }
         if (RAY_HITS_NOTHING(WorldPos_pb0))
         {
-            WorldPos_pb0 = SamplePoint + Normalize(WorldVectorTo_pb0) * 10000.f;
+            WorldPos_pb0 = SamplePoint + Normalize(WorldVectorTo_pb0) * 5000.f;
             Radiance_pb0 = 0.f;
         }
         if (RAY_HITS_NOTHING(WorldPos_pb1))
         {
-            WorldPos_pb1 = SamplePoint + Normalize(WorldVectorTo_pb1) * 10000.f;
+            WorldPos_pb1 = SamplePoint + Normalize(WorldVectorTo_pb1) * 5000.f;
             Radiance_pb1 = 0.f;
         }
 #undef RAY_HITS_NOTHING
@@ -1094,28 +1103,28 @@ void OccHessTriangulateStitchSides(
         // then just pretend as ray hit nothing (i.e. sky)
         if (RAY_HITS_BACKFACE(Radiance_pa0, WorldPos_pa0))
         {
-            WorldPos_pa0 = SamplePoint + Normalize(WorldVectorTo_pa0) * 10000.f;
+            WorldPos_pa0 = SamplePoint + Normalize(WorldVectorTo_pa0) * 5000.f;
             Radiance_pa0 = 0.f;
             if (BackFaceCount != NULL) 
                 ++(*BackFaceCount);
         }
         if (RAY_HITS_BACKFACE(Radiance_pa1, WorldPos_pa1))
         {
-            WorldPos_pa1 = SamplePoint + Normalize(WorldVectorTo_pa1) * 10000.f;
+            WorldPos_pa1 = SamplePoint + Normalize(WorldVectorTo_pa1) * 5000.f;
             Radiance_pa1 = 0.f;
             if (BackFaceCount != NULL) 
                 ++(*BackFaceCount);
         }
         if (RAY_HITS_BACKFACE(Radiance_pb0, WorldPos_pb0))
         {
-            WorldPos_pb0 = SamplePoint + Normalize(WorldVectorTo_pb0) * 10000.f;
+            WorldPos_pb0 = SamplePoint + Normalize(WorldVectorTo_pb0) * 5000.f;
             Radiance_pb0 = 0.f;
             if (BackFaceCount != NULL) 
                 ++(*BackFaceCount);
         }
         if (RAY_HITS_BACKFACE(Radiance_pb1, WorldPos_pb1))
         {
-            WorldPos_pb1 = SamplePoint + Normalize(WorldVectorTo_pb1) * 10000.f;
+            WorldPos_pb1 = SamplePoint + Normalize(WorldVectorTo_pb1) * 5000.f;
             Radiance_pb1 = 0.f;
             if (BackFaceCount != NULL) 
                 ++(*BackFaceCount);
@@ -1603,7 +1612,7 @@ bool BuildGameMap(const char *path)
     // I just need an array of triangles
     //int NumTriangles = 2*(HemicubeFaceW*HemicubeFaceW+HemicubeFaceW*HemicubeFaceWHalf*4;
     arrsetcap(OccHessTriangles, 100000);
-    for (int bounces = 0; bounces < 1; ++bounces)
+    for (int bounces = 0; bounces < 2; ++bounces)
     {
         // Copy the radiance info thus far to use for first light bounce
         // Would be just direct lighting for first bounce, but future bounces
@@ -1625,15 +1634,16 @@ bool BuildGameMap(const char *path)
         // Iterate through faces and process irradiance per face!
         // Flat faces can't/shouldn't share irradiance cache entries anyways.
         //      Debugging: process just one face
-        for (int FaceIndex = 1; FaceIndex < 2; ++FaceIndex)
+        for (int FaceIndex = 1; FaceIndex < LightMapRectsCount; ++FaceIndex)
         {
             MapEdit::Face *Face = MapEdit::EDITOR_FACES.At(FaceIndex);
             lm_face_t& FaceLightMap = Face->lightmap;
 
             // TODO reset "cache" - just an array for now
+            IrradianceCache.clear();
 
             u32 NumTexelsOnFace = FaceLightMap.w * FaceLightMap.h;
-            for (u32 i = 13000; i < 13100; ++i)
+            for (u32 i = 0; i < NumTexelsOnFace; ++i)
             {
                 // if (RDOCAPI) RDOCAPI->StartFrameCapture(NULL, NULL);
                 
@@ -1650,11 +1660,22 @@ bool BuildGameMap(const char *path)
                 // TODO check if texel position is covered by any existing irradiance cache entries
                 //      if yes, continue to next texel
                 //      if no, continue to hemicube sampling
-
+                bool CoveredByCache = false;
+                for (const irradiance_cache_entry& entry : IrradianceCache)
+                {
+                    float Dist = Magnitude(entry.Position - patch_i_pos);
+                    if (Dist < entry.Radius)
+                    {
+                        CoveredByCache = true;
+                        break;
+                    }
+                }
+                if (CoveredByCache) 
+                    continue;
 
                 // Random rotation of hemicube trades banding artifacts for noise
                 // banding artifacts is hard to get rid of with just increased hemicube resolution
-                patch_i_basisV = RotateVector(patch_i_basisV, quat((float)rand()/GM_TWOPI, patch_i_normal));
+                // patch_i_basisV = RotateVector(patch_i_basisV, quat((float)rand()/GM_TWOPI, patch_i_normal));
                 vec3 patch_i_basisU = Normalize(Cross(patch_i_basisV, patch_i_normal));
 
                 // Special float to mark hemicube pixels that no fragments were drawn on
@@ -1670,32 +1691,28 @@ bool BuildGameMap(const char *path)
                 RenderFaceBatch(SceneLightingModel);
 
                 // if top face is "front", then 
-
                 // up face
                 glViewport(HemicubeFaceW*1, 0, HemicubeFaceW, HemicubeFaceH);
                 HemicubeViewMatrix = ViewMatrixLookAt(patch_i_pos, patch_i_pos + patch_i_basisV, patch_i_normal);
                 GLBindMatrix4fv(PatchesIDShader, "viewMatrix", 1, HemicubeViewMatrix.ptr());
                 RenderFaceBatch(SceneLightingModel);
-
                 // down face
                 glViewport(HemicubeFaceW*2, 0, HemicubeFaceW, HemicubeFaceH);
                 HemicubeViewMatrix = ViewMatrixLookAt(patch_i_pos, patch_i_pos - patch_i_basisV, patch_i_normal);
                 GLBindMatrix4fv(PatchesIDShader, "viewMatrix", 1, HemicubeViewMatrix.ptr());
                 RenderFaceBatch(SceneLightingModel);
-
                 // left face
                 glViewport(HemicubeFaceW*3, 0, HemicubeFaceW, HemicubeFaceH);
                 HemicubeViewMatrix = ViewMatrixLookAt(patch_i_pos, patch_i_pos + patch_i_basisU, patch_i_normal);
                 GLBindMatrix4fv(PatchesIDShader, "viewMatrix", 1, HemicubeViewMatrix.ptr());
                 RenderFaceBatch(SceneLightingModel);
-
                 // right face
                 glViewport(HemicubeFaceW*4, 0, HemicubeFaceW, HemicubeFaceH);
                 HemicubeViewMatrix = ViewMatrixLookAt(patch_i_pos, patch_i_pos - patch_i_basisU, patch_i_normal);
                 GLBindMatrix4fv(PatchesIDShader, "viewMatrix", 1, HemicubeViewMatrix.ptr());
                 RenderFaceBatch(SceneLightingModel);
 
-                if (RDOCAPI) RDOCAPI->EndFrameCapture(NULL, NULL);
+                // if (RDOCAPI) RDOCAPI->EndFrameCapture(NULL, NULL);
 
                 // Putting the glReadPixels together at the end of the draw calls is somehow appreciably faster
                 glReadPixels(0, 0, HemicubeFaceW, HemicubeFaceH, GL_RGBA, GL_FLOAT, 0);
@@ -1769,6 +1786,8 @@ bool BuildGameMap(const char *path)
                 {
                     // TODO this hemicube is not a valid sample point
                     //      cancel and move to next texel?
+                    glUnmapBuffer(GL_PIXEL_PACK_BUFFER);
+                    continue;
                 }
 
                 // Triangles in faces are done, but triangles between faces need to be stitched
@@ -1837,6 +1856,8 @@ bool BuildGameMap(const char *path)
                     patch_i_basisU, patch_i_normal, patch_i_basisV, 
                     patch_i_pos);
 
+                glUnmapBuffer(GL_PIXEL_PACK_BUFFER);
+
                 // FUCK IT SKIPPING THE CORNERS CUZ THEY DON'T CONTRIBUTE MUCH FORM FACTOR
                 // Could've stitched top right pixel of left face, bottom left of front, 
                 // top left of bottom for one corner triangle. Then 3 corners left.
@@ -1848,6 +1869,13 @@ bool BuildGameMap(const char *path)
                 mat3 IrradianceHessian = {};
                 float TESTING_TriangleFormFactorSum = 0.f;
                 u32 TriangleCount = (u32)arrlenu(OccHessTriangles);
+
+                float *TriangleRadiances = NULL;
+                mat3  *TriangleHessians = NULL;
+                arrsetcap(TriangleRadiances, TriangleCount);
+                arrsetcap(TriangleHessians, TriangleCount);
+
+                bool AllRaysBlack = true;
                 for (u32 tri = 0; tri < TriangleCount; ++tri)
                 {
                     occlusion_hessian_tri Triangle = OccHessTriangles[tri];
@@ -1871,34 +1899,154 @@ bool BuildGameMap(const char *path)
                         // Otherwise form factor is negative...
                         // and then for gradient they sum and then negate...weird
 
-                        // TODO Gradient of form factor
-                        // GradientOfFormFactor += ;
+                        // Gradient of form factor
+                        float I2 = (Dot(Vert.e, Vert.rnext) / powf(Magnitude(Vert.rnext), 2)) -
+                            (Dot(Vert.e, Vert.r)/powf(Magnitude(Vert.r), 2)) +
+                            powf(Magnitude(Vert.e), 2) * I1;
+                        I2 /= 2.f * powf(Magnitude(CrossProd), 2);
+                        float J2 = 0.5f * ((1.f/Magnitude(Vert.r)) - (1.f/Magnitude(Vert.rnext))) - 
+                            Dot(Vert.e, Vert.r) * I2;
+                        J2 /= powf(Magnitude(Vert.e),2);
+                        GradientOfFormFactor += Cross(patch_i_normal, Vert.e) * I1 +
+                            2.f * mixt * (Vert.r * I2 + Vert.e * J2);
 
-                        // TODO Hessian of form factor
-                        // HessianOfFormFactor += ;
-
+                        // Hessian of form factor
+                        float I3 = (Dot(Vert.e, Vert.rnext)/powf(Magnitude(Vert.rnext),4)) - 
+                            (Dot(Vert.e, Vert.r)/powf(Magnitude(Vert.r),4)) + 
+                            powf(Magnitude(Vert.e), 2) * I2;
+                        I3 /= 4.f * powf(Magnitude(CrossProd), 2);
+                        float J3 = 0.25f * ((1.f/powf(Magnitude(Vert.r), 4)) - (1.f/powf(Magnitude(Vert.rnext), 4))) -
+                            Dot(Vert.e, Vert.r) * I3;
+                        J3 /= powf(Magnitude(Vert.e),2);
+                        float K3 = I2 - powf(Magnitude(Vert.r),2) * I3 -
+                            2.f * Dot(Vert.e, Vert.r) * J3;
+                        K3 /= powf(Magnitude(Vert.e),2);
+                        mat3 Term1 = Mul(mat3(), -mixt * I2);
+                        mat3 Term2 = MatrixProduct(Vert.r * I2 + Vert.e * J2, Cross(patch_i_pos, Vert.e));
+                        mat3 Term3a = Mul(MatrixProduct(Vert.r,Vert.r), I3);
+                        mat3 Term3b = Mul(MatrixProduct(Vert.e,Vert.e), K3);
+                        mat3 Term3c = Mul(MatrixProduct(Vert.e,Vert.r), 2.f*J3);
+                        mat3 Term3 = Mul(Add(Term3a, Add(Term3b, Term3c)), 2.f*mixt);
+                        HessianOfFormFactor = Add(HessianOfFormFactor, 
+                            Add(Term1, Add(Term2, Term3)));
                     }
                     TriangleFormFactor *= GM_ONEOVERTWOPI;
-                    GradientOfFormFactor *= GM_ONEOVERTWOPI;
+                    GradientOfFormFactor *= -GM_ONEOVERTWOPI;
                     HessianOfFormFactor = Mul(HessianOfFormFactor, GM_ONEOVERPI);
 
                     IrradianceSample += Triangle.Radiance * TriangleFormFactor;
                     IrradianceGradient += Triangle.Radiance * GradientOfFormFactor;
-                    IrradianceHessian = Add(IrradianceHessian, Mul(HessianOfFormFactor, Triangle.Radiance));
+
+                    if (Triangle.Radiance > 0.f) 
+                        AllRaysBlack = false;
+
+                    arrput(TriangleRadiances, Triangle.Radiance);
+                    arrput(TriangleHessians, HessianOfFormFactor);
 
                     TESTING_TriangleFormFactorSum += TriangleFormFactor;
                 }
 
+                float IrradianceForHessian = AllRaysBlack ? 1.f : IrradianceSample;
+                for (u32 tri = 0; tri < TriangleCount; ++tri)
+                {
+                    float TriRad = AllRaysBlack ? 1.f : TriangleRadiances[tri] + 0.01f * IrradianceSample;
+                    IrradianceHessian = Add(IrradianceHessian, Mul(TriangleHessians[tri], TriRad));
+                }
+
+                arrfree(TriangleRadiances);
+                arrfree(TriangleHessians);
+
                 // Check what sum of TriangleFormFactor is. It SHOULD be close to 1.
-                LogMessage("Triangle form factor sum %f", TESTING_TriangleFormFactorSum);
-                LogMessage("Irradiance Sample %f", IrradianceSample);
+                // LogMessage("Triangle form factor sum %f", TESTING_TriangleFormFactorSum);
+                // LogMessage("Irradiance Sample %f", IrradianceSample);
+                // LogMessage("Irradiance Gradient %f, %f, %f", IrradianceGradient.x, IrradianceGradient.y, IrradianceGradient.z);
 
                 // TODO Create cache entry for this face.
                 //      Calculate Cache Radius
+                
+                // Hessian3x3 to Hessian2x2 using basis u and basis v orthonormal vectors
+                // vec3 A = 
+                // Find eigenvectors and eigenvalues
+                // eigenvalues get used to calculate Radius
 
+                vec3 u1 = patch_i_basisU;
+                vec3 u2 = patch_i_basisV;
+                vec3 a = IrradianceHessian * u1;
+                vec3 b = IrradianceHessian * u2;
+                vec2 Hessian2x2FirstColumn = vec2();
+                vec2 Hessian2x2SecondColumn = vec2();
+                Hessian2x2FirstColumn.x = Dot(u1, a);
+                Hessian2x2FirstColumn.y = Dot(u2, a);
+                Hessian2x2SecondColumn.x = Dot(u1, b);
+                Hessian2x2SecondColumn.y = Dot(u2, b);
 
-                glUnmapBuffer(GL_PIXEL_PACK_BUFFER);
+                //LogMessage("%f  %f", Hessian2x2FirstColumn.x, Hessian2x2SecondColumn.x);
+                //LogMessage("%f  %f", Hessian2x2FirstColumn.y, Hessian2x2SecondColumn.y);
+
+                float H22Determinant = Hessian2x2FirstColumn.x * Hessian2x2SecondColumn.y 
+                                       - Hessian2x2SecondColumn.x * Hessian2x2FirstColumn.y;
+                float H22Trace = Hessian2x2FirstColumn.x + Hessian2x2SecondColumn.y;
+                float BSquared = powf(H22Trace, 2);
+                float Discriminant = BSquared - 4.f * H22Determinant;
+                //if (GM_abs(Discriminant) < 0.1f /* some epsilon */)
+                //{
+                    Discriminant = 0.f;
+                //}
+                // ASSERT(Discriminant > 0.f);
+                //if (Discriminant <= 0.f)
+                //{
+
+                //}
+                float Eigenvalue1 = 0.5f * (H22Trace + sqrtf(Discriminant));
+                float Eigenvalue2 = 0.5f * (H22Trace - sqrtf(Discriminant));
+                float EigenValue = GM_max(Eigenvalue1, Eigenvalue2);
+
+                const float ErrorControl = 10000000.f;
+
+                float CachePointRadius = powf(GM_ONEOVERPI * 4.f * ErrorControl * IrradianceForHessian, 0.25f)
+                    * powf(1.f / EigenValue, 0.25f);
+
+                // LogMessage("R1: %f, R2: %f", CachePointRadii.x, CachePointRadii.y);
+
+                irradiance_cache_entry CacheEntry;
+                CacheEntry.Position = patch_i_pos;
+                CacheEntry.Normal = patch_i_normal;
+                CacheEntry.Irradiance = IrradianceSample;
+                CacheEntry.Gradient = IrradianceGradient;
+                CacheEntry.Radius = CachePointRadius;
+                // vec2 TangentspaceEigenvector1;
+                // Hessian2x2FirstColumn1.x -= Eigenvalue1;
+                // Hessian2x2SecondColumn1.y -= Eigenvalue1;
+                // if (Hessian2x2FirstColumn.x != 0) 
+                // {
+                //     // Use first row: (a - lambda)v1 + b*v2 = 0 => v2 = -(a - lambda)/b * v1
+                //     TangentspaceEigenvector1.x = 1.f;
+                //     TangentspaceEigenvector1.y = -Hessian2x2FirstColumn.x / Hessian2x2SecondColumn.x;
+                // } 
+                // else if (Hessian2x2SecondColumn.y != 0) 
+                // {
+                //     // Use second row: c*v1 + (d - lambda)v2 = 0 => v1 = -(d - lambda)/c * v2
+                //     TangentspaceEigenvector1.x = 1.f;
+                //     TangentspaceEigenvector1.y = -Hessian2x2SecondColumn.y / Hessian2x2FirstColumn.y;
+                // }
+                // else
+                // {
+                //     LogMessage("fuck");
+                // }
+
+                // vec3 WorldspaceEigenvector1 = TangentspaceEigenvector1.x * patch_i_basisU 
+                //     + TangentspaceEigenvector1.y * patch_i_basisV;
+
+                // CacheEntry.Eigenvector1 = WorldspaceEigenvector1;
+                // CacheEntry.Eigenvector2 = WorldspaceEigenvector2;
+                IrradianceCache.push_back(CacheEntry);
             }
+
+            // if (FaceIndex == 1)
+            // {
+            //     LogMessage("NumTexels: %d", NumTexelsOnFace);
+            //     LogMessage("Cache size: %d", IrradianceCache.size());
+            // }
 
             // TODO Irradiance Cache population is complete for this face
             //      Now go through every texel of this face again and perform interpolation!
@@ -1913,11 +2061,45 @@ bool BuildGameMap(const char *path)
 
                 // if should be sampled, then it must be covered by at least one cache entry
                 // if it is not covered, then something went wrong!!!
+                
+                vec3 TexelPos = *(FaceLightMap.pos + i);
+                float TexelIrradiance = 0.f;
+                float ValidCacheEntryWeightSum = 0.f;
 
-                float IrradianceAtTexel = 0.f;
-                FaceLightMap.light_indirect[i] = IrradianceAtTexel;
+                u32 CacheSize = (u32)IrradianceCache.size();
+                for (u32 j = 0; j < CacheSize; ++j)
+                {
+                    const irradiance_cache_entry& CacheEntry = IrradianceCache[j];
+                    vec3 TranslationDelta = CacheEntry.Position - TexelPos;
+                    float LenDelta = Magnitude(TranslationDelta);
+                    if (LenDelta <= 0.001f)
+                    {
+                        TexelIrradiance = CacheEntry.Irradiance;
+                        ValidCacheEntryWeightSum = 1.f;
+                        break;
+                    }
+                    else if (LenDelta <= CacheEntry.Radius)
+                    {
+                        // float w = Dot(TranslationDelta, CacheEntry.Eigenvector) / CacheEntry.Radius;
+                        // float t = sqrtf(2.f * powf(w, 2));
+                        // float Weight = 1.f - t;
+                        float Weight = 1.f - (LenDelta / CacheEntry.Radius);
+                        // float Weight = 1.f / ((LenDelta / CacheEntry.Radius) + sqrtf(2.f));
+                        ValidCacheEntryWeightSum += Weight;
+                        TexelIrradiance += Weight * CacheEntry.Irradiance;
+                        // TexelIrradiance += Weight * (CacheEntry.Irradiance 
+                        //    + Dot(CacheEntry.Gradient, TranslationDelta));
+                    }
+                }
+                if (ValidCacheEntryWeightSum != 0.f)
+                {
+                    TexelIrradiance /= ValidCacheEntryWeightSum;
+                    FaceLightMap.light_indirect[i] = TexelIrradiance;
+                }
             }
             // At this point, all_light_indirect for the texels we care about have been updated
+
+            LogMessage("Face: %d", FaceIndex);
         }
 
         // Update global illumination buffer
@@ -1931,12 +2113,12 @@ bool BuildGameMap(const char *path)
     }
     // At this point, global illumination computation is complete
 
-    // TODO
-    u32 all_lmsz = (u32)arrlenu(all_light_global);
-    for (u32 i = 0; i < all_lmsz; ++i)
-    {
-        all_light_global[i] = all_light_direct[i];
-    }
+    // // TODO
+    // u32 all_lmsz = (u32)arrlenu(all_light_global);
+    // for (u32 i = 0; i < all_lmsz; ++i)
+    // {
+    //     all_light_global[i] = all_light_direct[i];
+    // }
 
 
     u32 TriangleCount = (u32)arrlenu(OccHessTriangles);
