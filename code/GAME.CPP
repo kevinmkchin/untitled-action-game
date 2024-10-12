@@ -17,13 +17,16 @@ Handcrafted with love.
     Larger Hemicube atlas for download. Also I have so many intermediate buffers for light.
 
 
-- Apply light map to FaceBatch as uv2 and texture as uv1
 - I should have option (by default) to just create faces rather than cuboid volumes in my editor. 
     Volume wasteful bcause lots of useless collider faces and light mapped faces.
     I think Source 2 mainly uses face creation rather than volume.
       Best workflow is extrude faces and extrude edges.
 
+- clean up face batch rendering and lighting code
+
 - Let face colliders store face normal to prevent collisions if same direction as movement
+
+- View-space projected blood decals
 
 
 TODO:
@@ -41,8 +44,6 @@ TODO:
 - Edge select
 - Edge loop
 - Toggle element translation along axis
-- Gamma correction - set GL_SRGB for textures being loaded into game so that they are not gamma corrected twice
-- do GL_LINEAR_MIPMAP_LINEAR for minification filter for game textures
 - Anisotropic filtering https://www.khronos.org/opengl/wiki/Sampler_Object#Anisotropic_filtering
 
 Engine work is almost done. 
@@ -110,7 +111,7 @@ a resolution normal defined.
 
 
 */
-#define SUNLIGHT_TEST 1
+#define SUNLIGHT_TEST 0
 
 #include <cstdint>
 #include <cassert>
@@ -654,7 +655,6 @@ static void CreateGPUTextureFromDisk(GPUTexture *texture, const char* filePath, 
                                textureBitmapHandle.width,textureBitmapHandle.height,
                                targetFormat,
                                (textureBitmapHandle.bitDepth == 3 ? GL_RGB : GL_RGBA));
-    GLHasErrors();
     FreeImage(textureBitmapHandle); // texture data has been copied to GPU memory, so we can free image from memory
 }
 
@@ -874,6 +874,12 @@ bool LoadModelGLTF2Bin(ModelGLTF *model, const char *filepath)
     return true;
 }
 
+enum batch_mesh_attribs : u16
+{
+    BATCHMESH_NO_ATTRIBS = 0 << 0,
+    BATCHMESH_USE_UV2 = 1 << 0
+    // BATCHMESH_USE_UV3,
+};
 
 struct FaceBatch
 {
@@ -888,9 +894,21 @@ struct FaceBatch
     u32 idVAO = 0;
     u32 idVBO = 0;
     u32 verticesCount = 0;
+
+    batch_mesh_attribs MeshAttribs;
 };
 
-static void CreateFaceBatchMeshOnGPU(u32 *idVAO, u32 *idVBO)
+struct GameFaceBatch
+{
+    // world pos x y z, normal i j k, uv1 u v, uv2 u v
+    GPUTexture ColorTexture;
+    GPUTexture LightMapTexture;
+    u32 VAO = 0;
+    u32 VBO = 0;
+    u32 VerticesCount = 0;
+};
+
+void CreateFaceBatchMeshOnGPU(u32 *idVAO, u32 *idVBO)
 {
     glGenVertexArrays(1, idVAO);
     glBindVertexArray(*idVAO);
@@ -906,13 +924,35 @@ static void CreateFaceBatchMeshOnGPU(u32 *idVAO, u32 *idVBO)
     glBindVertexArray(0);
 }
 
-static void DeleteFaceBatchMeshOnGPU(u32 idVAO, u32 idVBO)
+void CreateGameFaceBatchMeshOnGPU(u32 *VAO, u32 *VBO)
+{
+    glGenVertexArrays(1, VAO);
+    glBindVertexArray(*VAO);
+    glGenBuffers(1, VBO);
+    glBindBuffer(GL_ARRAY_BUFFER, *VBO);
+    glBufferData(GL_ARRAY_BUFFER, 0, nullptr, GL_DYNAMIC_DRAW);
+    // pos x y z
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 10, nullptr);
+    glEnableVertexAttribArray(0);
+    // norm i j k
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 10, (void*)(sizeof(float) * 3));
+    glEnableVertexAttribArray(1);
+    // uv1 u v
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(float) * 10, (void*)(sizeof(float) * (3 + 3)));
+    glEnableVertexAttribArray(2);
+    // uv2 u v
+    glVertexAttribPointer(3, 2, GL_FLOAT, GL_FALSE, sizeof(float) * 10, (void*)(sizeof(float) * (3 + 3 + 2)));
+    glEnableVertexAttribArray(3);
+    glBindVertexArray(0);
+}
+
+void DeleteFaceBatchMeshOnGPU(u32 idVAO, u32 idVBO)
 {
     glDeleteBuffers(1, &idVBO);
     glDeleteVertexArrays(1, &idVAO);
 }
 
-static void RebindFaceBatchBufferObject(FaceBatch *faceBatch, u32 sizeInBytes, float *data)
+void RebindFaceBatchBufferObject(FaceBatch *faceBatch, u32 sizeInBytes, float *data)
 {
     glBindVertexArray(faceBatch->idVAO);
     glBindBuffer(GL_ARRAY_BUFFER, faceBatch->idVBO);
@@ -922,7 +962,19 @@ static void RebindFaceBatchBufferObject(FaceBatch *faceBatch, u32 sizeInBytes, f
     glBindVertexArray(0);
 }
 
-static void RenderFaceBatch(FaceBatch faceBatch)
+void RebindGameFaceBatchBufferObject(GameFaceBatch *faceBatch, u32 sizeInBytes, float *data)
+{
+    glBindVertexArray(faceBatch->VAO);
+    glBindBuffer(GL_ARRAY_BUFFER, faceBatch->VBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeInBytes, data, GL_DYNAMIC_DRAW);
+    faceBatch->VerticesCount = sizeInBytes / (sizeof(float) * 10);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
+
+    GLHasErrors();
+}
+
+void RenderFaceBatch(FaceBatch faceBatch)
 {
     glBindVertexArray(faceBatch.idVAO);
     glBindBuffer(GL_ARRAY_BUFFER, faceBatch.idVBO);
@@ -933,7 +985,29 @@ static void RenderFaceBatch(FaceBatch faceBatch)
     glBindVertexArray(0);
 }
 
+
 #include "SHADERS.CPP"
+
+void RenderGameFaceBatch(const GPUShader shader, GameFaceBatch Batch)
+{
+    glBindVertexArray(Batch.VAO);
+    glBindBuffer(GL_ARRAY_BUFFER, Batch.VBO);
+    
+    GLBind1i(shader, "ColorTexture", 0);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, Batch.ColorTexture.id);
+
+    GLBind1i(shader, "LightMap", 1);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, Batch.LightMapTexture.id);
+
+    glDrawArrays(GL_TRIANGLES, 0, Batch.VerticesCount);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
+
+    GLHasErrors();
+}
+
 #include "UTILITY.CPP"
 #include "COLLISION.CPP"
 
@@ -978,7 +1052,7 @@ Mix_Chunk *sfx_Jump;
 std::vector<vec3> GameLevelColliderPoints;
 std::vector<FlatPolygonCollider> GameLevelColliders;
 Octree GameLevelCollisionTree;
-std::vector<FaceBatch> GameLevelFaceBatches;
+std::vector<GameFaceBatch> GameLevelFaceBatches;
 
 #if SUNLIGHT_TEST
 vec3 PlayerControllerRoot = vec3(0.f, 0.01f, 0.f);
@@ -1087,13 +1161,13 @@ static void TickGame()
     // Gui::PrimitivePanel(Gui::UIRect(0,400, 400,200), Temporary_TestTex1.id);
     if (KeysPressed[SDL_SCANCODE_F1])
     {
-        for (FaceBatch& batch : GameLevelFaceBatches)
-            batch.sharedTexture = Temporary_LightMapVisualizeTex;
+        for (GameFaceBatch& batch : GameLevelFaceBatches)
+            batch.LightMapTexture = Temporary_LightMapVisualizeTex;
     }
     if (KeysPressed[SDL_SCANCODE_F2])
     {
-        for (FaceBatch& batch : GameLevelFaceBatches)
-            batch.sharedTexture = Temporary_TestTex0;
+        for (GameFaceBatch& batch : GameLevelFaceBatches)
+            batch.LightMapTexture = Temporary_TestTex0;
     }
 
     // ENEMY 0
@@ -1102,8 +1176,8 @@ static void TickGame()
     // enemy0.root += enemy0.facing * 32.f * g_DeltaTime;
 
     // CALCULATE PLAYER FACING DIRECTION
-    float camYawDelta = MouseDelta.x * 0.055f;
-    float camPitchDelta = MouseDelta.y * 0.055f;
+    float camYawDelta = MouseDelta.x * 0.085f;
+    float camPitchDelta = MouseDelta.y * 0.085f;
     CameraRotation.y -= camYawDelta;
     CameraRotation.z -= camPitchDelta;
     if (CameraRotation.z > 89.f)
@@ -1213,8 +1287,8 @@ static void RenderGameLayer()
 
     for (size_t i = 0; i < GameLevelFaceBatches.size(); ++i)
     {
-        FaceBatch fb = GameLevelFaceBatches.at(i);
-        RenderFaceBatch(fb);
+        GameFaceBatch fb = GameLevelFaceBatches.at(i);
+        RenderGameFaceBatch(GameLevelShader, fb);
     }
 
     // modelMatrix = TranslationMatrix(enemy0.root) * RotationMatrix(DirectionToOrientation(enemy0.facing));

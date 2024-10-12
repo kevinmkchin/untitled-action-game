@@ -620,11 +620,9 @@ namespace MapEdit
         }
     }
 
-    void TriangulateFace_QuickDumb_LMUV(const Face f, std::vector<float> *vb)
+    void TriangulateFace_ForGameFaceBatch_QuickDumb(const Face f, std::vector<float> *vb)
     {
-        // TODO(Kevin): Figure out a good way for triangulating arbitrary simple polygons in 3d space which
-        // may not have coplanar vertices...and then do delaunay and flipping for nicer triangles...
-        // https://swaminathanj.github.io/cg/PolygonTriangulation.html#:~:text=Let%20v%20be%20a%20vertex,has%20at%20least%20two%20ears.
+        // TODO(Kevin): Just keep triangulation simple...just force vertices to be coplanar and do earclipping
 
         ASSERT(f.looplen > 2);
         std::vector<vec3> verticesInOrder;
@@ -689,27 +687,35 @@ namespace MapEdit
             vb->push_back(a.x);
             vb->push_back(a.y);
             vb->push_back(a.z);
-            vb->push_back(lmuvA.x);
-            vb->push_back(lmuvA.y);
             vb->push_back(n.x);
             vb->push_back(n.y);
             vb->push_back(n.z);
+            vb->push_back(au);
+            vb->push_back(av);
+            vb->push_back(lmuvA.x);
+            vb->push_back(lmuvA.y);
+
             vb->push_back(b.x);
             vb->push_back(b.y);
             vb->push_back(b.z);
-            vb->push_back(lmuvB.x);
-            vb->push_back(lmuvB.y);
             vb->push_back(n.x);
             vb->push_back(n.y);
             vb->push_back(n.z);
+            vb->push_back(bu);
+            vb->push_back(bv);
+            vb->push_back(lmuvB.x);
+            vb->push_back(lmuvB.y);
+
             vb->push_back(c.x);
             vb->push_back(c.y);
             vb->push_back(c.z);
-            vb->push_back(lmuvC.x);
-            vb->push_back(lmuvC.y);
             vb->push_back(n.x);
             vb->push_back(n.y);
             vb->push_back(n.z);
+            vb->push_back(cu);
+            vb->push_back(cv);
+            vb->push_back(lmuvC.x);
+            vb->push_back(lmuvC.y);
         }
     }
 
@@ -756,7 +762,8 @@ db_tex_t LoadNewTextureToDB(const char *path)
     {        
         CreateGPUTextureFromBitmap(&tex.gputex, (u8*)tex.bitmap.memory,
                         tex.bitmap.width,tex.bitmap.height,
-                        GL_RGBA, (tex.bitmap.bitDepth == 3 ? GL_RGB : GL_RGBA));
+                        GL_SRGB, (tex.bitmap.bitDepth == 3 ? GL_RGB : GL_RGBA),
+                        GL_NEAREST_MIPMAP_LINEAR, GL_NEAREST, GL_UNSIGNED_BYTE);
 
         Assets.Textures.insert({tex.persistId, tex});
         LogMessage("Loaded %s with texture persist id %d", path, tex.persistId);
@@ -987,7 +994,7 @@ bool EditorDeserializeMap(const char *mapFilePath)
 vec3 TestLightSource = vec3(0, 110, 0);
 vec3 TestLightSource2 = vec3(150, 110, 0);
 LevelPolygonOctree LightMapOcclusionTree;
-const float LightMapPatchSize = 8.f;
+const float LightMapTexelSize = 8.f; // in world units
 const int HemicubeFaceW = 100;
 const int HemicubeFaceH = HemicubeFaceW;
 const int HemicubeFaceWHalf = HemicubeFaceW/2;
@@ -1013,7 +1020,7 @@ void Threaded_DoDirectLightingIntoLightMap(u32 patchIndexStart, u32 patchIndexEn
         vec3 patch_basisV = all_lm_tangent[i];
         vec3 patch_basisU = Normalize(Cross(patch_basisV, patch_normal));
 
-        const float HalfLightMapPatchSz = LightMapPatchSize * 0.5f;
+        const float HalfLightMapPatchSz = LightMapTexelSize * 0.5f;
         vec3 SamplePositions[4];
         SamplePositions[0] = patch_position
             + patch_basisU * 0.75f * HalfLightMapPatchSz + patch_basisV * 0.25f * HalfLightMapPatchSz;
@@ -1074,8 +1081,8 @@ void Threaded_DoDirectLightingIntoLightMap(u32 patchIndexStart, u32 patchIndexEn
                 {
                     // point light attenuation
                     // doing quadratic component is too dark when there is no gamma correction
-                    float atten_lin = 0.09f;
-                    float atten_quad = 0.0019f;
+                    float atten_lin = 0.02f;
+                    float atten_quad = 0.00019f;
                     float attenuation = 1.f / 
                         (1.f + atten_lin * dist + atten_quad * dist * dist);
                     float intensity = costheta * attenuation;
@@ -1232,11 +1239,11 @@ bool BuildGameMap(const char *path)
         // padding copy the corresponding adjacent light map value will create unnatural seams where
         // surfaces are supposed to connect. By simply making the light maps larger than needed and having
         // these virtual patches be sampled too creates the most natural bilinear filtering results.
-        minuv -= vec2(LightMapPatchSize, LightMapPatchSize);
-        maxuv += vec2(LightMapPatchSize, LightMapPatchSize);
+        minuv -= vec2(LightMapTexelSize, LightMapTexelSize);
+        maxuv += vec2(LightMapTexelSize, LightMapTexelSize);
         vec2 dim = maxuv - minuv;
-        dim.x = ceilf(dim.x / LightMapPatchSize) * LightMapPatchSize;
-        dim.y = ceilf(dim.y / LightMapPatchSize) * LightMapPatchSize;
+        dim.x = ceilf(dim.x / LightMapTexelSize) * LightMapTexelSize;
+        dim.y = ceilf(dim.y / LightMapTexelSize) * LightMapTexelSize;
 
         // lm uv
         for (MapEdit::Loop *loop : loopcycle)
@@ -1251,8 +1258,8 @@ bool BuildGameMap(const char *path)
         }
 
         // lm data
-        lm.w = (i32)(dim.x / LightMapPatchSize);
-        lm.h = (i32)(dim.y / LightMapPatchSize);
+        lm.w = (i32)(dim.x / LightMapTexelSize);
+        lm.h = (i32)(dim.y / LightMapTexelSize);
         i32 lmsz = lm.w*lm.h;
         lm.pos = arraddnptr(all_lm_pos, lmsz);
         lm.norm = arraddnptr(all_lm_norm, lmsz);
@@ -1265,8 +1272,8 @@ bool BuildGameMap(const char *path)
         {
             i32 x = pi % lm.w;
             i32 y = pi / lm.w;
-            float uSampleCenter = minuv.x + LightMapPatchSize*x + LightMapPatchSize*0.5f;
-            float vSampleCenter = minuv.y + LightMapPatchSize*y + LightMapPatchSize*0.5f;
+            float uSampleCenter = minuv.x + LightMapTexelSize*x + LightMapTexelSize*0.5f;
+            float vSampleCenter = minuv.y + LightMapTexelSize*y + LightMapTexelSize*0.5f;
             // reverse the projection
             vec3 p = v0 + uSampleCenter * basisU + vSampleCenter * basisV;
             lm.pos[pi] = p;
@@ -1327,7 +1334,7 @@ bool BuildGameMap(const char *path)
         }
 
         std::vector<float>& vb = VertexBuffers.at(tex.persistId);
-        TriangulateFace_QuickDumb_LMUV(*face, &vb);
+        TriangulateFace_ForGameFaceBatch_QuickDumb(*face, &vb);
     }
 
 
@@ -1368,7 +1375,7 @@ bool BuildGameMap(const char *path)
 
     // indirect lighting
 
-    FaceBatch SceneLightingModel;
+    GameFaceBatch SceneLightingModel;
 
     float *patches_vb = NULL; 
     for (auto& vbpair : VertexBuffers)
@@ -1377,14 +1384,15 @@ bool BuildGameMap(const char *path)
         float *writeto = arraddnptr(patches_vb, vb.size());
         memcpy(writeto, vb.data(), sizeof(float)*vb.size());
     }
-    CreateFaceBatchMeshOnGPU(&SceneLightingModel.idVAO, &SceneLightingModel.idVBO);
-    RebindFaceBatchBufferObject(&SceneLightingModel, u32(sizeof(float)*arrlenu(patches_vb)), patches_vb);
+    CreateGameFaceBatchMeshOnGPU(&SceneLightingModel.VAO, &SceneLightingModel.VBO);
+    RebindGameFaceBatchBufferObject(&SceneLightingModel, u32(sizeof(float)*arrlenu(patches_vb)), patches_vb);
     arrfree(patches_vb);
+    SceneLightingModel.ColorTexture = tex_Missing;
 
     // DECLARE LIGHT MAP ATLAS
     float *LIGHT_MAP_ATLAS = NULL;
     arrsetcap(LIGHT_MAP_ATLAS, lightMapAtlasW*lightMapAtlasH);
-    CreateGPUTextureFromBitmap(&SceneLightingModel.sharedTexture, (void*)LIGHT_MAP_ATLAS, 
+    CreateGPUTextureFromBitmap(&SceneLightingModel.LightMapTexture, (void*)LIGHT_MAP_ATLAS, 
         lightMapAtlasW, lightMapAtlasH, GL_R32F, GL_RED, GL_LINEAR, GL_LINEAR, GL_FLOAT);
 
 
@@ -1485,7 +1493,7 @@ bool BuildGameMap(const char *path)
                 (u8*)lmface.light, lmface.w, lmface.h, rect.x, rect.y, sizeof(float));
         }
         // Update SceneLightingModel to use the updated radiance information
-        UpdateGPUTextureFromBitmap(&SceneLightingModel.sharedTexture, (u8*)LIGHT_MAP_ATLAS,
+        UpdateGPUTextureFromBitmap(&SceneLightingModel.LightMapTexture, (u8*)LIGHT_MAP_ATLAS,
             lightMapAtlasW, lightMapAtlasH);
 
 
@@ -1499,7 +1507,10 @@ bool BuildGameMap(const char *path)
             u32 NumTexelsOnFace = FaceLightMap.w * FaceLightMap.h;
             for (u32 FaceTexelIndex = 0; FaceTexelIndex < NumTexelsOnFace; ++FaceTexelIndex)
             {
-                // if (RDOCAPI) RDOCAPI->StartFrameCapture(NULL, NULL);
+                // if (FaceIndex == 1 && FaceTexelIndex >= 50 && FaceTexelIndex < 52)
+                // {
+                //     if (RDOCAPI) RDOCAPI->StartFrameCapture(NULL, NULL);
+                // }
                 
                 vec3 patch_i_pos = *(FaceLightMap.pos + FaceTexelIndex); // rename to texel
                 vec3 patch_i_normal = *(FaceLightMap.norm + FaceTexelIndex);
@@ -1526,29 +1537,29 @@ bool BuildGameMap(const char *path)
                 glViewport(0, 0, HemicubeFaceW, HemicubeFaceH);
                 mat4 HemicubeViewMatrix = ViewMatrixLookAt(patch_i_pos, patch_i_pos + patch_i_normal, patch_i_basisV);
                 GLBindMatrix4fv(PatchesIDShader, "viewMatrix", 1, HemicubeViewMatrix.ptr());
-                RenderFaceBatch(SceneLightingModel);
+                RenderGameFaceBatch(PatchesIDShader, SceneLightingModel);
 
                 // if top face is "front", then 
                 // up face
                 glViewport(HemicubeFaceW*1, 0, HemicubeFaceW, HemicubeFaceH);
                 HemicubeViewMatrix = ViewMatrixLookAt(patch_i_pos, patch_i_pos + patch_i_basisV, patch_i_normal);
                 GLBindMatrix4fv(PatchesIDShader, "viewMatrix", 1, HemicubeViewMatrix.ptr());
-                RenderFaceBatch(SceneLightingModel);
+                RenderGameFaceBatch(PatchesIDShader, SceneLightingModel);
                 // down face
                 glViewport(HemicubeFaceW*2, 0, HemicubeFaceW, HemicubeFaceH);
                 HemicubeViewMatrix = ViewMatrixLookAt(patch_i_pos, patch_i_pos - patch_i_basisV, patch_i_normal);
                 GLBindMatrix4fv(PatchesIDShader, "viewMatrix", 1, HemicubeViewMatrix.ptr());
-                RenderFaceBatch(SceneLightingModel);
+                RenderGameFaceBatch(PatchesIDShader, SceneLightingModel);
                 // left face
                 glViewport(HemicubeFaceW*3, 0, HemicubeFaceW, HemicubeFaceH);
                 HemicubeViewMatrix = ViewMatrixLookAt(patch_i_pos, patch_i_pos + patch_i_basisU, patch_i_normal);
                 GLBindMatrix4fv(PatchesIDShader, "viewMatrix", 1, HemicubeViewMatrix.ptr());
-                RenderFaceBatch(SceneLightingModel);
+                RenderGameFaceBatch(PatchesIDShader, SceneLightingModel);
                 // right face
                 glViewport(HemicubeFaceW*4, 0, HemicubeFaceW, HemicubeFaceH);
                 HemicubeViewMatrix = ViewMatrixLookAt(patch_i_pos, patch_i_pos - patch_i_basisU, patch_i_normal);
                 GLBindMatrix4fv(PatchesIDShader, "viewMatrix", 1, HemicubeViewMatrix.ptr());
-                RenderFaceBatch(SceneLightingModel);
+                RenderGameFaceBatch(PatchesIDShader, SceneLightingModel);
 
                 if (RDOCAPI) RDOCAPI->EndFrameCapture(NULL, NULL);
 
@@ -1677,8 +1688,8 @@ bool BuildGameMap(const char *path)
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glDeleteBuffers(1, &HemicubePBO);
     DeleteGPUFrameBuffer(&HemicubeFBO);
-    DeleteGPUTexture(&SceneLightingModel.sharedTexture);
-    DeleteFaceBatchMeshOnGPU(SceneLightingModel.idVAO, SceneLightingModel.idVBO);
+    DeleteGPUTexture(&SceneLightingModel.LightMapTexture);
+    DeleteFaceBatchMeshOnGPU(SceneLightingModel.VAO, SceneLightingModel.VBO);
 
     // Final blit to light map atlas
     for (size_t i = 0; i < LightMapRectsCount; ++i)
@@ -1806,11 +1817,12 @@ bool LoadGameMap(const char *path)
         ByteBufferReadBulk(&mapbuf, vb.data(), sizeof(float)*vertexcount);
         ASSERT(vb.size() == vertexcount);
         
-        FaceBatch batch;
-        batch.sharedTexture = Temporary_LightMapVisualizeTex;//GetTextureByPersistId(texturePersistId).gputex;
-        CreateFaceBatchMeshOnGPU(&batch.idVAO, &batch.idVBO);
-        RebindFaceBatchBufferObject(&batch, u32(sizeof(float)*vertexcount), vb.data());
-        GameLevelFaceBatches.push_back(batch);
+        GameFaceBatch Batch;
+        Batch.ColorTexture = GetTextureByPersistId(texturePersistId).gputex;
+        Batch.LightMapTexture = Temporary_LightMapVisualizeTex;
+        CreateGameFaceBatchMeshOnGPU(&Batch.VAO, &Batch.VBO);
+        RebindGameFaceBatchBufferObject(&Batch, u32(sizeof(float)*vertexcount), vb.data());
+        GameLevelFaceBatches.push_back(Batch);
     }
 
     ByteBufferFree(&mapbuf);
