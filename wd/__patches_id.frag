@@ -1,16 +1,18 @@
 #version 330
 
-in vec2 uv;
-in vec3 FragWorldPos;
+in vec2 uv1;
+in vec2 uv2;
 
 layout(location = 0) out vec4 FragmentColorAndDepth;
 
-uniform sampler2D RadianceMap;
+uniform sampler2D ColorTexture;
+uniform sampler2D LightMap;
 
 
 void main()
 {
-    FragmentColorAndDepth.rgb = vec3(texture(RadianceMap, uv).r);
+    // using ColorTexture so OpenGL doesn't discard the uniform
+    FragmentColorAndDepth.rgb = vec3(texture(LightMap, uv2).r, texture(ColorTexture, uv1).g, texture(ColorTexture, uv1).b);
 
     if (gl_FrontFacing)
     {
