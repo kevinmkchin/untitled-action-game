@@ -8,21 +8,20 @@ Just be specific and code exactly that tailored solution e.g. LevelPolygonOctree
 
 Handcrafted with love.
 
+- get some things to shoot on the screen
 
+- clean up face batch rendering and lighting code
 
+- Revisit lightmap data transfers and buffers
+    Larger Hemicube atlas for download. Also I have so many intermediate buffers for light.
 - Touch up hemicube sampling code:
     - Interpolate (w/o irrad caching) for patches that clip backface to reduce artifacts
     - Texels too far from face polygon should be marked as ignore for hemicube. worst case distance: magnitude(1.5*texelsize, 0.5*texelsize)
-- Revisit lightmap data transfers and buffers
-    Larger Hemicube atlas for download. Also I have so many intermediate buffers for light.
-
 
 - I should have option (by default) to just create faces rather than cuboid volumes in my editor. 
     Volume wasteful bcause lots of useless collider faces and light mapped faces.
     I think Source 2 mainly uses face creation rather than volume.
       Best workflow is extrude faces and extrude edges.
-
-- clean up face batch rendering and lighting code
 
 - Let face colliders store face normal to prevent collisions if same direction as movement
 
