@@ -2,45 +2,47 @@
 
 2025-01-14
 Okay back to it. Just use Jolt for physics/collisions. Refactor/reorganize so code isn't a mess.
+Jolt should handle all collision resolution. We don't need to do any of that bullshit.
+
+
+World - I want a crispy fucking visually nice to look at world being created and loaded in game
+
+    Refine Hemicube GI
+    - larger hemicube atlas for download
+    - interpolate (w/o irrad caching) for patches that clip backface to reduce artifacts
+    - Texels too far from face polygon should be marked as ignore for hemicube. worst case distance: magnitude(1.5*texelsize, 0.5*texelsize)
+
+    Refine FaceBatch rendering and lighting code 
+
+    Face creation and manipulation by default over cuboid voluesm in level editor
+    - volume is wasteful; source 2 defaults to faces; best workflow is extrude faces and extrude edges
+
+Physics - I want a crispy bug-free physics simulation with the world
+
+    Hook player controller into Jolt. Move around world simulated via Jolt.
+
+THEN, we have a fucking engine. A fucking starting point for the game.
+
+View-space projected blood decals
+
+Get some things to shoot on the screen
+
+Skeletal animations
+
 
 
 Something fucking cool.
-
 Priorty #1 is building the game, not the engine/tech
-
-Just be specific and code exactly that tailored solution e.g. LevelPolygonOctree rather than Octree.
-
 Handcrafted with love.
 
-- get some things to shoot on the screen
-
-- clean up face batch rendering and lighting code
-
-- Revisit lightmap data transfers and buffers
-    Larger Hemicube atlas for download. Also I have so many intermediate buffers for light.
-- Touch up hemicube sampling code:
-    - Interpolate (w/o irrad caching) for patches that clip backface to reduce artifacts
-    - Texels too far from face polygon should be marked as ignore for hemicube. worst case distance: magnitude(1.5*texelsize, 0.5*texelsize)
-
-- I should have option (by default) to just create faces rather than cuboid volumes in my editor. 
-    Volume wasteful bcause lots of useless collider faces and light mapped faces.
-    I think Source 2 mainly uses face creation rather than volume.
-      Best workflow is extrude faces and extrude edges.
-
-- Let face colliders store face normal to prevent collisions if same direction as movement
-
-- View-space projected blood decals
 
 
 TODO:
+- Physics
 - Skeletal animations
-- Better collision surfaces
 - Enemy moves and shoots at player
 - Gun model?
 - Player shoots at enemy
-- Replace all the dogshit GJK stuff with SPECIFIC collider checks (GJK for finegrained narrow-phase test on complex meshes; do quicker broad-phase tests; simpler test if just polygon x line)
-    Bullets can check a Line from position last frame to position this frame against Polygon (face). 
-    "Ball" projectiles could also do that? Then narrow-phase sphere against polygon. Most projectiles even flying enemies will be spheres (at least against level geometry).
 - serialize/deserialize asset database
 - move volume mode/tool (don't need whole tool...maybe make brush tool part of this mode? like trenchbroom)
 - multi select vertices need to be fixed
@@ -50,12 +52,10 @@ TODO:
 - Anisotropic filtering https://www.khronos.org/opengl/wiki/Sampler_Object#Anisotropic_filtering
 
 Engine work is almost done. 
-~~- Octree collision acceleration~~
 ~~- Lightmap baking (potentially radiosity)~~
 - Skeletal animations
 - Navmesh/pathfinding
-- More reliable collisions and colliders
-Those are the hard things left.
+- Physics
 
 EPICS:
 - Lighting (build/load level LIGHT MAP info)
@@ -92,25 +92,6 @@ NOTES:
         FOV slider in game up to insane value like 170
         Allow turning bilinear filtering for light maps off
 
-
-
-I don't really want to support non flat faces
-
-The game level static colliders being flat polygons makes collisions weird. They are double sided.
-What if I optionally enforce resolution normal for some colliders? that would make resolution only happen
-in that direction. But that doesn't solve the problem of colliding at all with those double sided colliders.
-Maybe...for player I can check if that optional normal (basically face normal) is same direction (cos theta)
-as player movement direction and if so ignore that collider?
-
-cuz even if I was using 3D volumes for collisions, the issue persists...If I have three cubes sitting flush
-with each other, and I was running diagonally into them, I might stop moving because I'm colliding at one of
-the seams.
-
-if I'm moving in a direction, I can only collide with surfaces whose normals are in the opposite direction of
-that my movement direction. This is a fact.
-
-I think I just need to be more intentional with assigning colliders? and each surface collider should have
-a resolution normal defined.
 
 
 */
