@@ -1,5 +1,9 @@
 /*
 
+2025-01-14
+Okay back to it. Just use Jolt for physics/collisions. Refactor/reorganize so code isn't a mess.
+
+
 Something fucking cool.
 
 Priorty #1 is building the game, not the engine/tech
@@ -161,6 +165,7 @@ a resolution normal defined.
 #include <renderdoc_app.h>
 #endif
 
+
 #include <map>
 #include <unordered_map>
 #include <unordered_set>
@@ -169,8 +174,6 @@ a resolution normal defined.
 #include <memory>
 #include <utility>
 #include <thread>
-
-
 
 
 typedef uint8_t       u8;
@@ -189,6 +192,10 @@ typedef int_fast16_t  i16f;
 typedef int_fast32_t  i32f;
 typedef i16           bool16;
 typedef i32           bool32;
+
+#include "physics.h"
+#include "physics.cpp"
+
 
 #if (defined _MSC_VER)
 #define ALWAYSASSERT(predicate) if(!(predicate)) { __debugbreak(); }
@@ -1710,6 +1717,9 @@ static void ProcessSDLEvents()
 
 int main(int argc, char* argv[])
 {
+    // HelloWorld();
+
+
     if (!InitializeEverything()) return -1;
 
     InitGameRenderer();
@@ -1720,13 +1730,13 @@ int main(int argc, char* argv[])
 
     // RDOCAPI->LaunchReplayUI(1, "");
 
-#if SUNLIGHT_TEST
-    EditorDeserializeMap(wd_path("House.emf").c_str());
-    // EditorDeserializeMap(wd_path("IrradianceCachingTest.emf").c_str());
-#else
-    EditorDeserializeMap(wd_path("LightTest.emf").c_str());
-#endif
-    BuildGameMap(wd_path("buildtest.map").c_str());
+// #if SUNLIGHT_TEST
+//     EditorDeserializeMap(wd_path("House.emf").c_str());
+//     // EditorDeserializeMap(wd_path("IrradianceCachingTest.emf").c_str());
+// #else
+//     EditorDeserializeMap(wd_path("LightTest.emf").c_str());
+// #endif
+//     BuildGameMap(wd_path("buildtest.map").c_str());
 
     if (LoadGameMap(wd_path("buildtest.map").c_str()) == false)
         LogError("failed to load game map");
