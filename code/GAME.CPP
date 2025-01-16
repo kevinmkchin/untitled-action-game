@@ -4,6 +4,18 @@
 Okay back to it. Just use Jolt for physics/collisions. Refactor/reorganize so code isn't a mess.
 Jolt should handle all collision resolution. We don't need to do any of that bullshit.
 
+Create MeshShapes from the FlatPolygon fanned triangles -> static bodies -> uhhh could I do a single MeshShape for the entire level geometry? why not? 
+    there's no rule about convexity... https://youtu.be/EanFxlkZgcA?si=NivFi2-51oXM3wE-
+    does it mess up broadphase detection?
+Try replacing the floor in the helloworld example with this level mesh and see if ball simulates the same way.
+Create simple Character and apply velocity based on input -> player position needs to be read back from this character body
+Simulate world
+Don't need much more than that...and this is probably as good as physics is going to get? any improvements would be how I set up the static level bodies.
+But I'm optimistic that Jolt will work well.
+
+
+
+
 
 World - I want a crispy fucking visually nice to look at world being created and loaded in game
 
@@ -50,6 +62,7 @@ TODO:
 - Edge loop
 - Toggle element translation along axis
 - Anisotropic filtering https://www.khronos.org/opengl/wiki/Sampler_Object#Anisotropic_filtering
+- Use a triangulation library for face triangulation https://github.com/artem-ogre/CDT
 
 Engine work is almost done. 
 ~~- Lightmap baking (potentially radiosity)~~
@@ -175,7 +188,6 @@ typedef i16           bool16;
 typedef i32           bool32;
 
 #include "physics.h"
-#include "physics.cpp"
 
 
 #if (defined _MSC_VER)
@@ -1094,6 +1106,7 @@ ModelGLTF Model_Knight;
 
 #include "EDITOR.CPP"
 
+#include "physics.cpp"
 
 static void Stuff()
 {
@@ -1136,6 +1149,166 @@ static void Stuff()
     // }
 
     // RebindFaceBatchBufferObject(&fb0, (u32)MY_VERTEX_BUFFER.size()*sizeof(float), MY_VERTEX_BUFFER.data());
+}
+
+// Create mapping table from object layer to broadphase layer
+BPLayerInterfaceImpl broad_phase_layer_interface;
+// Create class that filters object vs broadphase layers
+ObjectVsBroadPhaseLayerFilterImpl object_vs_broadphase_layer_filter;
+// Create class that filters object vs object layers
+ObjectLayerPairFilterImpl object_vs_object_layer_filter;
+// Now we can create the actual physics system.
+JPH::PhysicsSystem physics_system;
+JPH::BodyInterface *body_interface;
+JPH::Character *mCharacter;
+
+static void Stuff2()
+{
+    // Lets make the fucking level mesh collider bitch
+
+    JPH::RegisterDefaultAllocator();
+    JPH::Trace = TraceImpl;
+    JPH_IF_ENABLE_ASSERTS(AssertFailed = AssertFailedImpl;)
+    JPH::Factory::sInstance = new Factory();
+    JPH::RegisterTypes();
+
+    const uint cMaxBodies = 65536;
+    const uint cNumBodyMutexes = 0;
+    const uint cMaxBodyPairs = 65536;
+    const uint cMaxContactConstraints = 10240;
+
+    physics_system.Init(cMaxBodies, cNumBodyMutexes, cMaxBodyPairs, cMaxContactConstraints, broad_phase_layer_interface, object_vs_broadphase_layer_filter, object_vs_object_layer_filter);
+    physics_system.SetGravity(physics_system.GetGravity() * 32.f);
+
+    // A body activation listener gets notified when bodies activate and go to sleep
+    // Note that this is called from a job so whatever you do here needs to be thread safe.
+    // Registering one is entirely optional.
+    static MyBodyActivationListener body_activation_listener;
+    physics_system.SetBodyActivationListener(&body_activation_listener);
+
+    // A contact listener gets notified when bodies (are about to) collide, and when they separate again.
+    // Note that this is called from a job so whatever you do here needs to be thread safe.
+    // Registering one is entirely optional.
+    static MyContactListener contact_listener;
+    physics_system.SetContactListener(&contact_listener);
+
+    // The main way to interact with the bodies in the physics system is through the body interface. There is a locking and a non-locking
+    // variant of this. We're going to use the locking version (even though we're not planning to access bodies from multiple threads)
+    body_interface = &physics_system.GetBodyInterface();
+
+    // // Next we can create a rigid body to serve as the floor, we make a large box
+    // // Create the settings for the collision volume (the shape).
+    // // Note that for simple shapes (like boxes) you can also directly construct a BoxShape.
+    // BoxShapeSettings floor_shape_settings(Vec3(100.0f, 1.0f, 100.0f));
+    // floor_shape_settings.SetEmbedded(); // A ref counted object on the stack (base class RefTarget) should be marked as such to prevent it from being freed when its reference count goes to 0.
+
+    static JPH::TriangleList triangles;
+    for (FlatPolygonCollider& collider : GameLevelColliders)
+    {
+        vec3 first = collider.pointCloudPtr[0];
+        for (u32 i = 2; i < collider.pointCount; ++i)
+        {
+            vec3 second = collider.pointCloudPtr[i-1];
+            vec3 third = collider.pointCloudPtr[i];
+
+            JPH::Float3 jph_first(first.x, first.y, first.z);
+            JPH::Float3 jph_second(second.x, second.y, second.z);
+            JPH::Float3 jph_third(third.x, third.y, third.z);
+
+            triangles.push_back(Triangle(jph_first, jph_second, jph_third));
+        }
+    }
+    static JPH::MeshShapeSettings myLevelColliderSettings = JPH::MeshShapeSettings(triangles);
+    myLevelColliderSettings.SetEmbedded();
+
+    // Create the shape
+    static JPH::ShapeSettings::ShapeResult level_shape_result = myLevelColliderSettings.Create();
+    static JPH::ShapeRefC level_shape = level_shape_result.Get(); // We don't expect an error here, but you can check floor_shape_result for HasError() / GetError()
+    if(level_shape_result.HasError())
+    {
+        LogMessage("%s", level_shape_result.GetError().c_str());
+    }
+
+    // Create the settings for the body itself. Note that here you can also set other properties like the restitution / friction.
+    static JPH::BodyCreationSettings level_settings(level_shape, RVec3(0.0_r, 0.0_r, 0.0_r), Quat::sIdentity(), EMotionType::Static, Layers::NON_MOVING);
+    level_settings.mEnhancedInternalEdgeRemoval = true;
+
+    // Create the actual rigid body
+    Body *floor = body_interface->CreateBody(level_settings); // Note that if we run out of bodies this can return nullptr
+
+    // Add it to the world
+    body_interface->AddBody(floor->GetID(), EActivation::DontActivate);
+
+    // // Now create a dynamic body to bounce on the floor
+    // // Note that this uses the shorthand version of creating and adding a body to the world
+    // BodyCreationSettings sphere_settings(new SphereShape(8.f), RVec3(0.0_r, 64.0_r, 0.0_r), Quat::sIdentity(), EMotionType::Dynamic, Layers::MOVING);
+    // BodyID sphere_id = body_interface->CreateAndAddBody(sphere_settings, EActivation::Activate);
+
+    // // Now you can interact with the dynamic body, in this case we're going to give it a velocity.
+    // // (note that if we had used CreateBody then we could have set the velocity straight on the body before adding it to the physics system)
+    // body_interface->SetLinearVelocity(sphere_id, Vec3(0.0f, 0.0f, 0.0f));
+
+    // We simulate the physics world in discrete time steps. 60 Hz is a good rate to update the physics system.
+
+
+    // Optional step: Before starting the physics simulation you can optimize the broad phase. This improves collision detection performance (it's pointless here because we only have 2 bodies).
+    // You should definitely not call this every frame or when e.g. streaming in a new level section as it is an expensive operation.
+    // Instead insert all new objects in batches instead of 1 at a time to keep the broad phase efficient.
+    physics_system.OptimizeBroadPhase();
+
+    // // Now we're ready to simulate the body, keep simulating until it goes to sleep
+    // uint step = 0;
+    // while (body_interface->IsActive(sphere_id))
+    // {
+    //     // Next step
+    //     ++step;
+
+    //     // Output current position and velocity of the sphere
+    //     RVec3 position = body_interface->GetCenterOfMassPosition(sphere_id);
+    //     Vec3 velocity = body_interface->GetLinearVelocity(sphere_id);
+    //     cout << "Step " << step << ": Position = (" << position.GetX() << ", " << position.GetY() << ", " << position.GetZ() << "), Velocity = (" << velocity.GetX() << ", " << velocity.GetY() << ", " << velocity.GetZ() << ")" << endl;
+
+    //     // If you take larger steps than 1 / 60th of a second you need to do multiple collision steps in order to keep the simulation stable. Do 1 collision step per 1 / 60th of a second (round up).
+    //     const float cDeltaTime = 1.0f / 60.0f;
+    //     const int cCollisionSteps = 1;
+
+    //     // Step the world
+    //     physics_system.Update(cDeltaTime, cCollisionSteps, &temp_allocator, &job_system);
+    // }
+
+    // // Remove the sphere from the physics system. Note that the sphere itself keeps all of its state and can be re-added at any time.
+    // body_interface.RemoveBody(sphere_id);
+
+    // // Destroy the sphere. After this the sphere ID is no longer valid.
+    // body_interface.DestroyBody(sphere_id);
+
+    // // Remove and destroy the floor
+    // body_interface.RemoveBody(floor->GetID());
+    // body_interface.DestroyBody(floor->GetID());
+
+    // // Unregisters all types with the factory and cleans up the default material
+    // UnregisterTypes();
+
+    // // Destroy the factory
+    // delete Factory::sInstance;
+    // Factory::sInstance = nullptr;
+
+
+
+
+    // make the character collider
+    static constexpr float  cCharacterHeightStanding = 48.f;
+    static constexpr float  cCharacterRadiusStanding = 8.f;
+    RefConst<Shape> mStandingShape = RotatedTranslatedShapeSettings(Vec3(0, 0.5f * cCharacterHeightStanding + cCharacterRadiusStanding, 0), Quat::sIdentity(), new CapsuleShape(0.5f * cCharacterHeightStanding, cCharacterRadiusStanding)).Create().Get();
+
+    Ref<CharacterSettings> settings = new CharacterSettings();
+    settings->mMaxSlopeAngle = DegreesToRadians(45.0f);
+    settings->mLayer = Layers::MOVING;
+    settings->mShape = mStandingShape;
+    settings->mFriction = 0.5f;
+    settings->mSupportingVolume = Plane(Vec3::sAxisY(), -cCharacterRadiusStanding); // Accept contacts that touch the lower sphere of the capsule
+    mCharacter = new Character(settings, JPH::RVec3(0,32,0), Quat::sIdentity(), 0, &physics_system);
+    mCharacter->AddToPhysicsSystem(EActivation::Activate);
 }
 
 static void TickGame()
@@ -1184,17 +1357,16 @@ static void TickGame()
 
 
     // PLAYER MOVE
-    float moveSpeed = 250.f;
-    vec3 playerPositionDelta;
+    // float moveSpeed = 250.f;
+    vec3 desiredMoveDirection;
     if (KeysCurrent[SDL_SCANCODE_W])
-        playerPositionDelta += PlayerWalkDirectionForward * moveSpeed * DeltaTime;
+        desiredMoveDirection += PlayerWalkDirectionForward;
     if (KeysCurrent[SDL_SCANCODE_A])
-        playerPositionDelta += -PlayerWalkDirectionRight * moveSpeed * DeltaTime;
+        desiredMoveDirection += -PlayerWalkDirectionRight;
     if (KeysCurrent[SDL_SCANCODE_S])
-        playerPositionDelta += -PlayerWalkDirectionForward * moveSpeed * DeltaTime;
+        desiredMoveDirection += -PlayerWalkDirectionForward;
     if (KeysCurrent[SDL_SCANCODE_D])
-        playerPositionDelta += PlayerWalkDirectionRight * moveSpeed * DeltaTime;
-    PlayerControllerRoot += playerPositionDelta;
+        desiredMoveDirection += PlayerWalkDirectionRight;
     
     static int channelrotationtesting = 0;
     if (KeysPressed[SDL_SCANCODE_SPACE])
@@ -1206,22 +1378,75 @@ static void TickGame()
     PlayerYVel -= 314.f * DeltaTime; // 9.81 m/s * 32 units/m ~= 314 units/s
     PlayerControllerRoot.y += PlayerYVel * DeltaTime;
 
-    // PLAYER RESOLVE COLLISIONS
-    MeshCollider *pcol = PlayerColliderAtPos(PlayerControllerRoot);
-    Bounds playerBounds = BoundsFromMeshCollider(*pcol);
-    std::unordered_set<Collider*> pcollisionquery = GameLevelCollisionTree.Query(playerBounds);
-    // NOTE(Kevin): If I wanted, I could do something like sort these potential colliders by walls before floors or something
-    for (Collider *levelCollider : pcollisionquery)
+
+
+    // Cancel movement in opposite direction of normal when touching something we can't walk up
+    Vec3 movement_direction = Vec3(desiredMoveDirection.x, desiredMoveDirection.y, desiredMoveDirection.z);
+    Character::EGroundState ground_state = mCharacter->GetGroundState();
+    if (ground_state == Character::EGroundState::OnSteepGround || ground_state == Character::EGroundState::NotSupported)
     {
-        CollisionResult result = GJK(levelCollider, pcol);
-        if (result.hasCollision)
-        {
-            vec3 moveby = result.normal * result.penetrationDepth;
-            PlayerControllerRoot += moveby;
-            if (Dot(result.normal, GM_UP_VECTOR) > 0.1f)
-                PlayerYVel = 0.f;
-        }
+        Vec3 normal = mCharacter->GetGroundNormal();
+        normal.SetY(0.0f);
+        float dot = normal.Dot(movement_direction);
+        if (dot < 0.0f)
+            movement_direction -= (dot * normal) / normal.LengthSq();
     }
+
+    //// Stance switch
+    //if (inSwitchStance)
+    //    mCharacter->SetShape(mCharacter->GetShape() == mStandingShape ? mCrouchingShape : mStandingShape, 1.5f * mPhysicsSystem->GetPhysicsSettings().mPenetrationSlop);
+    const float		sCharacterSpeed = 6.0f*32.f;
+    const float		sJumpSpeed = 4.0f*32.f;
+    if (/*sControlMovementDuringJump || */ mCharacter->IsSupported())
+    {
+        // Update velocity
+        Vec3 current_velocity = mCharacter->GetLinearVelocity();
+        Vec3 desired_velocity = sCharacterSpeed * movement_direction;
+        if (!desired_velocity.IsNearZero() || current_velocity.GetY() < 0.0f || !mCharacter->IsSupported())
+            desired_velocity.SetY(current_velocity.GetY());
+        Vec3 new_velocity = 0.75f * current_velocity + 0.25f * desired_velocity;
+
+        // Jump
+        if (KeysPressed[SDL_SCANCODE_SPACE] && ground_state == Character::EGroundState::OnGround)
+            new_velocity += Vec3(0, sJumpSpeed, 0);
+
+        // Update the velocity
+        mCharacter->SetLinearVelocity(new_velocity);
+    }
+
+    // PLAYER RESOLVE COLLISIONS
+
+    static TempAllocatorImpl temp_allocator(10 * 1024 * 1024);
+    static JPH::JobSystemThreadPool job_system(cMaxPhysicsJobs, cMaxPhysicsBarriers, thread::hardware_concurrency() - 1);
+
+    const float cDeltaTime = 1.0f / 60.0f;
+    const int cCollisionSteps = 1;
+    // Step the world
+    physics_system.Update(cDeltaTime, cCollisionSteps, &temp_allocator, &job_system);
+    mCharacter->PostSimulation(0.05f);
+
+    RVec3 cpos = mCharacter->GetPosition();
+    LogMessage("character pos %f, %f, %f", cpos.GetX(), cpos.GetY(), cpos.GetZ());
+
+    PlayerControllerRoot.x = cpos.GetX();
+    PlayerControllerRoot.y = cpos.GetY();
+    PlayerControllerRoot.z = cpos.GetZ();
+
+    // MeshCollider *pcol = PlayerColliderAtPos(PlayerControllerRoot);
+    // Bounds playerBounds = BoundsFromMeshCollider(*pcol);
+    // std::unordered_set<Collider*> pcollisionquery = GameLevelCollisionTree.Query(playerBounds);
+    // // NOTE(Kevin): If I wanted, I could do something like sort these potential colliders by walls before floors or something
+    // for (Collider *levelCollider : pcollisionquery)
+    // {
+    //     CollisionResult result = GJK(levelCollider, pcol);
+    //     if (result.hasCollision)
+    //     {
+    //         vec3 moveby = result.normal * result.penetrationDepth;
+    //         PlayerControllerRoot += moveby;
+    //         if (Dot(result.normal, GM_UP_VECTOR) > 0.1f)
+    //             PlayerYVel = 0.f;
+    //     }
+    // }
 
     // PLAYER CAMERA 
     vec3 cameraPosOffsetFromRoot = vec3(0,40,0);
@@ -1613,7 +1838,7 @@ static bool InitializeEverything()
 #endif
 
     SDL_SetWindowMinimumSize(SDLMainWindow, 200, 100);
-    SDL_GL_SetSwapInterval(0);
+    SDL_GL_SetSwapInterval(1);
 
     if (Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 2, 2048) < 0 || Mix_Init(MIX_INIT_OGG) < 0)
         return false;
@@ -1721,6 +1946,8 @@ int main(int argc, char* argv[])
 
     if (LoadGameMap(wd_path("buildtest.map").c_str()) == false)
         LogError("failed to load game map");
+
+    Stuff2();
 
     while (!ProgramShutdownRequested)
     {
