@@ -1993,9 +1993,9 @@ static const char* colored_text_shader_fs =
         "}\n"
         "";
 
-static GPUMesh s_ui_mesh;
-static GPUMesh s_text_mesh;
-static GPUMesh s_colored_text_mesh;
+static GPUMeshIndexed s_ui_mesh;
+static GPUMeshIndexed s_text_mesh;
+static GPUMeshIndexed s_colored_text_mesh;
 
 #define MAX_DRAWCOLLECTIONS_ALLOWED 16
 
@@ -2018,9 +2018,9 @@ namespace Gui
         GLCreateShaderProgram(rounded_corner_rect_shader, rounded_corner_rect_shader_vs, rounded_corner_rect_shader_fs);
         GLCreateShaderProgram(text_shader, text_shader_vs, text_shader_fs);
         GLCreateShaderProgram(colored_text_shader, colored_text_shader_vs, colored_text_shader_fs);
-        CreateGPUMesh(&s_ui_mesh, nullptr, nullptr, 0, 0, 2, 2, 0, GL_DYNAMIC_DRAW);
-        CreateGPUMesh(&s_text_mesh, nullptr, nullptr, 0, 0, 2, 2, 0, GL_DYNAMIC_DRAW);
-        CreateGPUMesh(&s_colored_text_mesh, nullptr, nullptr, 0, 0, 2, 2, 3, GL_DYNAMIC_DRAW);
+        CreateGPUMeshIndexed(&s_ui_mesh, nullptr, nullptr, 0, 0, 2, 2, 0, GL_DYNAMIC_DRAW);
+        CreateGPUMeshIndexed(&s_text_mesh, nullptr, nullptr, 0, 0, 2, 2, 0, GL_DYNAMIC_DRAW);
+        CreateGPUMeshIndexed(&s_colored_text_mesh, nullptr, nullptr, 0, 0, 2, 2, 3, GL_DYNAMIC_DRAW);
 
         ASSERT(DRAWQSTORAGE.count == 0);
         ASSERT(DRAWQUEUE_METADATA.count == 0);
@@ -2144,8 +2144,8 @@ namespace Gui
             GLBind4f(main_ui_shader, "uiColour", color.x, color.y, color.z, color.w);
         }
 
-        RebindGPUMeshData(&s_ui_mesh, vb, ib, ARRAY_COUNT(vb), ARRAY_COUNT(ib), GL_DYNAMIC_DRAW);
-        RenderGPUMesh(s_ui_mesh);
+        RebindGPUMeshIndexedData(&s_ui_mesh, vb, ib, ARRAY_COUNT(vb), ARRAY_COUNT(ib), GL_DYNAMIC_DRAW);
+        RenderGPUMeshIndexed(s_ui_mesh);
     }
 
     void RoundedCornerRectDrawRequest::Draw()
@@ -2166,8 +2166,8 @@ namespace Gui
         GLBind1i(rounded_corner_rect_shader, "cornerRadius", radius);
         GLBind4f(rounded_corner_rect_shader, "uiColour", color.x, color.y, color.z, color.w);
 
-        RebindGPUMeshData(&s_ui_mesh, vb, ib, ARRAY_COUNT(vb), ARRAY_COUNT(ib), GL_DYNAMIC_DRAW);
-        RenderGPUMesh(s_ui_mesh);
+        RebindGPUMeshIndexedData(&s_ui_mesh, vb, ib, ARRAY_COUNT(vb), ARRAY_COUNT(ib), GL_DYNAMIC_DRAW);
+        RenderGPUMeshIndexed(s_ui_mesh);
     }
 
     void CorneredRectDrawRequest::Draw()
@@ -2219,8 +2219,8 @@ namespace Gui
             GLBind4f(main_ui_shader, "uiColour", color.x, color.y, color.z, color.w);
         }
 
-        RebindGPUMeshData(&s_ui_mesh, vb, ib, ARRAY_COUNT(vb), ARRAY_COUNT(ib), GL_DYNAMIC_DRAW);
-        RenderGPUMesh(s_ui_mesh);
+        RebindGPUMeshIndexedData(&s_ui_mesh, vb, ib, ARRAY_COUNT(vb), ARRAY_COUNT(ib), GL_DYNAMIC_DRAW);
+        RenderGPUMeshIndexed(s_ui_mesh);
     }
 
     void TextDrawRequest::Draw()
@@ -2242,7 +2242,7 @@ namespace Gui
         }
         vtxt_vertex_buffer _txt = vtxt_grab_buffer();
         if (_txt.vertices_array_count > 0)
-            RebindGPUMeshData(&s_text_mesh, _txt.vertex_buffer, _txt.index_buffer, _txt.vertices_array_count, _txt.indices_array_count, GL_DYNAMIC_DRAW);
+            RebindGPUMeshIndexedData(&s_text_mesh, _txt.vertex_buffer, _txt.index_buffer, _txt.vertices_array_count, _txt.indices_array_count, GL_DYNAMIC_DRAW);
         vtxt_clear_buffer();
 
         mat4 matrixModel = mat4();
@@ -2258,7 +2258,7 @@ namespace Gui
 
         GLBind4i(text_shader, "windowMask", activeWindowMask.x, activeWindowMask.y, activeWindowMask.w, activeWindowMask.h);
 
-        RenderGPUMesh(s_text_mesh);
+        RenderGPUMeshIndexed(s_text_mesh);
     }
 
     void PipCodeDrawRequest::Draw()
@@ -2272,7 +2272,7 @@ namespace Gui
 
         if (_txt.vertices_array_count > 0)
         {
-            RebindGPUMeshData(&s_colored_text_mesh, _txt.vertex_buffer, _txt.index_buffer, _txt.vertices_array_count, _txt.indices_array_count, GL_DYNAMIC_DRAW);
+            RebindGPUMeshIndexedData(&s_colored_text_mesh, _txt.vertex_buffer, _txt.index_buffer, _txt.vertices_array_count, _txt.indices_array_count, GL_DYNAMIC_DRAW);
 
             mat4 matrixModel = mat4();
             UseShader(colored_text_shader);
@@ -2286,7 +2286,7 @@ namespace Gui
 
             GLBind4i(colored_text_shader, "windowMask", activeWindowMask.x, activeWindowMask.y, activeWindowMask.w, activeWindowMask.h);
 
-            RenderGPUMesh(s_colored_text_mesh);
+            RenderGPUMeshIndexed(s_colored_text_mesh);
         }
 
         vtxt_clear_buffer();
