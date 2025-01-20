@@ -1,6 +1,5 @@
 
-
-static const char* __editor_scene_shader_vs =
+const char* __editor_scene_shader_vs =
     "#version 330\n"
     "\n"
     "layout (location = 0) in vec3 vertex_pos;\n"
@@ -31,7 +30,7 @@ static const char* __editor_scene_shader_vs =
     "    LIGHT = min(lightAMB + lightDIFF, vec3(1.0));\n"
     "}";
 
-static const char* __editor_scene_shader_fs = 
+const char* __editor_scene_shader_fs = 
     "#version 330\n"
     "\n"
     "in vec2 uv;\n"
@@ -48,7 +47,7 @@ static const char* __editor_scene_shader_fs =
     "    out_colour = vec4(TOTAL, 1.0);\n"
     "}";
 
-static const char* __editor_scene_wireframe_shader_vs =
+const char* __editor_scene_wireframe_shader_vs =
     "#version 330\n"
     "\n"
     "layout (location = 0) in vec3 vertex_pos;\n"
@@ -65,7 +64,7 @@ static const char* __editor_scene_wireframe_shader_vs =
     "    gl_Position = vertInClipSpace;\n"
     "}";
 
-static const char* __editor_scene_wireframe_shader_fs = 
+const char* __editor_scene_wireframe_shader_fs = 
     "#version 330\n"
     "\n"
     "layout(location = 0) out vec4 out_colour;\n"
@@ -75,7 +74,7 @@ static const char* __editor_scene_wireframe_shader_fs =
     "    out_colour = vec4(0.0, 0.0, 0.0, 1.0);\n"
     "}";
 
-static const char* __editor_shader_face_selected_vs =
+const char* __editor_shader_face_selected_vs =
     "#version 330\n"
     "\n"
     "layout (location = 0) in vec3 vertex_pos;\n"
@@ -95,7 +94,7 @@ static const char* __editor_shader_face_selected_vs =
     "    gl_Position = vertInClipSpace;\n"
     "}";
 
-static const char* __editor_shader_face_selected_fs = 
+const char* __editor_shader_face_selected_fs = 
     "#version 330\n"
     "\n"
     "in vec2 uv;\n"
@@ -113,7 +112,7 @@ static const char* __editor_shader_face_selected_fs =
     "}";
 
 
-static const char* __finalpass_shader_vs =
+const char* __finalpass_shader_vs =
     "#version 330\n"
     "layout(location = 0) in vec2 pos;\n"
     "layout(location = 1) in vec2 uv;\n"
@@ -124,7 +123,7 @@ static const char* __finalpass_shader_vs =
     "    texcoord = uv;\n"
     "}\n";
 
-static const char* __finalpass_shader_fs =
+const char* __finalpass_shader_fs =
     "#version 330\n"
     "uniform sampler2D screen_texture;\n"
     "in vec2 texcoord;\n"
@@ -176,20 +175,11 @@ bool GLHasErrors()
 }
 
 
-struct GPUShader
-{
-    GLuint idShaderProgram = 0; // id of this shader program in GPU memory
-
-    bool bPrintWarnings = true;
-    std::unordered_map<std::string, i32> uniformLocationsMap;
-};
+void GLCreateShaderProgram(GPUShader& shader, const char* vertexShaderStr, const char* fragmentShaderStr);
+void GLCreateShaderProgram(GPUShader& shader, const char* vertexShaderStr, const char* geometryShaderStr, const char* fragmentShaderStr);
 
 
-static void GLCreateShaderProgram(GPUShader& shader, const char* vertexShaderStr, const char* fragmentShaderStr);
-static void GLCreateShaderProgram(GPUShader& shader, const char* vertexShaderStr, const char* geometryShaderStr, const char* fragmentShaderStr);
-
-
-static i32 GetCachedUniformLocation(const GPUShader& shader, const char* uniformName)
+i32 GetCachedUniformLocation(const GPUShader& shader, const char* uniformName)
 {
     auto location_iter = shader.uniformLocationsMap.find(uniformName);
     if (location_iter != shader.uniformLocationsMap.end())
@@ -199,7 +189,7 @@ static i32 GetCachedUniformLocation(const GPUShader& shader, const char* uniform
     return -1;
 }
 
-static void warningUniformNotFound(const GPUShader& shader, const char* uniformName)
+void warningUniformNotFound(const GPUShader& shader, const char* uniformName)
 {
     if (shader.bPrintWarnings)
     {
@@ -207,7 +197,7 @@ static void warningUniformNotFound(const GPUShader& shader, const char* uniformN
     }
 }
 
-static void cacheUniformLocation(GPUShader& shader, const char* uniformName)
+void cacheUniformLocation(GPUShader& shader, const char* uniformName)
 {
     i32 location = glGetUniformLocation(shader.idShaderProgram, uniformName);
     if (location != 0xffffffff)
@@ -220,7 +210,7 @@ static void cacheUniformLocation(GPUShader& shader, const char* uniformName)
     }
 }
 
-static void cacheUniformLocations(GPUShader& shader)
+void cacheUniformLocations(GPUShader& shader)
 {
     shader.uniformLocationsMap.clear();
 
@@ -246,7 +236,7 @@ static void cacheUniformLocations(GPUShader& shader)
     }
 }
 
-static void GLCompileShader(u32 program_id, const char* shader_code, GLenum shaderType)
+void GLCompileShader(u32 program_id, const char* shader_code, GLenum shaderType)
 {
     GLuint id_shader = glCreateShader(shaderType);             // Create an empty shader of given type and get id
     GLint code_length = (GLint)strlen(shader_code);
@@ -266,7 +256,7 @@ static void GLCompileShader(u32 program_id, const char* shader_code, GLenum shad
     glAttachShader(program_id, id_shader);
 }
 
-static bool GLCheckErrorAndValidate(GLuint program_id)
+bool GLCheckErrorAndValidate(GLuint program_id)
 {
 #if INTERNAL_BUILD
     GLint result = 0;
