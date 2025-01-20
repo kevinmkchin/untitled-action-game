@@ -427,7 +427,7 @@ GPUShader EditorShader_FaceSelected;
 GPUShader FinalPassShader;
 GPUFrameBuffer RenderTargetGame;
 GPUFrameBuffer RenderTargetGUI;
-GPUMesh FinalRenderOutputQuad;
+GPUMeshIndexed FinalRenderOutputQuad;
 float GAMEPROJECTION_NEARCLIP = 4.f; // even 2 works fine to remove z fighting
 float GAMEPROJECTION_FARCLIP = 32000.f;
 bool DoPrimitivesDepthTest = false;
@@ -1110,12 +1110,12 @@ static void FinalRenderToBackBuffer()
     // Draw game frame
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, RenderTargetGame.colorTexId);
-    RenderGPUMesh(FinalRenderOutputQuad);
+    RenderGPUMeshIndexed(FinalRenderOutputQuad);
 
     // Draw GUI frame
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, RenderTargetGUI.colorTexId);
-    RenderGPUMesh(FinalRenderOutputQuad);
+    RenderGPUMeshIndexed(FinalRenderOutputQuad);
 
     //    // Draw Debug UI frame
     //    glActiveTexture(GL_TEXTURE0);
@@ -1162,7 +1162,7 @@ static void InitGameRenderer()
         0, 1, 3,
         0, 3, 2
     };
-    CreateGPUMesh(&FinalRenderOutputQuad, refQuadVertices, refQuadIndices, 16, 6, 2, 2, 0, GL_STATIC_DRAW);
+    CreateGPUMeshIndexed(&FinalRenderOutputQuad, refQuadVertices, refQuadIndices, 16, 6, 2, 2, 0, GL_STATIC_DRAW);
 
     InitPrimitivesAndHandlesSystems();
 }

@@ -157,7 +157,7 @@ void DeleteGPUFrameBuffer(GPUFrameBuffer *buffer)
     glDeleteFramebuffers(1, &buffer->fbo);
 }
 
-void RenderGPUMesh(GPUMesh mesh, GLenum rendermode)
+void RenderGPUMeshIndexed(GPUMeshIndexed mesh, GLenum rendermode)
 {
     if (mesh.indicesCount == 0) // Early out if index_count == 0, nothing to draw
     {
@@ -173,12 +173,12 @@ void RenderGPUMesh(GPUMesh mesh, GLenum rendermode)
     glBindVertexArray(0);
 }
 
-void RebindGPUMeshData(GPUMesh *mesh, 
-                       float *vertices, 
-                       u32 *indices, 
-                       u32 verticesArrayCount, 
-                       u32 indicesArrayCount, 
-                       GLenum drawUsage)
+void RebindGPUMeshIndexedData(GPUMeshIndexed *mesh, 
+                              float *vertices, 
+                              u32 *indices, 
+                              u32 verticesArrayCount, 
+                              u32 indicesArrayCount, 
+                              GLenum drawUsage)
 {
     if (mesh->idVBO == 0 || mesh->idIBO == 0)
         return;
@@ -193,15 +193,15 @@ void RebindGPUMeshData(GPUMesh *mesh,
     glBindVertexArray(0);
 }
 
-void CreateGPUMesh(GPUMesh *mesh, 
-                   float *vertices, 
-                   u32 *indices, 
-                   u32 verticesArrayCount, 
-                   u32 indicesArrayCount, 
-                   u8 positionAttribSize, 
-                   u8 textureAttribSize, 
-                   u8 normalAttribSize, 
-                   GLenum drawUsage)
+void CreateGPUMeshIndexed(GPUMeshIndexed *mesh, 
+                          float *vertices, 
+                          u32 *indices, 
+                          u32 verticesArrayCount, 
+                          u32 indicesArrayCount, 
+                          u8 positionAttribSize, 
+                          u8 textureAttribSize, 
+                          u8 normalAttribSize, 
+                          GLenum drawUsage)
 {
     ASSERT(mesh->idVAO == 0);
 
@@ -244,7 +244,7 @@ void CreateGPUMesh(GPUMesh *mesh,
     glBindVertexArray(0); // Unbind the VAO;
 }
 
-void DeleteGPUMesh(GPUMesh *mesh)
+void DeleteGPUMeshIndexed(GPUMeshIndexed *mesh)
 {
     if (mesh->idIBO != 0)
     {
@@ -374,7 +374,7 @@ void FreeModelGLTF(ModelGLTF model)
     size_t meshcount = arrlenu(model.meshes);
     for (size_t i = 0; i < meshcount; ++i)
     {
-        DeleteGPUMesh(&model.meshes[i]);
+        DeleteGPUMeshIndexed(&model.meshes[i]);
         DeleteGPUTexture(&model.color[i]);
     }
 
@@ -387,18 +387,18 @@ void RenderModelGLTF(ModelGLTF model)
     size_t meshcount = arrlenu(model.meshes);
     for (size_t i = 0; i < meshcount; ++i)
     {
-        GPUMesh    m = model.meshes[i];
+        GPUMeshIndexed m = model.meshes[i];
         GPUTexture t = model.color[i];
 
         // TODO(Kevin): if t.id is 0 then bind MissingTexture 
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, t.id);
 
-        RenderGPUMesh(m);
+        RenderGPUMeshIndexed(m);
     }
 }
 
-static GPUMesh ASSIMPMeshToGPUMesh(aiMesh* meshNode)
+static GPUMeshIndexed ASSIMPMeshToGPUMeshIndexed(aiMesh* meshNode)
 {
     const u32 vertexStride = 8;
 
@@ -445,8 +445,8 @@ static GPUMesh ASSIMPMeshToGPUMesh(aiMesh* meshNode)
         }
     }
 
-    GPUMesh mesh;
-    CreateGPUMesh(&mesh, &vb[0], &ib[0], (u32)vb.size(), (u32)ib.size());
+    GPUMeshIndexed mesh;
+    CreateGPUMeshIndexed(&mesh, &vb[0], &ib[0], (u32)vb.size(), (u32)ib.size());
     return mesh;
 }
 
@@ -525,7 +525,7 @@ bool LoadModelGLTF2Bin(ModelGLTF *model, const char *filepath)
     for (u32 meshIndex = 0; meshIndex < scene->mNumMeshes; ++meshIndex)
     {
         aiMesh* meshNode = scene->mMeshes[meshIndex];
-        GPUMesh gpumesh = ASSIMPMeshToGPUMesh(meshNode);
+        GPUMeshIndexed gpumesh = ASSIMPMeshToGPUMeshIndexed(meshNode);
         u32 matIndex = meshNode->mMaterialIndex;
         GPUTexture colorTex = matEmissiveTextures[matIndex];
 

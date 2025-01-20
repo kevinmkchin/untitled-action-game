@@ -43,7 +43,7 @@ struct GPUFrameBuffer
     i32 height;
 };
 
-struct GPUMesh
+struct GPUMeshIndexed
 {
     u32 idVAO = 0;
     u32 idVBO = 0;
@@ -66,23 +66,23 @@ void CreateGPUFrameBuffer(GPUFrameBuffer *buffer, GLenum TargetFormat = GL_RGBA,
 void UpdateGPUFrameBufferSize(GPUFrameBuffer *buffer, i32 w, i32 h);
 void DeleteGPUFrameBuffer(GPUFrameBuffer *buffer);
 
-void CreateGPUMesh(GPUMesh *mesh, 
-                   float *vertices, 
-                   u32 *indices, 
-                   u32 verticesArrayCount, 
-                   u32 indicesArrayCount, 
-                   u8 positionAttribSize = 3, 
-                   u8 textureAttribSize = 2, 
-                   u8 normalAttribSize = 3, 
-                   GLenum drawUsage = GL_DYNAMIC_DRAW);
-void RebindGPUMeshData(GPUMesh *mesh, 
-                       float *vertices, 
-                       u32 *indices, u32 
-                       verticesArrayCount, 
-                       u32 indicesArrayCount, 
-                       GLenum drawUsage = GL_DYNAMIC_DRAW);
-void RenderGPUMesh(GPUMesh mesh, GLenum rendermode = GL_TRIANGLES);
-void DeleteGPUMesh(GPUMesh *mesh);
+void CreateGPUMeshIndexed(GPUMeshIndexed *mesh, 
+                          float *vertices, 
+                          u32 *indices, 
+                          u32 verticesArrayCount, 
+                          u32 indicesArrayCount, 
+                          u8 positionAttribSize = 3, 
+                          u8 textureAttribSize = 2, 
+                          u8 normalAttribSize = 3, 
+                          GLenum drawUsage = GL_DYNAMIC_DRAW);
+void RebindGPUMeshIndexedData(GPUMeshIndexed *mesh, 
+                              float *vertices, 
+                              u32 *indices, u32 
+                              verticesArrayCount, 
+                              u32 indicesArrayCount, 
+                              GLenum drawUsage = GL_DYNAMIC_DRAW);
+void RenderGPUMeshIndexed(GPUMeshIndexed mesh, GLenum rendermode = GL_TRIANGLES);
+void DeleteGPUMeshIndexed(GPUMeshIndexed *mesh);
 
 void CreateGPUTextureFromBitmap(GPUTexture        *texture,
                                 void              *bitmap,
@@ -100,8 +100,8 @@ void DeleteGPUTexture(GPUTexture *texture);
 
 struct ModelGLTF
 {
-    GPUMesh    *meshes   = NULL;
-    GPUTexture *color    = NULL;
+    GPUMeshIndexed *meshes   = NULL;
+    GPUTexture     *color    = NULL;
     // animations and bones and shit
 };
 
