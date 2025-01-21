@@ -6,7 +6,7 @@ in vec2 uv2;
 layout(location = 0) out vec4 FragColor;
 
 uniform sampler2D ColorTexture;
-uniform sampler2D LightMap; // I need to mark this as texture slot 1 but not sure how
+uniform sampler2D LightMap;
 
 void main()
 {
