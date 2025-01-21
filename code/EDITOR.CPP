@@ -621,7 +621,7 @@ namespace MapEdit
         }
     }
 
-    void TriangulateFace_ForGameFaceBatch_QuickDumb(const Face f, std::vector<float> *vb)
+    void TriangulateFace_ForFaceBatch_QuickDumb(const Face f, std::vector<float> *vb)
     {
         // TODO(Kevin): Just keep triangulation simple...just force vertices to be coplanar and do earclipping
 
@@ -1334,7 +1334,7 @@ bool BuildGameMap(const char *path)
         }
 
         std::vector<float>& vb = VertexBuffers.at(tex.persistId);
-        TriangulateFace_ForGameFaceBatch_QuickDumb(*face, &vb);
+        TriangulateFace_ForFaceBatch_QuickDumb(*face, &vb);
     }
 
 
@@ -1375,7 +1375,7 @@ bool BuildGameMap(const char *path)
 
     // indirect lighting
 
-    GameFaceBatch SceneLightingModel;
+    face_batch_t SceneLightingModel;
 
     float *patches_vb = NULL; 
     for (auto& vbpair : VertexBuffers)
@@ -1384,8 +1384,8 @@ bool BuildGameMap(const char *path)
         float *writeto = arraddnptr(patches_vb, vb.size());
         memcpy(writeto, vb.data(), sizeof(float)*vb.size());
     }
-    CreateGameFaceBatchMeshOnGPU(&SceneLightingModel.VAO, &SceneLightingModel.VBO);
-    RebindGameFaceBatchBufferObject(&SceneLightingModel, u32(sizeof(float)*arrlenu(patches_vb)), patches_vb);
+    CreateFaceBatch(&SceneLightingModel);
+    RebindFaceBatch(&SceneLightingModel, u32(sizeof(float)*arrlenu(patches_vb)), patches_vb);
     arrfree(patches_vb);
     SceneLightingModel.ColorTexture = tex_Missing;
 
@@ -1537,29 +1537,29 @@ bool BuildGameMap(const char *path)
                 glViewport(0, 0, HemicubeFaceW, HemicubeFaceH);
                 mat4 HemicubeViewMatrix = ViewMatrixLookAt(patch_i_pos, patch_i_pos + patch_i_normal, patch_i_basisV);
                 GLBindMatrix4fv(PatchesIDShader, "viewMatrix", 1, HemicubeViewMatrix.ptr());
-                RenderGameFaceBatch(PatchesIDShader, SceneLightingModel);
+                RenderFaceBatch(&PatchesIDShader, &SceneLightingModel);
 
                 // if top face is "front", then 
                 // up face
                 glViewport(HemicubeFaceW*1, 0, HemicubeFaceW, HemicubeFaceH);
                 HemicubeViewMatrix = ViewMatrixLookAt(patch_i_pos, patch_i_pos + patch_i_basisV, patch_i_normal);
                 GLBindMatrix4fv(PatchesIDShader, "viewMatrix", 1, HemicubeViewMatrix.ptr());
-                RenderGameFaceBatch(PatchesIDShader, SceneLightingModel);
+                RenderFaceBatch(&PatchesIDShader, &SceneLightingModel);
                 // down face
                 glViewport(HemicubeFaceW*2, 0, HemicubeFaceW, HemicubeFaceH);
                 HemicubeViewMatrix = ViewMatrixLookAt(patch_i_pos, patch_i_pos - patch_i_basisV, patch_i_normal);
                 GLBindMatrix4fv(PatchesIDShader, "viewMatrix", 1, HemicubeViewMatrix.ptr());
-                RenderGameFaceBatch(PatchesIDShader, SceneLightingModel);
+                RenderFaceBatch(&PatchesIDShader, &SceneLightingModel);
                 // left face
                 glViewport(HemicubeFaceW*3, 0, HemicubeFaceW, HemicubeFaceH);
                 HemicubeViewMatrix = ViewMatrixLookAt(patch_i_pos, patch_i_pos + patch_i_basisU, patch_i_normal);
                 GLBindMatrix4fv(PatchesIDShader, "viewMatrix", 1, HemicubeViewMatrix.ptr());
-                RenderGameFaceBatch(PatchesIDShader, SceneLightingModel);
+                RenderFaceBatch(&PatchesIDShader, &SceneLightingModel);
                 // right face
                 glViewport(HemicubeFaceW*4, 0, HemicubeFaceW, HemicubeFaceH);
                 HemicubeViewMatrix = ViewMatrixLookAt(patch_i_pos, patch_i_pos - patch_i_basisU, patch_i_normal);
                 GLBindMatrix4fv(PatchesIDShader, "viewMatrix", 1, HemicubeViewMatrix.ptr());
-                RenderGameFaceBatch(PatchesIDShader, SceneLightingModel);
+                RenderFaceBatch(&PatchesIDShader, &SceneLightingModel);
 
                 if (RDOCAPI) RDOCAPI->EndFrameCapture(NULL, NULL);
 
@@ -1689,7 +1689,7 @@ bool BuildGameMap(const char *path)
     glDeleteBuffers(1, &HemicubePBO);
     DeleteGPUFrameBuffer(&HemicubeFBO);
     DeleteGPUTexture(&SceneLightingModel.LightMapTexture);
-    DeleteGameFaceBatchMeshOnGPU(SceneLightingModel.VAO, SceneLightingModel.VBO);
+    DeleteFaceBatch(&SceneLightingModel);
 
     // Final blit to light map atlas
     for (size_t i = 0; i < LightMapRectsCount; ++i)
@@ -1809,20 +1809,20 @@ bool LoadGameMap(const char *path)
         u32 texturePersistId;
         ByteBufferRead(&mapbuf, u32, &texturePersistId);
 
-        size_t vertexcount;
-        ByteBufferRead(&mapbuf, size_t, &vertexcount);
+        size_t VertexCount;
+        ByteBufferRead(&mapbuf, size_t, &VertexCount);
 
         std::vector<float> vb;
-        vb.resize(vertexcount);
-        ByteBufferReadBulk(&mapbuf, vb.data(), sizeof(float)*vertexcount);
-        ASSERT(vb.size() == vertexcount);
+        vb.resize(VertexCount);
+        ByteBufferReadBulk(&mapbuf, vb.data(), sizeof(float)*VertexCount);
+        ASSERT(vb.size() == VertexCount);
         
-        GameFaceBatch Batch;
-        Batch.ColorTexture = GetTextureByPersistId(texturePersistId).gputex;
-        Batch.LightMapTexture = Temporary_LightMapVisualizeTex;
-        CreateGameFaceBatchMeshOnGPU(&Batch.VAO, &Batch.VBO);
-        RebindGameFaceBatchBufferObject(&Batch, u32(sizeof(float)*vertexcount), vb.data());
-        GameLevelFaceBatches.push_back(Batch);
+        face_batch_t FaceBatch;
+        FaceBatch.ColorTexture = GetTextureByPersistId(texturePersistId).gputex;
+        FaceBatch.LightMapTexture = Temporary_LightMapVisualizeTex;
+        CreateFaceBatch(&FaceBatch);
+        RebindFaceBatch(&FaceBatch, u32(sizeof(float)*VertexCount), vb.data());
+        GameLevelFaceBatches.push_back(FaceBatch);
     }
 
     ByteBufferFree(&mapbuf);

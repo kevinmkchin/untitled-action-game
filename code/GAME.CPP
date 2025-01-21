@@ -4,13 +4,10 @@ Something fucking cool.
 Priorty #1 is building the game, not the engine/tech
 Handcrafted with love.
 
-
 Refactor will never be perfect. I just need to get things to a point where I find it clean enough and easy enough to come back to in the future. Organized enough.  
 
 
 TODO:
-- rename gamefacebatch to facebatch
-
 - srgb gamma correction bull shit for editor texture that are not lit
 - goal of this refactor: have small debug menu to switch between the game and map editor
 
@@ -31,7 +28,7 @@ TODO:
 EPICS:
 World - I want a crispy fucking visually nice to look at world being created and loaded in game
 
-    Refactor FaceBatch rendering and lighting code 
+    DONE Refactor FaceBatch rendering and lighting code 
 
     Refine Hemicube GI
     - larger hemicube atlas for download
@@ -43,7 +40,7 @@ World - I want a crispy fucking visually nice to look at world being created and
 
 Physics - I want a crispy bug-free physics simulation with the world
 
-    DONE SOMEWHAT Hook player controller into Jolt. Move around world simulated via Jolt.
+    DONE Hook player controller into Jolt. Move around world simulated via Jolt.
 
 THEN, we have a fucking engine. A fucking starting point for the game.
 
@@ -222,7 +219,7 @@ inline std::string data_path(const std::string& name) { return wd_path() + "data
 #include "resources.h"
 #include "physics.h"
 #include "shaders.h"
-
+#include "facebatch.h"
 
 
 SDL_Window *SDLMainWindow;
@@ -264,76 +261,6 @@ bool IsEditorActive = false;
 // - build / lightmap baking
 // - Asset DB
 
-
-struct GameFaceBatch
-{
-    // world pos x y z, normal i j k, uv1 u v, uv2 u v
-    GPUTexture ColorTexture;
-    GPUTexture LightMapTexture;
-    u32 VAO = 0;
-    u32 VBO = 0;
-    u32 VerticesCount = 0;
-};
-
-void CreateGameFaceBatchMeshOnGPU(u32 *VAO, u32 *VBO)
-{
-    glGenVertexArrays(1, VAO);
-    glBindVertexArray(*VAO);
-    glGenBuffers(1, VBO);
-    glBindBuffer(GL_ARRAY_BUFFER, *VBO);
-    glBufferData(GL_ARRAY_BUFFER, 0, nullptr, GL_DYNAMIC_DRAW);
-    // pos x y z
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 10, nullptr);
-    glEnableVertexAttribArray(0);
-    // norm i j k
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 10, (void*)(sizeof(float) * 3));
-    glEnableVertexAttribArray(1);
-    // uv1 u v
-    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(float) * 10, (void*)(sizeof(float) * (3 + 3)));
-    glEnableVertexAttribArray(2);
-    // uv2 u v
-    glVertexAttribPointer(3, 2, GL_FLOAT, GL_FALSE, sizeof(float) * 10, (void*)(sizeof(float) * (3 + 3 + 2)));
-    glEnableVertexAttribArray(3);
-    glBindVertexArray(0);
-}
-
-void RebindGameFaceBatchBufferObject(GameFaceBatch *faceBatch, u32 sizeInBytes, float *data)
-{
-    glBindVertexArray(faceBatch->VAO);
-    glBindBuffer(GL_ARRAY_BUFFER, faceBatch->VBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeInBytes, data, GL_DYNAMIC_DRAW);
-    faceBatch->VerticesCount = sizeInBytes / (sizeof(float) * 10);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-    glBindVertexArray(0);
-
-    // GLHasErrors();
-}
-
-void RenderGameFaceBatch(const GPUShader shader, GameFaceBatch Batch)
-{
-    glBindVertexArray(Batch.VAO);
-    glBindBuffer(GL_ARRAY_BUFFER, Batch.VBO);
-    
-    GLBind1i(shader, "ColorTexture", 0);
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, Batch.ColorTexture.id);
-
-    GLBind1i(shader, "LightMap", 1);
-    glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, Batch.LightMapTexture.id);
-
-    glDrawArrays(GL_TRIANGLES, 0, Batch.VerticesCount);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-    glBindVertexArray(0);
-
-    GLHasErrors();
-}
-
-void DeleteGameFaceBatchMeshOnGPU(u32 idVAO, u32 idVBO)
-{
-    glDeleteBuffers(1, &idVBO);
-    glDeleteVertexArrays(1, &idVAO);
-}
 
 #include "UTILITY.CPP"
 #include "COLLISION.CPP"
@@ -380,7 +307,7 @@ Mix_Chunk *sfx_Jump;
 std::vector<vec3> GameLevelColliderPoints;
 std::vector<FlatPolygonCollider> GameLevelColliders;
 Octree GameLevelCollisionTree;
-std::vector<GameFaceBatch> GameLevelFaceBatches;
+std::vector<face_batch_t> GameLevelFaceBatches;
 
 #if SUNLIGHT_TEST
 vec3 PlayerControllerRoot = vec3(0.f, 0.01f, 0.f);
@@ -435,9 +362,11 @@ ModelGLTF Model_Knight;
 
 #include "EDITOR.CPP"
 
+
 #include "physics.cpp"
 #include "resources.cpp"
 #include "shaders.cpp"
+#include "facebatch.cpp"
 
 static void Stuff()
 {
@@ -652,12 +581,12 @@ static void TickGame()
     // Gui::PrimitivePanel(Gui::UIRect(0,400, 400,200), Temporary_TestTex1.id);
     if (KeysPressed[SDL_SCANCODE_F1])
     {
-        for (GameFaceBatch& batch : GameLevelFaceBatches)
+        for (face_batch_t& batch : GameLevelFaceBatches)
             batch.LightMapTexture = Temporary_LightMapVisualizeTex;
     }
     if (KeysPressed[SDL_SCANCODE_F2])
     {
-        for (GameFaceBatch& batch : GameLevelFaceBatches)
+        for (face_batch_t& batch : GameLevelFaceBatches)
             batch.LightMapTexture = Temporary_TestTex0;
     }
 
@@ -831,8 +760,8 @@ static void RenderGameLayer()
 
     for (size_t i = 0; i < GameLevelFaceBatches.size(); ++i)
     {
-        GameFaceBatch fb = GameLevelFaceBatches.at(i);
-        RenderGameFaceBatch(GameLevelShader, fb);
+        face_batch_t fb = GameLevelFaceBatches.at(i);
+        RenderFaceBatch(&GameLevelShader, &fb);
     }
 
     // modelMatrix = TranslationMatrix(enemy0.root) * RotationMatrix(DirectionToOrientation(enemy0.facing));
