@@ -157,41 +157,76 @@ void DeleteGPUFrameBuffer(GPUFrameBuffer *buffer)
     glDeleteFramebuffers(1, &buffer->fbo);
 }
 
-void RenderGPUMeshIndexed(GPUMeshIndexed mesh, GLenum rendermode)
+
+void CreateGPUMesh(GPUMesh *mesh,
+                   u8 positionAttribSize,
+                   u8 textureAttribSize,
+                   u8 normalAttribSize,
+                   GLenum drawUsage)
 {
-    if (mesh.indicesCount == 0) // Early out if index_count == 0, nothing to draw
+    glGenVertexArrays(1, &mesh->idVAO);
+    glBindVertexArray(mesh->idVAO);
+    glGenBuffers(1, &mesh->idVBO);
+    glBindBuffer(GL_ARRAY_BUFFER, mesh->idVBO);
+    glBufferData(GL_ARRAY_BUFFER, 0, nullptr, drawUsage);
+
+    u8 stride = positionAttribSize + textureAttribSize + normalAttribSize;
+    glVertexAttribPointer(0, positionAttribSize, GL_FLOAT, GL_FALSE, sizeof(float) * stride, nullptr);
+    glEnableVertexAttribArray(0);
+    if (textureAttribSize > 0)
     {
-        printf("WARNING: Attempting to Render a mesh with 0 index count!\n");
-        return;
+        glVertexAttribPointer(1, textureAttribSize, GL_FLOAT, GL_FALSE, sizeof(float) * stride,
+                              (void*)(sizeof(float) * positionAttribSize));
+        glEnableVertexAttribArray(1);
+        if (normalAttribSize > 0)
+        {
+            glVertexAttribPointer(2, normalAttribSize, GL_FLOAT, GL_FALSE, sizeof(float) * stride,
+                                  (void*)(sizeof(float) * ((GLsizeiptr) positionAttribSize + textureAttribSize)));
+            glEnableVertexAttribArray(2);
+        }
     }
 
-    // Bind VAO, bind VBO, draw elements(indexed draw)
-    glBindVertexArray(mesh.idVAO);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh.idIBO);
-    glDrawElements(rendermode, mesh.indicesCount, GL_UNSIGNED_INT, nullptr);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
+
+    mesh->vertexStride = stride;
 }
 
-void RebindGPUMeshIndexedData(GPUMeshIndexed *mesh, 
-                              float *vertices, 
-                              u32 *indices, 
-                              u32 verticesArrayCount, 
-                              u32 indicesArrayCount, 
-                              GLenum drawUsage)
+void DeleteGPUMesh(u32 idVAO, u32 idVBO)
 {
-    if (mesh->idVBO == 0 || mesh->idIBO == 0)
-        return;
+    glDeleteBuffers(1, &idVBO);
+    glDeleteVertexArrays(1, &idVAO);
+}
 
-    mesh->indicesCount = indicesArrayCount;
+void RebindGPUMesh(GPUMesh *mesh, u32 sizeInBytes, float *data, GLenum drawUsage)
+{
     glBindVertexArray(mesh->idVAO);
     glBindBuffer(GL_ARRAY_BUFFER, mesh->idVBO);
-    glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr) 4 * verticesArrayCount, vertices, drawUsage);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh->idIBO);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, (GLsizeiptr) 4 * indicesArrayCount, indices, drawUsage);
+    glBufferData(GL_ARRAY_BUFFER, sizeInBytes, data, drawUsage);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
+
+    if (mesh->vertexStride)
+        mesh->vertexCount = sizeInBytes / mesh->vertexStride;
+}
+
+void RenderGPUMesh(u32 idVAO, u32 idVBO, u32 vertexCount, const GPUTexture *texture)
+{
+    glBindVertexArray(idVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, idVBO);
+
+    if (texture && texture->id > 0)
+    {
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, texture->id);
+    }
+
+    glDrawArrays(GL_TRIANGLES, 0, vertexCount);
+
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
 }
+
 
 void CreateGPUMeshIndexed(GPUMeshIndexed *mesh, 
                           float *vertices, 
@@ -244,6 +279,42 @@ void CreateGPUMeshIndexed(GPUMeshIndexed *mesh,
     glBindVertexArray(0); // Unbind the VAO;
 }
 
+void RebindGPUMeshIndexedData(GPUMeshIndexed *mesh, 
+                              float *vertices, 
+                              u32 *indices, 
+                              u32 verticesArrayCount, 
+                              u32 indicesArrayCount, 
+                              GLenum drawUsage)
+{
+    if (mesh->idVBO == 0 || mesh->idIBO == 0)
+        return;
+
+    mesh->indicesCount = indicesArrayCount;
+    glBindVertexArray(mesh->idVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, mesh->idVBO);
+    glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr) 4 * verticesArrayCount, vertices, drawUsage);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh->idIBO);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, (GLsizeiptr) 4 * indicesArrayCount, indices, drawUsage);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
+}
+
+void RenderGPUMeshIndexed(GPUMeshIndexed mesh, GLenum rendermode)
+{
+    if (mesh.indicesCount == 0) // Early out if index_count == 0, nothing to draw
+    {
+        printf("WARNING: Attempting to Render a mesh with 0 index count!\n");
+        return;
+    }
+
+    // Bind VAO, bind VBO, draw elements(indexed draw)
+    glBindVertexArray(mesh.idVAO);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh.idIBO);
+    glDrawElements(rendermode, mesh.indicesCount, GL_UNSIGNED_INT, nullptr);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
+}
+
 void DeleteGPUMeshIndexed(GPUMeshIndexed *mesh)
 {
     if (mesh->idIBO != 0)
@@ -264,6 +335,7 @@ void DeleteGPUMeshIndexed(GPUMeshIndexed *mesh)
 
     mesh->indicesCount = 0;
 }
+
 
 void CreateGPUTextureFromBitmap(GPUTexture        *texture,
                                 void              *bitmap,

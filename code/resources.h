@@ -43,6 +43,14 @@ struct GPUFrameBuffer
     i32 height;
 };
 
+struct GPUMesh
+{
+    u32 idVAO = 0;
+    u32 idVBO = 0;
+    u32 vertexStride = 0;
+    u32 vertexCount = 0;
+};
+
 struct GPUMeshIndexed
 {
     u32 idVAO = 0;
@@ -66,6 +74,15 @@ void CreateGPUFrameBuffer(GPUFrameBuffer *buffer, GLenum TargetFormat = GL_RGBA,
 void UpdateGPUFrameBufferSize(GPUFrameBuffer *buffer, i32 w, i32 h);
 void DeleteGPUFrameBuffer(GPUFrameBuffer *buffer);
 
+void CreateGPUMesh(GPUMesh *mesh,
+                   u8 positionAttribSize = 3,
+                   u8 textureAttribSize = 2,
+                   u8 normalAttribSize = 3,
+                   GLenum drawUsage = GL_STATIC_DRAW);
+void RebindGPUMesh(GPUMesh *mesh, u32 sizeInBytes, float *data, GLenum drawUsage = GL_DYNAMIC_DRAW);
+void RenderGPUMesh(u32 idVAO, u32 idVBO, u32 vertexCount, const GPUTexture *texture);
+void DeleteGPUMesh(u32 idVAO, u32 idVBO);
+
 void CreateGPUMeshIndexed(GPUMeshIndexed *mesh, 
                           float *vertices, 
                           u32 *indices, 
@@ -77,8 +94,8 @@ void CreateGPUMeshIndexed(GPUMeshIndexed *mesh,
                           GLenum drawUsage = GL_DYNAMIC_DRAW);
 void RebindGPUMeshIndexedData(GPUMeshIndexed *mesh, 
                               float *vertices, 
-                              u32 *indices, u32 
-                              verticesArrayCount, 
+                              u32 *indices, 
+                              u32 verticesArrayCount, 
                               u32 indicesArrayCount, 
                               GLenum drawUsage = GL_DYNAMIC_DRAW);
 void RenderGPUMeshIndexed(GPUMeshIndexed mesh, GLenum rendermode = GL_TRIANGLES);
