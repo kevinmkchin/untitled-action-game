@@ -1,81 +1,64 @@
 /*
 
+Something fucking cool.
+Priorty #1 is building the game, not the engine/tech
+Handcrafted with love.
+
+
 Refactor will never be perfect. I just need to get things to a point where I find it clean enough and easy enough to come back to in the future. Organized enough.  
 
-2025-01-14
-Okay back to it. Just use Jolt for physics/collisions. Refactor/reorganize so code isn't a mess.
-Jolt should handle all collision resolution. We don't need to do any of that bullshit.
 
-todo:
+TODO:
 - rename gamefacebatch to facebatch
 
 - srgb gamma correction bull shit for editor texture that are not lit
 - goal of this refactor: have small debug menu to switch between the game and map editor
 
+- Use a triangulation library for face triangulation https://github.com/artem-ogre/CDT
+- Enemy moves and shoots at player
+- Player shoots at enemy
+- Gun model?
+- save/load texture database
+- Anisotropic filtering https://www.khronos.org/opengl/wiki/Sampler_Object#Anisotropic_filtering
+
+- move volume mode/tool (don't need whole tool...maybe make brush tool part of this mode? like trenchbroom)
+- multi select vertices need to be fixed
+- Toggle element translation along axis
+- Edge select
+- Edge loop
 
 
-
+EPICS:
 World - I want a crispy fucking visually nice to look at world being created and loaded in game
+
+    Refactor FaceBatch rendering and lighting code 
 
     Refine Hemicube GI
     - larger hemicube atlas for download
     - interpolate (w/o irrad caching) for patches that clip backface to reduce artifacts
     - Texels too far from face polygon should be marked as ignore for hemicube. worst case distance: magnitude(1.5*texelsize, 0.5*texelsize)
 
-    Refine FaceBatch rendering and lighting code 
-
     Face creation and manipulation by default over cuboid voluesm in level editor
     - volume is wasteful; source 2 defaults to faces; best workflow is extrude faces and extrude edges
 
 Physics - I want a crispy bug-free physics simulation with the world
 
-    Hook player controller into Jolt. Move around world simulated via Jolt.
+    DONE SOMEWHAT Hook player controller into Jolt. Move around world simulated via Jolt.
 
 THEN, we have a fucking engine. A fucking starting point for the game.
 
 View-space projected blood decals
 
-Get some things to shoot on the screen
-
-Skeletal animations
-
-
-
-Something fucking cool.
-Priorty #1 is building the game, not the engine/tech
-Handcrafted with love.
-
-
-
-TODO:
-- Physics
-- Skeletal animations
-- Enemy moves and shoots at player
-- Gun model?
-- Player shoots at enemy
-- serialize/deserialize asset database
-- move volume mode/tool (don't need whole tool...maybe make brush tool part of this mode? like trenchbroom)
-- multi select vertices need to be fixed
-- Edge select
-- Edge loop
-- Toggle element translation along axis
-- Anisotropic filtering https://www.khronos.org/opengl/wiki/Sampler_Object#Anisotropic_filtering
-- Use a triangulation library for face triangulation https://github.com/artem-ogre/CDT
-
-Engine work is almost done. 
-~~- Lightmap baking (potentially radiosity)~~
-- Skeletal animations
-- Navmesh/pathfinding
-- Physics
-
-EPICS:
-- Lighting (build/load level LIGHT MAP info)
+Get some things to shoot on the screen (navmesh/pathfinding, skeletal animations)
 - Enemy billboards two behaviour:
     - walk towards player
     - stop and shoot after split second to shoot projectile at player, projectile hurts player health
 - Player holds 3D gun model, shoot hitscan at enemies, hitscan hurts enemy health
-- Swap to a second 3D gun model, shoot shotgun hitscan at enemies
-- Swap to a third 3D gun model, shoot hitscan with different stats at enemies
+    - Swap to a second 3D gun model, shoot shotgun hitscan at enemies
+    - Swap to a third 3D gun model, shoot hitscan with different stats at enemies
+
+Particle effects
+
 
 OTHER:
 Try upgrading to SDL3 first...or to latest SDL2...ugh might still just have to rewrite platforms code
