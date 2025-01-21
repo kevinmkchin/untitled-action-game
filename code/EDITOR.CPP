@@ -62,7 +62,8 @@ namespace MapEdit
         int looplen = -1;
 
         // For map editor rendering. Each face is its own mesh. Don't optimize until my PC chugs while map editing.
-        FaceBatch facemesh;
+        // FaceBatch facemesh;
+        GPUMesh facemesh;
         db_tex_t texture;
         lm_face_t lightmap;
         // bool receivelight; mark whether to generate light map
@@ -371,7 +372,7 @@ namespace MapEdit
         face->looplen = (int)edges.size();
 
         owner->faces.push_back(face);
-        CreateFaceBatchMeshOnGPU(&face->facemesh.idVAO, &face->facemesh.idVBO);
+        CreateGPUMesh(&face->facemesh, 3, 2, 3, GL_DYNAMIC_DRAW);
         face->EDITOR_FACES_INDEX = EDITOR_FACES.count;
         EDITOR_FACES.PushBack(face);
 
@@ -407,7 +408,7 @@ namespace MapEdit
     {
         // find remove face from owner->faces
         // delete face and loops...i think
-        DeleteFaceBatchMeshOnGPU(face->facemesh.idVAO, face->facemesh.idVBO); // delete gpu face batch
+        DeleteGPUMesh(face->facemesh.idVAO, face->facemesh.idVBO);
         EDITOR_FACES.Back()->EDITOR_FACES_INDEX = face->EDITOR_FACES_INDEX; // update index of the face that will be moved
         EDITOR_FACES.EraseAt(face->EDITOR_FACES_INDEX); // erase face and replace index with face at the back of nice array
         // maybe im missing some things
@@ -973,10 +974,9 @@ bool EditorDeserializeMap(const char *mapFilePath)
 
             MY_VERTEX_BUFFER.clear();
             TriangulateFace_QuickDumb(*face, &MY_VERTEX_BUFFER); // TODO(Kevin): do smarter triangulation...
-            RebindFaceBatchBufferObject(&face->facemesh, (u32) MY_VERTEX_BUFFER.size() * sizeof(float), MY_VERTEX_BUFFER.data());
-            
+            RebindGPUMesh(&face->facemesh, (u32) MY_VERTEX_BUFFER.size() * sizeof(float), MY_VERTEX_BUFFER.data());
+
             face->texture = GetTextureByPersistId(faceTexturePersistId);
-            face->facemesh.sharedTexture = face->texture.gputex;
         }
 
         EDITOR_MAP_VOLUMES.PushBack(owner);
@@ -1689,7 +1689,7 @@ bool BuildGameMap(const char *path)
     glDeleteBuffers(1, &HemicubePBO);
     DeleteGPUFrameBuffer(&HemicubeFBO);
     DeleteGPUTexture(&SceneLightingModel.LightMapTexture);
-    DeleteFaceBatchMeshOnGPU(SceneLightingModel.VAO, SceneLightingModel.VBO);
+    DeleteGameFaceBatchMeshOnGPU(SceneLightingModel.VAO, SceneLightingModel.VBO);
 
     // Final blit to light map atlas
     for (size_t i = 0; i < LightMapRectsCount; ++i)
@@ -2288,7 +2288,6 @@ void TickMapEditor()
     if (Session.SelectedFace != NULL && Gui::EditorLabelledButton("Apply Texture to Face"))
     {
         Session.SelectedFace->texture = Session.SelectedTexture; 
-        Session.SelectedFace->facemesh.sharedTexture = Session.SelectedTexture.gputex; 
     }
     Gui::EndWindow();
 
@@ -2438,7 +2437,7 @@ void TickMapEditor()
                 {
                     MY_VERTEX_BUFFER.clear();
                     MapEdit::TriangulateFace_QuickDumb(*face, &MY_VERTEX_BUFFER);
-                    RebindFaceBatchBufferObject(&face->facemesh, (u32)(sizeof(float)*MY_VERTEX_BUFFER.size()), MY_VERTEX_BUFFER.data());
+                    RebindGPUMesh(&face->facemesh, (u32)(sizeof(float)*MY_VERTEX_BUFFER.size()), MY_VERTEX_BUFFER.data());
                 }
             }
         }
@@ -2545,7 +2544,7 @@ void TickMapEditor()
                 {
                     MY_VERTEX_BUFFER.clear();
                     MapEdit::TriangulateFace_QuickDumb(*face, &MY_VERTEX_BUFFER);
-                    RebindFaceBatchBufferObject(&face->facemesh, (u32)(sizeof(float)*MY_VERTEX_BUFFER.size()), MY_VERTEX_BUFFER.data());
+                    RebindGPUMesh(&face->facemesh, (u32)(sizeof(float)*MY_VERTEX_BUFFER.size()), MY_VERTEX_BUFFER.data());
                 }
             }
         }
@@ -2814,10 +2813,8 @@ void TickMapEditor()
                     {
                         MY_VERTEX_BUFFER.clear();
                         TriangulateFace_QuickDumb(*face, &MY_VERTEX_BUFFER);
-                        RebindFaceBatchBufferObject(&face->facemesh, (u32) MY_VERTEX_BUFFER.size() * sizeof(float),
-                            MY_VERTEX_BUFFER.data());
+                        RebindGPUMesh(&face->facemesh, (u32)(sizeof(float)*MY_VERTEX_BUFFER.size()), MY_VERTEX_BUFFER.data());
                         face->texture = Session.SelectedTexture; 
-                        face->facemesh.sharedTexture = Session.SelectedTexture.gputex; 
                     }
 
                     simpleBrushToolState = SimpleBrushToolState::NotActive;

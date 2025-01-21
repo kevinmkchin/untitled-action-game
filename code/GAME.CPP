@@ -7,11 +7,10 @@ Okay back to it. Just use Jolt for physics/collisions. Refactor/reorganize so co
 Jolt should handle all collision resolution. We don't need to do any of that bullshit.
 
 todo:
-- rn gpumesh to gpumeshindexed; add gpumesh type which is not instanced
-- rm facebatch (editor) and rename gamefacebatch to facebatch; for editor, just use gpumesh
+- rename gamefacebatch to facebatch
 
-
-
+- srgb gamma correction bull shit for editor texture that are not lit
+- goal of this refactor: have small debug menu to switch between the game and map editor
 
 
 
@@ -283,31 +282,6 @@ bool IsEditorActive = false;
 // - Asset DB
 
 
-
-// enum batch_mesh_attribs : u16
-// {
-//     BATCHMESH_NO_ATTRIBS = 0 << 0,
-//     BATCHMESH_USE_UV2 = 1 << 0
-//     // BATCHMESH_USE_UV3,
-// };
-
-struct FaceBatch
-{
-    /** Set of triangles that all use the same texture. The position values 
-        of each triangle vertex are defined in world space. 
-
-        data layout:
-            position x y z, texture u v, normal i j k, ...
-    */
-
-    GPUTexture sharedTexture;
-    u32 idVAO = 0;
-    u32 idVBO = 0;
-    u32 verticesCount = 0;
-
-    // batch_mesh_attribs MeshAttribs;
-};
-
 struct GameFaceBatch
 {
     // world pos x y z, normal i j k, uv1 u v, uv2 u v
@@ -317,22 +291,6 @@ struct GameFaceBatch
     u32 VBO = 0;
     u32 VerticesCount = 0;
 };
-
-void CreateFaceBatchMeshOnGPU(u32 *idVAO, u32 *idVBO)
-{
-    glGenVertexArrays(1, idVAO);
-    glBindVertexArray(*idVAO);
-    glGenBuffers(1, idVBO);
-    glBindBuffer(GL_ARRAY_BUFFER, *idVBO);
-    glBufferData(GL_ARRAY_BUFFER, 0, nullptr, GL_DYNAMIC_DRAW);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 8, nullptr);
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(float) * 8, (void*)(sizeof(float) * 3));
-    glEnableVertexAttribArray(1);
-    glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 8, (void*)(sizeof(float) * (3 + 2)));
-    glEnableVertexAttribArray(2);
-    glBindVertexArray(0);
-}
 
 void CreateGameFaceBatchMeshOnGPU(u32 *VAO, u32 *VBO)
 {
@@ -356,22 +314,6 @@ void CreateGameFaceBatchMeshOnGPU(u32 *VAO, u32 *VBO)
     glBindVertexArray(0);
 }
 
-void DeleteFaceBatchMeshOnGPU(u32 idVAO, u32 idVBO)
-{
-    glDeleteBuffers(1, &idVBO);
-    glDeleteVertexArrays(1, &idVAO);
-}
-
-void RebindFaceBatchBufferObject(FaceBatch *faceBatch, u32 sizeInBytes, float *data)
-{
-    glBindVertexArray(faceBatch->idVAO);
-    glBindBuffer(GL_ARRAY_BUFFER, faceBatch->idVBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeInBytes, data, GL_DYNAMIC_DRAW);
-    faceBatch->verticesCount = sizeInBytes / (sizeof(float) * 8);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-    glBindVertexArray(0);
-}
-
 void RebindGameFaceBatchBufferObject(GameFaceBatch *faceBatch, u32 sizeInBytes, float *data)
 {
     glBindVertexArray(faceBatch->VAO);
@@ -382,17 +324,6 @@ void RebindGameFaceBatchBufferObject(GameFaceBatch *faceBatch, u32 sizeInBytes, 
     glBindVertexArray(0);
 
     // GLHasErrors();
-}
-
-void RenderFaceBatch(FaceBatch faceBatch)
-{
-    glBindVertexArray(faceBatch.idVAO);
-    glBindBuffer(GL_ARRAY_BUFFER, faceBatch.idVBO);
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, faceBatch.sharedTexture.id);
-    glDrawArrays(GL_TRIANGLES, 0, faceBatch.verticesCount);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-    glBindVertexArray(0);
 }
 
 void RenderGameFaceBatch(const GPUShader shader, GameFaceBatch Batch)
@@ -413,6 +344,12 @@ void RenderGameFaceBatch(const GPUShader shader, GameFaceBatch Batch)
     glBindVertexArray(0);
 
     GLHasErrors();
+}
+
+void DeleteGameFaceBatchMeshOnGPU(u32 idVAO, u32 idVBO)
+{
+    glDeleteBuffers(1, &idVBO);
+    glDeleteVertexArrays(1, &idVAO);
 }
 
 #include "UTILITY.CPP"
@@ -956,8 +893,8 @@ static void RenderMapEditorLayer()
 
     GLBindMatrix4fv(EditorShader_Scene, "modelMatrix", 1, modelMatrix.ptr());
 
-    FaceBatch selectedFaceMesh;
-    FaceBatch hoveredFaceMesh;
+    MapEdit::Face *selectedFace = NULL;
+    MapEdit::Face *hoveredFace = NULL;
     for (int i = 0; i < MapEdit::EDITOR_FACES.count; ++i)
     {
         MapEdit::Face *editorVolumeFace = MapEdit::EDITOR_FACES.At(i);
@@ -965,7 +902,7 @@ static void RenderMapEditorLayer()
         {
             if (Session.SelectedFace == editorVolumeFace)
             {
-                selectedFaceMesh = editorVolumeFace->facemesh;
+                selectedFace = Session.SelectedFace;
                 continue;
             }
             else if (editorVolumeFace->hovered)
@@ -976,13 +913,14 @@ static void RenderMapEditorLayer()
             }
         }
 
-        const FaceBatch fb = editorVolumeFace->facemesh;
-        RenderFaceBatch(fb);
+        const GPUTexture ftex = editorVolumeFace->texture.gputex;
+        const GPUMesh fm = editorVolumeFace->facemesh;
+        RenderGPUMesh(fm.idVAO, fm.idVBO, fm.vertexCount, &ftex);
     }
 
     if (editorActiveTool == MapEditorTools::FaceManip)
     {
-        if (selectedFaceMesh.idVAO > 0)
+        if (selectedFace)
         {
             UseShader(EditorShader_FaceSelected);
             float sf = (sinf(TimeSinceStart * 2.7f) + 1.f) / 2.f;
@@ -994,18 +932,22 @@ static void RenderMapEditorLayer()
             GLBindMatrix4fv(EditorShader_FaceSelected, "viewMatrix", 1, viewMatrix.ptr());
             modelMatrix = mat4();
             GLBindMatrix4fv(EditorShader_FaceSelected, "modelMatrix", 1, modelMatrix.ptr());
-            RenderFaceBatch(selectedFaceMesh);
+            const GPUTexture ftex = selectedFace->texture.gputex;
+            const GPUMesh fm = selectedFace->facemesh;
+            RenderGPUMesh(fm.idVAO, fm.idVBO, fm.vertexCount, &ftex);
         }
-        else if (hoveredFaceMesh.idVAO > 0)
-        {
-            UseShader(EditorShader_FaceSelected);
-            GLBind3f(EditorShader_FaceSelected, "tint", 0.9f, 0.9f, 0.0f);
-            GLBindMatrix4fv(EditorShader_FaceSelected, "projMatrix", 1, perspectiveMatrix.ptr());
-            GLBindMatrix4fv(EditorShader_FaceSelected, "viewMatrix", 1, viewMatrix.ptr());
-            modelMatrix = mat4();
-            GLBindMatrix4fv(EditorShader_FaceSelected, "modelMatrix", 1, modelMatrix.ptr());
-            RenderFaceBatch(hoveredFaceMesh);
-        }
+        // else if (hoveredFace)
+        // {
+        //     UseShader(EditorShader_FaceSelected);
+        //     GLBind3f(EditorShader_FaceSelected, "tint", 0.9f, 0.9f, 0.0f);
+        //     GLBindMatrix4fv(EditorShader_FaceSelected, "projMatrix", 1, perspectiveMatrix.ptr());
+        //     GLBindMatrix4fv(EditorShader_FaceSelected, "viewMatrix", 1, viewMatrix.ptr());
+        //     modelMatrix = mat4();
+        //     GLBindMatrix4fv(EditorShader_FaceSelected, "modelMatrix", 1, modelMatrix.ptr());
+        //     const GPUTexture ftex = hoveredFace->texture.gputex;
+        //     const GPUMesh fm = hoveredFace->facemesh;
+        //     RenderGPUMesh(fm.idVAO, fm.idVBO, fm.vertexCount, &ftex);
+        // }
     }
 
     // PRIMITIVES
@@ -1356,10 +1298,10 @@ int main(int argc, char* argv[])
 // #endif
 //     BuildGameMap(wd_path("buildtest.map").c_str());
 
-    if (LoadGameMap(wd_path("buildtest.map").c_str()) == false)
-        LogError("failed to load game map");
+    // if (LoadGameMap(wd_path("buildtest.map").c_str()) == false)
+    //     LogError("failed to load game map");
 
-    Stuff2();
+    // Stuff2();
 
     while (!ProgramShutdownRequested)
     {
@@ -1372,10 +1314,10 @@ int main(int argc, char* argv[])
             if (RDOCAPI->ShowReplayUI() == 0)
                 RDOCAPI->LaunchReplayUI(1, "");
 
-        TickGame();
-        DrawGame();
-        // TickMapEditor();
-        // DrawMapEditor();
+        // TickGame();
+        // DrawGame();
+        TickMapEditor();
+        DrawMapEditor();
 
         SDL_GL_SwapWindow(SDLMainWindow);
         glFinish();
