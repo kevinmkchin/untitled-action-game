@@ -1862,42 +1862,6 @@ enum class SimpleBrushToolState
 SimpleBrushToolState simpleBrushToolState = SimpleBrushToolState::NotActive;
 
 
-vec3 ScreenPointToWorldRay(ivec2 screenspaceCoords)
-{
-    // https://antongerdelan.net/opengl/raycasting.html
-    // assuming 3D world view is taking up the entire window
-    // Reversing perspective divide not necessary because this is a vector/direction/ray with no intrinsic depth.
-    float x_NDC = ((float)screenspaceCoords.x / (float)BackbufferWidth) * 2.f - 1.f;
-    float y_NDC = (float(BackbufferHeight - screenspaceCoords.y) / (float)BackbufferHeight) * 2.f - 1.f;
-    vec4 ray_in_clipspace = vec4(x_NDC, y_NDC, -1.f, 1.f);
-    vec4 ray_in_viewspace = ActivePerspectiveMatrix.GetInverse() * ray_in_clipspace;
-    ray_in_viewspace = vec4(ray_in_viewspace.x, ray_in_viewspace.y, -1.f, 0.f);
-    vec3 ray_in_worldspace = Normalize((ActiveViewMatrix.GetInverse() * ray_in_viewspace).xyz);
-    return ray_in_worldspace;
-}
-
-vec3 ScreenPointToWorldPoint(ivec2 screenspaceCoords, float z_NDC)
-{
-    float x_NDC = ((float)screenspaceCoords.x / (float)BackbufferWidth) * 2.f - 1.f;
-    float y_NDC = (float(BackbufferHeight - screenspaceCoords.y) / (float)BackbufferHeight) * 2.f - 1.f;
-    vec4 point_in_clipspace = vec4(x_NDC, y_NDC, z_NDC, 1.f);
-    // For points, reverse perspective divide after the inverse projection matrix transformation because it's easier that way.
-    vec4 point_in_viewspace_before_perspective_divide = ActivePerspectiveMatrix.GetInverse() * point_in_clipspace;
-    vec4 point_in_viewspace = point_in_viewspace_before_perspective_divide / point_in_viewspace_before_perspective_divide.w;
-    vec4 point_in_worldspace = ActiveViewMatrix.GetInverse() * point_in_viewspace;
-    return point_in_worldspace.xyz;
-}
-
-vec3 WorldPointToScreenPoint(vec3 worldPosition)
-{
-    vec4 clipspaceCoordinates = ActivePerspectiveMatrix * ActiveViewMatrix * vec4(worldPosition, 1.f);
-    float screenspaceRatioX = ((clipspaceCoordinates.x / clipspaceCoordinates.w) + 1.f) / 2.f;
-    float screenspaceRatioY = 1.f - (((clipspaceCoordinates.y / clipspaceCoordinates.w) + 1.f) / 2.f);
-    float internalResolutionWidth = (float)BackbufferWidth;
-    float internalResolutionHeight = (float)BackbufferHeight;
-    float distanceFromCameraWCS = Dot(worldPosition - editorCameraPosition, CameraDirection);
-    return vec3(screenspaceRatioX * internalResolutionWidth, screenspaceRatioY * internalResolutionHeight, distanceFromCameraWCS);
-}
 
 /// === GRID DEFINITION ===
 // I want the grid to be defined by a "UP" and a "RIGHT"

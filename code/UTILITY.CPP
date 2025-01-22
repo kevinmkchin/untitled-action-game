@@ -1,20 +1,82 @@
 
+vec3 ScreenPointToWorldRay(ivec2 screenspaceCoords)
+{
+    // https://antongerdelan.net/opengl/raycasting.html
+    // assuming 3D world view is taking up the entire window
+    // Reversing perspective divide not necessary because this is a vector/direction/ray with no intrinsic depth.
+    float x_NDC = ((float)screenspaceCoords.x / (float)BackbufferWidth) * 2.f - 1.f;
+    float y_NDC = (float(BackbufferHeight - screenspaceCoords.y) / (float)BackbufferHeight) * 2.f - 1.f;
+    vec4 ray_in_clipspace = vec4(x_NDC, y_NDC, -1.f, 1.f);
+    vec4 ray_in_viewspace = ActivePerspectiveMatrix.GetInverse() * ray_in_clipspace;
+    ray_in_viewspace = vec4(ray_in_viewspace.x, ray_in_viewspace.y, -1.f, 0.f);
+    vec3 ray_in_worldspace = Normalize((ActiveViewMatrix.GetInverse() * ray_in_viewspace).xyz);
+    return ray_in_worldspace;
+}
 
-vec3 ScreenPointToWorldRay(ivec2 screenspaceCoords);
-vec3 ScreenPointToWorldPoint(ivec2 screenspaceCoords, float z_NDC);
-vec3 WorldPointToScreenPoint(vec3 worldPosition);
+vec3 ScreenPointToWorldPoint(ivec2 screenspaceCoords, float z_NDC)
+{
+    float x_NDC = ((float)screenspaceCoords.x / (float)BackbufferWidth) * 2.f - 1.f;
+    float y_NDC = (float(BackbufferHeight - screenspaceCoords.y) / (float)BackbufferHeight) * 2.f - 1.f;
+    vec4 point_in_clipspace = vec4(x_NDC, y_NDC, z_NDC, 1.f);
+    // For points, reverse perspective divide after the inverse projection matrix transformation because it's easier that way.
+    vec4 point_in_viewspace_before_perspective_divide = ActivePerspectiveMatrix.GetInverse() * point_in_clipspace;
+    vec4 point_in_viewspace = point_in_viewspace_before_perspective_divide / point_in_viewspace_before_perspective_divide.w;
+    vec4 point_in_worldspace = ActiveViewMatrix.GetInverse() * point_in_viewspace;
+    return point_in_worldspace.xyz;
+}
+
+vec3 WorldPointToScreenPoint(vec3 worldPosition)
+{
+    vec4 clipspaceCoordinates = ActivePerspectiveMatrix * ActiveViewMatrix * vec4(worldPosition, 1.f);
+    float screenspaceRatioX = ((clipspaceCoordinates.x / clipspaceCoordinates.w) + 1.f) / 2.f;
+    float screenspaceRatioY = 1.f - (((clipspaceCoordinates.y / clipspaceCoordinates.w) + 1.f) / 2.f);
+    float internalResolutionWidth = (float)BackbufferWidth;
+    float internalResolutionHeight = (float)BackbufferHeight;
+    float distanceFromCameraWCS = Dot(worldPosition - editorCameraPosition, CameraDirection);
+    return vec3(screenspaceRatioX * internalResolutionWidth, screenspaceRatioY * internalResolutionHeight, distanceFromCameraWCS);
+}
+
+// only checks in direction from
+bool IntersectPlaneAndLine(vec3 pointOnPlane, vec3 normalOfPlane, vec3 pointOnLine, vec3 directionOfLine, vec3 *intersectionPoint)
+{
+    // vec3 pp = pointOnPlane;
+    // vec3 pn = normalOfPlane;
+    // vec3 lp = pointOnLine;
+    // vec3 lv = directionOfLine;
+    // line x = lp.x + lv.x * t, line y = lp.y + lv.y * t, line z = lp.z + lv.z * t
+    // plane(X, Y, Z) = pn.x * X + pn.y * Y + pn.z * Z - Dot(pn, pp)
+    // pn.x * (lp.x + lv.x * t) + pn.y * (lp.y + lv.y * t) + pn.z * (lp.z + lv.z * t) = Dot(pn, pp)
+    // pn.x*lp.x + pn.x*lv.x*t + pn.y*lp.y + pn.y*lv.y*t + pn.z*lp.z + pn.z*lv.z*t = Dot(pn, pp)
+    // pn.x*lv.x*t + pn.y*lv.y*t + pn.z*lv.z*t = Dot(pn, pp) - pn.x*lp.x - pn.y*lp.y - pn.z*lp.z
+    // t (pn.x*lv.x + pn.y*lv.y + pn.z*lv.z) = Dot(pn, pp) - pn.x*lp.x - pn.y*lp.y - pn.z*lp.z
+    // t = (Dot(pn, pp) - pn.x*lp.x - pn.y*lp.y - pn.z*lp.z) / (pn.x*lv.x + pn.y*lv.y + pn.z*lv.z)
+    // t = (Dot(pn, pp) - (pn.x*lp.x + pn.y*lp.y + pn.z*lp.z)) / (pn.x*lv.x + pn.y*lv.y + pn.z*lv.z)
+
+    float denominator = Dot(normalOfPlane, directionOfLine);
+    if (GM_abs(denominator) < 0.000001f)
+        return false;
+
+    float t = (Dot(normalOfPlane, pointOnPlane) - Dot(normalOfPlane, pointOnLine)) / denominator;
+    *intersectionPoint = pointOnLine + directionOfLine * t;
+    return true;
+}
+
+bool IntersectPlaneAndLineWithDirections(vec3 pointOnPlane, vec3 normalOfPlane, vec3 pointOnLine, vec3 directionOfLine, vec3 *intersectionPoint)
+{
+    float denominator = Dot(normalOfPlane, directionOfLine);
+    if (denominator > -0.000001f)
+        return false;
+
+    float t = (Dot(normalOfPlane, pointOnPlane) - Dot(normalOfPlane, pointOnLine)) / denominator;
+    *intersectionPoint = pointOnLine + directionOfLine * t;
+    return true;
+}
 
 float HorizontalFOVToVerticalFOV_RadianToRadian(float FOVXInRadians, float AspectRatio)
 {
     float FOVY = 2.0f * atan(tan(FOVXInRadians / 2.0f) / AspectRatio);
     return FOVY;
 }
-
-#define RGB255TO1(r,g,b) ((float)r)/255.f, ((float)g)/255.f, ((float)b)/255.f
-#define RGBHEXTO1(hex) \
-    float((hex & 0x00FF00000) >> 16)/255.f,\
-    float((hex & 0x0000FF00) >> 8)/255.f,\
-    float(hex & 0x000000FF)/255.f
 
 template<typename T>
 inline bool IsOneOfArray(T v, T* array, int count)
@@ -24,14 +86,12 @@ inline bool IsOneOfArray(T v, T* array, int count)
     return false;
 }
 
-/* Pick random integer in range [min, max] inclusive. */
 int RandomInt(int min, int max)
 {
     int retval = min + (rand() % static_cast<int>(max - min + 1));
     return retval;
 }
 
-// Blit all of B into A at x y
 void BlitRect(u8 *A, int AW, int AH, u8 *B, int BW, int BH, int x, int y, size_t pixelsz)
 {
     AW *= (int)pixelsz;
@@ -114,7 +174,6 @@ std::string& RemoveCharactersFromEndOfString(std::string& str, char c)
     return str;
 }
 
-// normalized hsv to rgb
 vec3 HSVToRGB(float h, float s, float v)
 {
     // https://www.rapidtables.com/convert/color/hsv-to-rgb.html
@@ -160,115 +219,6 @@ vec3 RGBToHSV(float r, float g, float b)
     return hsv;
 }
 
-
-
-template<typename T, int _count> struct NiceArray
-{
-    /** Nice array wrapper for when you want to keep track of how many active/relevant
-        elements are in the array. Essentially a dynamic sized array/vector with a
-        maximum defined capacity (s.t. it can be defined on stack or static storage). */
-
-    T data[_count] = {};
-    int count = 0;
-    const int capacity = _count;
-
-    // todo maybe Insert and Erase?
-
-    bool Contains(T v)
-    {
-        for (int i = 0; i < count; ++i)
-        {
-            if (*(data + i) == v) return true;
-        }
-        return false;
-    }
-
-    void EraseAt(int index)
-    {
-        if (index < count - 1)
-        {
-            memmove(data + index, data + index + 1, (count - index - 1) * sizeof(*data));
-        }
-        --count;
-    }
-
-    void EraseFirstOf(T v)
-    {
-        for (int i = 0; i < count; ++i)
-        {
-            if (*(data + i) == v)
-            {
-                EraseAt(i);
-                break;
-            }
-        }
-    }
-
-    void EraseAllOf(T v)
-    {
-        for (int i = 0; i < count; ++i)
-        {
-            if (*(data + i) == v)
-            {
-                EraseAt(i);
-            }
-        }
-    }
-
-    bool NotAtCapacity()
-    {
-        return count < capacity;
-    }
-
-    void PushBack(T elem)
-    {
-        data[count] = elem;
-        ++count;
-    }
-
-    void PopBack()
-    {
-        --count;
-        memset(data + count, 0, sizeof(*data));
-    }
-
-    T& At(int index)
-    {
-        return *(data + index);
-    }
-
-    T& At(unsigned int index)
-    {
-        return At((int) index);
-    }
-
-    T& Back()
-    {
-        return *(data + count - 1);
-    }
-
-    void ResetCount()
-    {
-        count = 0;
-    }
-
-    void ResetToZero()
-    {
-        memset(data, 0, capacity * sizeof(*data));
-    }
-};
-
-#pragma region BYTEBUFFERS
-
-struct ByteBuffer
-{
-    uint8_t* data = NULL;
-    uint32_t position;  // basically the cursor
-    uint32_t size;      // currently populated size
-    uint32_t capacity;  // currently allocated size
-};
-
-#define BYTE_BUFFER_DEFAULT_CAPACITY 1024
 
 void ByteBufferInit(ByteBuffer* buffer)
 {
@@ -346,45 +296,6 @@ void __byteBufferWriteImpl(ByteBuffer* buffer, void* data, size_t sz)
     buffer->size += (uint32_t)sz;
 }
 
-// Generic write function
-#define ByteBufferWrite(_buffer, T, _val)\
-do {\
-    ByteBuffer* _bb = (_buffer);\
-    size_t _sz = sizeof(T);\
-    T _v = _val;\
-    __byteBufferWriteImpl(_bb, (void*)&(_v), _sz);\
-} while(0)
-
-// Generic read function
-#define ByteBufferRead(_buffer, T, _val_p)\
-do {\
-    T* _v = (T*)(_val_p);\
-    ByteBuffer* _bb = (_buffer);\
-    *(_v) = *(T*)(_bb->data + _bb->position);\
-    _bb->position += sizeof(T);\
-} while(0)
-
-// Useful when using byte buf as a stack
-#define ByteBufferPop(_buffer, T, _val_p) \
-do {\
-    T* _v = (T*)(_val_p);\
-    ByteBuffer *_bb = (_buffer);\
-    _bb->position -= sizeof(T);\
-    *(_v) = *(T*)(_bb->data + _bb->position);\
-} while (0)
-
-#define ByteBufferWriteBulk(_buffer, _data, _size)\
-do {\
-    __byteBufferWriteImpl(_buffer, _data, _size);\
-} while(0)
-
-#define ByteBufferReadBulk(_buffer, _dest_p, _size)\
-do {\
-    ByteBuffer* _bb = (_buffer);\
-    memcpy((_dest_p), _bb->data + _bb->position, (_size));\
-    _bb->position += (uint32_t)(_size);\
-} while(0)
-
 int ByteBufferWriteToFile(ByteBuffer* buffer, const char* filePath)
 {
     FILE* fp;
@@ -446,23 +357,6 @@ int ByteBufferReadFromFile(ByteBuffer* buffer, const char* filePath)
     return 1;
 }
 
-#pragma endregion
-
-#pragma region MEMORY_ALLOCATORS
-
-struct MemoryLinearBuffer
-{
-    // Linear allocator works best when we don't support freeing memory at the pointer level
-    // Carve allocations out of a pre alloced buffer
-
-    // There is no per allocation overhead.
-    // The buffer memory is not modified by the allocator.
-    // The allocator is not thread-safe.
-
-    u8* buffer = nullptr;
-    size_t arenaOffset = 0;
-    size_t bufferSize = 0;
-};
 
 // returns pointer aligned forward to given alignment
 static u8 *__PointerAlignForward(u8* ptr, size_t align)
@@ -500,61 +394,3 @@ void *MemoryLinearAllocate(MemoryLinearBuffer *buffer, size_t wantedBytes, size_
     printf("Out of memory in given MemoryLinearBuffer");
     return nullptr;
 }
-
-#define MEMORY_LINEAR_ALLOCATE(buffer, type) MemoryLinearAllocate(buffer, sizeof(type), alignof(type))
-
-#pragma endregion
-
-
-
-
-
-
-
-#pragma region MATH_HELPERS
-
-// only checks in direction from
-bool IntersectPlaneAndLine(vec3 pointOnPlane, vec3 normalOfPlane, vec3 pointOnLine, vec3 directionOfLine, vec3 *intersectionPoint)
-{
-    // vec3 pp = pointOnPlane;
-    // vec3 pn = normalOfPlane;
-    // vec3 lp = pointOnLine;
-    // vec3 lv = directionOfLine;
-    // line x = lp.x + lv.x * t, line y = lp.y + lv.y * t, line z = lp.z + lv.z * t
-    // plane(X, Y, Z) = pn.x * X + pn.y * Y + pn.z * Z - Dot(pn, pp)
-    // pn.x * (lp.x + lv.x * t) + pn.y * (lp.y + lv.y * t) + pn.z * (lp.z + lv.z * t) = Dot(pn, pp)
-    // pn.x*lp.x + pn.x*lv.x*t + pn.y*lp.y + pn.y*lv.y*t + pn.z*lp.z + pn.z*lv.z*t = Dot(pn, pp)
-    // pn.x*lv.x*t + pn.y*lv.y*t + pn.z*lv.z*t = Dot(pn, pp) - pn.x*lp.x - pn.y*lp.y - pn.z*lp.z
-    // t (pn.x*lv.x + pn.y*lv.y + pn.z*lv.z) = Dot(pn, pp) - pn.x*lp.x - pn.y*lp.y - pn.z*lp.z
-    // t = (Dot(pn, pp) - pn.x*lp.x - pn.y*lp.y - pn.z*lp.z) / (pn.x*lv.x + pn.y*lv.y + pn.z*lv.z)
-    // t = (Dot(pn, pp) - (pn.x*lp.x + pn.y*lp.y + pn.z*lp.z)) / (pn.x*lv.x + pn.y*lv.y + pn.z*lv.z)
-
-    float denominator = Dot(normalOfPlane, directionOfLine);
-    if (GM_abs(denominator) < 0.000001f)
-        return false;
-
-    float t = (Dot(normalOfPlane, pointOnPlane) - Dot(normalOfPlane, pointOnLine)) / denominator;
-    *intersectionPoint = pointOnLine + directionOfLine * t;
-    return true;
-}
-
-bool IntersectPlaneAndLineWithDirections(vec3 pointOnPlane, vec3 normalOfPlane, vec3 pointOnLine, vec3 directionOfLine, vec3 *intersectionPoint)
-{
-    float denominator = Dot(normalOfPlane, directionOfLine);
-    if (denominator > -0.000001f)
-        return false;
-
-    float t = (Dot(normalOfPlane, pointOnPlane) - Dot(normalOfPlane, pointOnLine)) / denominator;
-    *intersectionPoint = pointOnLine + directionOfLine * t;
-    return true;
-}
-
-#pragma endregion
-
-
-
-
-
-
-
-

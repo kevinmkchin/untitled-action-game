@@ -224,6 +224,7 @@ inline std::string data_path(const std::string& name) { return wd_path() + "data
 #include "facebatch.h"
 #include "filedialog.h"
 #include "primitives.h"
+#include "utility.h"
 
 
 SDL_Window *SDLMainWindow;
@@ -266,7 +267,6 @@ bool IsEditorActive = false;
 // - Asset DB
 
 
-#include "UTILITY.CPP"
 #include "COLLISION.CPP"
 
 
@@ -367,6 +367,7 @@ ModelGLTF Model_Knight;
 #include "EDITOR.CPP"
 
 
+#include "utility.cpp"
 #include "physics.cpp"
 #include "resources.cpp"
 #include "shaders.cpp"
