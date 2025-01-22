@@ -200,11 +200,13 @@ inline std::string data_path(const std::string& name) { return wd_path() + "data
     do {                                       \
         fprintf(stderr, __VA_ARGS__);          \
         fprintf(stderr, "\n");                 \
+        fflush(stderr);                        \
     } while (false)
 #define LogError(...)                          \
     do {                                       \
         fprintf(stderr, __VA_ARGS__);          \
         fprintf(stderr, "\n");                 \
+        fflush(stderr);                        \
     } while (false)
 
 
@@ -220,6 +222,8 @@ inline std::string data_path(const std::string& name) { return wd_path() + "data
 #include "physics.h"
 #include "shaders.h"
 #include "facebatch.h"
+#include "filedialog.h"
+#include "primitives.h"
 
 
 SDL_Window *SDLMainWindow;
@@ -367,6 +371,10 @@ ModelGLTF Model_Knight;
 #include "resources.cpp"
 #include "shaders.cpp"
 #include "facebatch.cpp"
+#include "filedialog.cpp"
+#include "primitives.cpp"
+
+
 
 static void Stuff()
 {
