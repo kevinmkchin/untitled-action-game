@@ -2027,17 +2027,19 @@ void VisualizeOctreeHack()
 
 u32 PickVolume(MapEdit::Volume *volumes, u32 arraycount)
 {
+    float PickableTrianglesBuf[400];
+
     // returns the 1 + index of the volume in the provided array. 0 is nothing picked.
     for (u32 volumeFrameId = 1; volumeFrameId <= arraycount; ++volumeFrameId)
     {
         vec3 idrgb = HandleIdToRGB(volumeFrameId);
         MapEdit::Volume& vol = volumes[volumeFrameId - 1];
-        for (MapEdit::Face *f : vol.faces)
+        for (MapEdit::Face *face : vol.faces)
         {
             int count;
             // TODO(Kevin): instead of triangulate every face every time, probably cache this somehow?
-            MapEdit::TriangulateFace_QuickDumb_WithColor(*f, idrgb, HANDLES_VB.data + HANDLES_VB.count, &count);
-            HANDLES_VB.count += count;
+            MapEdit::TriangulateFace_QuickDumb_WithColor(*face, idrgb, PickableTrianglesBuf, &count);
+            AddTrianglesToPickableHandles(PickableTrianglesBuf, count);
         }
     }
     u32 pickedVolumeFrameId = FlushHandles(MousePos, RenderTargetGame, ActiveViewMatrix, ActivePerspectiveMatrix, false);
@@ -2046,6 +2048,8 @@ u32 PickVolume(MapEdit::Volume *volumes, u32 arraycount)
 
 u32 PickFace(MapEdit::Face **faces, u32 arraycount)
 {
+    float PickableTrianglesBuf[400];
+
     // returns 1 + index of the face in the provided array. 0 is nothing picked.
     for (u32 id = 1; id <= arraycount; ++id)
     {
@@ -2053,8 +2057,8 @@ u32 PickFace(MapEdit::Face **faces, u32 arraycount)
         vec3 idrgb = HandleIdToRGB(id);
         int count;
         // TODO(Kevin): instead of triangulate every face every time, probably cache this somehow?
-        MapEdit::TriangulateFace_QuickDumb_WithColor(*face, idrgb, HANDLES_VB.data + HANDLES_VB.count, &count);
-        HANDLES_VB.count += count;
+        MapEdit::TriangulateFace_QuickDumb_WithColor(*face, idrgb, PickableTrianglesBuf, &count);
+        AddTrianglesToPickableHandles(PickableTrianglesBuf, count);
     }
     u32 faceId = FlushHandles(MousePos, RenderTargetGame, ActiveViewMatrix, ActivePerspectiveMatrix, false);
     return faceId;
