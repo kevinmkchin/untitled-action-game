@@ -408,7 +408,7 @@ void dynamic_array<T>::setlen(int n)
 }
 
 template<typename T> 
-size_t dynamic_array<T>::lenu()
+size_t dynamic_array<T>::lenu() const
 {
     return arrlenu(data);
 }

@@ -140,9 +140,9 @@ namespace MapEdit
 
     struct Volume
     {
-        std::vector<Face*> faces;
-        std::vector<Edge*> edges;
-        std::vector<Vert*> verts;
+        dynamic_array<Face*> faces;
+        dynamic_array<Edge*> edges;
+        dynamic_array<Vert*> verts;
 
         u64 persistId = 0; // 0 is invalid volume. All volumes should call FreshVolumePersistId.
     };

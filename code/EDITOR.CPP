@@ -1,37 +1,21 @@
 
 
 
-
-struct editor_session_data_t
+void level_editor_t::ResetFaceToolData()
 {
-    MapEdit::Face *SelectedFace = NULL;
-
-    db_tex_t SelectedTexture;
-
-    u32 TexturePersistIdCounter = 0;
-
-    // move hotHandleId here
-    // move all the editor session specific data here
-};
-editor_session_data_t Session;
-
-
-void SessionResetFaceToolData()
-{
-    Session.SelectedFace = NULL;
+    SelectedFace = NULL;
 }
 
-NiceArray<MapEdit::Volume, 3200> EDITOR_MAP_VOLUMES;
 std::vector<float> MY_VERTEX_BUFFER;
 
-void LoadMapEditor()
+void level_editor_t::Open()
 {
-    Session.SelectedTexture = Assets.DefaultEditorTexture;
+    SelectedTexture = Assets.DefaultEditorTexture;
 }
 
-void CloseMapEditor()
+void level_editor_t::Close()
 {
-    // TODO(Kevin)
+
 }
 
 #define MAPSER_VOLUMES_U64_DIVIDER_START 0x49779b0ef139ca39
@@ -46,7 +30,7 @@ void CloseMapEditor()
 // [n bytes] : payload
 // [4 bytes] : EOF identifier
 
-bool EditorSerializeMap(const char *mapFilePath)
+bool level_editor_t::SaveMap(const char *mapFilePath)
 {
 #if INTERNAL_BUILD
     std::unordered_set<u32> SerPtrSet;
@@ -56,18 +40,19 @@ bool EditorSerializeMap(const char *mapFilePath)
     ByteBufferInit(&mapbuf);
 
     ByteBufferWrite(&mapbuf, u64, MAPSER_VOLUMES_U64_DIVIDER_START);
-    const int volumesCount = EDITOR_MAP_VOLUMES.count;
+    const int volumesCount = (int)LevelEditorVolumes.lenu();
     ByteBufferWrite(&mapbuf, int, volumesCount);
 
     for (int i = 0; i < volumesCount; ++i)
     {
-        const MapEdit::Volume& volume = EDITOR_MAP_VOLUMES.At(i);
+        MapEdit::Volume& volume = LevelEditorVolumes[i];
         
         ByteBufferWrite(&mapbuf, u64, volume.persistId);
 
-        ByteBufferWrite(&mapbuf, size_t, volume.verts.size());
-        for (MapEdit::Vert *v : volume.verts)
+        ByteBufferWrite(&mapbuf, size_t, volume.verts.lenu());
+        for (size_t i = 0; i < volume.verts.lenu(); ++i)
         {
+            MapEdit::Vert *v = volume.verts[i];
 #if INTERNAL_BUILD
             SerPtrSet.emplace(v->elemId);
 #endif
@@ -77,9 +62,11 @@ bool EditorSerializeMap(const char *mapFilePath)
             ByteBufferWrite(&mapbuf, float, v->pos.z);
         }
 
-        ByteBufferWrite(&mapbuf, size_t, volume.edges.size());
-        for (MapEdit::Edge *e : volume.edges)
+        ByteBufferWrite(&mapbuf, size_t, volume.edges.lenu());
+        for (size_t i = 0; i < volume.edges.lenu(); ++i)
         {
+            MapEdit::Edge *e = volume.edges[i];
+
             u32 ep = e->elemId;
             u32 ea = e->a->elemId;
             u32 eb = e->b->elemId;
@@ -93,9 +80,11 @@ bool EditorSerializeMap(const char *mapFilePath)
             ByteBufferWrite(&mapbuf, u32, eb);
         }
 
-        ByteBufferWrite(&mapbuf, size_t, volume.faces.size());
-        for (MapEdit::Face *f : volume.faces)
+        ByteBufferWrite(&mapbuf, size_t, volume.faces.lenu());
+        for (size_t i = 0; i < volume.faces.lenu(); ++i)
         {
+            MapEdit::Face *f = volume.faces[i];
+
             // save the sequence of edges in the face's loop cycle by their pointers
             const std::vector<MapEdit::Edge*>& faceEdges = f->GetEdges();
             ByteBufferWrite(&mapbuf, size_t, faceEdges.size());
@@ -124,7 +113,7 @@ bool EditorSerializeMap(const char *mapFilePath)
     return writtenToFile;
 }
 
-bool EditorDeserializeMap(const char *mapFilePath)
+bool level_editor_t::LoadMap(const char *mapFilePath)
 {
     std::unordered_map<u32, void*> DeserElemIdToElem;
 
@@ -204,7 +193,7 @@ bool EditorDeserializeMap(const char *mapFilePath)
             face->texture = Assets.GetTextureById(faceTexturePersistId);
         }
 
-        EDITOR_MAP_VOLUMES.PushBack(owner);
+        LevelEditorVolumes.put(owner);
     }
 
     ByteBufferRead(&mapbuf, u64, &u64slot);
@@ -528,7 +517,7 @@ void VisualizeOctreeHack()
 }
 
 
-u32 PickVolume(MapEdit::Volume *volumes, u32 arraycount)
+u32 level_editor_t::PickVolume(MapEdit::Volume *volumes, u32 arraycount)
 {
     float PickableTrianglesBuf[400];
 
@@ -537,8 +526,9 @@ u32 PickVolume(MapEdit::Volume *volumes, u32 arraycount)
     {
         vec3 idrgb = HandleIdToRGB(volumeFrameId);
         MapEdit::Volume& vol = volumes[volumeFrameId - 1];
-        for (MapEdit::Face *face : vol.faces)
+        for (size_t i = 0; i < vol.faces.lenu(); ++i)
         {
+            MapEdit::Face *face = vol.faces[i];
             int count;
             // TODO(Kevin): instead of triangulate every face every time, probably cache this somehow?
             MapEdit::TriangulateFace_QuickDumb_WithColor(*face, idrgb, PickableTrianglesBuf, &count);
@@ -549,7 +539,7 @@ u32 PickVolume(MapEdit::Volume *volumes, u32 arraycount)
     return pickedVolumeFrameId;
 }
 
-u32 PickFace(MapEdit::Face **faces, u32 arraycount)
+u32 level_editor_t::PickFace(MapEdit::Face **faces, u32 arraycount)
 {
     float PickableTrianglesBuf[400];
 
@@ -567,7 +557,7 @@ u32 PickFace(MapEdit::Face **faces, u32 arraycount)
     return faceId;
 }
 
-void TickMapEditor()
+void level_editor_t::Tick()
 {
     IsEditorActive = true;
     SDL_SetRelativeMouseMode(MouseCurrent & SDL_BUTTON(SDL_BUTTON_RIGHT) ? SDL_TRUE : SDL_FALSE);
@@ -632,7 +622,7 @@ void TickMapEditor()
         if(!path.empty())
         {
             // TODO ...
-            if (EditorSerializeMap(path.c_str()))
+            if (SaveMap(path.c_str()))
                 LogMessage("Saved %s", path.c_str());
             else
                 LogError("Failed to save to %s", path.c_str());
@@ -645,7 +635,7 @@ void TickMapEditor()
         if(!path.empty())
         {
             // TODO ...
-            if (EditorDeserializeMap(path.c_str()))
+            if (LoadMap(path.c_str()))
                 LogMessage("Opened %s", path.c_str());
             else
                 LogError("Failed to open %s", path.c_str());
@@ -676,25 +666,25 @@ void TickMapEditor()
         editorActiveTool = MapEditorTools::SimpleBrushTool;
         hotHandleId = 0;
         SELECTED_MAP_VOLUMES_INDICES.ResetCount();
-        SessionResetFaceToolData();
+        ResetFaceToolData();
     }
     if (KeysPressed[SDL_SCANCODE_2] || Gui::EditorSelectable_2("VERT", &vertToolActive))
     {
         editorActiveTool = MapEditorTools::VertexManip;
         hotHandleId = 0;
-        SessionResetFaceToolData();
+        ResetFaceToolData();
     }
     if (KeysPressed[SDL_SCANCODE_3] || Gui::EditorSelectable_2("EDGE", &edgeToolActive))
     {
         editorActiveTool = MapEditorTools::EdgeManip;
         hotHandleId = 0;
-        SessionResetFaceToolData();
+        ResetFaceToolData();
     }
     if (KeysPressed[SDL_SCANCODE_4] || Gui::EditorSelectable_2("FACE", &faceToolActive))
     {
         editorActiveTool = MapEditorTools::FaceManip;
         hotHandleId = 0;
-        SessionResetFaceToolData();
+        ResetFaceToolData();
     }
 
     Gui::EditorSpacer(16,0);
@@ -724,7 +714,7 @@ void TickMapEditor()
     for (int i = 0; i < SELECTED_MAP_VOLUMES_INDICES.count; ++i)
     {
         int editorMapVolumeIndex = SELECTED_MAP_VOLUMES_INDICES.At(i);
-        const MapEdit::Volume& volume = EDITOR_MAP_VOLUMES.At(editorMapVolumeIndex);
+        const MapEdit::Volume& volume = LevelEditorVolumes[editorMapVolumeIndex];
         std::string volPersIdStr = std::to_string(volume.persistId);
         Gui::EditorBeginHorizontal();
         // Gui::EditorLabelledButton("S");
@@ -744,7 +734,7 @@ void TickMapEditor()
     Gui::EditorText("Texture");
     
     static bool ShowTextureBrowser = false;
-    if (Gui::EditorImageButton(Session.SelectedTexture.gputex.id, ivec2(160,160)))
+    if (Gui::EditorImageButton(SelectedTexture.gputex.id, ivec2(160,160)))
     {
         ShowTextureBrowser = true;
     }
@@ -776,7 +766,7 @@ void TickMapEditor()
             db_tex_t t = pair.second;
             if (Gui::EditorImageButton(t.gputex.id, ivec2(160,160)))
             {
-                Session.SelectedTexture = t;
+                SelectedTexture = t;
                 ShowTextureBrowser = false;
             }
             char displaystr[128] = {0};
@@ -792,9 +782,9 @@ void TickMapEditor()
 
     // TODO(Kevin): Have shortcuts for these actions so you can go click click shortcut click click shortcut
     Gui::EditorLabelledButton("Apply Texture to Volume");
-    if (Session.SelectedFace != NULL && Gui::EditorLabelledButton("Apply Texture to Face"))
+    if (SelectedFace != NULL && Gui::EditorLabelledButton("Apply Texture to Face"))
     {
-        Session.SelectedFace->texture = Session.SelectedTexture; 
+        SelectedFace->texture = SelectedTexture; 
     }
     Gui::EndWindow();
 
@@ -819,18 +809,18 @@ void TickMapEditor()
         editorActiveTool == MapEditorTools::FaceManip;
     if (volumePickable && MouseReleased & SDL_BUTTON(SDL_BUTTON_LEFT) && hotHandleId == 0)
     {
-        u32 pickedVolumeFrameId = PickVolume(EDITOR_MAP_VOLUMES.data, EDITOR_MAP_VOLUMES.count);
+        u32 pickedVolumeFrameId = PickVolume(LevelEditorVolumes.data, (u32)LevelEditorVolumes.lenu());
         if (pickedVolumeFrameId <= 0)
         {
             SELECTED_MAP_VOLUMES_INDICES.ResetCount();
-            SessionResetFaceToolData();
+            ResetFaceToolData();
         }
         else
         {
             if (!KeysCurrent[SDL_SCANCODE_LCTRL])
             {
                 SELECTED_MAP_VOLUMES_INDICES.ResetCount();
-                SessionResetFaceToolData();
+                ResetFaceToolData();
             }
 
             int pickedVolumeIndexInMegaArray = pickedVolumeFrameId-1;
@@ -856,14 +846,14 @@ void TickMapEditor()
     SELECTABLE_FACES.clear();
     for (int i = 0; i < SELECTED_MAP_VOLUMES_INDICES.count; ++i)
     {
-        const MapEdit::Volume& volume = EDITOR_MAP_VOLUMES.At(SELECTED_MAP_VOLUMES_INDICES.At(i));
+        MapEdit::Volume& volume = LevelEditorVolumes[SELECTED_MAP_VOLUMES_INDICES.At(i)];
 
-        for (int j = 0; j < volume.verts.size(); ++j)
+        for (int j = 0; j < volume.verts.lenu(); ++j)
         {
             SELECTABLE_VERTICES.push_back(volume.verts[j]);
         }
 
-        for (int j = 0; j < volume.faces.size(); ++j)
+        for (int j = 0; j < volume.faces.lenu(); ++j)
         {
             SELECTABLE_FACES.push_back(volume.faces[j]);
         }
@@ -887,7 +877,7 @@ void TickMapEditor()
             if (lmbPressedThisFrame)
             {
                 hotHandleId = hoveredFaceId;
-                Session.SelectedFace = face;
+                SelectedFace = face;
 
                 SELECTED_VERTICES = face->GetVertices();
 
@@ -939,9 +929,10 @@ void TickMapEditor()
             }
             for (int i = 0; i < SELECTED_MAP_VOLUMES_INDICES.count; ++i)
             {
-                MapEdit::Volume& selectedVol = EDITOR_MAP_VOLUMES.At(SELECTED_MAP_VOLUMES_INDICES.At(i));
-                for (MapEdit::Face *face : selectedVol.faces)
+                MapEdit::Volume& selectedVol = LevelEditorVolumes[SELECTED_MAP_VOLUMES_INDICES.At(i)];
+                for (size_t j = 0; j < selectedVol.faces.lenu(); ++j)
                 {
+                    MapEdit::Face *face = selectedVol.faces[j];
                     MY_VERTEX_BUFFER.clear();
                     MapEdit::TriangulateFace_QuickDumb(*face, &MY_VERTEX_BUFFER);
                     RebindGPUMesh(&face->facemesh, (u32)(sizeof(float)*MY_VERTEX_BUFFER.size()), MY_VERTEX_BUFFER.data());
@@ -1046,9 +1037,10 @@ void TickMapEditor()
             }
             for (int i = 0; i < SELECTED_MAP_VOLUMES_INDICES.count; ++i)
             {
-                MapEdit::Volume& selectedVol = EDITOR_MAP_VOLUMES.At(SELECTED_MAP_VOLUMES_INDICES.At(i));
-                for (MapEdit::Face *face : selectedVol.faces)
+                MapEdit::Volume& selectedVol = LevelEditorVolumes[SELECTED_MAP_VOLUMES_INDICES.At(i)];
+                for (size_t j = 0; j < selectedVol.faces.lenu(); ++j)
                 {
+                    MapEdit::Face *face = selectedVol.faces[j];
                     MY_VERTEX_BUFFER.clear();
                     MapEdit::TriangulateFace_QuickDumb(*face, &MY_VERTEX_BUFFER);
                     RebindGPUMesh(&face->facemesh, (u32)(sizeof(float)*MY_VERTEX_BUFFER.size()), MY_VERTEX_BUFFER.data());
@@ -1099,12 +1091,12 @@ void TickMapEditor()
             case SimpleBrushToolState::NotActive:
                 if (MousePressed & SDL_BUTTON(SDL_BUTTON_LEFT))
                 {
-                    u32 pickedVolumeFrameId = PickVolume(EDITOR_MAP_VOLUMES.data, EDITOR_MAP_VOLUMES.count);
+                    u32 pickedVolumeFrameId = PickVolume(LevelEditorVolumes.data, (u32)LevelEditorVolumes.lenu());
                     if (pickedVolumeFrameId > 0)
                     {
-                        MapEdit::Volume& vol = EDITOR_MAP_VOLUMES.At(pickedVolumeFrameId-1);
-                        std::vector<MapEdit::Face*>& faces = vol.faces;
-                        u32 faceIndex = PickFace(faces.data(), (u32)faces.size());
+                        MapEdit::Volume& vol = LevelEditorVolumes[pickedVolumeFrameId-1];
+                        dynamic_array<MapEdit::Face*> faces = vol.faces;
+                        u32 faceIndex = PickFace(faces.data, (u32)faces.lenu());
                         MapEdit::Face *drawingFace = faces[faceIndex-1];
                         drawingplanenormal = drawingFace->QuickNormal();
                         vec3 ws = ScreenPointToWorldPoint(MousePos, 0.f);
@@ -1314,14 +1306,15 @@ void TickMapEditor()
                     MapEdit::CreateFace({f2_to_f3, f2_to_c2, c2_to_c3, f3_to_c3}, &createdVolume);
                     MapEdit::CreateFace({f3_to_f0, f3_to_c3, c3_to_c0, f0_to_c0}, &createdVolume);
 
-                    EDITOR_MAP_VOLUMES.PushBack(createdVolume);
+                    LevelEditorVolumes.put(createdVolume);
 
-                    for (auto face : createdVolume.faces)
+                    for (size_t i = 0; i < createdVolume.faces.lenu(); ++i)
                     {
+                        MapEdit::Face *face = createdVolume.faces[i];
                         MY_VERTEX_BUFFER.clear();
                         TriangulateFace_QuickDumb(*face, &MY_VERTEX_BUFFER);
                         RebindGPUMesh(&face->facemesh, (u32)(sizeof(float)*MY_VERTEX_BUFFER.size()), MY_VERTEX_BUFFER.data());
-                        face->texture = Session.SelectedTexture; 
+                        face->texture = SelectedTexture; 
                     }
 
                     simpleBrushToolState = SimpleBrushToolState::NotActive;

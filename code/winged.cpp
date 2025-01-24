@@ -227,7 +227,7 @@ namespace MapEdit
         face->loopbase = firstLoop;
         face->looplen = (int)edges.size();
 
-        owner->faces.push_back(face);
+        owner->faces.put(face);
         CreateGPUMesh(&face->facemesh, 3, 2, 3, GL_DYNAMIC_DRAW);
         face->storageIndex = LevelEditorFaces.count;
         LevelEditorFaces.PushBack(face);
@@ -245,7 +245,7 @@ namespace MapEdit
         v1->DiskLinkInsertEdge(edge);
         v2->DiskLinkInsertEdge(edge);
 
-        owner->edges.push_back(edge);
+        owner->edges.put(edge);
         return edge;
     }
 
@@ -256,7 +256,7 @@ namespace MapEdit
 
         v->pos = pos;
 
-        owner->verts.push_back(v);
+        owner->verts.put(v);
         return v;
     }
 
@@ -341,9 +341,9 @@ namespace MapEdit
 
     void MakeRectangularVolume(Volume *vol)
     {
-        for (Face *f : vol->faces)
-            delete f;
-        vol->faces.clear();
+        // for (Face *f : vol->faces)
+        //     delete f;
+        // vol->faces.clear();
 
         Vert *v0 = CreateVert(vec3(-320,0,-320), vol);
         Vert *v1 = CreateVert(vec3(-320,0,320), vol);

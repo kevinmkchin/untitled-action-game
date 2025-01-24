@@ -67,18 +67,13 @@ template<typename T> struct dynamic_array
             setcap(size);
     }
 
-    T& operator[](int index)
-    {
-        return data[index];
-    }
-
     // Frees the array.
     void free();
     // Changes the length of the array to n. Allocates uninitialized
     // slots at the end if necessary.
     void setlen(int n);
     // Returns the number of elements in the array as an unsigned type.
-    size_t lenu();
+    size_t lenu() const;
     // Sets the length of allocated storage to at least n. It will not
     // change the length of the array.
     size_t setcap(int n);
@@ -108,6 +103,14 @@ template<typename T> struct dynamic_array
     // Deletes the element at a[p], replacing it with the element from
     // the end of the array. O(1) performance.
     void delswap(int p);
+
+
+    T& operator[](int index) { return data[index]; }
+    T& operator[](u32 index) { return data[index]; }
+    T& operator[](size_t index) { return data[index]; }
+    const T& operator[](int index) const { return data[index]; }
+    const T& operator[](u32 index) const { return data[index]; }
+    const T& operator[](size_t index) const { return data[index]; }
 };
 
 
