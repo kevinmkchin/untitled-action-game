@@ -115,13 +115,7 @@ bool LoadGameMap(const char *path)
         collider.pointCount = span;
         GameLevelColliderPointsIterator += span;
     }
-    ASSERT(GameLevelCollisionTree.root.get() == NULL); // i don't care. crash for now.
-    Bounds GameLevelWorldBound = Bounds(vec3(-0.17f, -0.17f, -0.17f), vec3(8000, 8000, 8000));
-    GameLevelCollisionTree = Octree(GameLevelWorldBound, 7, 24); // NOTE(Kevin): maybe I can be smarter about how I'm deciding the values for max tree depth and max count per octant
-    for (FlatPolygonCollider& collider : GameLevelColliders)
-    {
-        GameLevelCollisionTree.Insert(&collider);
-    }
+
 
     // vertex buffers
     size_t numVertexBufs;

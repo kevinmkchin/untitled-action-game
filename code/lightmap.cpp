@@ -1,3 +1,4 @@
+#include "lightmap.h"
 
 
 vec3 *all_lm_pos = NULL;
@@ -169,7 +170,6 @@ void BakeStaticLighting(game_map_build_data_t& BuildData)
         FlatPolygonCollider& surface = MapSurfaceColliders[i];
         surface.pointCloudPtr = &ColliderWorldPoints[iter];
         surface.pointCount = span;
-        surface.debugId = i;
         iter += span;
         LightMapOcclusionTree.Insert(&surface);
     }
