@@ -32,7 +32,7 @@ vec3 WorldPointToScreenPoint(vec3 worldPosition)
     float screenspaceRatioY = 1.f - (((clipspaceCoordinates.y / clipspaceCoordinates.w) + 1.f) / 2.f);
     float internalResolutionWidth = (float)BackbufferWidth;
     float internalResolutionHeight = (float)BackbufferHeight;
-    float distanceFromCameraWCS = Dot(worldPosition - editorCameraPosition, CameraDirection);
+    float distanceFromCameraWCS = Dot(worldPosition - LevelEditor.CameraPosition, CameraDirection);
     return vec3(screenspaceRatioX * internalResolutionWidth, screenspaceRatioY * internalResolutionHeight, distanceFromCameraWCS);
 }
 

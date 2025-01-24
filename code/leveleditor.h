@@ -1,5 +1,8 @@
+#pragma once
 
 /* TODO
+
+    Still a ton to refactor in leveleditor.cpp
 
     I don't think we should have volumes as a concept. It's 
     unnecessary, just deal with faces. A soup of faces.
@@ -27,6 +30,7 @@ public:
     dynamic_array<MapEdit::Volume> LevelEditorVolumes;
 
 public:
+    vec3 CameraPosition = vec3(600, 500, 600);
     MapEdit::Face *SelectedFace = NULL;
     db_tex_t SelectedTexture;
     // hotHandleId;
