@@ -227,6 +227,7 @@ inline std::string data_path(const std::string& name) { return wd_path() + "data
 #include "utility.h"
 #include "lightmap.h"
 #include "winged.h"
+#include "leveleditor.h"
 
 
 SDL_Window *SDLMainWindow;
@@ -355,11 +356,10 @@ BodyguardEnemy Enemy0;
 
 ModelGLTF Model_Knight;
 
-#include "leveleditor.h"
 level_editor_t LevelEditor;
-#include "EDITOR.CPP"
 
 
+#include "leveleditor.cpp"
 #include "utility.cpp"
 #include "resources.cpp"
 #include "shaders.cpp"
