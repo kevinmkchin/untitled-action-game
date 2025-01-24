@@ -262,9 +262,6 @@ bool IsEditorActive = false;
 
 
 
-#include "COLLISION.CPP"
-
-
 GPUShader GameLevelShader;
 GPUShader PatchesIDShader;
 GPUShader EditorShader_Scene;
@@ -281,6 +278,7 @@ bool DoPrimitivesDepthTest = false;
 
 
 #include "GUI.CPP"
+#include "lm_oct.cpp" // TODO(Kevin): make only needed by lightmap.cpp
 
 
 
@@ -304,7 +302,6 @@ Mix_Chunk *sfx_Jump;
 
 std::vector<vec3> GameLevelColliderPoints;
 std::vector<FlatPolygonCollider> GameLevelColliders;
-Octree GameLevelCollisionTree;
 std::vector<face_batch_t> GameLevelFaceBatches;
 
 #if SUNLIGHT_TEST
@@ -324,28 +321,28 @@ vec3 PlayerColliderPoints[] = {
     vec3(8,0,8), vec3(8,0,-8), vec3(-8,0,8), vec3(-8,0,-8),
     vec3(8,48,8), vec3(8,48,-8), vec3(-8,48,8), vec3(-8,48,-8)
 };
-MeshCollider PlayerCollider;
-MeshCollider *PlayerColliderAtPos(vec3 playerWorldPosition)
-{
-    PlayerCollider.pointCloud.resize(8);
-    for (int i = 0; i < 8; ++i)
-        PlayerCollider.pointCloud[i] = playerWorldPosition + PlayerColliderPoints[i];
-    return &PlayerCollider;
-}
+// MeshCollider PlayerCollider;
+// MeshCollider *PlayerColliderAtPos(vec3 playerWorldPosition)
+// {
+//     PlayerCollider.pointCloud.resize(8);
+//     for (int i = 0; i < 8; ++i)
+//         PlayerCollider.pointCloud[i] = playerWorldPosition + PlayerColliderPoints[i];
+//     return &PlayerCollider;
+// }
 float PlayerYVel = 0.f;
 
 vec3 BodyguardEnemyColliderPoints[] = {
     vec3(8,0,8), vec3(8,0,-8), vec3(-8,0,8), vec3(-8,0,-8),
     vec3(8,48,8), vec3(8,48,-8), vec3(-8,48,8), vec3(-8,48,-8)
 };
-MeshCollider BodyguardEnemyCollider;
-MeshCollider *BodyguardEnemyColliderAtPos(vec3 worldPos)
-{
-    BodyguardEnemyCollider.pointCloud.resize(8);
-    for (int i = 0; i < 8; ++i)
-        BodyguardEnemyCollider.pointCloud[i] = worldPos + BodyguardEnemyColliderPoints[i];
-    return &BodyguardEnemyCollider;
-}
+// MeshCollider BodyguardEnemyCollider;
+// MeshCollider *BodyguardEnemyColliderAtPos(vec3 worldPos)
+// {
+//     BodyguardEnemyCollider.pointCloud.resize(8);
+//     for (int i = 0; i < 8; ++i)
+//         BodyguardEnemyCollider.pointCloud[i] = worldPos + BodyguardEnemyColliderPoints[i];
+//     return &BodyguardEnemyCollider;
+// }
 
 
 struct BodyguardEnemy
