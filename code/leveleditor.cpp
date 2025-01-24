@@ -1,11 +1,5 @@
 
 
-
-void level_editor_t::ResetFaceToolData()
-{
-    SelectedFace = NULL;
-}
-
 std::vector<float> MY_VERTEX_BUFFER;
 
 void level_editor_t::Open()
@@ -18,350 +12,7 @@ void level_editor_t::Close()
 
 }
 
-#define MAPSER_VOLUMES_U64_DIVIDER_START 0x49779b0ef139ca39
-#define MAPSER_VOLUMES_U64_DIVIDER_END   0x9fcf207673e66e63 
-#define DESER_FACE_ADDITIONAL_SIZE 60
 
-// TODO(Kevin): add binary format file data
-// [4 bytes] : file type identifier
-// [4 bytes] : 0x00000000
-// [4 bytes] : file serial version 
-// [4 bytes] : payload size n
-// [n bytes] : payload
-// [4 bytes] : EOF identifier
-
-bool level_editor_t::SaveMap(const char *mapFilePath)
-{
-#if INTERNAL_BUILD
-    std::unordered_set<u32> SerPtrSet;
-#endif
-
-    ByteBuffer mapbuf;
-    ByteBufferInit(&mapbuf);
-
-    ByteBufferWrite(&mapbuf, u64, MAPSER_VOLUMES_U64_DIVIDER_START);
-    const int volumesCount = (int)LevelEditorVolumes.lenu();
-    ByteBufferWrite(&mapbuf, int, volumesCount);
-
-    for (int i = 0; i < volumesCount; ++i)
-    {
-        MapEdit::Volume& volume = LevelEditorVolumes[i];
-        
-        ByteBufferWrite(&mapbuf, u64, volume.persistId);
-
-        ByteBufferWrite(&mapbuf, size_t, volume.verts.lenu());
-        for (size_t i = 0; i < volume.verts.lenu(); ++i)
-        {
-            MapEdit::Vert *v = volume.verts[i];
-#if INTERNAL_BUILD
-            SerPtrSet.emplace(v->elemId);
-#endif
-            ByteBufferWrite(&mapbuf, u32, v->elemId);
-            ByteBufferWrite(&mapbuf, float, v->pos.x);
-            ByteBufferWrite(&mapbuf, float, v->pos.y);
-            ByteBufferWrite(&mapbuf, float, v->pos.z);
-        }
-
-        ByteBufferWrite(&mapbuf, size_t, volume.edges.lenu());
-        for (size_t i = 0; i < volume.edges.lenu(); ++i)
-        {
-            MapEdit::Edge *e = volume.edges[i];
-
-            u32 ep = e->elemId;
-            u32 ea = e->a->elemId;
-            u32 eb = e->b->elemId;
-#if INTERNAL_BUILD
-            ASSERT(SerPtrSet.find(ea) != SerPtrSet.end());
-            ASSERT(SerPtrSet.find(eb) != SerPtrSet.end());
-            SerPtrSet.emplace(ep);
-#endif
-            ByteBufferWrite(&mapbuf, u32, ep);
-            ByteBufferWrite(&mapbuf, u32, ea);
-            ByteBufferWrite(&mapbuf, u32, eb);
-        }
-
-        ByteBufferWrite(&mapbuf, size_t, volume.faces.lenu());
-        for (size_t i = 0; i < volume.faces.lenu(); ++i)
-        {
-            MapEdit::Face *f = volume.faces[i];
-
-            // save the sequence of edges in the face's loop cycle by their pointers
-            const std::vector<MapEdit::Edge*>& faceEdges = f->GetEdges();
-            ByteBufferWrite(&mapbuf, size_t, faceEdges.size());
-            for (MapEdit::Edge *fe : faceEdges)
-            {
-#if INTERNAL_BUILD
-                ASSERT(SerPtrSet.find(fe->elemId) != SerPtrSet.end());
-#endif
-                ByteBufferWrite(&mapbuf, u32, fe->elemId);
-            }
-            u32 faceTexturePersistId = f->texture.persistId;
-            ByteBufferWrite(&mapbuf, u32, faceTexturePersistId);
-            // leaving some buffer room for additional Face data in the future
-            // make sure to decrement as needed and mirror same value on deserialize
-            u8 nullbytes[DESER_FACE_ADDITIONAL_SIZE];
-            ByteBufferWriteBulk(&mapbuf, &nullbytes, DESER_FACE_ADDITIONAL_SIZE);
-        }
-    }
-
-    ByteBufferWrite(&mapbuf, u64, MAPSER_VOLUMES_U64_DIVIDER_END);
-
-    bool writtenToFile = ByteBufferWriteToFile(&mapbuf, mapFilePath) == 1;
-
-    ByteBufferFree(&mapbuf);
-
-    return writtenToFile;
-}
-
-bool level_editor_t::LoadMap(const char *mapFilePath)
-{
-    std::unordered_map<u32, void*> DeserElemIdToElem;
-
-    ByteBuffer mapbuf;
-    if (ByteBufferReadFromFile(&mapbuf, mapFilePath) == 0)
-        return false;
-
-    u64 u64slot;
-    ByteBufferRead(&mapbuf, u64, &u64slot);
-    ASSERT(u64slot == MAPSER_VOLUMES_U64_DIVIDER_START);
-
-    int volumesCount = -1;
-    ByteBufferRead(&mapbuf, int, &volumesCount);
-
-    for (int i = 0; i < volumesCount; ++i)
-    {
-        MapEdit::Volume owner;
-        ByteBufferRead(&mapbuf, u64, &owner.persistId);
-        MapEdit::session_VolumePersistIdCounter = GM_max(owner.persistId, MapEdit::session_VolumePersistIdCounter);
-
-        size_t vertexCount, edgeCount, faceCount = 0;
-
-        ByteBufferRead(&mapbuf, size_t, &vertexCount);
-        for (size_t j = 0; j < vertexCount; ++j)
-        {
-            u32 vElemId;
-            vec3 vpos;
-            ByteBufferRead(&mapbuf, u32, &vElemId);
-            ByteBufferRead(&mapbuf, float, &vpos.x);
-            ByteBufferRead(&mapbuf, float, &vpos.y);
-            ByteBufferRead(&mapbuf, float, &vpos.z);
-
-            void *elemptr = (void*)CreateVert(vpos, &owner); // MEM ALLOC
-            DeserElemIdToElem.emplace(vElemId, elemptr);
-        }
-
-        ByteBufferRead(&mapbuf, size_t, &edgeCount);
-        for (size_t j = 0; j < edgeCount; ++j)
-        {
-            u32 eElemId;
-            u32 aElemId;
-            u32 bElemId;
-            ByteBufferRead(&mapbuf, u32, &eElemId);
-            ByteBufferRead(&mapbuf, u32, &aElemId);
-            ByteBufferRead(&mapbuf, u32, &bElemId);
-
-            MapEdit::Vert *av = (MapEdit::Vert*)DeserElemIdToElem.at(aElemId);
-            MapEdit::Vert *bv = (MapEdit::Vert*)DeserElemIdToElem.at(bElemId);
-            void *elemptr = (void*)CreateEdge(av, bv, &owner); // MEM ALLOC
-            DeserElemIdToElem.emplace(eElemId, elemptr);
-        }
-
-        ByteBufferRead(&mapbuf, size_t, &faceCount);
-        for (size_t j = 0; j < faceCount; ++j)
-        {
-            size_t faceEdgesCount = 0;
-            std::vector<MapEdit::Edge*> faceEdges;
-            
-            ByteBufferRead(&mapbuf, size_t, &faceEdgesCount);
-            for (int k = 0; k < faceEdgesCount; ++k)
-            {
-                u32 feElemId;
-                ByteBufferRead(&mapbuf, u32, &feElemId);
-                faceEdges.push_back((MapEdit::Edge*)DeserElemIdToElem.at(feElemId));
-            }
-
-            u32 faceTexturePersistId;
-            ByteBufferRead(&mapbuf, u32, &faceTexturePersistId);
-            ByteBufferAdvancePosition(&mapbuf, DESER_FACE_ADDITIONAL_SIZE);
-
-            MapEdit::Face *face = CreateFace(faceEdges, &owner); // MEM ALLOC
-
-            MY_VERTEX_BUFFER.clear();
-            TriangulateFace_QuickDumb(*face, &MY_VERTEX_BUFFER); // TODO(Kevin): do smarter triangulation...
-            RebindGPUMesh(&face->facemesh, (u32) MY_VERTEX_BUFFER.size() * sizeof(float), MY_VERTEX_BUFFER.data());
-
-            face->texture = Assets.GetTextureById(faceTexturePersistId);
-        }
-
-        LevelEditorVolumes.put(owner);
-    }
-
-    ByteBufferRead(&mapbuf, u64, &u64slot);
-    ASSERT(u64slot == MAPSER_VOLUMES_U64_DIVIDER_END);
-
-    ByteBufferFree(&mapbuf);
-
-    return true;
-}
-
-
-bool BuildGameMap(const char *path)
-{
-    // TODO(Kevin): remove this timing shit
-    u32 TimeAtStartOfBuildGameMap = SDL_GetTicks();
-
-
-    game_map_build_data_t BuildData;
-    BuildData.Output = ByteBufferNew();
-    BuildData.TotalFaceCount = MapEdit::LevelEditorFaces.count;
-    const int totalfacecount = BuildData.TotalFaceCount;
-    std::unordered_map<u32, std::vector<float>>& VertexBuffers = BuildData.VertexBuffers;
-    std::vector<vec3>& ColliderWorldPoints = BuildData.ColliderWorldPoints;
-    std::vector<u32>& ColliderSpans = BuildData.ColliderSpans;
-
-
-    // need to save a bunch of FaceBatches (which are basically just meshes)
-    // sort by texture, etc. every face using same texture goes into same FaceBatch
-    // collider data -> just save the point clouds for mesh colliders and add to Octree while loading into game
-    // need to do something smarter for texture data (want to use database so that textures are just enums)
-
-    for (int i = 0; i < totalfacecount; ++i)
-    {
-        MapEdit::Face *face = MapEdit::LevelEditorFaces.At(i);
-
-        std::vector<MapEdit::Vert*> faceVerts = face->GetVertices();
-
-        u32 ColliderSpan = 0;
-        for (MapEdit::Vert *v : faceVerts)
-        {
-            vec3 worldpos = v->pos;
-            ColliderWorldPoints.push_back(worldpos);
-            ++ColliderSpan;
-        }
-        ColliderSpans.push_back(ColliderSpan);
-    }
-
-    BakeStaticLighting(BuildData);
-
-
-    // colliders
-    size_t numColliderPoints = ColliderWorldPoints.size();
-    size_t numColliderSpans = ColliderSpans.size();
-    ByteBufferWrite(&BuildData.Output, size_t, numColliderPoints);
-    ByteBufferWrite(&BuildData.Output, size_t, numColliderSpans);
-    ByteBufferWriteBulk(&BuildData.Output, ColliderWorldPoints.data(), sizeof(vec3)*numColliderPoints);
-    ByteBufferWriteBulk(&BuildData.Output, ColliderSpans.data(), sizeof(u32)*numColliderSpans);
-
-    // vertex buffers
-    size_t numVertexBufs = VertexBuffers.size();
-    ByteBufferWrite(&BuildData.Output, size_t, numVertexBufs);
-    for (auto& vbpair : VertexBuffers)
-    {
-        u32 texturePersistId = vbpair.first;
-        const std::vector<float>& vb = vbpair.second;
-
-        ByteBufferWrite(&BuildData.Output, u32, texturePersistId);
-        ByteBufferWrite(&BuildData.Output, size_t, vb.size());
-        ByteBufferWriteBulk(&BuildData.Output, (void*)vb.data(), sizeof(float)*vb.size());
-    }
-
-    bool writtenToFile = ByteBufferWriteToFile(&BuildData.Output, path) == 1;
-    ByteBufferFree(&BuildData.Output);
-
-    // TODO(Kevin): remove this timing shit
-    u32 TimeAtEndOfBuildGameMap = SDL_GetTicks();
-    float TimeElapsedToBuildGameMapInSeconds = (TimeAtEndOfBuildGameMap - TimeAtStartOfBuildGameMap)/1000.f;
-    LogMessage("Took %fs to build.", TimeElapsedToBuildGameMapInSeconds);
-
-    return writtenToFile;
-}
-
-bool LoadGameMap(const char *path)
-{
-    std::unordered_map<u32, void*> DeserElemIdToElem;
-
-    // deserialize
-    ByteBuffer mapbuf;
-    if (ByteBufferReadFromFile(&mapbuf, path) == 0)
-        return false;
-
-    i32 lmw, lmh;
-    ByteBufferRead(&mapbuf, i32, &lmw);
-    ByteBufferRead(&mapbuf, i32, &lmh);
-    float *lightMapData = NULL; 
-    arrsetcap(lightMapData, lmw*lmh);
-    ByteBufferReadBulk(&mapbuf, lightMapData, lmw*lmh*sizeof(float));
-    // These light map textures use bilinear texture filtering to allow light values 
-    // to be interpolated between the given texture coordinate's neighboring texels. 
-    CreateGPUTextureFromBitmap(&Temporary_LightMapVisualizeTex, lightMapData, lmw, lmh,
-                               GL_R32F, GL_RED, GL_LINEAR, GL_LINEAR, GL_FLOAT);
-    CreateGPUTextureFromBitmap(&Temporary_TestTex0, lightMapData, lmw, lmh,
-                               GL_R32F, GL_RED, GL_NEAREST, GL_NEAREST, GL_FLOAT);
-    arrfree(lightMapData);
-
-    // colliders
-    size_t numColliderPoints, numColliderSpans;
-    ByteBufferRead(&mapbuf, size_t, &numColliderPoints);
-    ByteBufferRead(&mapbuf, size_t, &numColliderSpans);
-
-    ASSERT(GameLevelColliders.size() == 0); // just crash for now
-    GameLevelColliderPoints.resize(numColliderPoints);
-    GameLevelColliders.resize(numColliderSpans);
-
-    std::vector<u32> ColliderSpans(numColliderSpans); 
-    ByteBufferReadBulk(&mapbuf, GameLevelColliderPoints.data(), sizeof(vec3)*numColliderPoints);
-    ByteBufferReadBulk(&mapbuf, ColliderSpans.data(), sizeof(u32)*numColliderSpans);
-    
-    int GameLevelColliderPointsIterator = 0;
-    for (u32 colliderIndex = 0; colliderIndex < numColliderSpans; ++colliderIndex)
-    {
-        u32 span = ColliderSpans[colliderIndex];
-        FlatPolygonCollider& collider = GameLevelColliders[colliderIndex];
-        collider.pointCloudPtr = &GameLevelColliderPoints[GameLevelColliderPointsIterator];
-        collider.pointCount = span;
-        GameLevelColliderPointsIterator += span;
-    }
-    ASSERT(GameLevelCollisionTree.root.get() == NULL); // i don't care. crash for now.
-    Bounds GameLevelWorldBound = Bounds(vec3(-0.17f, -0.17f, -0.17f), vec3(8000, 8000, 8000));
-    GameLevelCollisionTree = Octree(GameLevelWorldBound, 7, 24); // NOTE(Kevin): maybe I can be smarter about how I'm deciding the values for max tree depth and max count per octant
-    for (FlatPolygonCollider& collider : GameLevelColliders)
-    {
-        GameLevelCollisionTree.Insert(&collider);
-    }
-
-    // vertex buffers
-    size_t numVertexBufs;
-    ByteBufferRead(&mapbuf, size_t, &numVertexBufs);
-    for (int i = 0; i < numVertexBufs; ++i)
-    {
-        u32 texturePersistId;
-        ByteBufferRead(&mapbuf, u32, &texturePersistId);
-
-        size_t VertexCount;
-        ByteBufferRead(&mapbuf, size_t, &VertexCount);
-
-        std::vector<float> vb;
-        vb.resize(VertexCount);
-        ByteBufferReadBulk(&mapbuf, vb.data(), sizeof(float)*VertexCount);
-        ASSERT(vb.size() == VertexCount);
-        
-        face_batch_t FaceBatch;
-        FaceBatch.ColorTexture = Assets.GetTextureById(texturePersistId).gputex;
-        FaceBatch.LightMapTexture = Temporary_LightMapVisualizeTex;
-        CreateFaceBatch(&FaceBatch);
-        RebindFaceBatch(&FaceBatch, u32(sizeof(float)*VertexCount), vb.data());
-        GameLevelFaceBatches.push_back(FaceBatch);
-    }
-
-    ByteBufferFree(&mapbuf);
-
-    return true;
-}
-
-
-
-
-vec3 editorCameraPosition = vec3(600, 500, 600);
 float DISC_HANDLE_RADIUS = 10.f;
 // These indices are not guaranteed to persist frame to frame. For now (2024-09-04) they index into
 // the huge array of all Volumes EDITOR_MAP_VOLUMES. Things will/should move around within the array. 
@@ -369,7 +20,6 @@ NiceArray<int, 16> SELECTED_MAP_VOLUMES_INDICES;
 std::vector<MapEdit::Vert*> SELECTABLE_VERTICES;
 std::vector<MapEdit::Vert*> SELECTED_VERTICES;
 std::vector<MapEdit::Face*> SELECTABLE_FACES;
-
 
 enum class MapEditorTools
 {
@@ -388,8 +38,6 @@ enum class SimpleBrushToolState
     DrawingHeight
 };
 SimpleBrushToolState simpleBrushToolState = SimpleBrushToolState::NotActive;
-
-
 
 /// === GRID DEFINITION ===
 // I want the grid to be defined by a "UP" and a "RIGHT"
@@ -435,139 +83,19 @@ vec3 SnapToGrid(vec3 beforeSnap)
 
 float GetEditorHandleSize(vec3 worldPosition, float sizeInPixels)
 {
-    float distanceFromCamera = Dot(worldPosition - editorCameraPosition, CameraDirection);
+    float distanceFromCamera = Dot(worldPosition - LevelEditor.CameraPosition, CameraDirection);
     quat camOrientation = EulerToQuat(CameraRotation * GM_DEG2RAD);
-    vec3 screenPos = WorldPointToScreenPoint(editorCameraPosition + RotateVector(vec3(distanceFromCamera, 0, 0), camOrientation));
-    vec3 screenPos2 = WorldPointToScreenPoint(editorCameraPosition + RotateVector(vec3(distanceFromCamera, 0, 32.f), camOrientation));
+    vec3 screenPos = WorldPointToScreenPoint(LevelEditor.CameraPosition + RotateVector(vec3(distanceFromCamera, 0, 0), camOrientation));
+    vec3 screenPos2 = WorldPointToScreenPoint(LevelEditor.CameraPosition + RotateVector(vec3(distanceFromCamera, 0, 32.f), camOrientation));
     // scaled by 32 to avoid floating point imprecision
     float screenDist = Magnitude(screenPos - screenPos2);
     return (sizeInPixels*32.f / GM_max(screenDist, 0.0001f));
-}
-
-
-Octree CollisionTree;
-
-void DrawOctreeNode(OctreeNode *node)
-{
-    vec3 center = node->bounds.center;
-    vec3 size = node->bounds.size;
-    vec3 corners[] = { 
-        vec3(center.x - size.x/2.f, center.y - size.y/2.f, center.z - size.z/2.f),
-        vec3(center.x + size.x/2.f, center.y - size.y/2.f, center.z - size.z/2.f),
-        vec3(center.x - size.x/2.f, center.y + size.y/2.f, center.z - size.z/2.f),
-        vec3(center.x - size.x/2.f, center.y - size.y/2.f, center.z + size.z/2.f),
-        vec3(center.x - size.x/2.f, center.y + size.y/2.f, center.z + size.z/2.f),
-        vec3(center.x + size.x/2.f, center.y + size.y/2.f, center.z - size.z/2.f),
-        vec3(center.x + size.x/2.f, center.y - size.y/2.f, center.z + size.z/2.f),
-        vec3(center.x + size.x/2.f, center.y + size.y/2.f, center.z + size.z/2.f)
-    }; 
-
-    vec4 octantColor = vec4(0, 1, 0, 1);
-    // if (node->objects.size() > 0)
-    // {
-    //     octantColor = vec4(1,0,0,1);
-    // }
-
-    PrimitiveDrawLine(corners[0], corners[1], octantColor);
-    PrimitiveDrawLine(corners[1], corners[6], octantColor);
-    PrimitiveDrawLine(corners[6], corners[3], octantColor);
-    PrimitiveDrawLine(corners[3], corners[0], octantColor);
-    
-    PrimitiveDrawLine(corners[2], corners[4], octantColor);
-    PrimitiveDrawLine(corners[4], corners[7], octantColor);
-    PrimitiveDrawLine(corners[7], corners[5], octantColor);
-    PrimitiveDrawLine(corners[5], corners[2], octantColor);
-    
-    PrimitiveDrawLine(corners[0], corners[2], octantColor);
-    PrimitiveDrawLine(corners[1], corners[5], octantColor);
-    PrimitiveDrawLine(corners[6], corners[7], octantColor);
-    PrimitiveDrawLine(corners[3], corners[4], octantColor);
-
-
-    if (node->isLeaf)
-        return;
-    else
-    {
-        for (int i = 0; i < 8; ++i)
-            DrawOctreeNode(&node->children[i]);
-    }
-}
-
-void VisualizeOctreeHack()
-{
-    Bounds worldBounds;
-    worldBounds.center = vec3(-0.17f, -0.17f, -0.17f); // little bit off origin so octant bounds aren't strictly along grid
-    worldBounds.size = vec3(3200,3200,3200);
-    CollisionTree = Octree(worldBounds,32,2);
-
-    int totalfacecount = MapEdit::LevelEditorFaces.count;
-    for (int i = 0; i < totalfacecount; ++i)
-    {
-        MapEdit::Face *face = MapEdit::LevelEditorFaces.At(i);
-
-        MeshCollider *col = new MeshCollider();
-        std::vector<MapEdit::Vert*> points = face->GetVertices();
-        for (MapEdit::Vert *v : points)
-        {
-            col->pointCloud.push_back(v->pos);
-        }
-
-        CollisionTree.Insert(col);
-    }
-}
-
-
-u32 level_editor_t::PickVolume(MapEdit::Volume *volumes, u32 arraycount)
-{
-    float PickableTrianglesBuf[400];
-
-    // returns the 1 + index of the volume in the provided array. 0 is nothing picked.
-    for (u32 volumeFrameId = 1; volumeFrameId <= arraycount; ++volumeFrameId)
-    {
-        vec3 idrgb = HandleIdToRGB(volumeFrameId);
-        MapEdit::Volume& vol = volumes[volumeFrameId - 1];
-        for (size_t i = 0; i < vol.faces.lenu(); ++i)
-        {
-            MapEdit::Face *face = vol.faces[i];
-            int count;
-            // TODO(Kevin): instead of triangulate every face every time, probably cache this somehow?
-            MapEdit::TriangulateFace_QuickDumb_WithColor(*face, idrgb, PickableTrianglesBuf, &count);
-            AddTrianglesToPickableHandles(PickableTrianglesBuf, count);
-        }
-    }
-    u32 pickedVolumeFrameId = FlushHandles(MousePos, RenderTargetGame, ActiveViewMatrix, ActivePerspectiveMatrix, false);
-    return pickedVolumeFrameId;
-}
-
-u32 level_editor_t::PickFace(MapEdit::Face **faces, u32 arraycount)
-{
-    float PickableTrianglesBuf[400];
-
-    // returns 1 + index of the face in the provided array. 0 is nothing picked.
-    for (u32 id = 1; id <= arraycount; ++id)
-    {
-        MapEdit::Face *face = faces[id-1];
-        vec3 idrgb = HandleIdToRGB(id);
-        int count;
-        // TODO(Kevin): instead of triangulate every face every time, probably cache this somehow?
-        MapEdit::TriangulateFace_QuickDumb_WithColor(*face, idrgb, PickableTrianglesBuf, &count);
-        AddTrianglesToPickableHandles(PickableTrianglesBuf, count);
-    }
-    u32 faceId = FlushHandles(MousePos, RenderTargetGame, ActiveViewMatrix, ActivePerspectiveMatrix, false);
-    return faceId;
 }
 
 void level_editor_t::Tick()
 {
     IsEditorActive = true;
     SDL_SetRelativeMouseMode(MouseCurrent & SDL_BUTTON(SDL_BUTTON_RIGHT) ? SDL_TRUE : SDL_FALSE);
-
-    // if (keyspressed[SDL_SCANCODE_J])
-    // {
-    //     VisualizeOctreeHack();
-    // }
-    // if (CollisionTree.root.get())
-    //     DrawOctreeNode(CollisionTree.root.get());
 
     // EDITOR CAMERA MOVE
     if (MouseCurrent & SDL_BUTTON(SDL_BUTTON_RIGHT))
@@ -602,9 +130,9 @@ void level_editor_t::Tick()
             playerPositionDelta += -GM_UP_VECTOR * moveSpeed * DeltaTime;
         if (KeysCurrent[SDL_SCANCODE_E])
             playerPositionDelta += GM_UP_VECTOR * moveSpeed * DeltaTime;
-        editorCameraPosition += playerPositionDelta;
+        CameraPosition += playerPositionDelta;
     }
-    ActiveViewMatrix = ViewMatrixLookAt(editorCameraPosition, editorCameraPosition + CameraDirection, CameraUp);
+    ActiveViewMatrix = ViewMatrixLookAt(CameraPosition, CameraPosition + CameraDirection, CameraUp);
 
     // DRAW AXIS LINES
     PrimitiveDrawLine(vec3(320000.f, 0.f, 0.f), vec3(-320000.f, 0.f, 0.f), vec4(RGB255TO1(205, 56, 9), 0.8f));
@@ -960,7 +488,7 @@ void level_editor_t::Tick()
             for (u32 id = 1; id <= SELECTABLE_VERTICES.size(); ++id)
             {
                 MapEdit::Vert *vert = SELECTABLE_VERTICES[id-1];
-                DoDiscHandle(id, vert->pos, editorCameraPosition, GetEditorHandleSize(vert->pos, DISC_HANDLE_RADIUS + 4.f));
+                DoDiscHandle(id, vert->pos, CameraPosition, GetEditorHandleSize(vert->pos, DISC_HANDLE_RADIUS + 4.f));
             }
             u32 clickedId = FlushHandles(MousePos, RenderTargetGame, ActiveViewMatrix, ActivePerspectiveMatrix, false);
 
@@ -1329,6 +857,238 @@ void level_editor_t::Tick()
 }
 
 
+
+void level_editor_t::ResetFaceToolData()
+{
+    SelectedFace = NULL;
+}
+
+u32 level_editor_t::PickVolume(MapEdit::Volume *volumes, u32 arraycount)
+{
+    float PickableTrianglesBuf[400];
+
+    // returns the 1 + index of the volume in the provided array. 0 is nothing picked.
+    for (u32 volumeFrameId = 1; volumeFrameId <= arraycount; ++volumeFrameId)
+    {
+        vec3 idrgb = HandleIdToRGB(volumeFrameId);
+        MapEdit::Volume& vol = volumes[volumeFrameId - 1];
+        for (size_t i = 0; i < vol.faces.lenu(); ++i)
+        {
+            MapEdit::Face *face = vol.faces[i];
+            int count;
+            // TODO(Kevin): instead of triangulate every face every time, probably cache this somehow?
+            MapEdit::TriangulateFace_QuickDumb_WithColor(*face, idrgb, PickableTrianglesBuf, &count);
+            AddTrianglesToPickableHandles(PickableTrianglesBuf, count);
+        }
+    }
+    u32 pickedVolumeFrameId = FlushHandles(MousePos, RenderTargetGame, ActiveViewMatrix, ActivePerspectiveMatrix, false);
+    return pickedVolumeFrameId;
+}
+
+u32 level_editor_t::PickFace(MapEdit::Face **faces, u32 arraycount)
+{
+    float PickableTrianglesBuf[400];
+
+    // returns 1 + index of the face in the provided array. 0 is nothing picked.
+    for (u32 id = 1; id <= arraycount; ++id)
+    {
+        MapEdit::Face *face = faces[id-1];
+        vec3 idrgb = HandleIdToRGB(id);
+        int count;
+        // TODO(Kevin): instead of triangulate every face every time, probably cache this somehow?
+        MapEdit::TriangulateFace_QuickDumb_WithColor(*face, idrgb, PickableTrianglesBuf, &count);
+        AddTrianglesToPickableHandles(PickableTrianglesBuf, count);
+    }
+    u32 faceId = FlushHandles(MousePos, RenderTargetGame, ActiveViewMatrix, ActivePerspectiveMatrix, false);
+    return faceId;
+}
+
+
+#define MAPSER_VOLUMES_U64_DIVIDER_START 0x49779b0ef139ca39
+#define MAPSER_VOLUMES_U64_DIVIDER_END   0x9fcf207673e66e63 
+#define DESER_FACE_ADDITIONAL_SIZE 60
+
+// TODO(Kevin): add binary format file data
+// [4 bytes] : file type identifier
+// [4 bytes] : 0x00000000
+// [4 bytes] : file serial version 
+// [4 bytes] : payload size n
+// [n bytes] : payload
+// [4 bytes] : EOF identifier
+
+bool level_editor_t::SaveMap(const char *mapFilePath)
+{
+#if INTERNAL_BUILD
+    std::unordered_set<u32> SerPtrSet;
+#endif
+
+    ByteBuffer mapbuf;
+    ByteBufferInit(&mapbuf);
+
+    ByteBufferWrite(&mapbuf, u64, MAPSER_VOLUMES_U64_DIVIDER_START);
+    const int volumesCount = (int)LevelEditorVolumes.lenu();
+    ByteBufferWrite(&mapbuf, int, volumesCount);
+
+    for (int i = 0; i < volumesCount; ++i)
+    {
+        MapEdit::Volume& volume = LevelEditorVolumes[i];
+        
+        ByteBufferWrite(&mapbuf, u64, volume.persistId);
+
+        ByteBufferWrite(&mapbuf, size_t, volume.verts.lenu());
+        for (size_t i = 0; i < volume.verts.lenu(); ++i)
+        {
+            MapEdit::Vert *v = volume.verts[i];
+#if INTERNAL_BUILD
+            SerPtrSet.emplace(v->elemId);
+#endif
+            ByteBufferWrite(&mapbuf, u32, v->elemId);
+            ByteBufferWrite(&mapbuf, float, v->pos.x);
+            ByteBufferWrite(&mapbuf, float, v->pos.y);
+            ByteBufferWrite(&mapbuf, float, v->pos.z);
+        }
+
+        ByteBufferWrite(&mapbuf, size_t, volume.edges.lenu());
+        for (size_t i = 0; i < volume.edges.lenu(); ++i)
+        {
+            MapEdit::Edge *e = volume.edges[i];
+
+            u32 ep = e->elemId;
+            u32 ea = e->a->elemId;
+            u32 eb = e->b->elemId;
+#if INTERNAL_BUILD
+            ASSERT(SerPtrSet.find(ea) != SerPtrSet.end());
+            ASSERT(SerPtrSet.find(eb) != SerPtrSet.end());
+            SerPtrSet.emplace(ep);
+#endif
+            ByteBufferWrite(&mapbuf, u32, ep);
+            ByteBufferWrite(&mapbuf, u32, ea);
+            ByteBufferWrite(&mapbuf, u32, eb);
+        }
+
+        ByteBufferWrite(&mapbuf, size_t, volume.faces.lenu());
+        for (size_t i = 0; i < volume.faces.lenu(); ++i)
+        {
+            MapEdit::Face *f = volume.faces[i];
+
+            // save the sequence of edges in the face's loop cycle by their pointers
+            const std::vector<MapEdit::Edge*>& faceEdges = f->GetEdges();
+            ByteBufferWrite(&mapbuf, size_t, faceEdges.size());
+            for (MapEdit::Edge *fe : faceEdges)
+            {
+#if INTERNAL_BUILD
+                ASSERT(SerPtrSet.find(fe->elemId) != SerPtrSet.end());
+#endif
+                ByteBufferWrite(&mapbuf, u32, fe->elemId);
+            }
+            u32 faceTexturePersistId = f->texture.persistId;
+            ByteBufferWrite(&mapbuf, u32, faceTexturePersistId);
+            // leaving some buffer room for additional Face data in the future
+            // make sure to decrement as needed and mirror same value on deserialize
+            u8 nullbytes[DESER_FACE_ADDITIONAL_SIZE];
+            ByteBufferWriteBulk(&mapbuf, &nullbytes, DESER_FACE_ADDITIONAL_SIZE);
+        }
+    }
+
+    ByteBufferWrite(&mapbuf, u64, MAPSER_VOLUMES_U64_DIVIDER_END);
+
+    bool writtenToFile = ByteBufferWriteToFile(&mapbuf, mapFilePath) == 1;
+
+    ByteBufferFree(&mapbuf);
+
+    return writtenToFile;
+}
+
+bool level_editor_t::LoadMap(const char *mapFilePath)
+{
+    std::unordered_map<u32, void*> DeserElemIdToElem;
+
+    ByteBuffer mapbuf;
+    if (ByteBufferReadFromFile(&mapbuf, mapFilePath) == 0)
+        return false;
+
+    u64 u64slot;
+    ByteBufferRead(&mapbuf, u64, &u64slot);
+    ASSERT(u64slot == MAPSER_VOLUMES_U64_DIVIDER_START);
+
+    int volumesCount = -1;
+    ByteBufferRead(&mapbuf, int, &volumesCount);
+
+    for (int i = 0; i < volumesCount; ++i)
+    {
+        MapEdit::Volume owner;
+        ByteBufferRead(&mapbuf, u64, &owner.persistId);
+        MapEdit::session_VolumePersistIdCounter = GM_max(owner.persistId, MapEdit::session_VolumePersistIdCounter);
+
+        size_t vertexCount, edgeCount, faceCount = 0;
+
+        ByteBufferRead(&mapbuf, size_t, &vertexCount);
+        for (size_t j = 0; j < vertexCount; ++j)
+        {
+            u32 vElemId;
+            vec3 vpos;
+            ByteBufferRead(&mapbuf, u32, &vElemId);
+            ByteBufferRead(&mapbuf, float, &vpos.x);
+            ByteBufferRead(&mapbuf, float, &vpos.y);
+            ByteBufferRead(&mapbuf, float, &vpos.z);
+
+            void *elemptr = (void*)CreateVert(vpos, &owner); // MEM ALLOC
+            DeserElemIdToElem.emplace(vElemId, elemptr);
+        }
+
+        ByteBufferRead(&mapbuf, size_t, &edgeCount);
+        for (size_t j = 0; j < edgeCount; ++j)
+        {
+            u32 eElemId;
+            u32 aElemId;
+            u32 bElemId;
+            ByteBufferRead(&mapbuf, u32, &eElemId);
+            ByteBufferRead(&mapbuf, u32, &aElemId);
+            ByteBufferRead(&mapbuf, u32, &bElemId);
+
+            MapEdit::Vert *av = (MapEdit::Vert*)DeserElemIdToElem.at(aElemId);
+            MapEdit::Vert *bv = (MapEdit::Vert*)DeserElemIdToElem.at(bElemId);
+            void *elemptr = (void*)CreateEdge(av, bv, &owner); // MEM ALLOC
+            DeserElemIdToElem.emplace(eElemId, elemptr);
+        }
+
+        ByteBufferRead(&mapbuf, size_t, &faceCount);
+        for (size_t j = 0; j < faceCount; ++j)
+        {
+            size_t faceEdgesCount = 0;
+            std::vector<MapEdit::Edge*> faceEdges;
+            
+            ByteBufferRead(&mapbuf, size_t, &faceEdgesCount);
+            for (int k = 0; k < faceEdgesCount; ++k)
+            {
+                u32 feElemId;
+                ByteBufferRead(&mapbuf, u32, &feElemId);
+                faceEdges.push_back((MapEdit::Edge*)DeserElemIdToElem.at(feElemId));
+            }
+
+            u32 faceTexturePersistId;
+            ByteBufferRead(&mapbuf, u32, &faceTexturePersistId);
+            ByteBufferAdvancePosition(&mapbuf, DESER_FACE_ADDITIONAL_SIZE);
+
+            MapEdit::Face *face = CreateFace(faceEdges, &owner); // MEM ALLOC
+
+            MY_VERTEX_BUFFER.clear();
+            TriangulateFace_QuickDumb(*face, &MY_VERTEX_BUFFER); // TODO(Kevin): do smarter triangulation...
+            RebindGPUMesh(&face->facemesh, (u32) MY_VERTEX_BUFFER.size() * sizeof(float), MY_VERTEX_BUFFER.data());
+
+            face->texture = Assets.GetTextureById(faceTexturePersistId);
+        }
+
+        LevelEditorVolumes.put(owner);
+    }
+
+    ByteBufferRead(&mapbuf, u64, &u64slot);
+    ASSERT(u64slot == MAPSER_VOLUMES_U64_DIVIDER_END);
+
+    ByteBufferFree(&mapbuf);
+
+    return true;
+}
 
 
 

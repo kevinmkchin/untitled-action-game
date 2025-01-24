@@ -653,7 +653,6 @@ db_tex_t asset_db_t::LoadNewTexture(const char *path)
 void asset_db_t::LoadAllResources()
 {
     LoadNewTexture(wd_path("default.png").c_str());
-    LoadNewTexture(wd_path("missing_texture.png").c_str());
     LoadNewTexture(texture_path("t_bpav2.bmp").c_str());
     LoadNewTexture(texture_path("t_gf56464.bmp").c_str());
     LoadNewTexture(texture_path("t_hzdg.bmp").c_str());
@@ -672,5 +671,5 @@ void asset_db_t::LoadAllResources()
     LoadNewTexture(texture_path("example_20.jpg").c_str());
 
     DefaultEditorTexture = GetTextureById(1);
-    DefaultMissingTexture = GetTextureById(2).gputex;
+    CreateGPUTextureFromDisk(&DefaultMissingTexture, wd_path("missing_texture.png").c_str());
 }

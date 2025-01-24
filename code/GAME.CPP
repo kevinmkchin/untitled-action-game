@@ -228,6 +228,7 @@ inline std::string data_path(const std::string& name) { return wd_path() + "data
 #include "lightmap.h"
 #include "winged.h"
 #include "leveleditor.h"
+#include "saveloadlevel.h"
 
 
 SDL_Window *SDLMainWindow;
@@ -359,7 +360,6 @@ ModelGLTF Model_Knight;
 level_editor_t LevelEditor;
 
 
-#include "leveleditor.cpp"
 #include "utility.cpp"
 #include "resources.cpp"
 #include "shaders.cpp"
@@ -368,6 +368,8 @@ level_editor_t LevelEditor;
 #include "primitives.cpp"
 #include "lightmap.cpp"
 #include "winged.cpp"
+#include "leveleditor.cpp"
+#include "saveloadlevel.cpp"
 #include "physics.cpp"
 
 
@@ -889,7 +891,7 @@ static void RenderMapEditorLayer()
             vec4 discHandleColor = vec4(RGBHEXTO1(0xFF8000), 1.f);
             if (std::find(SELECTED_VERTICES.begin(), SELECTED_VERTICES.end(), v) != SELECTED_VERTICES.end())
                 discHandleColor = vec4(RGB255TO1(254,8,8),1.f);
-            PrimitiveDrawSolidDisc(v->pos, editorCameraPosition - v->pos, GetEditorHandleSize(v->pos, DISC_HANDLE_RADIUS),
+            PrimitiveDrawSolidDisc(v->pos, LevelEditor.CameraPosition - v->pos, GetEditorHandleSize(v->pos, DISC_HANDLE_RADIUS),
                                    discHandleColor);
         }
     }
@@ -900,7 +902,7 @@ static void RenderMapEditorLayer()
     else
         glDisable(GL_DEPTH_TEST);
     glDisable(GL_CULL_FACE);
-    vec3 gridTranslation = vec3(SnapToGrid(editorCameraPosition.x), 0.f, SnapToGrid(editorCameraPosition.z));
+    vec3 gridTranslation = vec3(SnapToGrid(LevelEditor.CameraPosition.x), 0.f, SnapToGrid(LevelEditor.CameraPosition.z));
     mat3 gridRotation = mat3();
     if (GRID_ORIGIN != vec3())
     {
