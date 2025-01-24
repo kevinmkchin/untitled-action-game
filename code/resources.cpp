@@ -1,3 +1,8 @@
+#include "resources.h"
+
+
+asset_db_t Assets;
+
 
 void FreeFileBinary(BinaryFileHandle& binary_file_to_free)
 {
@@ -608,4 +613,64 @@ bool LoadModelGLTF2Bin(ModelGLTF *model, const char *filepath)
     arrfree(matEmissiveTextures);
 
     return true;
+}
+
+
+db_tex_t asset_db_t::GetTextureById(u32 persistId)
+{
+    auto textureiter = Textures.find(persistId);
+    if (textureiter != Textures.end())
+        return textureiter->second;
+    
+    db_tex_t missingTexture;
+    missingTexture.persistId = persistId;
+    missingTexture.gputex = DefaultMissingTexture;
+    return missingTexture;
+}
+
+db_tex_t asset_db_t::LoadNewTexture(const char *path)
+{
+    db_tex_t tex;
+    tex.persistId = ++TexturePersistIdCounter;
+
+    BitmapHandle bitmapStorage;
+    ReadImage(bitmapStorage, path);
+    if (bitmapStorage.memory != NULL)
+    {        
+        CreateGPUTextureFromBitmap(&tex.gputex, (u8*)bitmapStorage.memory,
+                        bitmapStorage.width, bitmapStorage.height,
+                        GL_SRGB, (bitmapStorage.bitDepth == 3 ? GL_RGB : GL_RGBA),
+                        GL_NEAREST_MIPMAP_LINEAR, GL_NEAREST, GL_UNSIGNED_BYTE);
+
+        Assets.Textures.insert({tex.persistId, tex});
+        LogMessage("Loaded %s with texture persist id %d", path, tex.persistId);
+    }
+    FreeImage(bitmapStorage);
+
+    return tex;
+}
+
+void asset_db_t::LoadAllResources()
+{
+    LoadNewTexture(wd_path("default.png").c_str());
+    LoadNewTexture(wd_path("missing_texture.png").c_str());
+    LoadNewTexture(texture_path("t_bpav2.bmp").c_str());
+    LoadNewTexture(texture_path("t_gf56464.bmp").c_str());
+    LoadNewTexture(texture_path("t_hzdg.bmp").c_str());
+    LoadNewTexture(texture_path("t_kgr2_p.bmp").c_str());
+    LoadNewTexture(texture_path("t_mbrk2_1.bmp").c_str());
+    LoadNewTexture(texture_path("t_vstnfcv.bmp").c_str());
+    LoadNewTexture(texture_path("example_5.jpg").c_str());
+    LoadNewTexture(texture_path("example_7.jpg").c_str());
+    LoadNewTexture(texture_path("example_9.jpg").c_str());
+    LoadNewTexture(texture_path("example_10.jpg").c_str());
+    LoadNewTexture(texture_path("example_14.jpg").c_str());
+    LoadNewTexture(texture_path("example_16.jpg").c_str());
+    LoadNewTexture(texture_path("example_17.jpg").c_str());
+    LoadNewTexture(texture_path("sld_gegfblock02b_64.jpg").c_str());
+    LoadNewTexture(texture_path("example_19.jpg").c_str());
+    LoadNewTexture(texture_path("example_20.jpg").c_str());
+
+    DefaultEditorTexture = GetTextureById(1);
+    DefaultMissingTexture = GetTextureById(2).gputex;
 }

@@ -1,23 +1,8 @@
 
-struct db_tex_t
-{
-    u32 persistId = 0;
-    BitmapHandle bitmap;
-    GPUTexture gputex;
-};
 
 
-struct lm_face_t
-{
-    vec3  *pos = NULL;
-    vec3  *norm = NULL;
-    vec3  *tangent = NULL;
-    // vec3  *patches_id = NULL;
-    float *light = NULL;
-    float *light_indirect = NULL;
-    i32 w = -1;
-    i32 h = -1;
-};
+
+
 
 vec3 *all_lm_pos = NULL;
 vec3 *all_lm_norm = NULL;
@@ -28,707 +13,6 @@ float *all_light_direct = NULL;
 float *all_light_indirect = NULL;
 
 
-
-
-namespace MapEdit
-{
-    struct Edge;
-    struct Vert;
-    struct Loop;
-    struct Face;
-    struct Face;
-
-    NiceArray<Face*, 100000> EDITOR_FACES; // TODO(Kevin): make this an implicit array using stb_ds
-
-    struct Loop
-    {
-        Loop *loopNext = NULL; // CCW order
-        Loop *loopPrev = NULL;
-        Loop *radialNext = NULL;
-        Loop *radialPrev = NULL;
-        Edge *e = NULL;
-        Vert *v = NULL;
-        Face *f = NULL;
-
-        // per face vertex data
-        // Verts are shared between faces, so vertex data that is unique to the face
-        // can be put in here. e.g. UVs 
-        vec2 lmuvcache;
-    };
-
-    struct Face
-    {
-        Loop *loopbase = NULL;
-        int looplen = -1;
-
-        // For map editor rendering. Each face is its own mesh. Don't optimize until my PC chugs while map editing.
-        // FaceBatch facemesh;
-        GPUMesh facemesh;
-        db_tex_t texture;
-        lm_face_t lightmap;
-        // bool receivelight; mark whether to generate light map
-        // bool hascollision; mark whether to generate collider
-        u32 elemId = 0;
-
-        i32 EDITOR_FACES_INDEX = -1;
-        bool hovered = false;
-
-
-        int RefreshLoopLen()
-        {
-            looplen = 0;
-            Loop *l = loopbase;
-            while (l != NULL && l != loopbase->loopPrev)
-            {
-                ++looplen;
-                l = l->loopNext;
-            }
-            return looplen;
-        }
-
-        std::vector<Loop*> GetLoopCycle() const
-        {
-            ASSERT(loopbase);
-            std::vector<Loop*> loopcycle;
-            Loop *l = loopbase;
-            do {
-                loopcycle.push_back(l);
-                l = l->loopNext;
-            } while (l != loopbase && l != NULL);
-            return loopcycle;
-        }
-
-        std::vector<Edge*> GetEdges() const
-        {
-            ASSERT(loopbase);
-            std::vector<Edge*> edgesInOrder;
-            Loop *l = loopbase;
-            do {
-                edgesInOrder.push_back(l->e);
-                l = l->loopNext;
-            } while (l != loopbase && l != NULL);
-            return edgesInOrder;
-        }
-
-        std::vector<Vert*> GetVertices() const
-        {
-            ASSERT(loopbase);
-            std::vector<Vert*> verticesInOrder;
-            Loop *l = loopbase;
-            do {
-                verticesInOrder.push_back(l->v);
-                l = l->loopNext;
-            } while (l != loopbase && l != NULL);
-            return verticesInOrder;
-        }
-
-        vec3 QuickNormal();
-    };
-
-    struct Edge
-    {
-        Vert *a = NULL;
-        Vert *b = NULL;
-        Loop *radial = NULL;
-
-        u32 elemId = 0;
-
-        void InsertIntoRadialCycle(Loop *loop)
-        {
-            if (radial == NULL)
-            {
-                loop->radialNext = loop;
-                loop->radialPrev = loop;
-                radial = loop;
-            }
-            else
-            {
-                loop->radialNext = radial->radialNext;
-                loop->radialPrev = radial;
-                radial->radialNext->radialPrev = loop;
-                radial->radialNext = loop;
-            }
-        }
-
-        void RemoveFromRadialCycle(Loop *loop)
-        {
-            ASSERT(radial);
-
-            Loop *l = radial;
-            do {
-                if (l == loop)
-                {
-                    if (l == l->radialPrev)
-                    {
-                        radial = NULL;
-                        return;
-                    }
-
-                    l->radialPrev->radialNext = l->radialNext;
-                    l->radialNext->radialPrev = l->radialPrev;
-                    radial = l->radialPrev;
-                    return;
-                }
-                l = l->radialNext;
-            } while (l != radial && l != NULL);
-        }
-
-        Vert *SharesVert(Edge *other) const
-        {
-            if (other->a == a || other->b == a)
-                return a;
-            else if (other->a == b || other->b == b)
-                return b;
-            else
-                return NULL;
-        }
-
-        std::vector<Loop*> GetRadialCycleCopy() const
-        {
-            ASSERT(radial);
-
-            std::vector<Loop*> radialCycle;
-
-            Loop *l = radial;
-            do {
-                radialCycle.push_back(l);
-                l = l->radialNext;
-            } while (l != radial && l != NULL);
-
-            return radialCycle;
-        }
-
-        // void SwitchAB()
-        // {
-        //     auto v = a;
-        //     b = a;
-        //     a = v;
-        // }
-    };
-
-    struct Vert
-    {
-        vec3 pos;
-
-        std::vector<Edge*> edges;
-
-        u32 elemId = 0;
-        // editor runtime data
-        vec3 poscache;
-
-        void DiskLinkInsertEdge(Edge *e)
-        {
-            edges.push_back(e);
-        }
-
-        void DiskLinkRemoveEdge(Edge *e)
-        {
-            for (Edge *edge : edges)
-            {
-                if (edge == e)
-                {
-                    edges.erase(std::find(edges.begin(), edges.end(), e));
-                    return;
-                }
-            }
-            fprintf(stderr, "Attemping to remove edge from disk link but edge doesn't exist in disk link.");
-        }
-    };
-
-    struct Volume
-    {
-        std::vector<Face*> faces;
-        std::vector<Edge*> edges;
-        std::vector<Vert*> verts;
-
-        u64 persistId = 0; // 0 is invalid volume. All volumes should call FreshVolumePersistId.
-    };
-
-    vec3 Face::QuickNormal()
-    {
-        // just takes the first three verts and calculates a normal
-        // not accurate if verts past the first three are not coplanar
-        ASSERT(looplen > 2);
-        vec3 a = loopbase->v->pos;
-        vec3 b = loopbase->loopNext->v->pos;
-        vec3 c = loopbase->loopNext->loopNext->v->pos;
-        return Normalize(Cross(b-a, c-a));
-    }
-
-    /*
-    Example usage:
-
-    v0 = CreateVert(...)
-    v1 = CreateVert(...)
-    v2 = CreateVert(...)
-    v3 = CreateVert(...)
-    v4 = CreateVert(...)
-
-    e0 = CreateEdge(v0, v1)
-    e1 = CreateEdge(v1, v2)
-    e2 = CreateEdge(v3, v2) // order of vertices must not matter
-    e3 = CreateEdge(v3, v4)
-    e4 = CreateEdge(v4, v0)
-
-    loe = [e0, e1, e2, e3, e4]
-
-    f0 = CreateFace(loe)
-
-    v5 = CreateVert(...)
-
-    e5 = CreateEdge(v5, v1)
-    e6 = CreateEdge(v5, v2)
-
-    loe = [e1, e5, e6]
-
-    f1 = CreateFace(loe)
-
-    This would create a mesh structure with two faces where e1 is the shared edge connecting the two faces.
-    e1 would also have two loops in its radial cycle.
-
-    The topological entities created from these functions are only partially populated. Vertices are only
-    fully populated once they are used to create Edges, and Edges are only fully populated once they are
-    used to create Faces.
-    */
-
-    static u64 session_VolumePersistIdCounter = 0;
-    u64 FreshVolumePersistId()
-    {
-        return ++session_VolumePersistIdCounter;
-    }
-
-    u32 FreshElemId()
-    {
-        static u32 elemIdCounter = 0;
-        return ++elemIdCounter;
-    }
-
-    // this is the OMEGA function
-    Face *CreateFace(const std::vector<Edge*>& edges, Volume *owner)
-    {
-        if (edges.size() < 2)
-            return NULL;
-
-        // Order the edges by adjacency
-        std::vector<Edge*> unprocessed = edges;
-        std::vector<Edge*> orderedEdges = { edges[0] };
-        Edge *lastEdgeAddedToOrderedList = edges[0];
-        unprocessed.erase(std::find(unprocessed.begin(), unprocessed.end(), lastEdgeAddedToOrderedList));
-        while (!unprocessed.empty())
-        {
-            bool processed = false;
-            for (Edge *u : unprocessed)
-            {
-                if (lastEdgeAddedToOrderedList->SharesVert(u) != NULL)
-                {
-                    orderedEdges.push_back(u);
-                    lastEdgeAddedToOrderedList = u;
-                    unprocessed.erase(std::find(unprocessed.begin(), unprocessed.end(), u));
-                    processed = true;
-                    break;
-                }
-            }
-            if (!processed)
-            {
-                fprintf(stderr, "Failed to create face from provided edges.");
-                return NULL;
-            }
-        }
-
-        // Create face and loops
-        Face *face = new Face();
-        face->elemId = FreshElemId();
-
-        Loop *lastLoop = NULL;
-        Loop *firstLoop = NULL;
-        for (Edge *e : orderedEdges)
-        {
-            // Store references to base vertex, corresponding edge, and corresponding face
-            // Insert loop into Radial Cycle of this edge
-            // Form Loop Cycle of this face
-
-            Loop *loop = new Loop();
-            loop->v = lastLoop == NULL ? orderedEdges[orderedEdges.size()-1]->SharesVert(e) : lastLoop->e->SharesVert(e);
-            loop->e = e;
-            loop->f = face;
-
-            e->InsertIntoRadialCycle(loop);
-
-            if (lastLoop == NULL)
-            {
-                firstLoop = loop;
-            }
-            else
-            {
-                loop->loopPrev = lastLoop;
-                lastLoop->loopNext = loop;
-            }
-            lastLoop = loop;
-        }
-        firstLoop->loopPrev = lastLoop;
-        lastLoop->loopNext = firstLoop;
-
-        face->loopbase = firstLoop;
-        face->looplen = (int)edges.size();
-
-        owner->faces.push_back(face);
-        CreateGPUMesh(&face->facemesh, 3, 2, 3, GL_DYNAMIC_DRAW);
-        face->EDITOR_FACES_INDEX = EDITOR_FACES.count;
-        EDITOR_FACES.PushBack(face);
-
-        return face;
-    }
-
-    Edge *CreateEdge(Vert *v1, Vert *v2, Volume *owner)
-    {
-        Edge *edge = new Edge();
-        edge->elemId = FreshElemId();
-
-        edge->a = v1;
-        edge->b = v2;
-        v1->DiskLinkInsertEdge(edge);
-        v2->DiskLinkInsertEdge(edge);
-
-        owner->edges.push_back(edge);
-        return edge;
-    }
-
-    Vert *CreateVert(vec3 pos, Volume *owner)
-    {
-        Vert *v = new Vert();
-        v->elemId = FreshElemId();
-
-        v->pos = pos;
-
-        owner->verts.push_back(v);
-        return v;
-    }
-
-    void KillFace(Face *face, Volume *owner)
-    {
-        // find remove face from owner->faces
-        // delete face and loops...i think
-        DeleteGPUMesh(face->facemesh.idVAO, face->facemesh.idVBO);
-        EDITOR_FACES.Back()->EDITOR_FACES_INDEX = face->EDITOR_FACES_INDEX; // update index of the face that will be moved
-        EDITOR_FACES.EraseAt(face->EDITOR_FACES_INDEX); // erase face and replace index with face at the back of nice array
-        // maybe im missing some things
-    }
-
-    void KillEdge(Edge *edge, Volume *owner)
-    {
-        // find remove edge from owner->edges
-        // kill faces that use this edge
-        // delete edge
-        // maybe im missing some things
-    }
-
-    void KillVert(Vert *vert, Volume *owner)
-    {
-        // find remove vert from owner->verts
-        // kill edges that use this vert
-        // delete vert
-        // maybe im missing some things
-    }
-
-    void FaceLoopReverse(Face *face)
-    {
-        ASSERT(face->looplen > 2);
-        Vert *ogloopbasev = face->loopbase->v;
-        Loop *l = face->loopbase;
-
-        while (l->loopNext != face->loopbase)
-        {
-            l->v = l->loopNext->v;
-            Loop *next = l->loopNext;
-            l->loopNext = l->loopPrev;
-            l->loopPrev = next;
-            l = next;
-        }
-        l->v = ogloopbasev;
-        l->loopNext = l->loopPrev;
-        l->loopPrev = face->loopbase;
-    }
-
-    Vert *Euler_SplitEdgeMakeVert(Edge *edge, float abLerp = 0.5f)
-    {
-        return nullptr;
-    }
-
-    Edge *Euler_JoinEdgeKillVert()
-    {
-        return nullptr;
-    }
-
-    Face *Euler_SplitFaceMakeEdge(Face *face, Vert *v1, Vert *v2)
-    {
-        return nullptr;
-    }
-
-    Face *Euler_JoinFaceKillEdge()
-    {
-        return nullptr;
-    }
-
-
-
-    void MakeRectangularVolume(Volume *vol)
-    {
-        for (Face *f : vol->faces)
-            delete f;
-        vol->faces.clear();
-
-        Vert *v0 = CreateVert(vec3(-320,0,-320), vol);
-        Vert *v1 = CreateVert(vec3(-320,0,320), vol);
-        Vert *v2 = CreateVert(vec3(320,0,320), vol);
-        Vert *v3 = CreateVert(vec3(320,0,-320), vol);
-
-        Edge *e0 = CreateEdge(v0, v1, vol);
-        Edge *e1 = CreateEdge(v1, v2, vol);
-        Edge *e2 = CreateEdge(v2, v3, vol);
-        Edge *e3 = CreateEdge(v3, v0, vol);
-
-        CreateFace({e0, e1, e2, e3}, vol);
-    }
-
-    void MakeCubeVolume(Volume *vol)
-    {
-
-    }
-
-    void TriangulateFace_QuickDumb_WithColor(const Face f, vec3 color, float *vbdata, int *out_count)
-    {
-        std::vector<vec3> verticesInOrder;
-        Loop *l = f.loopbase;
-        do {
-            vec3 p = l->v->pos;
-            verticesInOrder.push_back(p);
-            l = l->loopNext;
-        } while (l != f.loopbase && l != NULL);
-
-        int offset = 0;
-        for (int i = 1; i < verticesInOrder.size() - 1; ++i)
-        {
-            vec3 a = verticesInOrder[0];
-            vec3 b = verticesInOrder[i];
-            vec3 c = verticesInOrder[i+1];
-
-            vbdata[offset++] = a.x;
-            vbdata[offset++] = a.y;
-            vbdata[offset++] = a.z;
-            vbdata[offset++] = color.x;
-            vbdata[offset++] = color.y;
-            vbdata[offset++] = color.z;
-            vbdata[offset++] = b.x;
-            vbdata[offset++] = b.y;
-            vbdata[offset++] = b.z;
-            vbdata[offset++] = color.x;
-            vbdata[offset++] = color.y;
-            vbdata[offset++] = color.z;
-            vbdata[offset++] = c.x;
-            vbdata[offset++] = c.y;
-            vbdata[offset++] = c.z;
-            vbdata[offset++] = color.x;
-            vbdata[offset++] = color.y;
-            vbdata[offset++] = color.z;
-        }
-        *out_count = offset;
-    }
-
-    void TriangulateFace_QuickDumb(const Face f, std::vector<float> *vb)
-    {
-        // TODO(Kevin): Figure out a good way for triangulating arbitrary simple polygons in 3d space which
-        // may not have coplanar vertices...and then do delaunay and flipping for nicer triangles...
-        // https://swaminathanj.github.io/cg/PolygonTriangulation.html#:~:text=Let%20v%20be%20a%20vertex,has%20at%20least%20two%20ears.
-
-        ASSERT(f.looplen > 2);
-        std::vector<vec3> verticesInOrder;
-        Loop *l = f.loopbase;
-        do {
-            vec3 p = l->v->pos;
-            verticesInOrder.push_back(p);
-            l = l->loopNext;
-        } while (l != f.loopbase && l != NULL);
-
-        for (int i = 1; i < verticesInOrder.size() - 1; ++i)
-        {
-            vec3 a = verticesInOrder[0];
-            vec3 b = verticesInOrder[i];
-            vec3 c = verticesInOrder[i+1];
-            vec3 n = Normalize(Cross(b-a, c-a));
-
-            float uvScale = (1.f / (float)THIRTYTWO); // [0,1] being scaled to 32 units
-            float xf = GM_abs(Dot(n, vec3(1.f, 0.f, 0.f)));
-            float yf = GM_abs(Dot(n, vec3(0.f, 1.f, 0.f)));
-            float zf = GM_abs(Dot(n, vec3(0.f, 0.f, 1.f)));
-            float au;
-            float av;
-            float bu;
-            float bv;
-            float cu;
-            float cv;
-            if(xf >= yf && xf >= zf)
-            {
-                au = a.z * uvScale;
-                av = a.y * uvScale;
-                bu = b.z * uvScale;
-                bv = b.y * uvScale;
-                cu = c.z * uvScale;
-                cv = c.y * uvScale;
-            }
-            else if(yf >= xf && yf >= zf)
-            {
-                au = a.x * uvScale;
-                av = a.z * uvScale;
-                bu = b.x * uvScale;
-                bv = b.z * uvScale;
-                cu = c.x * uvScale;
-                cv = c.z * uvScale;
-            }
-            else if(zf >= xf && zf >= yf)
-            {
-                au = a.x * uvScale;
-                av = a.y * uvScale;
-                bu = b.x * uvScale;
-                bv = b.y * uvScale;
-                cu = c.x * uvScale;
-                cv = c.y * uvScale;
-            }
-
-            vb->push_back(a.x);
-            vb->push_back(a.y);
-            vb->push_back(a.z);
-            vb->push_back(au);
-            vb->push_back(av);
-            vb->push_back(n.x);
-            vb->push_back(n.y);
-            vb->push_back(n.z);
-            vb->push_back(b.x);
-            vb->push_back(b.y);
-            vb->push_back(b.z);
-            vb->push_back(bu);
-            vb->push_back(bv);
-            vb->push_back(n.x);
-            vb->push_back(n.y);
-            vb->push_back(n.z);
-            vb->push_back(c.x);
-            vb->push_back(c.y);
-            vb->push_back(c.z);
-            vb->push_back(cu);
-            vb->push_back(cv);
-            vb->push_back(n.x);
-            vb->push_back(n.y);
-            vb->push_back(n.z);
-        }
-    }
-
-    void TriangulateFace_ForFaceBatch_QuickDumb(const Face f, std::vector<float> *vb)
-    {
-        // TODO(Kevin): Just keep triangulation simple...just force vertices to be coplanar and do earclipping
-
-        ASSERT(f.looplen > 2);
-        std::vector<vec3> verticesInOrder;
-        std::vector<vec2> lightmapUVs;
-        Loop *l = f.loopbase;
-        do {
-            vec3 p = l->v->pos;
-            verticesInOrder.push_back(p);
-            lightmapUVs.push_back(l->lmuvcache);
-            l = l->loopNext;
-        } while (l != f.loopbase && l != NULL);
-
-        for (int i = 1; i < verticesInOrder.size() - 1; ++i)
-        {
-            vec3 a = verticesInOrder[0];
-            vec3 b = verticesInOrder[i];
-            vec3 c = verticesInOrder[i+1];
-            vec3 n = Normalize(Cross(b-a, c-a));
-
-            vec2 lmuvA = lightmapUVs[0];
-            vec2 lmuvB = lightmapUVs[i];
-            vec2 lmuvC = lightmapUVs[i+1];
-
-            float uvScale = (1.f / (float)THIRTYTWO); // [0,1] being scaled to 32 units
-            float xf = GM_abs(Dot(n, vec3(1.f, 0.f, 0.f)));
-            float yf = GM_abs(Dot(n, vec3(0.f, 1.f, 0.f)));
-            float zf = GM_abs(Dot(n, vec3(0.f, 0.f, 1.f)));
-            float au;
-            float av;
-            float bu;
-            float bv;
-            float cu;
-            float cv;
-            if(xf >= yf && xf >= zf)
-            {
-                au = a.z * uvScale;
-                av = a.y * uvScale;
-                bu = b.z * uvScale;
-                bv = b.y * uvScale;
-                cu = c.z * uvScale;
-                cv = c.y * uvScale;
-            }
-            else if(yf >= xf && yf >= zf)
-            {
-                au = a.x * uvScale;
-                av = a.z * uvScale;
-                bu = b.x * uvScale;
-                bv = b.z * uvScale;
-                cu = c.x * uvScale;
-                cv = c.z * uvScale;
-            }
-            else if(zf >= xf && zf >= yf)
-            {
-                au = a.x * uvScale;
-                av = a.y * uvScale;
-                bu = b.x * uvScale;
-                bv = b.y * uvScale;
-                cu = c.x * uvScale;
-                cv = c.y * uvScale;
-            }
-
-            vb->push_back(a.x);
-            vb->push_back(a.y);
-            vb->push_back(a.z);
-            vb->push_back(n.x);
-            vb->push_back(n.y);
-            vb->push_back(n.z);
-            vb->push_back(au);
-            vb->push_back(av);
-            vb->push_back(lmuvA.x);
-            vb->push_back(lmuvA.y);
-
-            vb->push_back(b.x);
-            vb->push_back(b.y);
-            vb->push_back(b.z);
-            vb->push_back(n.x);
-            vb->push_back(n.y);
-            vb->push_back(n.z);
-            vb->push_back(bu);
-            vb->push_back(bv);
-            vb->push_back(lmuvB.x);
-            vb->push_back(lmuvB.y);
-
-            vb->push_back(c.x);
-            vb->push_back(c.y);
-            vb->push_back(c.z);
-            vb->push_back(n.x);
-            vb->push_back(n.y);
-            vb->push_back(n.z);
-            vb->push_back(cu);
-            vb->push_back(cv);
-            vb->push_back(lmuvC.x);
-            vb->push_back(lmuvC.y);
-        }
-    }
-
-}
-
-// Asset DB
-
-struct asset_db_t
-{
-    std::map<u64, db_tex_t> Textures;
-};
-asset_db_t Assets;
 
 struct editor_session_data_t
 {
@@ -743,35 +27,6 @@ struct editor_session_data_t
 };
 editor_session_data_t Session;
 
-db_tex_t GetTextureByPersistId(u32 persistId)
-{
-    auto textureiter = Assets.Textures.find(persistId);
-    if (textureiter != Assets.Textures.end())
-        return textureiter->second;
-    
-    db_tex_t missingTex;
-    missingTex.gputex = tex_Missing;
-    return missingTex;
-}
-
-db_tex_t LoadNewTextureToDB(const char *path)
-{
-    db_tex_t tex;
-    tex.persistId = ++Session.TexturePersistIdCounter;
-    ReadImage(tex.bitmap, path);
-    if (tex.bitmap.memory != NULL)
-    {        
-        CreateGPUTextureFromBitmap(&tex.gputex, (u8*)tex.bitmap.memory,
-                        tex.bitmap.width,tex.bitmap.height,
-                        GL_SRGB, (tex.bitmap.bitDepth == 3 ? GL_RGB : GL_RGBA),
-                        GL_NEAREST_MIPMAP_LINEAR, GL_NEAREST, GL_UNSIGNED_BYTE);
-
-        Assets.Textures.insert({tex.persistId, tex});
-        LogMessage("Loaded %s with texture persist id %d", path, tex.persistId);
-    }
-
-    return tex;
-}
 
 void SessionResetFaceToolData()
 {
@@ -783,25 +38,7 @@ std::vector<float> MY_VERTEX_BUFFER;
 
 void LoadMapEditor()
 {
-    db_tex_t defaultTexureAsset = LoadNewTextureToDB(wd_path("default.png").c_str());
-    LoadNewTextureToDB(texture_path("t_bpav2.bmp").c_str());
-    LoadNewTextureToDB(texture_path("t_gf56464.bmp").c_str());
-    LoadNewTextureToDB(texture_path("t_hzdg.bmp").c_str());
-    LoadNewTextureToDB(texture_path("t_kgr2_p.bmp").c_str());
-    LoadNewTextureToDB(texture_path("t_mbrk2_1.bmp").c_str());
-    LoadNewTextureToDB(texture_path("t_vstnfcv.bmp").c_str());
-
-    LoadNewTextureToDB(texture_path("example_5.jpg").c_str());
-    LoadNewTextureToDB(texture_path("example_7.jpg").c_str());
-    LoadNewTextureToDB(texture_path("example_9.jpg").c_str());
-    LoadNewTextureToDB(texture_path("example_10.jpg").c_str());
-    LoadNewTextureToDB(texture_path("example_14.jpg").c_str());
-    LoadNewTextureToDB(texture_path("example_16.jpg").c_str());
-    LoadNewTextureToDB(texture_path("example_17.jpg").c_str());
-    LoadNewTextureToDB(texture_path("sld_gegfblock02b_64.jpg").c_str());
-    LoadNewTextureToDB(texture_path("example_19.jpg").c_str());
-    LoadNewTextureToDB(texture_path("example_20.jpg").c_str());
-    Session.SelectedTexture = defaultTexureAsset;
+    Session.SelectedTexture = Assets.DefaultEditorTexture;
 }
 
 void CloseMapEditor()
@@ -976,7 +213,7 @@ bool EditorDeserializeMap(const char *mapFilePath)
             TriangulateFace_QuickDumb(*face, &MY_VERTEX_BUFFER); // TODO(Kevin): do smarter triangulation...
             RebindGPUMesh(&face->facemesh, (u32) MY_VERTEX_BUFFER.size() * sizeof(float), MY_VERTEX_BUFFER.data());
 
-            face->texture = GetTextureByPersistId(faceTexturePersistId);
+            face->texture = Assets.GetTextureById(faceTexturePersistId);
         }
 
         EDITOR_MAP_VOLUMES.PushBack(owner);
@@ -1143,7 +380,7 @@ bool BuildGameMap(const char *path)
     // collider data -> just save the point clouds for mesh colliders and add to Octree while loading into game
     // need to do something smarter for texture data (want to use database so that textures are just enums)
 
-    int totalfacecount = MapEdit::EDITOR_FACES.count;
+    int totalfacecount = MapEdit::LevelEditorFaces.count;
     
     std::unordered_map<u32, std::vector<float>> VertexBuffers;
     std::vector<vec3> ColliderWorldPoints;
@@ -1151,7 +388,7 @@ bool BuildGameMap(const char *path)
 
     for (int i = 0; i < totalfacecount; ++i)
     {
-        MapEdit::Face *face = MapEdit::EDITOR_FACES.At(i);
+        MapEdit::Face *face = MapEdit::LevelEditorFaces.At(i);
 
         std::vector<MapEdit::Vert*> faceVerts = face->GetVertices();
 
@@ -1203,7 +440,7 @@ bool BuildGameMap(const char *path)
     // u32 patchCounter = 0;
     for (int i = 0; i < totalfacecount; ++i)
     {
-        MapEdit::Face *face = MapEdit::EDITOR_FACES.At(i);
+        MapEdit::Face *face = MapEdit::LevelEditorFaces.At(i);
         
         lm_face_t lm;
         // project 3D verts unto 2D plane using basis vectors U and V
@@ -1287,7 +524,7 @@ bool BuildGameMap(const char *path)
 
         face->lightmap = lm;
         stbrp_rect rect;
-        rect.id = face->EDITOR_FACES_INDEX;
+        rect.id = face->storageIndex;
         rect.w = lm.w;
         rect.h = lm.h;
         arrput(lm_rects, rect);
@@ -1313,7 +550,7 @@ bool BuildGameMap(const char *path)
         vec2 maxuv = vec2((float)(rect.x + rect.w) / (float)lightMapAtlasW, (float)(rect.y + rect.h) / (float)lightMapAtlasH);
 
         int editorFaceIndex = rect.id;
-        MapEdit::Face *face = MapEdit::EDITOR_FACES.At(editorFaceIndex);
+        MapEdit::Face *face = MapEdit::LevelEditorFaces.At(editorFaceIndex);
         std::vector<MapEdit::Loop*> loopcycle = face->GetLoopCycle();
         for (MapEdit::Loop *loop : loopcycle)
         {
@@ -1326,7 +563,7 @@ bool BuildGameMap(const char *path)
     // Sort faces by their textures and generate vertex buffers
     for (int i = 0; i < totalfacecount; ++i)
     {
-        MapEdit::Face *face = MapEdit::EDITOR_FACES.At(i);
+        MapEdit::Face *face = MapEdit::LevelEditorFaces.At(i);
         db_tex_t tex = face->texture;
         if (VertexBuffers.find(tex.persistId) == VertexBuffers.end())
         {
@@ -1387,7 +624,7 @@ bool BuildGameMap(const char *path)
     CreateFaceBatch(&SceneLightingModel);
     RebindFaceBatch(&SceneLightingModel, u32(sizeof(float)*arrlenu(patches_vb)), patches_vb);
     arrfree(patches_vb);
-    SceneLightingModel.ColorTexture = tex_Missing;
+    SceneLightingModel.ColorTexture = Assets.DefaultMissingTexture;
 
     // DECLARE LIGHT MAP ATLAS
     float *LIGHT_MAP_ATLAS = NULL;
@@ -1487,7 +724,7 @@ bool BuildGameMap(const char *path)
             stbrp_rect rect = lm_rects[i];
             if (rect.was_packed == 0) continue;
             ASSERT(rect.was_packed != 0);
-            MapEdit::Face *face = MapEdit::EDITOR_FACES.At(rect.id);
+            MapEdit::Face *face = MapEdit::LevelEditorFaces.At(rect.id);
             lm_face_t lmface = face->lightmap;
             BlitRect((u8*)LIGHT_MAP_ATLAS, lightMapAtlasW, lightMapAtlasH, 
                 (u8*)lmface.light, lmface.w, lmface.h, rect.x, rect.y, sizeof(float));
@@ -1497,9 +734,9 @@ bool BuildGameMap(const char *path)
             lightMapAtlasW, lightMapAtlasH);
 
 
-        for (int FaceIndex = 0; FaceIndex < MapEdit::EDITOR_FACES.count; ++FaceIndex)
+        for (int FaceIndex = 0; FaceIndex < MapEdit::LevelEditorFaces.count; ++FaceIndex)
         {
-            MapEdit::Face *Face = MapEdit::EDITOR_FACES.At(FaceIndex);
+            MapEdit::Face *Face = MapEdit::LevelEditorFaces.At(FaceIndex);
             lm_face_t& FaceLightMap = Face->lightmap;
 
             // TODO reset "cache" - just an array for now
@@ -1697,7 +934,7 @@ bool BuildGameMap(const char *path)
         stbrp_rect rect = lm_rects[i];
         if (rect.was_packed == 0) continue;
         ASSERT(rect.was_packed != 0);
-        MapEdit::Face *face = MapEdit::EDITOR_FACES.At(rect.id);
+        MapEdit::Face *face = MapEdit::LevelEditorFaces.At(rect.id);
         lm_face_t lmface = face->lightmap;
         BlitRect((u8*)LIGHT_MAP_ATLAS, lightMapAtlasW, lightMapAtlasH, 
             (u8*)lmface.light, lmface.w, lmface.h, rect.x, rect.y, sizeof(float));
@@ -1818,7 +1055,7 @@ bool LoadGameMap(const char *path)
         ASSERT(vb.size() == VertexCount);
         
         face_batch_t FaceBatch;
-        FaceBatch.ColorTexture = GetTextureByPersistId(texturePersistId).gputex;
+        FaceBatch.ColorTexture = Assets.GetTextureById(texturePersistId).gputex;
         FaceBatch.LightMapTexture = Temporary_LightMapVisualizeTex;
         CreateFaceBatch(&FaceBatch);
         RebindFaceBatch(&FaceBatch, u32(sizeof(float)*VertexCount), vb.data());
@@ -1972,10 +1209,10 @@ void VisualizeOctreeHack()
     worldBounds.size = vec3(3200,3200,3200);
     CollisionTree = Octree(worldBounds,32,2);
 
-    int totalfacecount = MapEdit::EDITOR_FACES.count;
+    int totalfacecount = MapEdit::LevelEditorFaces.count;
     for (int i = 0; i < totalfacecount; ++i)
     {
-        MapEdit::Face *face = MapEdit::EDITOR_FACES.At(i);
+        MapEdit::Face *face = MapEdit::LevelEditorFaces.At(i);
 
         MeshCollider *col = new MeshCollider();
         std::vector<MapEdit::Vert*> points = face->GetVertices();
@@ -2223,7 +1460,7 @@ void TickMapEditor()
             std::vector<std::string> paths = OpenImageFilesDialog();
             for (const auto& fp : paths)
             {
-                db_tex_t loadedtex = LoadNewTextureToDB(fp.c_str());
+                db_tex_t loadedtex = Assets.LoadNewTexture(fp.c_str());
             }
         }
         Gui::EditorEndHorizontal();

@@ -125,3 +125,31 @@ struct ModelGLTF
 void FreeModelGLTF(ModelGLTF model);
 void RenderModelGLTF(ModelGLTF model);
 bool LoadModelGLTF2Bin(ModelGLTF *model, const char *filepath);
+
+
+// Game Assets Database
+
+struct db_tex_t
+{
+    u32 persistId = 0;
+    GPUTexture gputex;
+};
+
+struct asset_db_t
+{
+    std::map<u32, db_tex_t> Textures;
+
+    db_tex_t LoadNewTexture(const char *path);
+    db_tex_t GetTextureById(u32 persistId);
+
+    void LoadAllResources();
+
+public:
+    db_tex_t DefaultEditorTexture;
+    GPUTexture DefaultMissingTexture; // Conceptually, missing texture is not a persisted resource
+
+private:
+    u32 TexturePersistIdCounter;
+};
+
+extern asset_db_t Assets;

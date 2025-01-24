@@ -225,6 +225,8 @@ inline std::string data_path(const std::string& name) { return wd_path() + "data
 #include "filedialog.h"
 #include "primitives.h"
 #include "utility.h"
+#include "lightmap.h"
+#include "winged.h"
 
 
 SDL_Window *SDLMainWindow;
@@ -305,7 +307,6 @@ GPUTexture Temporary_LightMapVisualizeTex;
 GPUTexture Temporary_TestTex0;
 GPUTexture Temporary_TestTex1;
 
-GPUTexture tex_Missing;
 Mix_Chunk *sfx_Jump;
 
 std::vector<vec3> GameLevelColliderPoints;
@@ -374,6 +375,7 @@ ModelGLTF Model_Knight;
 #include "facebatch.cpp"
 #include "filedialog.cpp"
 #include "primitives.cpp"
+#include "winged.cpp"
 
 
 
@@ -381,7 +383,6 @@ static void Stuff()
 {
     SDL_SetRelativeMouseMode(SDL_TRUE);
 
-    CreateGPUTextureFromDisk(&tex_Missing, wd_path("missing_texture.png").c_str());
     Enemy0.root = vec3(-200, 0, -200);
 
     sfx_Jump = Mixer_LoadChunk(wd_path("gunshot-37055.ogg").c_str());
@@ -816,9 +817,9 @@ static void RenderMapEditorLayer()
 
     MapEdit::Face *selectedFace = NULL;
     MapEdit::Face *hoveredFace = NULL;
-    for (int i = 0; i < MapEdit::EDITOR_FACES.count; ++i)
+    for (int i = 0; i < MapEdit::LevelEditorFaces.count; ++i)
     {
-        MapEdit::Face *editorVolumeFace = MapEdit::EDITOR_FACES.At(i);
+        MapEdit::Face *editorVolumeFace = MapEdit::LevelEditorFaces.At(i);
         if (editorActiveTool == MapEditorTools::FaceManip)
         {
             if (Session.SelectedFace == editorVolumeFace)
@@ -1204,6 +1205,8 @@ int main(int argc, char* argv[])
     if (!InitializeEverything()) return -1;
 
     InitGameRenderer();
+
+    Assets.LoadAllResources();
 
     Stuff();
 
