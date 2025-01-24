@@ -259,15 +259,6 @@ bool IsEditorActive = false;
 
 
 
-// Editor code
-// - geometry modelling
-// - geometry rendering
-// - editor UI
-// - editor picking / utility functions
-// - serialize / deserialize map file
-// - build / lightmap baking
-// - Asset DB
-
 
 #include "COLLISION.CPP"
 
@@ -364,7 +355,8 @@ BodyguardEnemy Enemy0;
 
 ModelGLTF Model_Knight;
 
-
+#include "leveleditor.h"
+level_editor_t LevelEditor;
 #include "EDITOR.CPP"
 
 
@@ -823,9 +815,9 @@ static void RenderMapEditorLayer()
         MapEdit::Face *editorVolumeFace = MapEdit::LevelEditorFaces.At(i);
         if (editorActiveTool == MapEditorTools::FaceManip)
         {
-            if (Session.SelectedFace == editorVolumeFace)
+            if (LevelEditor.SelectedFace == editorVolumeFace)
             {
-                selectedFace = Session.SelectedFace;
+                selectedFace = LevelEditor.SelectedFace;
                 continue;
             }
             else if (editorVolumeFace->hovered)
@@ -877,9 +869,10 @@ static void RenderMapEditorLayer()
     // Draw outline of selected faces
     for (int i = 0; i < SELECTED_MAP_VOLUMES_INDICES.count; ++i)
     {
-        const MapEdit::Volume& volume = EDITOR_MAP_VOLUMES.At(SELECTED_MAP_VOLUMES_INDICES.At(i));
-        for (MapEdit::Face *selVolFace : volume.faces)
+        const MapEdit::Volume& volume = LevelEditor.LevelEditorVolumes[SELECTED_MAP_VOLUMES_INDICES.At(i)];
+        for (size_t j = 0; j < volume.faces.lenu(); ++j)
         {
+            MapEdit::Face *selVolFace = volume.faces[j];
             std::vector<MapEdit::Edge*> faceEdges = selVolFace->GetEdges();
             for (MapEdit::Edge* e : faceEdges)
             {
@@ -1211,7 +1204,7 @@ int main(int argc, char* argv[])
 
     Stuff();
 
-    LoadMapEditor();
+    LevelEditor.Open();
 
     // RDOCAPI->LaunchReplayUI(1, "");
 
@@ -1241,14 +1234,14 @@ int main(int argc, char* argv[])
 
         // TickGame();
         // DrawGame();
-        TickMapEditor();
+        LevelEditor.Tick();
         DrawMapEditor();
 
         SDL_GL_SwapWindow(SDLMainWindow);
         glFinish();
     }
 
-    CloseMapEditor();
+    LevelEditor.Close();
 
     SDL_DestroyWindow(SDLMainWindow);
     SDL_GL_DeleteContext(SDLGLContext);
