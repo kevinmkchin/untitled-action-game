@@ -4,12 +4,19 @@ Something fucking cool.
 Priorty #1 is building the game, not the engine/tech
 Handcrafted with love.
 
-Refactor will never be perfect. I just need to get things to a point where I find it clean enough and easy enough to come back to in the future. Organized enough.  
+Refactor will never be perfect. I just need to get things to a point 
+where I find it clean enough and easy enough to come back to in the 
+future. Organized enough.  
 
 
 TODO:
-- srgb gamma correction bull shit for editor texture that are not lit
 - goal of this refactor: have small debug menu to switch between the game and map editor
+    - GUI.cpp
+    - main.cpp
+    - physics.h/cpp
+    - lm_oct.cpp
+
+- srgb gamma correction bull shit for editor texture that are not lit
 
 - Use a triangulation library for face triangulation https://github.com/artem-ogre/CDT
 - Enemy moves and shoots at player
