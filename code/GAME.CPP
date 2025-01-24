@@ -369,13 +369,14 @@ ModelGLTF Model_Knight;
 
 
 #include "utility.cpp"
-#include "physics.cpp"
 #include "resources.cpp"
 #include "shaders.cpp"
 #include "facebatch.cpp"
 #include "filedialog.cpp"
 #include "primitives.cpp"
+#include "lightmap.cpp"
 #include "winged.cpp"
+#include "physics.cpp"
 
 
 
