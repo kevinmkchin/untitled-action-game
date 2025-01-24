@@ -70,7 +70,7 @@ set BuildStartTime=%time%
 if %IsInternalBuild%==0 (echo INTERNAL_BUILD 0) else (echo INTERNAL_BUILD 1) 
 echo:
 pushd build
-cl %CommonCompilerFlags% /Fe%OutputFolder%\%OutputExecutable% ..\code\GAME.CPP /link %CommonLinkerFlags%
+cl %CommonCompilerFlags% /Fe%OutputFolder%\%OutputExecutable% ..\code\main.cpp /link %CommonLinkerFlags%
 popd
 echo:
 if %errorlevel% neq 0 (
