@@ -394,3 +394,88 @@ void *MemoryLinearAllocate(MemoryLinearBuffer *buffer, size_t wantedBytes, size_
     printf("Out of memory in given MemoryLinearBuffer");
     return nullptr;
 }
+
+template<typename T> 
+void dynamic_array<T>::free()
+{
+    arrfree(data);
+}
+
+template<typename T> 
+void dynamic_array<T>::setlen(int n)
+{
+    arrsetlen(data, n);
+}
+
+template<typename T> 
+size_t dynamic_array<T>::lenu()
+{
+    return arrlenu(data);
+}
+
+template<typename T> 
+size_t dynamic_array<T>::setcap(int n)
+{
+    return arrsetcap(data, n);
+}
+
+template<typename T> 
+size_t dynamic_array<T>::cap()
+{
+    return arrcap(data);
+}
+
+template<typename T> 
+T dynamic_array<T>::pop()
+{
+    return arrpop(data);
+}
+
+template<typename T> 
+T dynamic_array<T>::put(T item)
+{
+    return arrput(data, item);
+}
+
+template<typename T>
+T dynamic_array<T>::ins(int p, T item)
+{
+    return arrins(data, p, item);
+}
+
+template<typename T> 
+void dynamic_array<T>::insn(int p, int n)
+{
+    arrinsn(data, p, n);
+}
+
+template<typename T> 
+T *dynamic_array<T>::addnptr(int n)
+{
+    return arraddnptr(data, n);
+}
+
+template<typename T> 
+size_t dynamic_array<T>::addnindex(int n)
+{
+    return arraddnindex(data, n);
+}
+
+template<typename T> 
+void dynamic_array<T>::del(int p)
+{
+    arrdel(data, p);
+}
+
+template<typename T> 
+void dynamic_array<T>::deln(int p, int n)
+{
+    arrdeln(data, p, n);
+}
+
+template<typename T> 
+void dynamic_array<T>::delswap(int p)
+{
+    arrdelswap(data, p);
+}
+

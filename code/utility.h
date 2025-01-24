@@ -38,6 +38,79 @@ vec3 RGBToHSV(float r, float g, float b);
 
 
 
+template<typename T> struct dynamic_array
+{
+    // stb_ds.h dynamic array wrapper
+
+    // NOTES - DYNAMIC ARRAY
+    //
+    //   * If you know how long a dynamic array is going to be in advance, you can avoid
+    //     extra memory allocations by using arrsetlen to allocate it to that length in
+    //     advance and use foo[n] while filling it out, or arrsetcap to allocate the memory
+    //     for that length and use arrput/arrpush as normal.
+    //
+    //   * Unlike some other versions of the dynamic array, this version should
+    //     be safe to use with strict-aliasing optimizations.
+    //
+
+    T *data = NULL;
+
+    dynamic_array()
+    {
+    }
+
+    dynamic_array(int size, bool setlength = false)
+    {
+        if (setlength)
+            setlen(size);
+        else
+            setcap(size);
+    }
+
+    T& operator[](int index)
+    {
+        return data[index];
+    }
+
+    // Frees the array.
+    void free();
+    // Changes the length of the array to n. Allocates uninitialized
+    // slots at the end if necessary.
+    void setlen(int n);
+    // Returns the number of elements in the array as an unsigned type.
+    size_t lenu();
+    // Sets the length of allocated storage to at least n. It will not
+    // change the length of the array.
+    size_t setcap(int n);
+    // Returns the number of total elements the array can contain without
+    // needing to be reallocated.
+    size_t cap();
+    // Removes the final element of the array and returns it.
+    T pop();
+    // Appends the item to the end of array. Returns item.
+    T put(T item);
+    // Inserts the item into the middle of array, into array[p],
+    // moving the rest of the array over. Returns item.
+    T ins(int p, T item);
+    // Inserts n uninitialized items into array starting at array[p],
+    // moving the rest of the array over.
+    void insn(int p, int n);
+    // Appends n uninitialized items onto array at the end.
+    // Returns a pointer to the first uninitialized item added.
+    T *addnptr(int n);
+    // Appends n uninitialized items onto array at the end.
+    // Returns the index of the first uninitialized item added.
+    size_t addnindex(int n);
+    // Deletes the element at a[p], moving the rest of the array over.
+    void del(int p);
+    // Deletes n elements starting at a[p], moving the rest of the array over.
+    void deln(int p, int n);
+    // Deletes the element at a[p], replacing it with the element from
+    // the end of the array. O(1) performance.
+    void delswap(int p);
+};
+
+
 template<typename T, int _count> struct NiceArray
 {
     /** Nice array wrapper for when you want to keep track of how many active/relevant
