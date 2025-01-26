@@ -236,6 +236,7 @@ inline std::string data_path(const std::string& name) { return wd_path() + "data
 #include "winged.h"
 #include "leveleditor.h"
 #include "saveloadlevel.h"
+#include "gui.h"
 
 
 SDL_Window *SDLMainWindow;
@@ -284,7 +285,6 @@ bool DoPrimitivesDepthTest = false;
 
 
 
-#include "GUI.CPP"
 #include "lm_oct.cpp" // TODO(Kevin): make only needed by lightmap.cpp
 
 
@@ -374,6 +374,7 @@ level_editor_t LevelEditor;
 #include "winged.cpp"
 #include "leveleditor.cpp"
 #include "saveloadlevel.cpp"
+#include "gui.cpp"
 #include "physics.cpp"
 
 
