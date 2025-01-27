@@ -234,7 +234,6 @@ inline std::string data_path(const std::string& name) { return wd_path() + "data
 #include "saveloadlevel.h"
 #include "gui.h"
 #include "player.h"
-#include "lm_oct.cpp" // TODO(Kevin): make only needed by lightmap.cpp
 #include "game.h"
 
 
@@ -563,7 +562,7 @@ int main(int argc, char* argv[])
     // RDOCAPI->LaunchReplayUI(1, "");
 
     OpenGame();
-    LevelEditor.Open();
+    // LevelEditor.Open();
 
     while (!ProgramShutdownRequested)
     {
@@ -587,7 +586,7 @@ int main(int argc, char* argv[])
     }
 
     CloseGame();
-    LevelEditor.Close();
+    // LevelEditor.Close();
 
     SDL_DestroyWindow(SDLMainWindow);
     SDL_GL_DeleteContext(SDLGLContext);

@@ -145,11 +145,11 @@ void physics_t::Update()
     static JPH::JobSystemThreadPool PhysJobSystem(JPH::cMaxPhysicsJobs, JPH::cMaxPhysicsBarriers, 
         std::thread::hardware_concurrency() - 1);
 
-    const float cDeltaTime = 1.0f / 60.0f;
+    // const float cDeltaTime = 1.0f / 60.0f;
     const int cCollisionSteps = 1;
 
-    // Step the world
-    PhysicsSystem->Update(cDeltaTime, cCollisionSteps, &PhysTempAllocator, &PhysJobSystem);
+    // Step the world using global delta time (it better be fixed 60Hz)
+    PhysicsSystem->Update(DeltaTime, cCollisionSteps, &PhysTempAllocator, &PhysJobSystem);
 }
 
 // void HelloWorld()

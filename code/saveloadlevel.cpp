@@ -1,4 +1,8 @@
 
+std::vector<vec3> LoadingLevelColliderPoints;
+std::vector<u32> LoadingLevelColliderSpans;
+
+
 bool BuildGameMap(const char *path)
 {
     // TODO(Kevin): remove this timing shit
@@ -94,28 +98,19 @@ bool LoadGameMap(const char *path)
     //                            GL_R32F, GL_RED, GL_NEAREST, GL_NEAREST, GL_FLOAT);
     arrfree(lightMapData);
 
+
     // colliders
     size_t numColliderPoints, numColliderSpans;
     ByteBufferRead(&mapbuf, size_t, &numColliderPoints);
     ByteBufferRead(&mapbuf, size_t, &numColliderSpans);
 
-    ASSERT(GameLevelColliders.size() == 0); // just crash for now
-    GameLevelColliderPoints.resize(numColliderPoints);
-    GameLevelColliders.resize(numColliderSpans);
+    LoadingLevelColliderPoints.clear();
+    LoadingLevelColliderPoints.resize(numColliderPoints); 
+    LoadingLevelColliderSpans.clear();
+    LoadingLevelColliderSpans.resize(numColliderSpans);
 
-    std::vector<u32> ColliderSpans(numColliderSpans); 
-    ByteBufferReadBulk(&mapbuf, GameLevelColliderPoints.data(), sizeof(vec3)*numColliderPoints);
-    ByteBufferReadBulk(&mapbuf, ColliderSpans.data(), sizeof(u32)*numColliderSpans);
-    
-    int GameLevelColliderPointsIterator = 0;
-    for (u32 colliderIndex = 0; colliderIndex < numColliderSpans; ++colliderIndex)
-    {
-        u32 span = ColliderSpans[colliderIndex];
-        FlatPolygonCollider& collider = GameLevelColliders[colliderIndex];
-        collider.pointCloudPtr = &GameLevelColliderPoints[GameLevelColliderPointsIterator];
-        collider.pointCount = span;
-        GameLevelColliderPointsIterator += span;
-    }
+    ByteBufferReadBulk(&mapbuf, LoadingLevelColliderPoints.data(), sizeof(vec3)*numColliderPoints);
+    ByteBufferReadBulk(&mapbuf, LoadingLevelColliderSpans.data(), sizeof(u32)*numColliderSpans);
 
 
     // vertex buffers

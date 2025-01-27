@@ -1,5 +1,6 @@
 #include "lightmap.h"
 
+#include "lm_oct.cpp" // only needed by lightmap.cpp
 
 vec3 *all_lm_pos = NULL;
 vec3 *all_lm_norm = NULL;
