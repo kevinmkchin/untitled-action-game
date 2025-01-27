@@ -10,7 +10,7 @@ struct player_t
     vec3 CameraDirection;
     vec3 CameraRight;
     vec3 CameraUp;
-};
 
-// extern player_t Player;
+    JPH::Character *mCharacter;
+};
 

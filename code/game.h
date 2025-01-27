@@ -8,10 +8,12 @@ void LoadLevel();
 void DoGameLoop();
 
 // private
+void UnloadPreviousLevel();
+void CreateAndRegisterLevelCollider();
+void CreateAndRegisterPlayerPhysicsController();
 void PrePhysicsTick();
 void PostPhysicsTick();
+void UpdateGameGUI();
 void RenderGameLayer();
 
-extern std::vector<vec3> GameLevelColliderPoints;
-extern std::vector<FlatPolygonCollider> GameLevelColliders;
 extern std::vector<face_batch_t> GameLevelFaceBatches;
