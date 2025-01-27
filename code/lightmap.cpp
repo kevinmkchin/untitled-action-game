@@ -402,6 +402,11 @@ void BakeStaticLighting(game_map_build_data_t& BuildData)
 
     glEnable(GL_DEPTH_TEST);
     glDisable(GL_CULL_FACE);
+    // NOTE(Kevin 2025-01-27): This is tricky. I must disable GL_BLEND here because I'm currently
+    // using the alpha channel of the hemicubes as a tag for whether the texel is a backface or not.
+    // Without explictly disabling, hemicube rendering won't work properly after rendering the level
+    // editor because it enables blending there.
+    glDisable(GL_BLEND); 
     UseShader(PatchesIDShader);
 
     float HEMICUBE_NEARCLIP = 1.f;
