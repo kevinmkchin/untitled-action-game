@@ -4,16 +4,13 @@ Something fucking cool.
 Priorty #1 is building the game, not the engine/tech
 Handcrafted with love.
 
-Refactor will never be perfect. I just need to get things to a point 
-where I find it clean enough and easy enough to come back to in the 
-future. Organized enough.  
-
 
 TODO:
 - goal of this refactor: have small debug menu to switch between the game and map editor
-    - lm_oct.cpp only relevant for lightmapping
 
 - srgb gamma correction bull shit for editor texture that are not lit
+
+- refactor out font size 9
 
 - Use a triangulation library for face triangulation https://github.com/artem-ogre/CDT
 - Enemy moves and shoots at player
@@ -551,6 +548,37 @@ static void ProcessSDLEvents()
     }
 }
 
+static void ApplicationLoop()
+{
+    // TODO actually I want option to let the game keep running while
+    // debug menu is open
+    static bool ShowDebugMenu = false;
+    if (KeysPressed[SDL_SCANCODE_GRAVE]) 
+    {
+        ShowDebugMenu = !ShowDebugMenu;
+        if (ShowDebugMenu)
+        {
+            GameLoopCanRun = false;
+            SDL_SetRelativeMouseMode(SDL_FALSE);
+        }
+        else
+        {
+            GameLoopCanRun = true;
+            SDL_SetRelativeMouseMode(SDL_TRUE);
+        }
+    }
+    if (ShowDebugMenu)
+    {
+        GUI::BeginWindow(GUI::UIRect(32, 32, 200, 300));
+        GUI::EditorText("== Menu ==");
+        GUI::EditorSpacer(0, 10);
+        GUI::EditorLabelledButton("Level Editor");
+        GUI::EndWindow();
+
+        GUI::PrimitiveText(RenderTargetGUI.width/2-13, RenderTargetGUI.height/2, 9, GUI::LEFT, "PAUSED");
+    }
+}
+
 int main(int argc, char* argv[])
 {
     if (!InitializeEverything()) return -1;
@@ -574,6 +602,7 @@ int main(int argc, char* argv[])
             if (RDOCAPI->ShowReplayUI() == 0)
                 RDOCAPI->LaunchReplayUI(1, "");
 
+        ApplicationLoop();
         DoGameLoop();
         // LevelEditor.Tick();
         // LevelEditor.Draw();

@@ -2,9 +2,11 @@
 Mix_Chunk *sfx_Jump;
 ModelGLTF Model_Knight;
 
-
+// extern
 std::vector<face_batch_t> GameLevelFaceBatches;
+bool GameLoopCanRun = true;
 
+// internal
 bool LevelLoaded = false;
 physics_t Physics;
 player_t Player;
@@ -184,6 +186,9 @@ void PostPhysicsTick()
 
 void DoGameLoop()
 {
+    if (!GameLoopCanRun) 
+        return;
+
     // pre physics tick
     PrePhysicsTick();
 
