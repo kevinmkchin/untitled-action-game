@@ -86,11 +86,12 @@ bool LoadGameMap(const char *path)
     arrsetcap(lightMapData, lmw*lmh);
     ByteBufferReadBulk(&mapbuf, lightMapData, lmw*lmh*sizeof(float));
     // These light map textures use bilinear texture filtering to allow light values 
-    // to be interpolated between the given texture coordinate's neighboring texels. 
-    CreateGPUTextureFromBitmap(&Temporary_LightMapVisualizeTex, lightMapData, lmw, lmh,
+    // to be interpolated between the given texture coordinate's neighboring texels.
+    GPUTexture LevelLightmapTexture;
+    CreateGPUTextureFromBitmap(&LevelLightmapTexture, lightMapData, lmw, lmh,
                                GL_R32F, GL_RED, GL_LINEAR, GL_LINEAR, GL_FLOAT);
-    CreateGPUTextureFromBitmap(&Temporary_TestTex0, lightMapData, lmw, lmh,
-                               GL_R32F, GL_RED, GL_NEAREST, GL_NEAREST, GL_FLOAT);
+    // CreateGPUTextureFromBitmap(&Temporary_TestTex0, lightMapData, lmw, lmh,
+    //                            GL_R32F, GL_RED, GL_NEAREST, GL_NEAREST, GL_FLOAT);
     arrfree(lightMapData);
 
     // colliders
@@ -135,7 +136,7 @@ bool LoadGameMap(const char *path)
         
         face_batch_t FaceBatch;
         FaceBatch.ColorTexture = Assets.GetTextureById(texturePersistId).gputex;
-        FaceBatch.LightMapTexture = Temporary_LightMapVisualizeTex;
+        FaceBatch.LightMapTexture = LevelLightmapTexture;
         CreateFaceBatch(&FaceBatch);
         RebindFaceBatch(&FaceBatch, u32(sizeof(float)*VertexCount), vb.data());
         GameLevelFaceBatches.push_back(FaceBatch);

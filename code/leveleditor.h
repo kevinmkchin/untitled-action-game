@@ -16,6 +16,7 @@ struct level_editor_t
     void Close();
 
     void Tick();
+    void Draw();
 
     bool SaveMap(const char *MapFilePath);
     bool LoadMap(const char *MapFilePath);
@@ -28,12 +29,21 @@ private:
 
 public:
     dynamic_array<MapEdit::Volume> LevelEditorVolumes;
-
+    bool IsActive = false;
 public:
     vec3 CameraPosition = vec3(600, 500, 600);
+    vec3 CameraRotation = vec3(0, 192.3f, 7.56f);// vec3(0,130,-30);
+    vec3 CameraDirection;
+    vec3 CameraRight;
+    vec3 CameraUp;
+    mat4 ActiveViewMatrix;
+    mat4 ActivePerspectiveMatrix;
     MapEdit::Face *SelectedFace = NULL;
     db_tex_t SelectedTexture;
+
+private:
     // hotHandleId;
     // move all the editor session specific data here
+
 };
 
