@@ -20,6 +20,8 @@ void main()
     }
     else
     {
+        // 2025-01-27
+        // GL_BLEND must be disabled since I'm using the alpha channel as a tag
         FragmentColorAndDepth.a = 0.69;
     }
 }

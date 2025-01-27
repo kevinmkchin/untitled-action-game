@@ -14,10 +14,9 @@ JPH::BodyID LevelColliderBodyId;
 void OpenGame()
 {
 // #if SUNLIGHT_TEST
-//     EditorDeserializeMap(wd_path("House.emf").c_str());
-//     // EditorDeserializeMap(wd_path("IrradianceCachingTest.emf").c_str());
+//     LevelEditor.LoadMap(wd_path("House.emf").c_str());
 // #else
-//     EditorDeserializeMap(wd_path("LightTest.emf").c_str());
+//     LevelEditor.LoadMap(wd_path("LightTest.emf").c_str());
 // #endif
 //     BuildGameMap(wd_path("buildtest.map").c_str());
 
