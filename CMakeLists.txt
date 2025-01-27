@@ -8,7 +8,7 @@ set(PROJECT_WORKING_DIR "${CMAKE_CURRENT_SOURCE_DIR}/wd/")
 set(MESA_WINDOWS 1)
 set(INTERNAL_BUILD 1)
 
-add_executable(${PROJECT_NAME} code/GAME.CPP)
+add_executable(${PROJECT_NAME} code/main.cpp)
 
 
 
@@ -45,35 +45,35 @@ set(ASSIMP_INCLUDE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/ext/assimp/include;")
 set(ASSIMP_LIBRARIES "${CMAKE_CURRENT_SOURCE_DIR}/ext/assimp/lib/assimp-vc142-mt.lib")
 set(ASSIMP_DLL "${CMAKE_CURRENT_SOURCE_DIR}/ext/assimp/lib/assimp-vc142-mt.dll")
 
-# Copy and rename dlls
-add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-    "${SDL_DLL}"
-    "$<TARGET_FILE_DIR:${PROJECT_NAME}>/SDL2.dll")
-add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-    "${SDL2MIXER_DLL}"
-    "$<TARGET_FILE_DIR:${PROJECT_NAME}>/SDL2_mixer.dll")
-add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-    "${ASSIMP_DLL}"
-    "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assimp-vc142-mt.dll")
-
-add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-    "${CMAKE_CURRENT_SOURCE_DIR}/ext/renderdoc.dll"
-    "$<TARGET_FILE_DIR:${PROJECT_NAME}>/renderdoc.dll")
-
-target_include_directories(${PROJECT_NAME} 
-    PUBLIC 
-    ${SDL2_INCLUDE_DIRS}
-    ${SDL2MIXER_INCLUDE_DIRS}
-    ext/gl3w 
-    ${ASSIMP_INCLUDE_DIRS})
-target_link_libraries(${PROJECT_NAME} 
-    PUBLIC 
-    ${SDL2_LIBRARIES} 
-    ${SDL2MIXER_LIBRARIES}
-    ${ASSIMP_LIBRARIES} 
-    dwmapi.lib)
+# # Copy and rename dlls
+# add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+#     COMMAND ${CMAKE_COMMAND} -E copy_if_different
+#     "${SDL_DLL}"
+#     "$<TARGET_FILE_DIR:${PROJECT_NAME}>/SDL2.dll")
+# add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+#     COMMAND ${CMAKE_COMMAND} -E copy_if_different
+#     "${SDL2MIXER_DLL}"
+#     "$<TARGET_FILE_DIR:${PROJECT_NAME}>/SDL2_mixer.dll")
+# add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+#     COMMAND ${CMAKE_COMMAND} -E copy_if_different
+#     "${ASSIMP_DLL}"
+#     "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assimp-vc142-mt.dll")
+# 
+# add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+#     COMMAND ${CMAKE_COMMAND} -E copy_if_different
+#     "${CMAKE_CURRENT_SOURCE_DIR}/ext/renderdoc.dll"
+#     "$<TARGET_FILE_DIR:${PROJECT_NAME}>/renderdoc.dll")
+# 
+# target_include_directories(${PROJECT_NAME} 
+#     PUBLIC 
+#     ${SDL2_INCLUDE_DIRS}
+#     ${SDL2MIXER_INCLUDE_DIRS}
+#     ext/gl3w 
+#     ${ASSIMP_INCLUDE_DIRS})
+# target_link_libraries(${PROJECT_NAME} 
+#     PUBLIC 
+#     ${SDL2_LIBRARIES} 
+#     ${SDL2MIXER_LIBRARIES}
+#     ${ASSIMP_LIBRARIES} 
+#     dwmapi.lib)
 
