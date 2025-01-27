@@ -17,3 +17,4 @@ void UpdateGameGUI();
 void RenderGameLayer();
 
 extern std::vector<face_batch_t> GameLevelFaceBatches;
+extern bool GameLoopCanRun;
