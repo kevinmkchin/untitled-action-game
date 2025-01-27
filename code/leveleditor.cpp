@@ -5,10 +5,12 @@ std::vector<float> MY_VERTEX_BUFFER;
 void level_editor_t::Open()
 {
     SelectedTexture = Assets.DefaultEditorTexture;
+    IsActive = true;
 }
 
 void level_editor_t::Close()
 {
+    IsActive = false;
 
 }
 
@@ -83,8 +85,8 @@ vec3 SnapToGrid(vec3 beforeSnap)
 
 float GetEditorHandleSize(vec3 worldPosition, float sizeInPixels)
 {
-    float distanceFromCamera = Dot(worldPosition - LevelEditor.CameraPosition, CameraDirection);
-    quat camOrientation = EulerToQuat(CameraRotation * GM_DEG2RAD);
+    float distanceFromCamera = Dot(worldPosition - LevelEditor.CameraPosition, LevelEditor.CameraDirection);
+    quat camOrientation = EulerToQuat(LevelEditor.CameraRotation * GM_DEG2RAD);
     vec3 screenPos = WorldPointToScreenPoint(LevelEditor.CameraPosition + RotateVector(vec3(distanceFromCamera, 0, 0), camOrientation));
     vec3 screenPos2 = WorldPointToScreenPoint(LevelEditor.CameraPosition + RotateVector(vec3(distanceFromCamera, 0, 32.f), camOrientation));
     // scaled by 32 to avoid floating point imprecision
@@ -94,7 +96,7 @@ float GetEditorHandleSize(vec3 worldPosition, float sizeInPixels)
 
 void level_editor_t::Tick()
 {
-    IsEditorActive = true;
+    IsActive = true;
     SDL_SetRelativeMouseMode(MouseCurrent & SDL_BUTTON(SDL_BUTTON_RIGHT) ? SDL_TRUE : SDL_FALSE);
 
     // EDITOR CAMERA MOVE
@@ -857,7 +859,6 @@ void level_editor_t::Tick()
 }
 
 
-
 void level_editor_t::ResetFaceToolData()
 {
     SelectedFace = NULL;
@@ -902,6 +903,161 @@ u32 level_editor_t::PickFace(MapEdit::Face **faces, u32 arraycount)
     u32 faceId = FlushHandles(MousePos, RenderTargetGame, ActiveViewMatrix, ActivePerspectiveMatrix, false);
     return faceId;
 }
+
+void level_editor_t::Draw()
+{
+    glBindFramebuffer(GL_FRAMEBUFFER, RenderTargetGame.fbo);
+    glViewport(0, 0, RenderTargetGame.width, RenderTargetGame.height);
+    glClearColor(0.15f, 0.15f, 0.15f, 1.f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glEnable(GL_BLEND);
+    glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_SRC_ALPHA, GL_ONE);
+    glEnable(GL_DEPTH_TEST);
+
+    float aspectratio = float(BackbufferWidth) / float(BackbufferHeight);
+    float fovy = HorizontalFOVToVerticalFOV_RadianToRadian(90.f*GM_DEG2RAD, aspectratio);
+    ActivePerspectiveMatrix = ProjectionMatrixPerspective(fovy, aspectratio, GAMEPROJECTION_NEARCLIP, GAMEPROJECTION_FARCLIP);
+    mat4 perspectiveMatrix = ActivePerspectiveMatrix;
+    mat4 viewMatrix = ActiveViewMatrix;
+
+    UseShader(EditorShader_Scene);
+    glEnable(GL_CULL_FACE);
+
+    GLBindMatrix4fv(EditorShader_Scene, "projMatrix", 1, perspectiveMatrix.ptr());
+    GLBindMatrix4fv(EditorShader_Scene, "viewMatrix", 1, viewMatrix.ptr());
+
+    mat4 modelMatrix = mat4();
+
+    GLBindMatrix4fv(EditorShader_Scene, "modelMatrix", 1, modelMatrix.ptr());
+
+    MapEdit::Face *selectedFace = NULL;
+    MapEdit::Face *hoveredFace = NULL;
+    for (int i = 0; i < MapEdit::LevelEditorFaces.count; ++i)
+    {
+        MapEdit::Face *editorVolumeFace = MapEdit::LevelEditorFaces.At(i);
+        if (editorActiveTool == MapEditorTools::FaceManip)
+        {
+            if (LevelEditor.SelectedFace == editorVolumeFace)
+            {
+                selectedFace = LevelEditor.SelectedFace;
+                continue;
+            }
+            else if (editorVolumeFace->hovered)
+            {
+                // DONT CARE ABOUT HOVERED hoveredFaceMesh = editorVolumeFace->facemesh;
+                editorVolumeFace->hovered = false;
+                //continue;
+            }
+        }
+
+        const GPUTexture ftex = editorVolumeFace->texture.gputex;
+        const GPUMesh fm = editorVolumeFace->facemesh;
+        RenderGPUMesh(fm.idVAO, fm.idVBO, fm.vertexCount, &ftex);
+    }
+
+    if (editorActiveTool == MapEditorTools::FaceManip)
+    {
+        if (selectedFace)
+        {
+            UseShader(EditorShader_FaceSelected);
+            float sf = (sinf(TimeSinceStart * 2.7f) + 1.f) / 2.f;
+            sf *= 0.1f;
+            if (DoPrimitivesDepthTest)
+                sf = 0.0f;
+            GLBind3f(EditorShader_FaceSelected, "tint", 1.0f, 1.0f - sf, 1.0f - sf);
+            GLBindMatrix4fv(EditorShader_FaceSelected, "projMatrix", 1, perspectiveMatrix.ptr());
+            GLBindMatrix4fv(EditorShader_FaceSelected, "viewMatrix", 1, viewMatrix.ptr());
+            modelMatrix = mat4();
+            GLBindMatrix4fv(EditorShader_FaceSelected, "modelMatrix", 1, modelMatrix.ptr());
+            const GPUTexture ftex = selectedFace->texture.gputex;
+            const GPUMesh fm = selectedFace->facemesh;
+            RenderGPUMesh(fm.idVAO, fm.idVBO, fm.vertexCount, &ftex);
+        }
+        // else if (hoveredFace)
+        // {
+        //     UseShader(EditorShader_FaceSelected);
+        //     GLBind3f(EditorShader_FaceSelected, "tint", 0.9f, 0.9f, 0.0f);
+        //     GLBindMatrix4fv(EditorShader_FaceSelected, "projMatrix", 1, perspectiveMatrix.ptr());
+        //     GLBindMatrix4fv(EditorShader_FaceSelected, "viewMatrix", 1, viewMatrix.ptr());
+        //     modelMatrix = mat4();
+        //     GLBindMatrix4fv(EditorShader_FaceSelected, "modelMatrix", 1, modelMatrix.ptr());
+        //     const GPUTexture ftex = hoveredFace->texture.gputex;
+        //     const GPUMesh fm = hoveredFace->facemesh;
+        //     RenderGPUMesh(fm.idVAO, fm.idVBO, fm.vertexCount, &ftex);
+        // }
+    }
+
+    // PRIMITIVES
+    // Draw outline of selected faces
+    for (int i = 0; i < SELECTED_MAP_VOLUMES_INDICES.count; ++i)
+    {
+        const MapEdit::Volume& volume = LevelEditor.LevelEditorVolumes[SELECTED_MAP_VOLUMES_INDICES.At(i)];
+        for (size_t j = 0; j < volume.faces.lenu(); ++j)
+        {
+            MapEdit::Face *selVolFace = volume.faces[j];
+            std::vector<MapEdit::Edge*> faceEdges = selVolFace->GetEdges();
+            for (MapEdit::Edge* e : faceEdges)
+            {
+                PrimitiveDrawLine(e->a->pos, e->b->pos, vec4(1,0,0,0.5f), 2.f);
+            }
+        }
+    }
+    // Draw vertex handles
+    if (editorActiveTool == MapEditorTools::VertexManip)
+    {
+        for (int i = 0; i < SELECTABLE_VERTICES.size(); ++i)
+        {
+            MapEdit::Vert *v = SELECTABLE_VERTICES[i];
+            vec4 discHandleColor = vec4(RGBHEXTO1(0xFF8000), 1.f);
+            if (std::find(SELECTED_VERTICES.begin(), SELECTED_VERTICES.end(), v) != SELECTED_VERTICES.end())
+                discHandleColor = vec4(RGB255TO1(254,8,8),1.f);
+            PrimitiveDrawSolidDisc(v->pos, LevelEditor.CameraPosition - v->pos, GetEditorHandleSize(v->pos, DISC_HANDLE_RADIUS),
+                                   discHandleColor);
+        }
+    }
+    if (KeysPressed[SDL_SCANCODE_X])
+        DoPrimitivesDepthTest = !DoPrimitivesDepthTest;
+    if (DoPrimitivesDepthTest)
+        glEnable(GL_DEPTH_TEST);
+    else
+        glDisable(GL_DEPTH_TEST);
+    glDisable(GL_CULL_FACE);
+    vec3 gridTranslation = vec3(SnapToGrid(LevelEditor.CameraPosition.x), 0.f, SnapToGrid(LevelEditor.CameraPosition.z));
+    mat3 gridRotation = mat3();
+    if (GRID_ORIGIN != vec3())
+    {
+        gridTranslation = GRID_ORIGIN;
+        gridRotation = GetGridRotationMatrix();
+    }
+    DrawGrid(GRID_INCREMENT, gridRotation, gridTranslation, &perspectiveMatrix, &viewMatrix, RenderTargetGame.depthTexId, vec2((float)RenderTargetGame.width, (float)RenderTargetGame.height));
+    PrimitiveDrawAll(&perspectiveMatrix, &viewMatrix, RenderTargetGame.depthTexId, vec2((float)RenderTargetGame.width, (float)RenderTargetGame.height));
+
+    // // UseShader(editorShader_Wireframe);
+    // // glEnable(GL_CULL_FACE);
+    // // GLBindMatrix4fv(editorShader_Wireframe, "projMatrix", 1, perspectiveMatrix.ptr());
+    // // GLBindMatrix4fv(editorShader_Wireframe, "viewMatrix", 1, viewMatrix.ptr());
+    // // GLBindMatrix4fv(editorShader_Wireframe, "modelMatrix", 1, modelMatrix.ptr());
+    // // glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+    // glEnable(GL_DEPTH_TEST);
+    // for (int i = 0; i < MapEdit::EDITOR_FACES.count; ++i)
+    // {
+    //     MapEdit::Face *editorVolumeFace = MapEdit::EDITOR_FACES.At(i);
+    //     std::vector<MapEdit::Edge*> faceEdges = editorVolumeFace->GetEdges();
+    //     for (MapEdit::Edge* e : faceEdges)
+    //     {
+    //         PrimitiveDrawLine(e->a->pos, e->b->pos, vec4(1,1,1,1), 1.2f);
+    //     }
+    //     // const FaceBatch fb = editorVolumeFace->facemesh;
+    //     // RenderFaceBatch(fb);
+    // }
+    // PrimitiveDrawAll(&perspectiveMatrix, &viewMatrix, renderTargetGame.depthTexId, vec2((float)renderTargetGame.width,(float)renderTargetGame.height));
+    // if (primitivesDepthTest)
+    //     glEnable(GL_DEPTH_TEST);
+    // else
+    //     glDisable(GL_DEPTH_TEST);
+    // glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+}
+
 
 
 #define MAPSER_VOLUMES_U64_DIVIDER_START 0x49779b0ef139ca39

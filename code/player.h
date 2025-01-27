@@ -1,0 +1,16 @@
+#pragma once
+
+
+struct player_t
+{
+    vec3 Root;
+    vec3 WalkDirectionForward;
+    vec3 WalkDirectionRight;
+    vec3 CameraRotation;
+    vec3 CameraDirection;
+    vec3 CameraRight;
+    vec3 CameraUp;
+};
+
+// extern player_t Player;
+
