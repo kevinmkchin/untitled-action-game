@@ -3,19 +3,21 @@
 #define null_ui_id 0
 typedef u64 ui_id;
 
-namespace Gui
+namespace GUI
 {
     extern NiceArray<SDL_Keycode, 32> keyboardInputASCIIKeycodeThisFrame;
     extern vec4 style_textColor;
+
+    // Use to prevent mouse events from registering through UI or windows
     extern bool anyElementHovered;
     extern bool anyElementActive;
     extern bool anyWindowHovered;
 
-    enum class Align
+    enum Align
     {
-        Left,
-        Center,
-        Right
+        LEFT,
+        CENTER,
+        RIGHT
     };
 
     struct Font
@@ -176,7 +178,7 @@ namespace Gui
     u8 GetCurrentDrawingDepth();
 }
 
-namespace Gui {
+namespace GUI {
 
     // GUI rendering code
 
@@ -230,7 +232,7 @@ namespace Gui {
         int size = 8;
         int x = 0;
         int y = 0;
-        Align alignment = Align::Left;
+        Align alignment = Align::LEFT;
         Font font;
 
         UIRect rectMask = UIRect(0, 0, 9999, 9999);

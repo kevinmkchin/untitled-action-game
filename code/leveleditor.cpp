@@ -142,9 +142,9 @@ void level_editor_t::Tick()
 
     static u32 hotHandleId = 0;
 
-    Gui::BeginWindow(Gui::UIRect(0, 0, RenderTargetGUI.width, 19));
-    Gui::EditorBeginHorizontal();
-    if (Gui::EditorLabelledButton("SAVE"))
+    GUI::BeginWindow(GUI::UIRect(0, 0, RenderTargetGUI.width, 19));
+    GUI::EditorBeginHorizontal();
+    if (GUI::EditorLabelledButton("SAVE"))
     {
         std::string path = SaveEditableMapFormatDialog();
         if(!path.empty())
@@ -157,7 +157,7 @@ void level_editor_t::Tick()
             // TODO ...
         }
     }
-    if (Gui::EditorLabelledButton("OPEN"))
+    if (GUI::EditorLabelledButton("OPEN"))
     {
         std::string path = OpenEditableMapFormatDialog();
         if(!path.empty())
@@ -170,7 +170,7 @@ void level_editor_t::Tick()
             // TODO ...
         }
     }
-    if (Gui::EditorLabelledButton("BUILD"))
+    if (GUI::EditorLabelledButton("BUILD"))
     {
         std::string path = SaveGameMapDialog();
         if(!path.empty())
@@ -183,99 +183,99 @@ void level_editor_t::Tick()
             // TODO ...
         }
     }
-    Gui::EditorSpacer(16,0);
+    GUI::EditorSpacer(16, 0);
 
     bool brushToolActive = editorActiveTool == MapEditorTools::SimpleBrushTool;
     bool vertToolActive = editorActiveTool == MapEditorTools::VertexManip;
     bool edgeToolActive = editorActiveTool == MapEditorTools::EdgeManip;
     bool faceToolActive = editorActiveTool == MapEditorTools::FaceManip;
-    if (KeysPressed[SDL_SCANCODE_1] || Gui::EditorSelectable_2("BRUSH", &brushToolActive))
+    if (KeysPressed[SDL_SCANCODE_1] || GUI::EditorSelectable_2("BRUSH", &brushToolActive))
     {
         editorActiveTool = MapEditorTools::SimpleBrushTool;
         hotHandleId = 0;
         SELECTED_MAP_VOLUMES_INDICES.ResetCount();
         ResetFaceToolData();
     }
-    if (KeysPressed[SDL_SCANCODE_2] || Gui::EditorSelectable_2("VERT", &vertToolActive))
+    if (KeysPressed[SDL_SCANCODE_2] || GUI::EditorSelectable_2("VERT", &vertToolActive))
     {
         editorActiveTool = MapEditorTools::VertexManip;
         hotHandleId = 0;
         ResetFaceToolData();
     }
-    if (KeysPressed[SDL_SCANCODE_3] || Gui::EditorSelectable_2("EDGE", &edgeToolActive))
+    if (KeysPressed[SDL_SCANCODE_3] || GUI::EditorSelectable_2("EDGE", &edgeToolActive))
     {
         editorActiveTool = MapEditorTools::EdgeManip;
         hotHandleId = 0;
         ResetFaceToolData();
     }
-    if (KeysPressed[SDL_SCANCODE_4] || Gui::EditorSelectable_2("FACE", &faceToolActive))
+    if (KeysPressed[SDL_SCANCODE_4] || GUI::EditorSelectable_2("FACE", &faceToolActive))
     {
         editorActiveTool = MapEditorTools::FaceManip;
         hotHandleId = 0;
         ResetFaceToolData();
     }
 
-    Gui::EditorSpacer(16,0);
-    if (Gui::EditorLabelledButton("-", 18))
+    GUI::EditorSpacer(16, 0);
+    if (GUI::EditorLabelledButton("-", 18))
     {
         GRID_INCREMENT /= 2.f;
     }
-    Gui::EditorSpacer(1,0);
-    Gui::EditorText(std::to_string(GRID_INCREMENT).c_str());
-    Gui::EditorSpacer(1,0);
-    if (Gui::EditorLabelledButton("+", 18))
+    GUI::EditorSpacer(1, 0);
+    GUI::EditorText(std::to_string(GRID_INCREMENT).c_str());
+    GUI::EditorSpacer(1, 0);
+    if (GUI::EditorLabelledButton("+", 18))
     {
         GRID_INCREMENT *= 2.f;
     }
 
-    Gui::EditorSpacer(16,0);
-    Gui::EditorLabelledButton("Toggle Auto Colliders []");
-    Gui::EditorLabelledButton("Snap Vertex or Translation to Grid?");
+    GUI::EditorSpacer(16, 0);
+    GUI::EditorLabelledButton("Toggle Auto Colliders []");
+    GUI::EditorLabelledButton("Snap Vertex or Translation to Grid?");
 
-    Gui::EditorEndHorizontal();
-    Gui::EndWindow();
+    GUI::EditorEndHorizontal();
+    GUI::EndWindow();
 
 
     int volc = SELECTED_MAP_VOLUMES_INDICES.count;
-    Gui::BeginWindow(Gui::UIRect(RenderTargetGUI.width - 160, 28, 150, 15 + volc * 15));
-    Gui::EditorText((std::string("selected volumes (") + std::to_string(volc) + std::string(")")).c_str());
+    GUI::BeginWindow(GUI::UIRect(RenderTargetGUI.width - 160, 28, 150, 15 + volc * 15));
+    GUI::EditorText((std::string("selected volumes (") + std::to_string(volc) + std::string(")")).c_str());
     for (int i = 0; i < SELECTED_MAP_VOLUMES_INDICES.count; ++i)
     {
         int editorMapVolumeIndex = SELECTED_MAP_VOLUMES_INDICES.At(i);
         const MapEdit::Volume& volume = LevelEditorVolumes[editorMapVolumeIndex];
         std::string volPersIdStr = std::to_string(volume.persistId);
-        Gui::EditorBeginHorizontal();
+        GUI::EditorBeginHorizontal();
         // Gui::EditorLabelledButton("S");
-        if (Gui::EditorLabelledButton("X"))
+        if (GUI::EditorLabelledButton("X"))
         {
             // TODO remove volume from selection
         }
-        Gui::EditorSpacer(4, 0);
-        Gui::EditorText(volPersIdStr.c_str());
-        Gui::EditorEndHorizontal();
+        GUI::EditorSpacer(4, 0);
+        GUI::EditorText(volPersIdStr.c_str());
+        GUI::EditorEndHorizontal();
     }
     // Gui::EditorText((std::string("            max ") + std::to_string(SELECTED_MAP_VOLUMES_INDICES.capacity)).c_str());
-    Gui::EndWindow();
+    GUI::EndWindow();
 
 
-    Gui::BeginWindow(Gui::UIRect(RenderTargetGUI.width - 210, RenderTargetGUI.height - 310, 200, 300));
-    Gui::EditorText("Texture");
+    GUI::BeginWindow(GUI::UIRect(RenderTargetGUI.width - 210, RenderTargetGUI.height - 310, 200, 300));
+    GUI::EditorText("Texture");
     
     static bool ShowTextureBrowser = false;
-    if (Gui::EditorImageButton(SelectedTexture.gputex.id, ivec2(160,160)))
+    if (GUI::EditorImageButton(SelectedTexture.gputex.id, ivec2(160, 160)))
     {
         ShowTextureBrowser = true;
     }
 
     if (ShowTextureBrowser)
     {
-        Gui::BeginWindow(Gui::UIRect(0, 0, RenderTargetGUI.width, RenderTargetGUI.height));
+        GUI::BeginWindow(GUI::UIRect(0, 0, RenderTargetGUI.width, RenderTargetGUI.height));
         
-        Gui::EditorBeginHorizontal();
-        if (Gui::EditorLabelledButton("Close"))
+        GUI::EditorBeginHorizontal();
+        if (GUI::EditorLabelledButton("Close"))
             ShowTextureBrowser = false;
-        Gui::EditorSpacer(4,0);
-        if (Gui::EditorLabelledButton("Load Textures"))
+        GUI::EditorSpacer(4, 0);
+        if (GUI::EditorLabelledButton("Load Textures"))
         {
             std::vector<std::string> paths = OpenImageFilesDialog();
             for (const auto& fp : paths)
@@ -283,41 +283,41 @@ void level_editor_t::Tick()
                 db_tex_t loadedtex = Assets.LoadNewTexture(fp.c_str());
             }
         }
-        Gui::EditorEndHorizontal();
+        GUI::EditorEndHorizontal();
 
-        Gui::EditorSpacer(0,8);
-        Gui::EditorBeginGrid(RenderTargetGUI.width, 8000);
+        GUI::EditorSpacer(0, 8);
+        GUI::EditorBeginGrid(RenderTargetGUI.width, 8000);
         for (auto& pair : Assets.Textures)
         {
-            Gui::EditorBeginGridItem(162,186);
+            GUI::EditorBeginGridItem(162, 186);
 
             db_tex_t t = pair.second;
-            if (Gui::EditorImageButton(t.gputex.id, ivec2(160,160)))
+            if (GUI::EditorImageButton(t.gputex.id, ivec2(160, 160)))
             {
                 SelectedTexture = t;
                 ShowTextureBrowser = false;
             }
             char displaystr[128] = {0};
             stbsp_sprintf(displaystr, "ID: %d\t\t%dx%d", t.persistId, t.gputex.width, t.gputex.height);
-            Gui::EditorText(displaystr);
+            GUI::EditorText(displaystr);
 
-            Gui::EditorEndGridItem();
+            GUI::EditorEndGridItem();
         }
-        Gui::EditorEndGrid();
+        GUI::EditorEndGrid();
 
-        Gui::EndWindow();
+        GUI::EndWindow();
     }
 
     // TODO(Kevin): Have shortcuts for these actions so you can go click click shortcut click click shortcut
-    Gui::EditorLabelledButton("Apply Texture to Volume");
-    if (SelectedFace != NULL && Gui::EditorLabelledButton("Apply Texture to Face"))
+    GUI::EditorLabelledButton("Apply Texture to Volume");
+    if (SelectedFace != NULL && GUI::EditorLabelledButton("Apply Texture to Face"))
     {
         SelectedFace->texture = SelectedTexture; 
     }
-    Gui::EndWindow();
+    GUI::EndWindow();
 
 
-    if (Gui::anyElementHovered || Gui::anyWindowHovered)
+    if (GUI::anyElementHovered || GUI::anyWindowHovered)
     {
         // TODO tools reset? if LMB relased? not always.
         return;

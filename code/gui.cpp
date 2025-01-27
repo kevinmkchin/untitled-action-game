@@ -17,7 +17,7 @@ static ui_id FreshID()
     return ++freshIdCounter;
 }
 
-namespace Gui
+namespace GUI
 {
     vec4 style_buttonNormalColor = vec4(0.18f, 0.18f, 0.18f, 1.f);
     vec4 style_buttonHoveredColor = vec4(0.08f, 0.08f, 0.08f, 1.f);
@@ -514,12 +514,12 @@ namespace Gui
         {
             if (activeTextInputBuffer.count > 0)
             {
-                PrimitiveText(rect.x + rect.w, rect.y + rect.h, 9, Align::Right, activeTextInputBuffer.data);
+                PrimitiveText(rect.x + rect.w, rect.y + rect.h, 9, Align::RIGHT, activeTextInputBuffer.data);
             }
         }
         else
         {
-            PrimitiveText(rect.x + rect.w, rect.y + rect.h, 9, Align::Right, std::to_string(*v).c_str());
+            PrimitiveText(rect.x + rect.w, rect.y + rect.h, 9, Align::RIGHT, std::to_string(*v).c_str());
         }
     }
 
@@ -617,14 +617,14 @@ namespace Gui
         {
             if (activeTextInputBuffer.count > 0)
             {
-                PrimitiveText(rect.x + rect.w, rect.y + rect.h, 9, Align::Right, activeTextInputBuffer.data);
+                PrimitiveText(rect.x + rect.w, rect.y + rect.h, 9, Align::RIGHT, activeTextInputBuffer.data);
             }
         }
         else
         {
             char cbuf[32];
             stbsp_sprintf(cbuf, "%.2f", *v);
-            PrimitiveText(rect.x + rect.w, rect.y + rect.h, 9, Align::Right, cbuf);
+            PrimitiveText(rect.x + rect.w, rect.y + rect.h, 9, Align::RIGHT, cbuf);
         }
     }
 
@@ -636,11 +636,11 @@ namespace Gui
         float yTextPaddingRatio = (1.f - (float(ascenderTextSize) / float(rect.h))) / 2.f;
         ivec2 textPadding = ivec2(10, (int) roundf(rect.h * yTextPaddingRatio));
         int textX = rect.x + textPadding.x;
-        if (textAlignment == Align::Center)
+        if (textAlignment == Align::CENTER)
         {
             textX = (int) ((rect.w / 2) + rect.x);
         }
-        else if (textAlignment == Align::Right)
+        else if (textAlignment == Align::RIGHT)
         {
             textX = (int) rect.x + rect.w - textPadding.x;
         }
@@ -732,7 +732,7 @@ namespace Gui
 
         int sz = style_textFont.ptr->font_height_px;
 
-        PrimitiveText(x + style_paddingLeft, y + sz + style_paddingTop, sz, Align::Left, text);
+        PrimitiveText(x + style_paddingLeft, y + sz + style_paddingTop, sz, Align::LEFT, text);
 
         float textW;
         float textH;
@@ -804,7 +804,7 @@ namespace Gui
         int buttonH = labelTextSize + 4;
 
         UIRect buttonRect = UIRect(buttonX, buttonY, buttonW, buttonH);
-        bool result = PrimitiveLabelledButton(buttonRect, label, Align::Center);
+        bool result = PrimitiveLabelledButton(buttonRect, label, Align::CENTER);
 
         Window_StageLastElementDimension(style_paddingLeft + buttonW + style_paddingRight, 
             style_paddingTop + buttonH + style_paddingBottom);
@@ -833,7 +833,7 @@ namespace Gui
         {
             (*v) -= increment;
         }
-        PrimitiveText(x + w + 12, y + h, 9, Align::Left, label);
+        PrimitiveText(x + w + 12, y + h, 9, Align::LEFT, label);
 
         // TODO stage width
         Window_StageLastElementDimension(0, style_paddingTop + h + style_paddingBottom);
@@ -859,7 +859,7 @@ namespace Gui
         {
             (*v) -= increment;
         }
-        PrimitiveText(x + w + 12, y + h, 9, Align::Left, label);
+        PrimitiveText(x + w + 12, y + h, 9, Align::LEFT, label);
 
         // TODO stage width
         Window_StageLastElementDimension(0, style_paddingTop + h + style_paddingBottom);
@@ -888,14 +888,14 @@ namespace Gui
         if (*selected)
         {
             PrimitivePanel(selectableRegion, style_buttonActiveColor);
-            PrimitiveText(x + 1, y + 10, 9, Align::Left, label);
+            PrimitiveText(x + 1, y + 10, 9, Align::LEFT, label);
             Window_StageLastElementDimension(selectableRegion.w, selectableRegion.h);
         }
         else
         {
             *selected = PrimitiveButton(FreshID(), selectableRegion, 
                 style_buttonNormalColor, style_buttonHoveredColor, style_buttonActiveColor, true);
-            PrimitiveText(x + 1, y + 10, 9, Align::Left, label);
+            PrimitiveText(x + 1, y + 10, 9, Align::LEFT, label);
             Window_StageLastElementDimension(selectableRegion.w, selectableRegion.h);
             if (*selected)
             {
@@ -920,14 +920,14 @@ namespace Gui
         if (*selected)
         {
             PrimitivePanel(selectableRegion, vec4(0.7f,0.7f,0.7f,1.0f));
-            PrimitiveText(x + 2, y + h - 2, labelTextSize, Align::Left, label);
+            PrimitiveText(x + 2, y + h - 2, labelTextSize, Align::LEFT, label);
             Window_StageLastElementDimension(selectableRegion.w, selectableRegion.h);
         }
         else
         {
             *selected = PrimitiveButton(FreshID(), selectableRegion, 
                 style_buttonNormalColor, vec4(0.4f,0.4f,0.4f,1.0f), vec4(0.7f,0.7f,0.7f,1.0f), true);
-            PrimitiveText(x + 2, y + h - 2, labelTextSize, Align::Left, label);
+            PrimitiveText(x + 2, y + h - 2, labelTextSize, Align::LEFT, label);
             Window_StageLastElementDimension(selectableRegion.w, selectableRegion.h);
             if (*selected)
             {
@@ -1753,7 +1753,7 @@ static GPUMeshIndexed s_colored_text_mesh;
 
 #define MAX_DRAWCOLLECTIONS_ALLOWED 16
 
-namespace Gui
+namespace GUI
 {
     struct DrawCollectionMetaData
     {
@@ -1984,13 +1984,13 @@ namespace Gui
         vtxt_move_cursor(x, y);
         switch (alignment)
         {
-            case Align::Left:{
+            case Align::LEFT:{
                 vtxt_append_line(text, font.ptr, size);
             }break;
-            case Align::Center:{
+            case Align::CENTER:{
                 vtxt_append_line_centered(text, font.ptr, size);
             }break;
-            case Align::Right:{
+            case Align::RIGHT:{
                 vtxt_append_line_align_right(text, font.ptr, size);
             }break;
         }

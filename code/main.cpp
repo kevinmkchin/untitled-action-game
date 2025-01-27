@@ -622,8 +622,8 @@ static void TickGame()
 
     // temp crosshair
     ivec2 guiwh = ivec2(RenderTargetGUI.width, RenderTargetGUI.height);
-    Gui::PrimitivePanel(Gui::UIRect(guiwh.x/2 - 3, guiwh.y/2 - 3, 6, 6), vec4(0,0,0,1));
-    Gui::PrimitivePanel(Gui::UIRect(guiwh.x/2 - 2, guiwh.y/2 - 2, 4, 4), vec4(1,1,1,1));
+    GUI::PrimitivePanel(GUI::UIRect(guiwh.x / 2 - 3, guiwh.y / 2 - 3, 6, 6), vec4(0, 0, 0, 1));
+    GUI::PrimitivePanel(GUI::UIRect(guiwh.x / 2 - 2, guiwh.y / 2 - 2, 4, 4), vec4(1, 1, 1, 1));
 
 
     // PLAYER MOVE
@@ -955,7 +955,7 @@ static void RenderGUILayer()
     glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_SRC_ALPHA, GL_ONE);
     glDisable(GL_DEPTH_TEST); // I forgot why the fuck I'm disabling depth test when using glDepthRange
 
-    Gui::Draw();
+    GUI::Draw();
 }
 
 static void FinalRenderToBackBuffer()
@@ -1120,7 +1120,7 @@ static bool InitializeEverything()
     if (Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 2, 2048) < 0 || Mix_Init(MIX_INIT_OGG) < 0)
         return false;
 
-    Gui::Init();
+    GUI::Init();
 
     return true;
 }
@@ -1194,7 +1194,7 @@ static void ProcessSDLEvents()
             }
         }
 
-        Gui::ProcessSDLEvent(event);
+        GUI::ProcessSDLEvent(event);
     }
 }
 
@@ -1232,7 +1232,7 @@ int main(int argc, char* argv[])
     {
         TickTime();
 
-        Gui::NewFrame();
+        GUI::NewFrame();
         ProcessSDLEvents();
 
         if (RDOCAPI && KeysPressed[SDL_SCANCODE_HOME])
