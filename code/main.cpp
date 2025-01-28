@@ -12,7 +12,6 @@ TODO:
 
 - refactor out font size 9
 
-- Use a triangulation library for face triangulation https://github.com/artem-ogre/CDT
 - Enemy moves and shoots at player
 - Player shoots at enemy
 - Gun model?
@@ -58,19 +57,28 @@ Get some things to shoot on the screen (navmesh/pathfinding, skeletal animations
 Particle effects
 
 
-OTHER:
+== OTHER ==
+
+(poly draw) Draw poly on plane then raise to create volume tool
+
+SDL3:
+Can set FramesInFlight https://wiki.libsdl.org/SDL3/SDL_SetGPUAllowedFramesInFlight but not sure how it works.
 Try upgrading to SDL3 first...or to latest SDL2...ugh might still just have to rewrite platforms code
 Rewrite platforms code in Win32 and remove SDL - FPS mouselook feels janky (lag + stutter when low framerate), yaw and pitch calculation as euler might be dumb. Just write directly to a rotation matrix?
 Finish implementing Editable Volumes and Atomics
-(poly draw) Draw poly on plane then raise to create volume tool
 
-BUGS:
+Non-convex faces:
+I _could_ replace my shitty fanning triangulation with CDT library (https://github.com/artem-ogre/CDT)
+with constraint that all vertices of a face must lie on the same plane and enforce that constraint in
+the editor. Then I could have 
+
+== BUGS ==
 - (2024-09-24 T480) periodic frame rate drops down to ~59/60fps then back up when in fullscreen mode (both SDL_WINDOW_FULLSCREEN and SDL_WINDOW_FULLSCREEN_DESKTOP)
                     I don't think it has to do with TickTime - Changing to use SDL_GetTicks64 no effect.
                     Look into https://wiki.libsdl.org/SDL2/SDL_GetWindowDisplayMode
                     Also, setting the window size to the screen size when creating window makes SDL enter fullscreen?
 
-NOTES:
+== NOTES ==
 
     64x64 pixel texture for each 32x32 unit in game looks decent
 
