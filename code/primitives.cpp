@@ -505,15 +505,9 @@ void AddTrianglesToPickableHandles(float *vertices, int count)
     HANDLES_VB.count += count;
 }
 
-static void DrawHandlesVertexArray_GL(float *vertexArrayData, u32 vertexArrayDataCount, 
-    u32 fboId, int viewportW, int viewportH, float *projectionMat, float *viewMat)
+void DrawHandlesVertexArray_GL(float *vertexArrayData, u32 vertexArrayDataCount, 
+    float *projectionMat, float *viewMat)
 {
-    glBindFramebuffer(GL_FRAMEBUFFER, fboId);
-    glViewport(0,0,viewportW,viewportH);
-    glClearColor(0.f,0.f,0.f,1.f); // clear with rgb(id 0)
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    glEnable(GL_DEPTH_TEST);
-
     UseShader(HANDLES_SHADER);
 
     GLBindMatrix4fv(HANDLES_SHADER, "projectionMatrix", 1, projectionMat);
@@ -525,6 +519,18 @@ static void DrawHandlesVertexArray_GL(float *vertexArrayData, u32 vertexArrayDat
     glDrawArrays(GL_TRIANGLES, 0, vertexArrayDataCount / 6);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
+}
+
+void DrawHandlesVertexArray_GL(float *vertexArrayData, u32 vertexArrayDataCount, 
+    u32 fboId, int viewportW, int viewportH, float *projectionMat, float *viewMat)
+{
+    glBindFramebuffer(GL_FRAMEBUFFER, fboId);
+    glViewport(0,0,viewportW,viewportH);
+    glClearColor(0.f,0.f,0.f,1.f); // clear with rgb(id 0)
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glEnable(GL_DEPTH_TEST);
+
+    DrawHandlesVertexArray_GL(vertexArrayData, vertexArrayDataCount, projectionMat, viewMat);
 }
 
 u32 FlushHandles(ivec2 clickat, const GPUFrameBuffer activeSceneTarget,

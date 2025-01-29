@@ -7,6 +7,7 @@ Handcrafted with love.
 
 TODO:
 - goal of this refactor: have small debug menu to switch between the game and map editor
+- Jolt debug renderer
 
 - srgb gamma correction bull shit for editor texture that are not lit
 

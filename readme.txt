@@ -26,8 +26,10 @@ API:
 Captures saved to C:\Users\Kevin\AppData\Local\Temp\RenderDoc but can be changed with RDOCAPI->SetCaptureFilePathTemplate.
 
 
-== Development ==
+== Dependencies ==
 
+Jolt - physics https://github.com/jrouwe/JoltPhysics
+Recast - navigation mesh https://github.com/recastnavigation/recastnavigation
 gmath.h - math
 stb_ds.h - dynamic arrays
 

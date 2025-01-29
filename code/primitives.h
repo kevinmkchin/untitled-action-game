@@ -27,6 +27,12 @@ void DoDiscHandle(u32 id, vec3 worldpos, vec3 normal, float radius);
 // worldpos x y z color r g b
 void AddTrianglesToPickableHandles(float *vertices, int count);
 
+// Uses HANDLES_SHADER but works with any triangle vertex buffer of XYZRGB layout
+void DrawHandlesVertexArray_GL(float *vertexArrayData, u32 vertexArrayDataCount, 
+    u32 fboId, int viewportW, int viewportH, float *projectionMat, float *viewMat);
+void DrawHandlesVertexArray_GL(float *vertexArrayData, u32 vertexArrayDataCount, 
+    float *projectionMat, float *viewMat);
+
 // draw all handles, return id of clicked handle
 u32 FlushHandles(ivec2 clickat, const GPUFrameBuffer activeSceneTarget,
                  const mat4& activeViewMatrix, const mat4& activeProjectionMatrix, bool orthographic);
