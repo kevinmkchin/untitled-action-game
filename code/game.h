@@ -10,6 +10,7 @@ void DoGameLoop();
 // private
 void UnloadPreviousLevel();
 void CreateAndRegisterLevelCollider();
+bool CreateRecastNavMesh();
 void CreateAndRegisterPlayerPhysicsController();
 void PrePhysicsTick();
 void PostPhysicsTick();

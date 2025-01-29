@@ -31,7 +31,7 @@ echo #define MESA_WINDOWS 1                             >> code\BUILDINFO.H
 echo #define INTERNAL_BUILD %IsInternalBuild%           >> code\BUILDINFO.H
 
 :: MSVC FLAGS ::
-set CommonCompilerFlags=-nologo /std:c++17 /EHsc /W3 /we4239 /wd4996 /MP /I"..\ext" /I"..\ext\gl3w" /I"..\ext\sdl\include" /I"..\ext\sdl2_mixer\include" /I"..\ext\assimp\include" /I"..\ext\jolt"
+set CommonCompilerFlags=-nologo /std:c++17 /EHsc /W3 /we4239 /wd4996 /MP /I"..\ext" /I"..\ext\gl3w" /I"..\ext\sdl\include" /I"..\ext\sdl2_mixer\include" /I"..\ext\assimp\include" /I"..\ext\jolt" /I"..\ext\recast\Includes"
 set CommonLinkerFlags=/incremental:no /opt:ref /subsystem:console shell32.lib opengl32.lib dwmapi.lib ole32.lib /LIBPATH:"..\ext\sdl\lib\x64" SDL2.lib SDL2main.lib /LIBPATH:"..\ext\sdl2_mixer\lib\x64" SDL2_mixer.lib /LIBPATH:"..\ext\assimp\lib" assimp-vc142-mt.lib
 
 :: Debug or Release ::
@@ -39,12 +39,12 @@ set OutputExecutable=GAME.exe
 if %ReleaseMode%==0 (
     set OutputFolder=Debug
     set CommonCompilerFlags=%CommonCompilerFlags% /Zi /MTd /DJPH_OBJECT_STREAM
-    set CommonLinkerFlags=%CommonLinkerFlags% /LIBPATH:"..\ext\jolt\Debug" jolt.lib
+    set CommonLinkerFlags=%CommonLinkerFlags% /LIBPATH:"..\ext\jolt\Debug" jolt.lib /LIBPATH:"..\ext\recast\Debug" Recast-d.lib Detour-d.lib DebugUtils-d.lib
     echo Build %OutputExecutable% in Debug mode
 ) else (
     set OutputFolder=Release
     set CommonCompilerFlags=%CommonCompilerFlags% /O2 /DNDEBUG /DJPH_OBJECT_STREAM
-    set CommonLinkerFlags=%CommonLinkerFlags% /LIBPATH:"..\ext\jolt\Release" /LTCG jolt.lib
+    set CommonLinkerFlags=%CommonLinkerFlags% /LIBPATH:"..\ext\jolt\Release" /LTCG jolt.lib /LIBPATH:"..\ext\recast\Release" Recast.lib Detour.lib DebugUtils.lib
     echo Build %OutputExecutable% in Release mode
 )
 
