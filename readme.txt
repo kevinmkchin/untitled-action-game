@@ -37,3 +37,8 @@ See ext\ for any other external libraries.
 
 Consider https://github.com/rxi/cmixer to replace SDL_mixer
 
+
+== Development Resources ==
+
+https://web.archive.org/web/20130328024036/http://gafferongames.com/game-physics/fix-your-timestep/
+

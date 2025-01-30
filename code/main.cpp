@@ -6,8 +6,10 @@ Handcrafted with love.
 
 
 TODO:
-- goal of this refactor: have small debug menu to switch between the game and map editor
-- Jolt debug renderer
+- have small debug menu to switch between the game and map editor
+    - Player spawn "marker"
+    - Jolt debug renderer
+    - remove SUNLIGHT_TEST flag and add proper light sources
 
 - srgb gamma correction bull shit for editor texture that are not lit
 
@@ -22,6 +24,7 @@ TODO:
 - move volume mode/tool (don't need whole tool...maybe make brush tool part of this mode? like trenchbroom)
 - multi select vertices need to be fixed
 - Toggle element translation along axis
+- Finish Winged brep editing atomics
 - Edge select
 - Edge loop
 
@@ -63,10 +66,11 @@ Particle effects
 (poly draw) Draw poly on plane then raise to create volume tool
 
 SDL3:
-Can set FramesInFlight https://wiki.libsdl.org/SDL3/SDL_SetGPUAllowedFramesInFlight but not sure how it works.
-Try upgrading to SDL3 first...or to latest SDL2...ugh might still just have to rewrite platforms code
-Rewrite platforms code in Win32 and remove SDL - FPS mouselook feels janky (lag + stutter when low framerate), yaw and pitch calculation as euler might be dumb. Just write directly to a rotation matrix?
-Finish implementing Editable Volumes and Atomics
+Can set FramesInFlight https://wiki.libsdl.org/SDL3/SDL_SetGPUAllowedFramesInFlight but 
+not sure how it works. Try upgrading to SDL3 first...or to latest SDL2...ugh might still 
+just have to rewrite platforms code. Rewrite platforms code in Win32 and remove SDL - FPS
+mouselook feels janky (lag + stutter when low framerate), yaw and pitch calculation as 
+euler might be dumb. Just write directly to a rotation matrix?
 
 Non-convex faces:
 I _could_ replace my shitty fanning triangulation with CDT library (https://github.com/artem-ogre/CDT)
@@ -74,18 +78,28 @@ with constraint that all vertices of a face must lie on the same plane and enfor
 the editor. Then I could have 
 
 == BUGS ==
-- (2024-09-24 T480) periodic frame rate drops down to ~59/60fps then back up when in fullscreen mode (both SDL_WINDOW_FULLSCREEN and SDL_WINDOW_FULLSCREEN_DESKTOP)
-                    I don't think it has to do with TickTime - Changing to use SDL_GetTicks64 no effect.
-                    Look into https://wiki.libsdl.org/SDL2/SDL_GetWindowDisplayMode
-                    Also, setting the window size to the screen size when creating window makes SDL enter fullscreen?
+- (2024-09-24 T480) periodic frame rate drops down to ~59/60fps then back up when in
+                    fullscreen mode (both SDL_WINDOW_FULLSCREEN and SDL_WINDOW_FULLSCREEN_DESKTOP)
+                    I don't think it has to do with TickTime - Changing to use SDL_GetTicks64 no 
+                    effect. Look into https://wiki.libsdl.org/SDL2/SDL_GetWindowDisplayMode
+                    Also, setting the window size to the screen size when creating window makes 
+                    SDL enter fullscreen?
 
 == NOTES ==
 
     64x64 pixel texture for each 32x32 unit in game looks decent
 
-    Embrace the fact that lighting will be crude and not perfect. The visual artifacts is part of the charm of my game and engine. Something that differentiates it from the perfect crispy lighting of engines like Godot or Unity.
+    Embrace the fact that lighting will be crude and not perfect. The visual artifacts 
+    is part of the charm of my game and engine. Something that differentiates it from 
+    the perfect crispy lighting of engines like Godot or Unity.
 
-    Ultimately, the game will very much have my identity. From some UI looking crusty, or enemy animations being janky, but that personal touch is part of the charm of an indie game like this.
+    Ultimately, the game will very much have my identity. From some UI looking crusty,
+    or enemy animations being janky, but that personal touch is part of the charm of 
+    an indie game like this.
+
+    For now, let's tie game and physics simulation to framerate up to a maximum.
+    Let simulation run slower if framerate drops below our allowed maximum of 16ms.
+    Therefore, simulation behaves nicely for frametimes between 0 and 16ms.
 
     port over dropdown console?
 
@@ -247,8 +261,8 @@ inline std::string data_path(const std::string& name) { return wd_path() + "data
 SDL_Window *SDLMainWindow;
 SDL_GLContext SDLGLContext;
 bool ProgramShutdownRequested = false;
-float DeltaTime = 0.f;
-float UnscaledDeltaTime = 0.f;
+float DeltaTime = 0.f; // NOTE(Kevin 2025-01-30): capped at 16ms
+float RealDeltaTime = 0.f; // Unscaled and uncapped
 float GameTimeScale = 1.f;
 float CurrentTime = 0.f;
 float TimeSinceStart = 0.f;
@@ -414,12 +428,15 @@ static void TickTime()
     float deltaTimeInSeconds = elapsedMs * 0.001f; // elapsed time in SECONDS
     float currentTimeInSeconds = (float)(std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count() * 0.001f);
     CurrentTime = currentTimeInSeconds;
-    UnscaledDeltaTime = deltaTimeInSeconds;
-    TimeSinceStart += UnscaledDeltaTime;
-    DeltaTime = UnscaledDeltaTime * GameTimeScale;
+    RealDeltaTime = deltaTimeInSeconds;
+    TimeSinceStart += RealDeltaTime;
+
+    static const float CappedDeltaTime = 1.0f / 58.0f; // with some tolerance from 60
+    DeltaTime = GM_min(RealDeltaTime, CappedDeltaTime);
+    DeltaTime = DeltaTime * GameTimeScale;
 }
 
-static bool InitializeEverything()
+static bool InitializeApplication()
 {
     _getcwd(CurrentWorkingDirectory, 128);
 
@@ -459,7 +476,7 @@ static bool InitializeEverything()
                                      SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
                                      2560,
                                      1440,
-                                       SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
+                                     SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
 
     SDLGLContext = SDL_GL_CreateContext(SDLMainWindow);
 
@@ -557,6 +574,45 @@ static void ProcessSDLEvents()
     }
 }
 
+static void ApplicationSwitchToLevelEditor()
+{
+    // todo clean up game memory
+    // todo close game
+
+    GameLoopCanRun = false;
+
+    LevelEditor.Open();
+}
+
+static void ApplicationBuildLevelAndPlay()
+{
+    if (!LevelEditor.IsActive)
+    {
+        LogWarning("ApplicationBuildLevelAndPlay called when level editor is not active.");
+        return;
+    }
+
+    std::string path = SaveGameMapDialog();
+    if (path.empty())
+        return;
+
+    if (BuildGameMap(path.c_str()) == false)
+    {
+        LogError("Failed to build to %s", path.c_str());
+        return;
+    }
+
+    LevelEditor.Close();
+
+    // todo open game
+
+    LoadLevel(path.c_str());
+
+    // todo set game to be active
+
+    GameLoopCanRun = true;
+}
+
 static void ApplicationLoop()
 {
     // TODO actually I want option to let the game keep running while
@@ -581,7 +637,21 @@ static void ApplicationLoop()
         GUI::BeginWindow(GUI::UIRect(32, 32, 200, 300));
         GUI::EditorText("== Menu ==");
         GUI::EditorSpacer(0, 10);
-        GUI::EditorLabelledButton("Level Editor");
+        if (GUI::EditorLabelledButton("OPEN LEVEL EDITOR"))
+        {
+            ApplicationSwitchToLevelEditor();
+            ShowDebugMenu = false;
+        }
+        GUI::EditorSpacer(0, 10);
+        if (GUI::EditorLabelledButton("BUILD LEVEL AND PLAY"))
+        {
+            ApplicationBuildLevelAndPlay();
+            ShowDebugMenu = false;
+        }
+        GUI::EditorSpacer(0, 10);
+        GUI::EditorLabelledButton("PLAY buildtest.map");
+        GUI::EditorLabelledButton("PLAY house.map");
+        GUI::EditorLabelledButton("PLAY playground1.map");
         GUI::EndWindow();
 
         GUI::PrimitiveText(RenderTargetGUI.width/2-13, RenderTargetGUI.height/2, 9, GUI::LEFT, "PAUSED");
@@ -590,7 +660,7 @@ static void ApplicationLoop()
 
 int main(int argc, char* argv[])
 {
-    if (!InitializeEverything()) return -1;
+    if (!InitializeApplication()) return -1;
 
     InitGameRenderer();
 
@@ -598,8 +668,9 @@ int main(int argc, char* argv[])
 
     // RDOCAPI->LaunchReplayUI(1, "");
 
-    OpenGame();
-    // LevelEditor.Open();
+    InitializeGame();
+    // LoadLevel(wd_path("switchtest0.map").c_str());
+    LevelEditor.Open();
 
     while (!ProgramShutdownRequested)
     {
@@ -612,9 +683,16 @@ int main(int argc, char* argv[])
                 RDOCAPI->LaunchReplayUI(1, "");
 
         ApplicationLoop();
-        DoGameLoop();
-        // LevelEditor.Tick();
-        // LevelEditor.Draw();
+
+        if (LevelEditor.IsActive)
+        {
+            LevelEditor.Tick();
+            LevelEditor.Draw();
+        }
+        else
+        {
+            DoGameLoop();
+        }
 
         RenderGUILayer();
         FinalRenderToBackBuffer();
@@ -623,8 +701,8 @@ int main(int argc, char* argv[])
         glFinish();
     }
 
-    CloseGame();
-    // LevelEditor.Close();
+    LevelEditor.Close();
+    DestroyGame();
 
     SDL_DestroyWindow(SDLMainWindow);
     SDL_GL_DeleteContext(SDLGLContext);

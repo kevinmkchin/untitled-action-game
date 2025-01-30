@@ -1,14 +1,14 @@
 #pragma once
 
 
-void OpenGame();
-void CloseGame();
-void LoadLevel();
+void InitializeGame();
+void DestroyGame();
+void LoadLevel(const char *MapPath);
+void UnloadPreviousLevel();
 
 void DoGameLoop();
 
 // private
-void UnloadPreviousLevel();
 void CreateAndRegisterLevelCollider();
 bool CreateRecastNavMesh();
 void CreateAndRegisterPlayerPhysicsController();

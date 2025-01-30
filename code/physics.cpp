@@ -139,16 +139,19 @@ void physics_t::Destroy()
     JPH::Factory::sInstance = nullptr;
 }
 
-void physics_t::Update()
+void physics_t::Tick()
 {
     static JPH::TempAllocatorImpl PhysTempAllocator(10 * 1024 * 1024);
     static JPH::JobSystemThreadPool PhysJobSystem(JPH::cMaxPhysicsJobs, JPH::cMaxPhysicsBarriers, 
         std::thread::hardware_concurrency() - 1);
 
+    // NOTE(Kevin 2025-01-30): Should keep this fixed. Global dt can be huge when program spends a lot of time
+    //                         doing something like building a map. If it's fixed, then physics/world just simulates
+    //                         slower if framerate drops below 60.
+    // NOTE(Kevin 2025-01-30): Instead of fixing dt, cap it at 16ms.
     // const float cDeltaTime = 1.0f / 60.0f;
     const int cCollisionSteps = 1;
 
-    // Step the world using global delta time (it better be fixed 60Hz)
     PhysicsSystem->Update(DeltaTime, cCollisionSteps, &PhysTempAllocator, &PhysJobSystem);
 }
 
