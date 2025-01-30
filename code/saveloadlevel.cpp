@@ -8,6 +8,8 @@ bool BuildGameMap(const char *path)
     // TODO(Kevin): remove this timing shit
     u32 TimeAtStartOfBuildGameMap = SDL_GetTicks();
 
+    LogMessage("Building game map data to %s", path);
+    LogMessage("Light baking will take some time...");
 
     game_map_build_data_t BuildData;
     BuildData.Output = ByteBufferNew();

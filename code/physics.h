@@ -173,7 +173,7 @@ struct physics_t
     void Initialize();
     void Destroy();
 
-    void Update();
+    void Tick();
 
 public:
     JPH::PhysicsSystem *PhysicsSystem = nullptr;

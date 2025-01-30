@@ -13,32 +13,23 @@ player_t Player;
 mat4 GameViewMatrix;
 JPH::BodyID LevelColliderBodyId; 
 
-void OpenGame()
+void InitializeGame()
 {
-// #if SUNLIGHT_TEST
-//     LevelEditor.LoadMap(wd_path("House.emf").c_str());
-// #else
-//     LevelEditor.LoadMap(wd_path("LightTest.emf").c_str());
-// #endif
-//     BuildGameMap(wd_path("buildtest.map").c_str());
-
+    // testing stuff here
     sfx_Jump = Mixer_LoadChunk(wd_path("gunshot-37055.ogg").c_str());
     LoadModelGLTF2Bin(&Model_Knight, wd_path("models/knight.glb").c_str());
 
     Physics.Initialize();
 
-    LoadLevel();
-    if (!LevelLoaded) return;
-
     CreateAndRegisterPlayerPhysicsController();
 }
 
-void CloseGame()
+void DestroyGame()
 {
     Physics.Destroy();
 }
 
-void LoadLevel()
+void LoadLevel(const char *MapPath)
 {
     ASSERT(Physics.PhysicsSystem);
 
@@ -47,7 +38,7 @@ void LoadLevel()
     if (LevelLoaded)
         UnloadPreviousLevel();
 
-    if (LoadGameMap(wd_path("buildtest.map").c_str()) == false)
+    if (LoadGameMap(MapPath) == false)
     {
         LogError("failed to load game map");
         return;
@@ -66,6 +57,8 @@ void UnloadPreviousLevel()
         Physics.BodyInterface->RemoveBody(LevelColliderBodyId);
         Physics.BodyInterface->DestroyBody(LevelColliderBodyId);
     }
+
+    LevelLoaded = false;
 }
 
 void PrePhysicsTick()
@@ -194,12 +187,14 @@ void DoGameLoop()
     PrePhysicsTick();
 
     // physics tick
-    Physics.Update();
+    Physics.Tick();
 
     // post physics tick
     PostPhysicsTick();
 
-    // draw
+    // Do animation loop
+
+    // Do render loop
     RenderGameLayer();
 
     UpdateGameGUI();
@@ -535,9 +530,9 @@ bool CreateRecastNavMesh()
     // Init build configuration from GUI
     memset(&m_cfg, 0, sizeof(m_cfg));
     /// The xz-plane cell size to use for fields. [Limit: > 0] [Units: wu] 
-    m_cfg.cs = 0.3f;//8;
+    m_cfg.cs = 3.f;//8;
     /// The y-axis cell size to use for fields. [Limit: > 0] [Units: wu]
-    m_cfg.ch = 0.2f;//6;
+    m_cfg.ch = 2.f;//6;
     /// The maximum slope that is considered walkable. [Limits: 0 <= value < 90] [Units: Degrees] 
     m_cfg.walkableSlopeAngle = 45;
     /// Minimum floor to 'ceiling' height that will still allow the floor area to 
@@ -914,6 +909,7 @@ void CreateAndRegisterLevelCollider()
     LevelColliderBodyId = LevelCollider->GetID();
 
     // Add it to the world
+    // NOTE(Kevin 2025-01-30): Why is this DontActivate?
     Physics.BodyInterface->AddBody(LevelCollider->GetID(), JPH::EActivation::DontActivate);
 
     // Optional step: Before starting the physics simulation you can optimize the broad phase. This improves collision detection performance (it's pointless here because we only have 2 bodies).
