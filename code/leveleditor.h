@@ -41,8 +41,6 @@ private:
     void EnterNewStateNextFrame(editor_state_t NextState);
     void EnterNextState();
 
-    void ResetFaceToolData();
-
     u32 PickVolume(MapEdit::Volume *volumes, u32 arraycount);
     u32 PickFace(MapEdit::Face **faces, u32 arraycount);
     // Get the point and normal of the clicked point on a face or
@@ -55,6 +53,9 @@ private:
     void DoVertexManip();
     void DoSimpleBrushTool();
 
+private:
+    void ResetFaceToolData();
+
 public:
     dynamic_array<MapEdit::Volume> LevelEditorVolumes;
     bool IsActive = false;
@@ -62,8 +63,8 @@ private:
     dynamic_array<level_entity_t> LevelEntities;
 
 public:
-    vec3 CameraPosition = vec3(600, 500, 600);
-    vec3 CameraRotation = vec3(0, 192.3f, 7.56f);// vec3(0,130,-30);
+    vec3 CameraPosition = vec3(776.0f, 508.9f, 302.7f);
+    vec3 CameraRotation = vec3(0.f, 145.2f, -28.8f);
     vec3 CameraDirection;
     vec3 CameraRight;
     vec3 CameraUp;
