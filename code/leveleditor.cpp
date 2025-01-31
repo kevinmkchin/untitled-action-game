@@ -390,12 +390,13 @@ void level_editor_t::DoEditorGUI()
     }
     GUI::EndWindow();
 
-    GUI::BeginWindow(GUI::UIRect(RenderTargetGUI.width - 160, 50, 150, 150));
-    if (GUI::EditorLabelledButton("Add Player Spawn Point"))
-    {
-        // enter add point entity mode
+    GUI::BeginWindow(GUI::UIRect(RenderTargetGUI.width - 250, 150, 240, 150));
+    bool PlacePointEntityActive = ActiveState == PLACE_POINT_ENTITY;
+    GUI::EditorBeginHorizontal();
+    if (GUI::EditorSelectable_2("", &PlacePointEntityActive))
         EnterNewStateNextFrame(PLACE_POINT_ENTITY);
-    }
+    GUI::EditorText(" Place POINT_PLAYER_SPAWN");
+    GUI::EditorEndHorizontal();
     GUI::EndWindow();
 }
 
@@ -526,7 +527,11 @@ void level_editor_t::DoPlacePointEntity()
         if (!ValidPointWasPicked)
             return;
 
-        // TODO
+        level_entity_t PlacedPointEntity;
+        PlacedPointEntity.Type = POINT_PLAYER_SPAWN;
+        PlacedPointEntity.Position = PickedPoint;
+        PlacedPointEntity.Rotation = vec3();
+        LevelEntities.put(PlacedPointEntity);
 
         EnterNewStateNextFrame(LastState);
     }
@@ -1064,6 +1069,21 @@ void level_editor_t::Draw()
     }
 
     // PRIMITIVES
+
+    // Entity billboards
+    for (size_t i = 0; i < LevelEntities.lenu(); ++i)
+    {
+        const level_entity_t& Ent = LevelEntities[i];
+        switch(Ent.Type)
+        {
+            case POINT_PLAYER_SPAWN:
+                // TODO Draw player spawn billboard "gizmo"
+                PrimitiveDrawSolidDisc(Ent.Position, -CameraDirection,
+                    12.f, vec4(0.f, 1.f, 1.f, 1.f));
+                break;
+        }
+    }
+
     // Draw outline of selected faces
     for (int i = 0; i < SELECTED_MAP_VOLUMES_INDICES.count; ++i)
     {

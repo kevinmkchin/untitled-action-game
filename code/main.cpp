@@ -4,6 +4,11 @@ Something fucking cool.
 Priorty #1 is building the game, not the engine/tech
 Handcrafted with love.
 
+Quick todo:
+- translate point entities
+- list all point entites in the scene
+- billboard for player spawn
+
 
 TODO:
 - have small debug menu to switch between the game and map editor
@@ -160,7 +165,6 @@ the editor. Then I could have
 #if INTERNAL_BUILD
 #include <renderdoc_app.h>
 #endif
-
 
 #include <map>
 #include <unordered_map>
