@@ -641,6 +641,8 @@ void level_editor_t::Tick()
                         vec3 ws = ScreenPointToWorldPoint(MousePos, 0.f);
                         vec3 wr = ScreenPointToWorldRay(MousePos);
                         float f = (0.f - ws.y) / wr.y;
+                        if (f < 0.f)
+                            break;
                         simpleBrushToolState = SimpleBrushToolState::DrawingRectangle;
                         rectstartpoint = ws + wr * f;
                         drawingplanenormal = GM_UP_VECTOR;
