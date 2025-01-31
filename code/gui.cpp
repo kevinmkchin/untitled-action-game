@@ -655,7 +655,10 @@ namespace GUI
         if (lastAddedElementDimension != ivec2())
             Window_CommitLastElementDimension();
 
-        GUIDraw_PushDrawCollection(windowRect, depth);
+        if (depth > -1)
+            GUIDraw_PushDrawCollection(windowRect, depth);
+        else
+            GUIDraw_PushDrawCollection(windowRect, (u8)WINDOWSTACK.size());
 
         WindowData windata;
         windata.zoneId = FreshID();
@@ -1758,7 +1761,7 @@ namespace GUI
     struct DrawCollectionMetaData
     {
         UIRect windowMask;
-        u8 depth = 0;
+        int depth = 0;
     };
 
     static UIRect activeWindowMask;
@@ -1780,8 +1783,8 @@ namespace GUI
         ASSERT(DRAWQUEUE_METADATA.count == 0);
         ASSERT(DRAWREQCOLLECTIONSTACK.empty());
 
-        DRAWQSTORAGE.count = 1;
-        DRAWQUEUE_METADATA.PushBack({ UIRect(0,0,9999,9999), 0 });
+        DRAWQSTORAGE.count = 1; // base collection
+        DRAWQUEUE_METADATA.PushBack({ UIRect(0,0,9999,9999), 0 }); 
         DRAWREQCOLLECTIONSTACK.push(&DRAWQSTORAGE.Back());
     }
 
@@ -1818,13 +1821,19 @@ namespace GUI
         UseShader(colored_text_shader);
         GLBindMatrix4fv(colored_text_shader, "matrixOrtho", 1, projectionMatrix.ptr());
 
+        // Draw base collection
+        activeWindowMask = DRAWQUEUE_METADATA.At(0).windowMask;
+        std::vector<UIDrawRequest *> &baseDrawQueue = DRAWQSTORAGE.At(0);
+        for (auto drawCall : baseDrawQueue)
+            drawCall->Draw();
+
         // could sort so its O(n) but realistically how many windows am I going to have...
-        u8 highestDepth = 0;
+        int highestDepth = 0;
         for (int i = 0; i < DRAWQUEUE_METADATA.count; ++i)
             highestDepth = GM_max(highestDepth, DRAWQUEUE_METADATA.At(i).depth);
 
         // Draw collections of depth 0 to highestDepth except for base collection
-        for (u8 depth = 0; depth <= highestDepth; ++depth)
+        for (int depth = 0; depth <= highestDepth; ++depth)
         {
             for (int i = 1; i < DRAWQSTORAGE.count; ++i)
             {
@@ -1837,15 +1846,9 @@ namespace GUI
                 }
             }
         }
-
-        // Draw base collection NOTE(Kevin): ok so basically base collection goes on top of everything else
-        activeWindowMask = DRAWQUEUE_METADATA.At(0).windowMask;
-        std::vector<UIDrawRequest*>& baseDrawQueue = DRAWQSTORAGE.At(0);
-        for (auto drawCall : baseDrawQueue)
-            drawCall->Draw();
     }
 
-    void GUIDraw_PushDrawCollection(UIRect windowMask, u8 depth)
+    void GUIDraw_PushDrawCollection(UIRect windowMask, int depth)
     {
         ASSERT(DRAWQSTORAGE.NotAtCapacity());
         DRAWQSTORAGE.count++;

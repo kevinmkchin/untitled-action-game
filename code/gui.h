@@ -1,5 +1,16 @@
 #pragma once
 
+/* NOTES
+
+Decouple DrawReqCollection concept from windows concept
+DrawReqCollection simply has a mask and a depth
+maybe even let user keep reference to a DrawReqCollection handle and they
+can add more elements to it later in the frame
+
+
+*/
+
+
 #define null_ui_id 0
 typedef u64 ui_id;
 
@@ -80,7 +91,8 @@ namespace GUI
 
     /* Windows
     * For aligning GUI elements like a DearImGui window
-    * TODO Can be set to stop clicks from going through (if i click inside zone, then click doesn't go through to zones or program behind?)
+    * Check anyWindowHovered to prevent propagating mouse clicks to underlying program
+    *   depth of -1 means the window will set its depth to the window stack count (windows can begin in other windows)
     * TODO think about:
     * Can be set to capture focus?
     * Can be set to collapse?
@@ -188,7 +200,7 @@ namespace GUI {
     void GUIDraw_DrawEverything();
     void GUIDraw_NewFrame();
 
-    void GUIDraw_PushDrawCollection(UIRect windowMask, u8 depth);
+    void GUIDraw_PushDrawCollection(UIRect windowMask, int depth);
     void GUIDraw_PopDrawCollection();
     void AppendToCurrentDrawRequestsCollection(UIDrawRequest *drawRequest);
 
