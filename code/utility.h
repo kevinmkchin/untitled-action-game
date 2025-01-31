@@ -76,7 +76,7 @@ template<typename T> struct dynamic_array
     size_t lenu() const;
     // Sets the length of allocated storage to at least n. It will not
     // change the length of the array.
-    size_t setcap(int n);
+    void setcap(int n);
     // Returns the number of total elements the array can contain without
     // needing to be reallocated.
     size_t cap();

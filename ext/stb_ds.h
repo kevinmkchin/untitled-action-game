@@ -137,7 +137,7 @@ DOCUMENTATION
           slots at the end if necessary.
 
       arrsetcap:
-        size_t arrsetcap(T* a, int n);
+        size_t arrsetcap(T* a, int n); // NOTE(Kevin): It doesn't return size_t...
           Sets the length of allocated storage to at least n. It will not
           change the length of the array.
 
