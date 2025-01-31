@@ -484,11 +484,50 @@ u32 level_editor_t::PickFace(MapEdit::Face **faces, u32 arraycount)
     return faceId;
 }
 
+bool level_editor_t::PickPointAndNormalInLevel(vec3 *PlanePoint, vec3 *PlaneNormal)
+{
+    u32 pickedVolumeFrameId = PickVolume(LevelEditorVolumes.data, (u32)LevelEditorVolumes.lenu());
+    if (pickedVolumeFrameId > 0)
+    {
+        MapEdit::Volume& vol = LevelEditorVolumes[pickedVolumeFrameId-1];
+        dynamic_array<MapEdit::Face*> faces = vol.faces;
+        u32 faceIndex = PickFace(faces.data, (u32)faces.lenu());
+        MapEdit::Face *drawingFace = faces[faceIndex-1];
+
+        *PlaneNormal = drawingFace->QuickNormal();
+
+        vec3 ws = ScreenPointToWorldPoint(MousePos, 0.f);
+        vec3 wr = ScreenPointToWorldRay(MousePos);
+        vec3 intersectionPoint;
+        IntersectPlaneAndLineWithDirections(drawingFace->loopbase->v->pos, *PlaneNormal, ws, wr, &intersectionPoint);
+        
+        *PlanePoint = intersectionPoint;
+    }
+    else
+    {
+        vec3 ws = ScreenPointToWorldPoint(MousePos, 0.f);
+        vec3 wr = ScreenPointToWorldRay(MousePos);
+        float f = (0.f - ws.y) / wr.y;
+        if (f < 0.f)
+            return false;
+        simpleBrushToolState = SimpleBrushToolState::DrawingRectangle;
+        *PlanePoint = ws + wr * f;
+        *PlaneNormal = GM_UP_VECTOR;
+    }
+    return true;
+}
+
 void level_editor_t::DoPlacePointEntity()
 {
-    LogMessage("DoPlacePointEntity");
     if (LMBReleasedThisFrame)
     {
+        vec3 PickedPoint, PickedNormal;
+        bool ValidPointWasPicked = PickPointAndNormalInLevel(&PickedPoint, &PickedNormal);
+        if (!ValidPointWasPicked)
+            return;
+
+        // TODO
+
         EnterNewStateNextFrame(LastState);
     }
 }
@@ -721,32 +760,12 @@ void level_editor_t::DoSimpleBrushTool()
         case SimpleBrushToolState::NotActive:
             if (LMBPressedThisFrame)
             {
-                u32 pickedVolumeFrameId = PickVolume(LevelEditorVolumes.data, (u32)LevelEditorVolumes.lenu());
-                if (pickedVolumeFrameId > 0)
-                {
-                    MapEdit::Volume& vol = LevelEditorVolumes[pickedVolumeFrameId-1];
-                    dynamic_array<MapEdit::Face*> faces = vol.faces;
-                    u32 faceIndex = PickFace(faces.data, (u32)faces.lenu());
-                    MapEdit::Face *drawingFace = faces[faceIndex-1];
-                    drawingplanenormal = drawingFace->QuickNormal();
-                    vec3 ws = ScreenPointToWorldPoint(MousePos, 0.f);
-                    vec3 wr = ScreenPointToWorldRay(MousePos);
-                    vec3 intersectionPoint;
-                    IntersectPlaneAndLineWithDirections(drawingFace->loopbase->v->pos, drawingplanenormal, ws, wr, &intersectionPoint);
-                    simpleBrushToolState = SimpleBrushToolState::DrawingRectangle;
-                    rectstartpoint = intersectionPoint;
-                }
-                else
-                {
-                    vec3 ws = ScreenPointToWorldPoint(MousePos, 0.f);
-                    vec3 wr = ScreenPointToWorldRay(MousePos);
-                    float f = (0.f - ws.y) / wr.y;
-                    if (f < 0.f)
-                        break;
-                    simpleBrushToolState = SimpleBrushToolState::DrawingRectangle;
-                    rectstartpoint = ws + wr * f;
-                    drawingplanenormal = GM_UP_VECTOR;
-                }
+                // We pick a point and normal on a plane
+                bool ValidPointWasPicked = 
+                    PickPointAndNormalInLevel(&rectstartpoint, &drawingplanenormal);
+                if (!ValidPointWasPicked)
+                    break;
+
                 rectstartpoint = SnapToGrid(rectstartpoint);
                 // no matter what, at least one of these vectors is GM_RIGHT_VECTOR rotated around y-axis.
                 vec3 flattenedNormal = vec3(drawingplanenormal.x, 0.f, drawingplanenormal.z);
@@ -758,6 +777,8 @@ void level_editor_t::DoSimpleBrushTool()
                     flattenedNormal = Normalize(flattenedNormal);
                 drawinghorizontal = Normalize(Cross(drawingplanenormal, flattenedNormal));
                 drawingvertical = Normalize(Cross(drawingplanenormal, drawinghorizontal));
+                
+                simpleBrushToolState = SimpleBrushToolState::DrawingRectangle;
             }
             break;
         case SimpleBrushToolState::DrawingRectangle:
