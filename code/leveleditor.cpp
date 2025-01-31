@@ -23,14 +23,6 @@ std::vector<MapEdit::Vert*> SELECTABLE_VERTICES;
 std::vector<MapEdit::Vert*> SELECTED_VERTICES;
 std::vector<MapEdit::Face*> SELECTABLE_FACES;
 
-enum class MapEditorTools
-{
-    SimpleBrushTool,
-    VertexManip,
-    EdgeManip,
-    FaceManip,
-};
-MapEditorTools editorActiveTool = MapEditorTools::SimpleBrushTool;
 
 enum class SimpleBrushToolState
 {
@@ -97,6 +89,8 @@ float GetEditorHandleSize(vec3 worldPosition, float sizeInPixels)
 void level_editor_t::Tick()
 {
     IsActive = true;
+    EnterNextState();
+
     SDL_SetRelativeMouseMode(MouseCurrent & SDL_BUTTON(SDL_BUTTON_RIGHT) ? SDL_TRUE : SDL_FALSE);
 
     // EDITOR CAMERA MOVE
@@ -142,8 +136,6 @@ void level_editor_t::Tick()
     PrimitiveDrawLine(vec3(0.f, 0.f, 320000.f), vec3(0.f, 0.f, -320000.f), vec4(RGB255TO1(21, 129, 205), 0.8f));
 
 
-    static u32 hotHandleId = 0;
-
     GUI::BeginWindow(GUI::UIRect(0, 0, RenderTargetGUI.width, 19));
     GUI::EditorBeginHorizontal();
     if (GUI::EditorLabelledButton("SAVE"))
@@ -187,34 +179,25 @@ void level_editor_t::Tick()
     }
     GUI::EditorSpacer(16, 0);
 
-    bool brushToolActive = editorActiveTool == MapEditorTools::SimpleBrushTool;
-    bool vertToolActive = editorActiveTool == MapEditorTools::VertexManip;
-    bool edgeToolActive = editorActiveTool == MapEditorTools::EdgeManip;
-    bool faceToolActive = editorActiveTool == MapEditorTools::FaceManip;
+    bool brushToolActive = ActiveState == SIMPLE_BRUSH_TOOL;
+    bool vertToolActive = ActiveState == VERTEX_MANIP;
+    bool edgeToolActive = ActiveState == EDGE_MANIP;
+    bool faceToolActive = ActiveState == FACE_MANIP;
     if (KeysPressed[SDL_SCANCODE_1] || GUI::EditorSelectable_2("BRUSH", &brushToolActive))
     {
-        editorActiveTool = MapEditorTools::SimpleBrushTool;
-        hotHandleId = 0;
-        SELECTED_MAP_VOLUMES_INDICES.ResetCount();
-        ResetFaceToolData();
+        EnterNewStateNextFrame(SIMPLE_BRUSH_TOOL);
     }
     if (KeysPressed[SDL_SCANCODE_2] || GUI::EditorSelectable_2("VERT", &vertToolActive))
     {
-        editorActiveTool = MapEditorTools::VertexManip;
-        hotHandleId = 0;
-        ResetFaceToolData();
+        EnterNewStateNextFrame(VERTEX_MANIP);
     }
     if (KeysPressed[SDL_SCANCODE_3] || GUI::EditorSelectable_2("EDGE", &edgeToolActive))
     {
-        editorActiveTool = MapEditorTools::EdgeManip;
-        hotHandleId = 0;
-        ResetFaceToolData();
+        EnterNewStateNextFrame(EDGE_MANIP);
     }
     if (KeysPressed[SDL_SCANCODE_4] || GUI::EditorSelectable_2("FACE", &faceToolActive))
     {
-        editorActiveTool = MapEditorTools::FaceManip;
-        hotHandleId = 0;
-        ResetFaceToolData();
+        EnterNewStateNextFrame(FACE_MANIP);
     }
 
     GUI::EditorSpacer(16, 0);
@@ -318,26 +301,41 @@ void level_editor_t::Tick()
     }
     GUI::EndWindow();
 
+    GUI::BeginWindow(GUI::UIRect(RenderTargetGUI.width - 160, 50, 150, 150));
+    if (GUI::EditorLabelledButton("Add Player Spawn Point"))
+    {
+        // enter add point entity mode
+        EnterNewStateNextFrame(PLACE_POINT_ENTITY);
+    }
+    GUI::EndWindow();
 
     if (GUI::anyElementHovered || GUI::anyWindowHovered)
     {
-        // TODO tools reset? if LMB relased? not always.
+        // tools reset? if LMB relased? not always.
         return;
     }
 
 
     ResetGridOriginAndOrientation();
 
+    LMBPressedThisFrame = MousePressed & SDL_BUTTON(SDL_BUTTON_LEFT);
+    LMBReleasedThisFrame = MouseReleased & SDL_BUTTON(SDL_BUTTON_LEFT);
+    LMBIsPressed = MouseCurrent & SDL_BUTTON(SDL_BUTTON_LEFT);
+
+    switch (ActiveState)
+    {
+        case PLACE_POINT_ENTITY:
+            DoPlacePointEntity();
+            break;
+    }
+
 
     // === Volume picking ===
     // Triangulation on the fly is efficient but I don't care right now
     // can pick volumes while in most modes
     // can pick nothing to deselect in most modes
-    bool volumePickable = 
-        editorActiveTool == MapEditorTools::VertexManip ||
-        editorActiveTool == MapEditorTools::EdgeManip ||
-        editorActiveTool == MapEditorTools::FaceManip;
-    if (volumePickable && MouseReleased & SDL_BUTTON(SDL_BUTTON_LEFT) && hotHandleId == 0)
+    bool volumePickable = VERTEX_MANIP <= ActiveState && ActiveState <= FACE_MANIP;
+    if (volumePickable && LMBReleasedThisFrame && HotHandleId == 0)
     {
         u32 pickedVolumeFrameId = PickVolume(LevelEditorVolumes.data, (u32)LevelEditorVolumes.lenu());
         if (pickedVolumeFrameId <= 0)
@@ -389,13 +387,9 @@ void level_editor_t::Tick()
         }
     }
 
-    if (editorActiveTool == MapEditorTools::FaceManip)
+    if (ActiveState == FACE_MANIP)
     {
         static vec3 DragPlanePoint;
-
-        bool lmbPressedThisFrame = MousePressed & SDL_BUTTON(SDL_BUTTON_LEFT);
-        bool lmbReleasedThisFrame = MouseReleased & SDL_BUTTON(SDL_BUTTON_LEFT);
-        bool lmbIsPressed = MouseCurrent & SDL_BUTTON(SDL_BUTTON_LEFT);
 
         u32 hoveredFaceId = PickFace(SELECTABLE_FACES.data(), (u32)SELECTABLE_FACES.size());
 
@@ -404,9 +398,9 @@ void level_editor_t::Tick()
             MapEdit::Face *face = SELECTABLE_FACES[hoveredFaceId-1];
             face->hovered = true;
 
-            if (lmbPressedThisFrame)
+            if (LMBPressedThisFrame)
             {
-                hotHandleId = hoveredFaceId;
+                HotHandleId = hoveredFaceId;
                 SelectedFace = face;
 
                 SELECTED_VERTICES = face->GetVertices();
@@ -420,9 +414,9 @@ void level_editor_t::Tick()
             }
         }
 
-        if (lmbIsPressed && hotHandleId > 0)
+        if (LMBIsPressed && HotHandleId > 0)
         {
-            MapEdit::Face *hotFace = SELECTABLE_FACES[hotHandleId-1];
+            MapEdit::Face *hotFace = SELECTABLE_FACES[HotHandleId-1];
 
             vec3 worldpos_mouse = ScreenPointToWorldPoint(MousePos, 0.f);
             vec3 worldray_mouse = ScreenPointToWorldRay(MousePos);
@@ -448,7 +442,7 @@ void level_editor_t::Tick()
             {
                 for (MapEdit::Vert *vert : SELECTED_VERTICES)
                     vert->pos = vert->poscache;
-                hotHandleId = 0;
+                HotHandleId = 0;
             }
             else
             {
@@ -470,20 +464,20 @@ void level_editor_t::Tick()
             }
         }
 
-        if (lmbReleasedThisFrame && hotHandleId > 0)
+        if (LMBReleasedThisFrame && HotHandleId > 0)
         {
-            hotHandleId = 0;
+            HotHandleId = 0;
         }
     }
 
-    if (editorActiveTool == MapEditorTools::VertexManip)
+    if (ActiveState == VERTEX_MANIP)
     {
         static vec3 DragPlanePoint;
         static bool LCtrlDownOnLeftMouseDown = false;
         static bool AlreadySelectedOnLeftMouseDown = false;
         static vec3 TotalTranslation;
 
-        if (MousePressed & SDL_BUTTON(SDL_BUTTON_LEFT))
+        if (LMBPressedThisFrame)
         {
             LCtrlDownOnLeftMouseDown = KeysCurrent[SDL_SCANCODE_LCTRL];
 
@@ -496,8 +490,8 @@ void level_editor_t::Tick()
 
             if (clickedId > 0)
             {
-                hotHandleId = clickedId;
-                MapEdit::Vert *hotVert = SELECTABLE_VERTICES[hotHandleId-1];
+                HotHandleId = clickedId;
+                MapEdit::Vert *hotVert = SELECTABLE_VERTICES[HotHandleId-1];
                 auto clickedIter = std::find(SELECTED_VERTICES.begin(), SELECTED_VERTICES.end(), hotVert);
                 AlreadySelectedOnLeftMouseDown = clickedIter != SELECTED_VERTICES.end();
                 if (!AlreadySelectedOnLeftMouseDown)
@@ -526,9 +520,9 @@ void level_editor_t::Tick()
             }
         }
 
-        if (MouseCurrent & SDL_BUTTON(SDL_BUTTON_LEFT) && hotHandleId > 0)
+        if (LMBIsPressed && HotHandleId > 0)
         {
-            MapEdit::Vert *hotVert = SELECTABLE_VERTICES[hotHandleId-1];
+            MapEdit::Vert *hotVert = SELECTABLE_VERTICES[HotHandleId-1];
 
             vec3 worldpos_mouse = ScreenPointToWorldPoint(MousePos, 0.f);
             vec3 worldray_mouse = ScreenPointToWorldRay(MousePos);
@@ -554,7 +548,7 @@ void level_editor_t::Tick()
             {
                 for (MapEdit::Vert *vert : SELECTED_VERTICES)
                     vert->pos = vert->poscache;
-                hotHandleId = 0;
+                HotHandleId = 0;
                 LCtrlDownOnLeftMouseDown = false;
                 AlreadySelectedOnLeftMouseDown = false;
             }
@@ -578,11 +572,11 @@ void level_editor_t::Tick()
             }
         }
 
-        if (MouseReleased & SDL_BUTTON(SDL_BUTTON_LEFT))
+        if (LMBReleasedThisFrame)
         {
-            if (hotHandleId > 0)
+            if (HotHandleId > 0)
             {
-                MapEdit::Vert *hotVert = SELECTABLE_VERTICES[hotHandleId-1];
+                MapEdit::Vert *hotVert = SELECTABLE_VERTICES[HotHandleId-1];
                 if (LCtrlDownOnLeftMouseDown)
                 {
                     auto hotVertIter = std::find(SELECTED_VERTICES.begin(), SELECTED_VERTICES.end(), hotVert);
@@ -603,13 +597,13 @@ void level_editor_t::Tick()
                 }
             }
 
-            hotHandleId = 0;
+            HotHandleId = 0;
             LCtrlDownOnLeftMouseDown = false;
             AlreadySelectedOnLeftMouseDown = false;
         }
     }
 
-    if (editorActiveTool == MapEditorTools::SimpleBrushTool)
+    if (ActiveState == SIMPLE_BRUSH_TOOL)
     {
         static vec3 rectstartpoint;
         static vec3 drawingplanenormal;
@@ -619,7 +613,7 @@ void level_editor_t::Tick()
         switch (simpleBrushToolState)
         {
             case SimpleBrushToolState::NotActive:
-                if (MousePressed & SDL_BUTTON(SDL_BUTTON_LEFT))
+                if (LMBPressedThisFrame)
                 {
                     u32 pickedVolumeFrameId = PickVolume(LevelEditorVolumes.data, (u32)LevelEditorVolumes.lenu());
                     if (pickedVolumeFrameId > 0)
@@ -664,7 +658,7 @@ void level_editor_t::Tick()
                 GRID_ORIGIN = rectstartpoint;
                 GRID_RIGHT_VECTOR = drawinghorizontal;
                 GRID_UP_VECTOR = drawingplanenormal;
-                if (MouseCurrent & SDL_BUTTON(SDL_BUTTON_LEFT))
+                if (LMBIsPressed)
                 {
                     vec3 ws = ScreenPointToWorldPoint(MousePos, 0.f);
                     vec3 wr = ScreenPointToWorldRay(MousePos);
@@ -689,7 +683,7 @@ void level_editor_t::Tick()
                     PrimitiveDrawLine(endpoint, endpoint - startToEndProjOnToHorizontal,
                                       vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
                 }
-                if (MouseReleased & SDL_BUTTON(SDL_BUTTON_LEFT))
+                if (LMBReleasedThisFrame)
                 {
                     vec3 ws = ScreenPointToWorldPoint(MousePos, 0.f);
                     vec3 wr = ScreenPointToWorldRay(MousePos);
@@ -784,7 +778,7 @@ void level_editor_t::Tick()
                 PrimitiveDrawLine(ceilPointC, ceilPointB, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
                 PrimitiveDrawLine(ceilPointC, ceilPointD, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
 
-                if (MouseReleased & SDL_BUTTON(SDL_BUTTON_LEFT))
+                if (LMBReleasedThisFrame)
                 {
                     // if heigth component is zero or too small then just default to current grid increment
 
@@ -860,6 +854,41 @@ void level_editor_t::Tick()
     }
 }
 
+void level_editor_t::EnterNewStateNextFrame(editor_state_t NextState)
+{
+    if (ActiveState == NextState) 
+        return; // then ignore
+
+    QueuedState = NextState;
+}
+
+void level_editor_t::EnterNextState()
+{
+    // Handle all state switching here!
+
+    if (QueuedState == INVALID_EDITOR_STATE)
+        return;
+
+    // Deactivate active state
+    switch (ActiveState)
+    {
+        case SIMPLE_BRUSH_TOOL:
+            SELECTED_MAP_VOLUMES_INDICES.ResetCount();
+        case VERTEX_MANIP:
+        case EDGE_MANIP:
+        case FACE_MANIP:
+            HotHandleId = 0;
+            ResetFaceToolData();
+            break;
+    }
+
+    LastState = ActiveState;
+    ActiveState = QueuedState;
+    QueuedState = INVALID_EDITOR_STATE;
+
+    // Activate new active state
+    // switch (ActiveState)
+}
 
 void level_editor_t::ResetFaceToolData()
 {
@@ -906,6 +935,15 @@ u32 level_editor_t::PickFace(MapEdit::Face **faces, u32 arraycount)
     return faceId;
 }
 
+void level_editor_t::DoPlacePointEntity()
+{
+    LogMessage("DoPlacePointEntity");
+    if (LMBReleasedThisFrame)
+    {
+        EnterNewStateNextFrame(LastState);
+    }
+}
+
 void level_editor_t::Draw()
 {
     glBindFramebuffer(GL_FRAMEBUFFER, RenderTargetGame.fbo);
@@ -937,7 +975,7 @@ void level_editor_t::Draw()
     for (int i = 0; i < MapEdit::LevelEditorFaces.count; ++i)
     {
         MapEdit::Face *editorVolumeFace = MapEdit::LevelEditorFaces.At(i);
-        if (editorActiveTool == MapEditorTools::FaceManip)
+        if (ActiveState == FACE_MANIP)
         {
             if (LevelEditor.SelectedFace == editorVolumeFace)
             {
@@ -957,7 +995,7 @@ void level_editor_t::Draw()
         RenderGPUMesh(fm.idVAO, fm.idVBO, fm.vertexCount, &ftex);
     }
 
-    if (editorActiveTool == MapEditorTools::FaceManip)
+    if (ActiveState == FACE_MANIP)
     {
         if (selectedFace)
         {
@@ -1005,7 +1043,7 @@ void level_editor_t::Draw()
         }
     }
     // Draw vertex handles
-    if (editorActiveTool == MapEditorTools::VertexManip)
+    if (ActiveState == VERTEX_MANIP)
     {
         for (int i = 0; i < SELECTABLE_VERTICES.size(); ++i)
         {
