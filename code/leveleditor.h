@@ -45,6 +45,10 @@ private:
 
     u32 PickVolume(MapEdit::Volume *volumes, u32 arraycount);
     u32 PickFace(MapEdit::Face **faces, u32 arraycount);
+    // Get the point and normal of the clicked point on a face or
+    // on the XZ-plane if no face was clicked. Return false if 
+    // neither were clicked.
+    bool PickPointAndNormalInLevel(vec3 *PlanePoint, vec3 *PlaneNormal);
 
     void DoPlacePointEntity();
     void DoFaceManip();
@@ -79,6 +83,5 @@ private: // move all the editor session specific data here
     bool LMBPressedThisFrame = false;
     bool LMBReleasedThisFrame = false;
     bool LMBIsPressed = false;
-
 };
 
