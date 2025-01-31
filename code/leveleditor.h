@@ -36,6 +36,8 @@ struct level_editor_t
     bool LoadMap(const char *MapFilePath);
 
 private:
+    void DoEditorGUI();
+
     void EnterNewStateNextFrame(editor_state_t NextState);
     void EnterNextState();
 
@@ -45,6 +47,9 @@ private:
     u32 PickFace(MapEdit::Face **faces, u32 arraycount);
 
     void DoPlacePointEntity();
+    void DoFaceManip();
+    void DoVertexManip();
+    void DoSimpleBrushTool();
 
 public:
     dynamic_array<MapEdit::Volume> LevelEditorVolumes;
@@ -60,11 +65,11 @@ public:
     vec3 CameraUp;
     mat4 ActiveViewMatrix;
     mat4 ActivePerspectiveMatrix;
-    MapEdit::Face *SelectedFace = NULL;
-    db_tex_t SelectedTexture;
 
 private: // move all the editor session specific data here
     u32 HotHandleId = 0;
+    MapEdit::Face *SelectedFace = NULL;
+    db_tex_t SelectedTexture;
 
     // Do not set directly; use EnterNewStateNextFrame and EnterNextState
     editor_state_t ActiveState = NOTHING_EDITOR_STATE;
