@@ -136,6 +136,95 @@ void level_editor_t::Tick()
     PrimitiveDrawLine(vec3(0.f, 0.f, 320000.f), vec3(0.f, 0.f, -320000.f), vec4(RGB255TO1(21, 129, 205), 0.8f));
 
 
+    DoEditorGUI();
+
+    if (GUI::anyElementHovered || GUI::anyWindowHovered)
+    {
+        // tools reset? if LMB relased? not always.
+        return;
+    }
+
+    ResetGridOriginAndOrientation();
+
+    LMBPressedThisFrame = MousePressed & SDL_BUTTON(SDL_BUTTON_LEFT);
+    LMBReleasedThisFrame = MouseReleased & SDL_BUTTON(SDL_BUTTON_LEFT);
+    LMBIsPressed = MouseCurrent & SDL_BUTTON(SDL_BUTTON_LEFT);
+
+
+    // === Volume picking ===
+    // Triangulation on the fly is efficient but I don't care right now
+    // can pick volumes while in most modes
+    // can pick nothing to deselect in most modes
+    bool volumePickable = VERTEX_MANIP <= ActiveState && ActiveState <= FACE_MANIP;
+    if (volumePickable && LMBReleasedThisFrame && HotHandleId == 0)
+    {
+        u32 pickedVolumeFrameId = PickVolume(LevelEditorVolumes.data, (u32)LevelEditorVolumes.lenu());
+        if (pickedVolumeFrameId <= 0)
+        {
+            SELECTED_MAP_VOLUMES_INDICES.ResetCount();
+            ResetFaceToolData();
+        }
+        else
+        {
+            if (!KeysCurrent[SDL_SCANCODE_LCTRL])
+            {
+                SELECTED_MAP_VOLUMES_INDICES.ResetCount();
+                ResetFaceToolData();
+            }
+
+            int pickedVolumeIndexInMegaArray = pickedVolumeFrameId-1;
+            bool exists = false;
+            for (int j = 0; j < SELECTED_MAP_VOLUMES_INDICES.count; ++j)
+                exists |= SELECTED_MAP_VOLUMES_INDICES.At(j) == pickedVolumeIndexInMegaArray;
+            if (!exists && SELECTED_MAP_VOLUMES_INDICES.count < SELECTED_MAP_VOLUMES_INDICES.capacity)
+                SELECTED_MAP_VOLUMES_INDICES.PushBack(pickedVolumeIndexInMegaArray);
+        }
+
+    }
+
+    // === Selection handles ===
+    // on mouse up, disc remains selected
+    // on mouse down, if disc not selected, then if ctrl pressed then add to selection but don't start drag
+    //                                      if ctrl not pressed then start drag
+    // on mouse down, if disc was already selected, then if ctrl pressed then deselect that disc/vert, if ctrl not pressed
+    // then start checking for drag
+    SELECTABLE_VERTICES.clear();
+    SELECTABLE_FACES.clear();
+    for (int i = 0; i < SELECTED_MAP_VOLUMES_INDICES.count; ++i)
+    {
+        MapEdit::Volume& volume = LevelEditorVolumes[SELECTED_MAP_VOLUMES_INDICES.At(i)];
+
+        for (int j = 0; j < volume.verts.lenu(); ++j)
+        {
+            SELECTABLE_VERTICES.push_back(volume.verts[j]);
+        }
+
+        for (int j = 0; j < volume.faces.lenu(); ++j)
+        {
+            SELECTABLE_FACES.push_back(volume.faces[j]);
+        }
+    }
+
+    // === State ===
+    switch (ActiveState)
+    {
+        case PLACE_POINT_ENTITY:
+            DoPlacePointEntity();
+            break;
+        case FACE_MANIP:
+            DoFaceManip();
+            break;
+        case VERTEX_MANIP:
+            DoVertexManip();
+            break;
+        case SIMPLE_BRUSH_TOOL:
+            DoSimpleBrushTool();
+            break;
+    }
+}
+
+void level_editor_t::DoEditorGUI()
+{
     GUI::BeginWindow(GUI::UIRect(0, 0, RenderTargetGUI.width, 19));
     GUI::EditorBeginHorizontal();
     if (GUI::EditorLabelledButton("SAVE"))
@@ -308,550 +397,6 @@ void level_editor_t::Tick()
         EnterNewStateNextFrame(PLACE_POINT_ENTITY);
     }
     GUI::EndWindow();
-
-    if (GUI::anyElementHovered || GUI::anyWindowHovered)
-    {
-        // tools reset? if LMB relased? not always.
-        return;
-    }
-
-
-    ResetGridOriginAndOrientation();
-
-    LMBPressedThisFrame = MousePressed & SDL_BUTTON(SDL_BUTTON_LEFT);
-    LMBReleasedThisFrame = MouseReleased & SDL_BUTTON(SDL_BUTTON_LEFT);
-    LMBIsPressed = MouseCurrent & SDL_BUTTON(SDL_BUTTON_LEFT);
-
-    switch (ActiveState)
-    {
-        case PLACE_POINT_ENTITY:
-            DoPlacePointEntity();
-            break;
-    }
-
-
-    // === Volume picking ===
-    // Triangulation on the fly is efficient but I don't care right now
-    // can pick volumes while in most modes
-    // can pick nothing to deselect in most modes
-    bool volumePickable = VERTEX_MANIP <= ActiveState && ActiveState <= FACE_MANIP;
-    if (volumePickable && LMBReleasedThisFrame && HotHandleId == 0)
-    {
-        u32 pickedVolumeFrameId = PickVolume(LevelEditorVolumes.data, (u32)LevelEditorVolumes.lenu());
-        if (pickedVolumeFrameId <= 0)
-        {
-            SELECTED_MAP_VOLUMES_INDICES.ResetCount();
-            ResetFaceToolData();
-        }
-        else
-        {
-            if (!KeysCurrent[SDL_SCANCODE_LCTRL])
-            {
-                SELECTED_MAP_VOLUMES_INDICES.ResetCount();
-                ResetFaceToolData();
-            }
-
-            int pickedVolumeIndexInMegaArray = pickedVolumeFrameId-1;
-            bool exists = false;
-            for (int j = 0; j < SELECTED_MAP_VOLUMES_INDICES.count; ++j)
-                exists |= SELECTED_MAP_VOLUMES_INDICES.At(j) == pickedVolumeIndexInMegaArray;
-            if (!exists && SELECTED_MAP_VOLUMES_INDICES.count < SELECTED_MAP_VOLUMES_INDICES.capacity)
-                SELECTED_MAP_VOLUMES_INDICES.PushBack(pickedVolumeIndexInMegaArray);
-        }
-
-    }
-
-
-    // === Selection handles ===
-
-    // on mouse up, disc remains selected
-    // on mouse down, if disc not selected, then if ctrl pressed then add to selection but don't start drag
-    //                                      if ctrl not pressed then start drag
-    // on mouse down, if disc was already selected, then if ctrl pressed then deselect that disc/vert, if ctrl not pressed
-    // then start checking for drag
-
-    SELECTABLE_VERTICES.clear();
-    SELECTABLE_FACES.clear();
-    for (int i = 0; i < SELECTED_MAP_VOLUMES_INDICES.count; ++i)
-    {
-        MapEdit::Volume& volume = LevelEditorVolumes[SELECTED_MAP_VOLUMES_INDICES.At(i)];
-
-        for (int j = 0; j < volume.verts.lenu(); ++j)
-        {
-            SELECTABLE_VERTICES.push_back(volume.verts[j]);
-        }
-
-        for (int j = 0; j < volume.faces.lenu(); ++j)
-        {
-            SELECTABLE_FACES.push_back(volume.faces[j]);
-        }
-    }
-
-    if (ActiveState == FACE_MANIP)
-    {
-        static vec3 DragPlanePoint;
-
-        u32 hoveredFaceId = PickFace(SELECTABLE_FACES.data(), (u32)SELECTABLE_FACES.size());
-
-        if (hoveredFaceId > 0)
-        {
-            MapEdit::Face *face = SELECTABLE_FACES[hoveredFaceId-1];
-            face->hovered = true;
-
-            if (LMBPressedThisFrame)
-            {
-                HotHandleId = hoveredFaceId;
-                SelectedFace = face;
-
-                SELECTED_VERTICES = face->GetVertices();
-
-                for (MapEdit::Vert *vert : SELECTED_VERTICES)
-                    vert->poscache = vert->pos;
-
-                vec3 worldpos_mouse = ScreenPointToWorldPoint(MousePos, 0.f);
-                vec3 worldray_mouse = ScreenPointToWorldRay(MousePos);
-                IntersectPlaneAndLineWithDirections(face->loopbase->v->pos, face->QuickNormal(), worldpos_mouse, worldray_mouse, &DragPlanePoint);
-            }
-        }
-
-        if (LMBIsPressed && HotHandleId > 0)
-        {
-            MapEdit::Face *hotFace = SELECTABLE_FACES[HotHandleId-1];
-
-            vec3 worldpos_mouse = ScreenPointToWorldPoint(MousePos, 0.f);
-            vec3 worldray_mouse = ScreenPointToWorldRay(MousePos);
-
-            vec3 TotalTranslation;
-            if (KeysCurrent[SDL_SCANCODE_LALT])
-            {
-                vec3 intersect;
-                IntersectPlaneAndLineWithDirections(DragPlanePoint, vec3(-CameraDirection.x, 0.f, -CameraDirection.z), worldpos_mouse, worldray_mouse, &intersect);
-                float yTranslation = Dot((intersect - DragPlanePoint), GM_UP_VECTOR);
-                TotalTranslation = vec3(0.f,yTranslation,0.f);
-                TotalTranslation = SnapToGrid(TotalTranslation);
-            }
-            else
-            {
-                vec3 intersect;
-                IntersectPlaneAndLine(DragPlanePoint, GM_UP_VECTOR, worldpos_mouse, worldray_mouse, &intersect);
-                TotalTranslation = intersect - DragPlanePoint;
-                TotalTranslation = SnapToGrid(TotalTranslation);
-            }
-
-            if (KeysCurrent[SDL_SCANCODE_ESCAPE])
-            {
-                for (MapEdit::Vert *vert : SELECTED_VERTICES)
-                    vert->pos = vert->poscache;
-                HotHandleId = 0;
-            }
-            else
-            {
-                for (MapEdit::Vert *vert : SELECTED_VERTICES)
-                {
-                    vert->pos = vert->poscache + TotalTranslation;
-                }
-            }
-            for (int i = 0; i < SELECTED_MAP_VOLUMES_INDICES.count; ++i)
-            {
-                MapEdit::Volume& selectedVol = LevelEditorVolumes[SELECTED_MAP_VOLUMES_INDICES.At(i)];
-                for (size_t j = 0; j < selectedVol.faces.lenu(); ++j)
-                {
-                    MapEdit::Face *face = selectedVol.faces[j];
-                    MY_VERTEX_BUFFER.clear();
-                    MapEdit::TriangulateFace_QuickDumb(*face, &MY_VERTEX_BUFFER);
-                    RebindGPUMesh(&face->facemesh, (u32)(sizeof(float)*MY_VERTEX_BUFFER.size()), MY_VERTEX_BUFFER.data());
-                }
-            }
-        }
-
-        if (LMBReleasedThisFrame && HotHandleId > 0)
-        {
-            HotHandleId = 0;
-        }
-    }
-
-    if (ActiveState == VERTEX_MANIP)
-    {
-        static vec3 DragPlanePoint;
-        static bool LCtrlDownOnLeftMouseDown = false;
-        static bool AlreadySelectedOnLeftMouseDown = false;
-        static vec3 TotalTranslation;
-
-        if (LMBPressedThisFrame)
-        {
-            LCtrlDownOnLeftMouseDown = KeysCurrent[SDL_SCANCODE_LCTRL];
-
-            for (u32 id = 1; id <= SELECTABLE_VERTICES.size(); ++id)
-            {
-                MapEdit::Vert *vert = SELECTABLE_VERTICES[id-1];
-                DoDiscHandle(id, vert->pos, CameraPosition, GetEditorHandleSize(vert->pos, DISC_HANDLE_RADIUS + 4.f));
-            }
-            u32 clickedId = FlushHandles(MousePos, RenderTargetGame, ActiveViewMatrix, ActivePerspectiveMatrix, false);
-
-            if (clickedId > 0)
-            {
-                HotHandleId = clickedId;
-                MapEdit::Vert *hotVert = SELECTABLE_VERTICES[HotHandleId-1];
-                auto clickedIter = std::find(SELECTED_VERTICES.begin(), SELECTED_VERTICES.end(), hotVert);
-                AlreadySelectedOnLeftMouseDown = clickedIter != SELECTED_VERTICES.end();
-                if (!AlreadySelectedOnLeftMouseDown)
-                {
-                    if (!LCtrlDownOnLeftMouseDown)
-                        SELECTED_VERTICES.clear();
-                    SELECTED_VERTICES.push_back(hotVert);
-                    hotVert->poscache = hotVert->pos;
-                }
-
-                vec3 worldpos_mouse = ScreenPointToWorldPoint(MousePos, 0.f);
-                vec3 worldray_mouse = ScreenPointToWorldRay(MousePos);
-                IntersectPlaneAndLineWithDirections(hotVert->pos, -CameraDirection, worldpos_mouse, worldray_mouse, &DragPlanePoint);
-            }
-            else if (!LCtrlDownOnLeftMouseDown)
-            {
-                SELECTED_VERTICES.clear();
-            }
-            else
-            {
-                // if id == 0 (nothing clicked) then check for click against volumes
-                // also draw all the other volumes with a clickable rgb id so we can switch which volume displays their vertices
-                // draw the selected volume(s) with rgb(0) so it is ignored when clicked
-                // draw these discs on top of all the volumes, but the discs themselves must do depth test so a disc closer to camera
-                // is clicked first.
-            }
-        }
-
-        if (LMBIsPressed && HotHandleId > 0)
-        {
-            MapEdit::Vert *hotVert = SELECTABLE_VERTICES[HotHandleId-1];
-
-            vec3 worldpos_mouse = ScreenPointToWorldPoint(MousePos, 0.f);
-            vec3 worldray_mouse = ScreenPointToWorldRay(MousePos);
-
-            TotalTranslation = vec3();
-            if (KeysCurrent[SDL_SCANCODE_LALT])
-            {
-                vec3 intersect;
-                IntersectPlaneAndLineWithDirections(DragPlanePoint, vec3(-CameraDirection.x, 0.f, -CameraDirection.z), worldpos_mouse, worldray_mouse, &intersect);
-                float yTranslation = Dot((intersect - DragPlanePoint), GM_UP_VECTOR);
-                TotalTranslation = vec3(0.f,yTranslation,0.f);
-                TotalTranslation = SnapToGrid(TotalTranslation);
-            }
-            else
-            {
-                vec3 intersect;
-                IntersectPlaneAndLine(DragPlanePoint, GM_UP_VECTOR, worldpos_mouse, worldray_mouse, &intersect);
-                TotalTranslation = intersect - DragPlanePoint;
-                TotalTranslation = SnapToGrid(TotalTranslation);
-            }
-
-            if (KeysCurrent[SDL_SCANCODE_ESCAPE])
-            {
-                for (MapEdit::Vert *vert : SELECTED_VERTICES)
-                    vert->pos = vert->poscache;
-                HotHandleId = 0;
-                LCtrlDownOnLeftMouseDown = false;
-                AlreadySelectedOnLeftMouseDown = false;
-            }
-            else
-            {
-                for (MapEdit::Vert *vert : SELECTED_VERTICES)
-                {
-                    vert->pos = vert->poscache + TotalTranslation;
-                }
-            }
-            for (int i = 0; i < SELECTED_MAP_VOLUMES_INDICES.count; ++i)
-            {
-                MapEdit::Volume& selectedVol = LevelEditorVolumes[SELECTED_MAP_VOLUMES_INDICES.At(i)];
-                for (size_t j = 0; j < selectedVol.faces.lenu(); ++j)
-                {
-                    MapEdit::Face *face = selectedVol.faces[j];
-                    MY_VERTEX_BUFFER.clear();
-                    MapEdit::TriangulateFace_QuickDumb(*face, &MY_VERTEX_BUFFER);
-                    RebindGPUMesh(&face->facemesh, (u32)(sizeof(float)*MY_VERTEX_BUFFER.size()), MY_VERTEX_BUFFER.data());
-                }
-            }
-        }
-
-        if (LMBReleasedThisFrame)
-        {
-            if (HotHandleId > 0)
-            {
-                MapEdit::Vert *hotVert = SELECTABLE_VERTICES[HotHandleId-1];
-                if (LCtrlDownOnLeftMouseDown)
-                {
-                    auto hotVertIter = std::find(SELECTED_VERTICES.begin(), SELECTED_VERTICES.end(), hotVert);
-                    if (hotVertIter != SELECTED_VERTICES.end())
-                    {
-                        if (AlreadySelectedOnLeftMouseDown && TotalTranslation != vec3())
-                            SELECTED_VERTICES.erase(hotVertIter);
-                    }
-                    else
-                    {
-                        LogError("wtf");
-                    }
-                }
-                else if (TotalTranslation != vec3())
-                {
-                    SELECTED_VERTICES.clear();
-                    SELECTED_VERTICES.push_back(hotVert);
-                }
-            }
-
-            HotHandleId = 0;
-            LCtrlDownOnLeftMouseDown = false;
-            AlreadySelectedOnLeftMouseDown = false;
-        }
-    }
-
-    if (ActiveState == SIMPLE_BRUSH_TOOL)
-    {
-        static vec3 rectstartpoint;
-        static vec3 drawingplanenormal;
-        static vec3 drawinghorizontal;
-        static vec3 drawingvertical;
-        static vec3 rectendpoint;
-        switch (simpleBrushToolState)
-        {
-            case SimpleBrushToolState::NotActive:
-                if (LMBPressedThisFrame)
-                {
-                    u32 pickedVolumeFrameId = PickVolume(LevelEditorVolumes.data, (u32)LevelEditorVolumes.lenu());
-                    if (pickedVolumeFrameId > 0)
-                    {
-                        MapEdit::Volume& vol = LevelEditorVolumes[pickedVolumeFrameId-1];
-                        dynamic_array<MapEdit::Face*> faces = vol.faces;
-                        u32 faceIndex = PickFace(faces.data, (u32)faces.lenu());
-                        MapEdit::Face *drawingFace = faces[faceIndex-1];
-                        drawingplanenormal = drawingFace->QuickNormal();
-                        vec3 ws = ScreenPointToWorldPoint(MousePos, 0.f);
-                        vec3 wr = ScreenPointToWorldRay(MousePos);
-                        vec3 intersectionPoint;
-                        IntersectPlaneAndLineWithDirections(drawingFace->loopbase->v->pos, drawingplanenormal, ws, wr, &intersectionPoint);
-                        simpleBrushToolState = SimpleBrushToolState::DrawingRectangle;
-                        rectstartpoint = intersectionPoint;
-                    }
-                    else
-                    {
-                        vec3 ws = ScreenPointToWorldPoint(MousePos, 0.f);
-                        vec3 wr = ScreenPointToWorldRay(MousePos);
-                        float f = (0.f - ws.y) / wr.y;
-                        if (f < 0.f)
-                            break;
-                        simpleBrushToolState = SimpleBrushToolState::DrawingRectangle;
-                        rectstartpoint = ws + wr * f;
-                        drawingplanenormal = GM_UP_VECTOR;
-                    }
-                    rectstartpoint = SnapToGrid(rectstartpoint);
-                    // no matter what, at least one of these vectors is GM_RIGHT_VECTOR rotated around y-axis.
-                    vec3 flattenedNormal = vec3(drawingplanenormal.x, 0.f, drawingplanenormal.z);
-                    if (Magnitude(flattenedNormal) < 0.001f)
-                        flattenedNormal = GM_FORWARD_VECTOR;
-                    else if (GM_abs(drawingplanenormal.y) < 0.001f)
-                        flattenedNormal = GM_UP_VECTOR;
-                    else
-                        flattenedNormal = Normalize(flattenedNormal);
-                    drawinghorizontal = Normalize(Cross(drawingplanenormal, flattenedNormal));
-                    drawingvertical = Normalize(Cross(drawingplanenormal, drawinghorizontal));
-                }
-                break;
-            case SimpleBrushToolState::DrawingRectangle:
-                GRID_ORIGIN = rectstartpoint;
-                GRID_RIGHT_VECTOR = drawinghorizontal;
-                GRID_UP_VECTOR = drawingplanenormal;
-                if (LMBIsPressed)
-                {
-                    vec3 ws = ScreenPointToWorldPoint(MousePos, 0.f);
-                    vec3 wr = ScreenPointToWorldRay(MousePos);
-                    vec3 intersection;
-                    IntersectPlaneAndLineWithDirections(rectstartpoint, drawingplanenormal, ws, wr, &intersection);
-                    vec3 endpoint = intersection;
-                    endpoint = SnapToGrid(endpoint);
-                    vec3 startToEndVector = vec3(endpoint - rectstartpoint);
-
-                    // PrimitiveDrawSolidDisc(rectstartpoint, drawingplanenormal, 4, vec4(0,0,1,1));
-                    // PrimitiveDrawSolidDisc(endpoint, drawingplanenormal, 4, vec4(0,0,1,1));
-                    // PrimitiveDrawLine(rectstartpoint, rectstartpoint + drawinghorizontal * 16.f, vec4(0,0,1,1), 2.f); 
-                    // PrimitiveDrawLine(rectstartpoint, rectstartpoint + drawingvertical * 16.f, vec4(0,0,1,1), 2.f); 
-                    vec3 startToEndProjOnToHorizontal = Dot(startToEndVector, drawinghorizontal) * drawinghorizontal;
-                    vec3 startToEndProjOnToVertical = Dot(startToEndVector, drawingvertical) * drawingvertical;
-                    PrimitiveDrawLine(rectstartpoint, rectstartpoint + startToEndProjOnToVertical,
-                                      vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
-                    PrimitiveDrawLine(rectstartpoint, rectstartpoint + startToEndProjOnToHorizontal,
-                                      vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
-                    PrimitiveDrawLine(endpoint, endpoint - startToEndProjOnToVertical,
-                                      vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
-                    PrimitiveDrawLine(endpoint, endpoint - startToEndProjOnToHorizontal,
-                                      vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
-                }
-                if (LMBReleasedThisFrame)
-                {
-                    vec3 ws = ScreenPointToWorldPoint(MousePos, 0.f);
-                    vec3 wr = ScreenPointToWorldRay(MousePos);
-                    vec3 intersection;
-                    IntersectPlaneAndLineWithDirections(rectstartpoint, drawingplanenormal, ws, wr, &intersection);
-                    rectendpoint = intersection;
-                    rectendpoint = SnapToGrid(rectendpoint);
-                    vec3 startToEndVector = vec3(rectendpoint - rectstartpoint);
-                    vec3 startToEndProjOnToHorizontal = Dot(startToEndVector, drawinghorizontal) * drawinghorizontal;
-                    vec3 startToEndProjOnToVertical = Dot(startToEndVector, drawingvertical) * drawingvertical;
-                    if (Magnitude(startToEndProjOnToHorizontal)+0.05f >= GRID_INCREMENT && Magnitude(startToEndProjOnToVertical)+0.05f >= GRID_INCREMENT)
-                        simpleBrushToolState = SimpleBrushToolState::DrawingHeight;
-                    else
-                        simpleBrushToolState = SimpleBrushToolState::NotActive;
-                }
-                if (KeysPressed[SDL_SCANCODE_ESCAPE])
-                    simpleBrushToolState = SimpleBrushToolState::NotActive;
-
-                break;
-            case SimpleBrushToolState::DrawingHeight:
-
-                vec3 startToEndVector = vec3(rectendpoint - rectstartpoint);
-
-                float zcomponent = Dot(startToEndVector, drawinghorizontal);
-                float xcomponent = Dot(startToEndVector, drawingvertical);
-                vec3 startToEndProjOnToHorizontal = zcomponent * drawinghorizontal;
-                vec3 startToEndProjOnToVertical = xcomponent * drawingvertical;
-
-                GRID_ORIGIN = rectendpoint;
-                GRID_UP_VECTOR = startToEndProjOnToHorizontal;
-                GRID_RIGHT_VECTOR = startToEndProjOnToVertical;
-
-                // let plane be defined at point rectendpoint with normal -cameraDirection
-                // then the point of intersection between mouse ray and the plane - endrectpoint and project it onto
-                // the direction of translation e.g. GM_UP_VECTOR
-                vec3 drawingSurfaceNormal = drawingplanenormal;
-                static vec3 height = vec3();
-                static vec3 heightBeforeSnap = vec3();
-                vec3 pn = -CameraDirection;
-                vec3 pp = rectendpoint + heightBeforeSnap;
-                vec3 wp = ScreenPointToWorldPoint(MousePos, 0.f);
-                vec3 wr = ScreenPointToWorldRay(MousePos);
-                vec3 intersection;
-                IntersectPlaneAndLineWithDirections(pp, pn, wp, wr, &intersection);
-                float trueHeightComp = Dot((intersection - rectendpoint), drawingSurfaceNormal);
-                float heightcomponent = SnapToGrid(trueHeightComp);
-                height = heightcomponent * drawingSurfaceNormal;
-                heightBeforeSnap = trueHeightComp * drawingSurfaceNormal;
-
-                vec3 floorPointA = rectstartpoint;
-                vec3 floorPointB = rectstartpoint + startToEndProjOnToVertical;
-                vec3 floorPointC = rectendpoint;
-                vec3 floorPointD = rectendpoint - startToEndProjOnToVertical;
-                // given how i've set up points ABCD:
-                //      if xcomponent < 0, swap A and B, swap C and D
-                //      if zcomponent < 0, swap B and C, swap A and D
-                if (xcomponent < 0)
-                {
-                    auto temp = floorPointA;
-                    floorPointA = floorPointB;
-                    floorPointB = temp;
-                    temp = floorPointC;
-                    floorPointC = floorPointD;
-                    floorPointD = temp;
-                }
-                if (zcomponent < 0)
-                {
-                    auto temp = floorPointB;
-                    floorPointB = floorPointC;
-                    floorPointC = temp;
-                    temp = floorPointA;
-                    floorPointA = floorPointD;
-                    floorPointD = temp;
-                }
-                vec3 ceilPointA = floorPointA + height;
-                vec3 ceilPointB = floorPointB + height;
-                vec3 ceilPointC = floorPointC + height;
-                vec3 ceilPointD = floorPointD + height;
-
-                PrimitiveDrawLine(floorPointA, floorPointB, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
-                PrimitiveDrawLine(floorPointA, floorPointD, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
-                PrimitiveDrawLine(floorPointC, floorPointB, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
-                PrimitiveDrawLine(floorPointC, floorPointD, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
-
-                PrimitiveDrawLine(floorPointA, ceilPointA, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
-                PrimitiveDrawLine(floorPointB, ceilPointB, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
-                PrimitiveDrawLine(floorPointC, ceilPointC, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
-                PrimitiveDrawLine(floorPointD, ceilPointD, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
-
-                PrimitiveDrawLine(ceilPointA, ceilPointB, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
-                PrimitiveDrawLine(ceilPointA, ceilPointD, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
-                PrimitiveDrawLine(ceilPointC, ceilPointB, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
-                PrimitiveDrawLine(ceilPointC, ceilPointD, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
-
-                if (LMBReleasedThisFrame)
-                {
-                    // if heigth component is zero or too small then just default to current grid increment
-
-                    MapEdit::Volume createdVolume;
-                    createdVolume.persistId = MapEdit::FreshVolumePersistId();
-
-                    // complete with drawn height
-                    MapEdit::Vert *fv0 = MapEdit::CreateVert(floorPointA, &createdVolume);
-                    MapEdit::Vert *fv1 = MapEdit::CreateVert(floorPointB, &createdVolume);
-                    MapEdit::Vert *fv2 = MapEdit::CreateVert(floorPointC, &createdVolume);
-                    MapEdit::Vert *fv3 = MapEdit::CreateVert(floorPointD, &createdVolume);
-                    MapEdit::Vert *cv0 = MapEdit::CreateVert(ceilPointA, &createdVolume);
-                    MapEdit::Vert *cv1 = MapEdit::CreateVert(ceilPointB, &createdVolume);
-                    MapEdit::Vert *cv2 = MapEdit::CreateVert(ceilPointC, &createdVolume);
-                    MapEdit::Vert *cv3 = MapEdit::CreateVert(ceilPointD, &createdVolume);
-                    if (heightcomponent < 0)
-                    {
-                        auto temp0 = fv0;
-                        auto temp1 = fv1;
-                        auto temp2 = fv2;
-                        auto temp3 = fv3;
-                        fv0 = cv0;
-                        fv1 = cv1;
-                        fv2 = cv2;
-                        fv3 = cv3;
-                        cv0 = temp0;
-                        cv1 = temp1;
-                        cv2 = temp2;
-                        cv3 = temp3;
-                    }
-
-                    MapEdit::Edge *f0_to_f1 = MapEdit::CreateEdge(fv0, fv1, &createdVolume);
-                    MapEdit::Edge *f1_to_f2 = MapEdit::CreateEdge(fv1, fv2, &createdVolume);
-                    MapEdit::Edge *f2_to_f3 = MapEdit::CreateEdge(fv2, fv3, &createdVolume);
-                    MapEdit::Edge *f3_to_f0 = MapEdit::CreateEdge(fv3, fv0, &createdVolume);
-                    MapEdit::Edge *c0_to_c1 = MapEdit::CreateEdge(cv0, cv1, &createdVolume);
-                    MapEdit::Edge *c1_to_c2 = MapEdit::CreateEdge(cv1, cv2, &createdVolume);
-                    MapEdit::Edge *c2_to_c3 = MapEdit::CreateEdge(cv2, cv3, &createdVolume);
-                    MapEdit::Edge *c3_to_c0 = MapEdit::CreateEdge(cv3, cv0, &createdVolume);
-                    MapEdit::Edge *f0_to_c0 = MapEdit::CreateEdge(fv0, cv0, &createdVolume);
-                    MapEdit::Edge *f1_to_c1 = MapEdit::CreateEdge(fv1, cv1, &createdVolume);
-                    MapEdit::Edge *f2_to_c2 = MapEdit::CreateEdge(fv2, cv2, &createdVolume);
-                    MapEdit::Edge *f3_to_c3 = MapEdit::CreateEdge(fv3, cv3, &createdVolume);
-
-                    MapEdit::CreateFace({f0_to_f1, f1_to_f2, f2_to_f3, f3_to_f0}, &createdVolume);
-                    MapEdit::Face *revthis = MapEdit::CreateFace({c0_to_c1, c1_to_c2, c2_to_c3, c3_to_c0},
-                                                                 &createdVolume);
-                    MapEdit::FaceLoopReverse(revthis);
-                    MapEdit::CreateFace({f0_to_f1, f0_to_c0, f1_to_c1, c0_to_c1}, &createdVolume);
-                    MapEdit::CreateFace({f1_to_f2, f1_to_c1, c1_to_c2, f2_to_c2}, &createdVolume);
-                    MapEdit::CreateFace({f2_to_f3, f2_to_c2, c2_to_c3, f3_to_c3}, &createdVolume);
-                    MapEdit::CreateFace({f3_to_f0, f3_to_c3, c3_to_c0, f0_to_c0}, &createdVolume);
-
-                    LevelEditorVolumes.put(createdVolume);
-
-                    for (size_t i = 0; i < createdVolume.faces.lenu(); ++i)
-                    {
-                        MapEdit::Face *face = createdVolume.faces[i];
-                        MY_VERTEX_BUFFER.clear();
-                        TriangulateFace_QuickDumb(*face, &MY_VERTEX_BUFFER);
-                        RebindGPUMesh(&face->facemesh, (u32)(sizeof(float)*MY_VERTEX_BUFFER.size()), MY_VERTEX_BUFFER.data());
-                        face->texture = SelectedTexture; 
-                    }
-
-                    simpleBrushToolState = SimpleBrushToolState::NotActive;
-                }
-                if (KeysPressed[SDL_SCANCODE_ESCAPE])
-                {
-                    simpleBrushToolState = SimpleBrushToolState::NotActive;
-                }
-                break;
-        }
-    }
 }
 
 void level_editor_t::EnterNewStateNextFrame(editor_state_t NextState)
@@ -873,7 +418,6 @@ void level_editor_t::EnterNextState()
     switch (ActiveState)
     {
         case SIMPLE_BRUSH_TOOL:
-            SELECTED_MAP_VOLUMES_INDICES.ResetCount();
         case VERTEX_MANIP:
         case EDGE_MANIP:
         case FACE_MANIP:
@@ -887,7 +431,12 @@ void level_editor_t::EnterNextState()
     QueuedState = INVALID_EDITOR_STATE;
 
     // Activate new active state
-    // switch (ActiveState)
+    switch (ActiveState)
+    {
+        case SIMPLE_BRUSH_TOOL:
+            SELECTED_MAP_VOLUMES_INDICES.ResetCount();
+            break;
+    }
 }
 
 void level_editor_t::ResetFaceToolData()
@@ -941,6 +490,472 @@ void level_editor_t::DoPlacePointEntity()
     if (LMBReleasedThisFrame)
     {
         EnterNewStateNextFrame(LastState);
+    }
+}
+
+void level_editor_t::DoFaceManip()
+{
+    static vec3 DragPlanePoint;
+
+    u32 hoveredFaceId = PickFace(SELECTABLE_FACES.data(), (u32)SELECTABLE_FACES.size());
+
+    if (hoveredFaceId > 0)
+    {
+        MapEdit::Face *face = SELECTABLE_FACES[hoveredFaceId-1];
+        face->hovered = true;
+
+        if (LMBPressedThisFrame)
+        {
+            HotHandleId = hoveredFaceId;
+            SelectedFace = face;
+
+            SELECTED_VERTICES = face->GetVertices();
+
+            for (MapEdit::Vert *vert : SELECTED_VERTICES)
+                vert->poscache = vert->pos;
+
+            vec3 worldpos_mouse = ScreenPointToWorldPoint(MousePos, 0.f);
+            vec3 worldray_mouse = ScreenPointToWorldRay(MousePos);
+            IntersectPlaneAndLineWithDirections(face->loopbase->v->pos, face->QuickNormal(), worldpos_mouse, worldray_mouse, &DragPlanePoint);
+        }
+    }
+
+    if (LMBIsPressed && HotHandleId > 0)
+    {
+        MapEdit::Face *hotFace = SELECTABLE_FACES[HotHandleId-1];
+
+        vec3 worldpos_mouse = ScreenPointToWorldPoint(MousePos, 0.f);
+        vec3 worldray_mouse = ScreenPointToWorldRay(MousePos);
+
+        vec3 TotalTranslation;
+        if (KeysCurrent[SDL_SCANCODE_LALT])
+        {
+            vec3 intersect;
+            IntersectPlaneAndLineWithDirections(DragPlanePoint, vec3(-CameraDirection.x, 0.f, -CameraDirection.z), worldpos_mouse, worldray_mouse, &intersect);
+            float yTranslation = Dot((intersect - DragPlanePoint), GM_UP_VECTOR);
+            TotalTranslation = vec3(0.f,yTranslation,0.f);
+            TotalTranslation = SnapToGrid(TotalTranslation);
+        }
+        else
+        {
+            vec3 intersect;
+            IntersectPlaneAndLine(DragPlanePoint, GM_UP_VECTOR, worldpos_mouse, worldray_mouse, &intersect);
+            TotalTranslation = intersect - DragPlanePoint;
+            TotalTranslation = SnapToGrid(TotalTranslation);
+        }
+
+        if (KeysCurrent[SDL_SCANCODE_ESCAPE])
+        {
+            for (MapEdit::Vert *vert : SELECTED_VERTICES)
+                vert->pos = vert->poscache;
+            HotHandleId = 0;
+        }
+        else
+        {
+            for (MapEdit::Vert *vert : SELECTED_VERTICES)
+            {
+                vert->pos = vert->poscache + TotalTranslation;
+            }
+        }
+        for (int i = 0; i < SELECTED_MAP_VOLUMES_INDICES.count; ++i)
+        {
+            MapEdit::Volume& selectedVol = LevelEditorVolumes[SELECTED_MAP_VOLUMES_INDICES.At(i)];
+            for (size_t j = 0; j < selectedVol.faces.lenu(); ++j)
+            {
+                MapEdit::Face *face = selectedVol.faces[j];
+                MY_VERTEX_BUFFER.clear();
+                MapEdit::TriangulateFace_QuickDumb(*face, &MY_VERTEX_BUFFER);
+                RebindGPUMesh(&face->facemesh, (u32)(sizeof(float)*MY_VERTEX_BUFFER.size()), MY_VERTEX_BUFFER.data());
+            }
+        }
+    }
+
+    if (LMBReleasedThisFrame && HotHandleId > 0)
+    {
+        HotHandleId = 0;
+    }
+}
+
+void level_editor_t::DoVertexManip()
+{
+    static vec3 DragPlanePoint;
+    static bool LCtrlDownOnLeftMouseDown = false;
+    static bool AlreadySelectedOnLeftMouseDown = false;
+    static vec3 TotalTranslation;
+
+    if (LMBPressedThisFrame)
+    {
+        LCtrlDownOnLeftMouseDown = KeysCurrent[SDL_SCANCODE_LCTRL];
+
+        for (u32 id = 1; id <= SELECTABLE_VERTICES.size(); ++id)
+        {
+            MapEdit::Vert *vert = SELECTABLE_VERTICES[id-1];
+            DoDiscHandle(id, vert->pos, CameraPosition, GetEditorHandleSize(vert->pos, DISC_HANDLE_RADIUS + 4.f));
+        }
+        u32 clickedId = FlushHandles(MousePos, RenderTargetGame, ActiveViewMatrix, ActivePerspectiveMatrix, false);
+
+        if (clickedId > 0)
+        {
+            HotHandleId = clickedId;
+            MapEdit::Vert *hotVert = SELECTABLE_VERTICES[HotHandleId-1];
+            auto clickedIter = std::find(SELECTED_VERTICES.begin(), SELECTED_VERTICES.end(), hotVert);
+            AlreadySelectedOnLeftMouseDown = clickedIter != SELECTED_VERTICES.end();
+            if (!AlreadySelectedOnLeftMouseDown)
+            {
+                if (!LCtrlDownOnLeftMouseDown)
+                    SELECTED_VERTICES.clear();
+                SELECTED_VERTICES.push_back(hotVert);
+                hotVert->poscache = hotVert->pos;
+            }
+
+            vec3 worldpos_mouse = ScreenPointToWorldPoint(MousePos, 0.f);
+            vec3 worldray_mouse = ScreenPointToWorldRay(MousePos);
+            IntersectPlaneAndLineWithDirections(hotVert->pos, -CameraDirection, worldpos_mouse, worldray_mouse, &DragPlanePoint);
+        }
+        else if (!LCtrlDownOnLeftMouseDown)
+        {
+            SELECTED_VERTICES.clear();
+        }
+        else
+        {
+            // if id == 0 (nothing clicked) then check for click against volumes
+            // also draw all the other volumes with a clickable rgb id so we can switch which volume displays their vertices
+            // draw the selected volume(s) with rgb(0) so it is ignored when clicked
+            // draw these discs on top of all the volumes, but the discs themselves must do depth test so a disc closer to camera
+            // is clicked first.
+        }
+    }
+
+    if (LMBIsPressed && HotHandleId > 0)
+    {
+        MapEdit::Vert *hotVert = SELECTABLE_VERTICES[HotHandleId-1];
+
+        vec3 worldpos_mouse = ScreenPointToWorldPoint(MousePos, 0.f);
+        vec3 worldray_mouse = ScreenPointToWorldRay(MousePos);
+
+        TotalTranslation = vec3();
+        if (KeysCurrent[SDL_SCANCODE_LALT])
+        {
+            vec3 intersect;
+            IntersectPlaneAndLineWithDirections(DragPlanePoint, vec3(-CameraDirection.x, 0.f, -CameraDirection.z), worldpos_mouse, worldray_mouse, &intersect);
+            float yTranslation = Dot((intersect - DragPlanePoint), GM_UP_VECTOR);
+            TotalTranslation = vec3(0.f,yTranslation,0.f);
+            TotalTranslation = SnapToGrid(TotalTranslation);
+        }
+        else
+        {
+            vec3 intersect;
+            IntersectPlaneAndLine(DragPlanePoint, GM_UP_VECTOR, worldpos_mouse, worldray_mouse, &intersect);
+            TotalTranslation = intersect - DragPlanePoint;
+            TotalTranslation = SnapToGrid(TotalTranslation);
+        }
+
+        if (KeysCurrent[SDL_SCANCODE_ESCAPE])
+        {
+            for (MapEdit::Vert *vert : SELECTED_VERTICES)
+                vert->pos = vert->poscache;
+            HotHandleId = 0;
+            LCtrlDownOnLeftMouseDown = false;
+            AlreadySelectedOnLeftMouseDown = false;
+        }
+        else
+        {
+            for (MapEdit::Vert *vert : SELECTED_VERTICES)
+            {
+                vert->pos = vert->poscache + TotalTranslation;
+            }
+        }
+        for (int i = 0; i < SELECTED_MAP_VOLUMES_INDICES.count; ++i)
+        {
+            MapEdit::Volume& selectedVol = LevelEditorVolumes[SELECTED_MAP_VOLUMES_INDICES.At(i)];
+            for (size_t j = 0; j < selectedVol.faces.lenu(); ++j)
+            {
+                MapEdit::Face *face = selectedVol.faces[j];
+                MY_VERTEX_BUFFER.clear();
+                MapEdit::TriangulateFace_QuickDumb(*face, &MY_VERTEX_BUFFER);
+                RebindGPUMesh(&face->facemesh, (u32)(sizeof(float)*MY_VERTEX_BUFFER.size()), MY_VERTEX_BUFFER.data());
+            }
+        }
+    }
+
+    if (LMBReleasedThisFrame)
+    {
+        if (HotHandleId > 0)
+        {
+            MapEdit::Vert *hotVert = SELECTABLE_VERTICES[HotHandleId-1];
+            if (LCtrlDownOnLeftMouseDown)
+            {
+                auto hotVertIter = std::find(SELECTED_VERTICES.begin(), SELECTED_VERTICES.end(), hotVert);
+                if (hotVertIter != SELECTED_VERTICES.end())
+                {
+                    if (AlreadySelectedOnLeftMouseDown && TotalTranslation != vec3())
+                        SELECTED_VERTICES.erase(hotVertIter);
+                }
+                else
+                {
+                    LogError("wtf");
+                }
+            }
+            else if (TotalTranslation != vec3())
+            {
+                SELECTED_VERTICES.clear();
+                SELECTED_VERTICES.push_back(hotVert);
+            }
+        }
+
+        HotHandleId = 0;
+        LCtrlDownOnLeftMouseDown = false;
+        AlreadySelectedOnLeftMouseDown = false;
+    }
+}
+
+void level_editor_t::DoSimpleBrushTool()
+{
+    static vec3 rectstartpoint;
+    static vec3 drawingplanenormal;
+    static vec3 drawinghorizontal;
+    static vec3 drawingvertical;
+    static vec3 rectendpoint;
+    switch (simpleBrushToolState)
+    {
+        case SimpleBrushToolState::NotActive:
+            if (LMBPressedThisFrame)
+            {
+                u32 pickedVolumeFrameId = PickVolume(LevelEditorVolumes.data, (u32)LevelEditorVolumes.lenu());
+                if (pickedVolumeFrameId > 0)
+                {
+                    MapEdit::Volume& vol = LevelEditorVolumes[pickedVolumeFrameId-1];
+                    dynamic_array<MapEdit::Face*> faces = vol.faces;
+                    u32 faceIndex = PickFace(faces.data, (u32)faces.lenu());
+                    MapEdit::Face *drawingFace = faces[faceIndex-1];
+                    drawingplanenormal = drawingFace->QuickNormal();
+                    vec3 ws = ScreenPointToWorldPoint(MousePos, 0.f);
+                    vec3 wr = ScreenPointToWorldRay(MousePos);
+                    vec3 intersectionPoint;
+                    IntersectPlaneAndLineWithDirections(drawingFace->loopbase->v->pos, drawingplanenormal, ws, wr, &intersectionPoint);
+                    simpleBrushToolState = SimpleBrushToolState::DrawingRectangle;
+                    rectstartpoint = intersectionPoint;
+                }
+                else
+                {
+                    vec3 ws = ScreenPointToWorldPoint(MousePos, 0.f);
+                    vec3 wr = ScreenPointToWorldRay(MousePos);
+                    float f = (0.f - ws.y) / wr.y;
+                    if (f < 0.f)
+                        break;
+                    simpleBrushToolState = SimpleBrushToolState::DrawingRectangle;
+                    rectstartpoint = ws + wr * f;
+                    drawingplanenormal = GM_UP_VECTOR;
+                }
+                rectstartpoint = SnapToGrid(rectstartpoint);
+                // no matter what, at least one of these vectors is GM_RIGHT_VECTOR rotated around y-axis.
+                vec3 flattenedNormal = vec3(drawingplanenormal.x, 0.f, drawingplanenormal.z);
+                if (Magnitude(flattenedNormal) < 0.001f)
+                    flattenedNormal = GM_FORWARD_VECTOR;
+                else if (GM_abs(drawingplanenormal.y) < 0.001f)
+                    flattenedNormal = GM_UP_VECTOR;
+                else
+                    flattenedNormal = Normalize(flattenedNormal);
+                drawinghorizontal = Normalize(Cross(drawingplanenormal, flattenedNormal));
+                drawingvertical = Normalize(Cross(drawingplanenormal, drawinghorizontal));
+            }
+            break;
+        case SimpleBrushToolState::DrawingRectangle:
+            GRID_ORIGIN = rectstartpoint;
+            GRID_RIGHT_VECTOR = drawinghorizontal;
+            GRID_UP_VECTOR = drawingplanenormal;
+            if (LMBIsPressed)
+            {
+                vec3 ws = ScreenPointToWorldPoint(MousePos, 0.f);
+                vec3 wr = ScreenPointToWorldRay(MousePos);
+                vec3 intersection;
+                IntersectPlaneAndLineWithDirections(rectstartpoint, drawingplanenormal, ws, wr, &intersection);
+                vec3 endpoint = intersection;
+                endpoint = SnapToGrid(endpoint);
+                vec3 startToEndVector = vec3(endpoint - rectstartpoint);
+
+                // PrimitiveDrawSolidDisc(rectstartpoint, drawingplanenormal, 4, vec4(0,0,1,1));
+                // PrimitiveDrawSolidDisc(endpoint, drawingplanenormal, 4, vec4(0,0,1,1));
+                // PrimitiveDrawLine(rectstartpoint, rectstartpoint + drawinghorizontal * 16.f, vec4(0,0,1,1), 2.f); 
+                // PrimitiveDrawLine(rectstartpoint, rectstartpoint + drawingvertical * 16.f, vec4(0,0,1,1), 2.f); 
+                vec3 startToEndProjOnToHorizontal = Dot(startToEndVector, drawinghorizontal) * drawinghorizontal;
+                vec3 startToEndProjOnToVertical = Dot(startToEndVector, drawingvertical) * drawingvertical;
+                PrimitiveDrawLine(rectstartpoint, rectstartpoint + startToEndProjOnToVertical,
+                                  vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
+                PrimitiveDrawLine(rectstartpoint, rectstartpoint + startToEndProjOnToHorizontal,
+                                  vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
+                PrimitiveDrawLine(endpoint, endpoint - startToEndProjOnToVertical,
+                                  vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
+                PrimitiveDrawLine(endpoint, endpoint - startToEndProjOnToHorizontal,
+                                  vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
+            }
+            if (LMBReleasedThisFrame)
+            {
+                vec3 ws = ScreenPointToWorldPoint(MousePos, 0.f);
+                vec3 wr = ScreenPointToWorldRay(MousePos);
+                vec3 intersection;
+                IntersectPlaneAndLineWithDirections(rectstartpoint, drawingplanenormal, ws, wr, &intersection);
+                rectendpoint = intersection;
+                rectendpoint = SnapToGrid(rectendpoint);
+                vec3 startToEndVector = vec3(rectendpoint - rectstartpoint);
+                vec3 startToEndProjOnToHorizontal = Dot(startToEndVector, drawinghorizontal) * drawinghorizontal;
+                vec3 startToEndProjOnToVertical = Dot(startToEndVector, drawingvertical) * drawingvertical;
+                if (Magnitude(startToEndProjOnToHorizontal)+0.05f >= GRID_INCREMENT && Magnitude(startToEndProjOnToVertical)+0.05f >= GRID_INCREMENT)
+                    simpleBrushToolState = SimpleBrushToolState::DrawingHeight;
+                else
+                    simpleBrushToolState = SimpleBrushToolState::NotActive;
+            }
+            if (KeysPressed[SDL_SCANCODE_ESCAPE])
+                simpleBrushToolState = SimpleBrushToolState::NotActive;
+
+            break;
+        case SimpleBrushToolState::DrawingHeight:
+
+            vec3 startToEndVector = vec3(rectendpoint - rectstartpoint);
+
+            float zcomponent = Dot(startToEndVector, drawinghorizontal);
+            float xcomponent = Dot(startToEndVector, drawingvertical);
+            vec3 startToEndProjOnToHorizontal = zcomponent * drawinghorizontal;
+            vec3 startToEndProjOnToVertical = xcomponent * drawingvertical;
+
+            GRID_ORIGIN = rectendpoint;
+            GRID_UP_VECTOR = startToEndProjOnToHorizontal;
+            GRID_RIGHT_VECTOR = startToEndProjOnToVertical;
+
+            // let plane be defined at point rectendpoint with normal -cameraDirection
+            // then the point of intersection between mouse ray and the plane - endrectpoint and project it onto
+            // the direction of translation e.g. GM_UP_VECTOR
+            vec3 drawingSurfaceNormal = drawingplanenormal;
+            static vec3 height = vec3();
+            static vec3 heightBeforeSnap = vec3();
+            vec3 pn = -CameraDirection;
+            vec3 pp = rectendpoint + heightBeforeSnap;
+            vec3 wp = ScreenPointToWorldPoint(MousePos, 0.f);
+            vec3 wr = ScreenPointToWorldRay(MousePos);
+            vec3 intersection;
+            IntersectPlaneAndLineWithDirections(pp, pn, wp, wr, &intersection);
+            float trueHeightComp = Dot((intersection - rectendpoint), drawingSurfaceNormal);
+            float heightcomponent = SnapToGrid(trueHeightComp);
+            height = heightcomponent * drawingSurfaceNormal;
+            heightBeforeSnap = trueHeightComp * drawingSurfaceNormal;
+
+            vec3 floorPointA = rectstartpoint;
+            vec3 floorPointB = rectstartpoint + startToEndProjOnToVertical;
+            vec3 floorPointC = rectendpoint;
+            vec3 floorPointD = rectendpoint - startToEndProjOnToVertical;
+            // given how i've set up points ABCD:
+            //      if xcomponent < 0, swap A and B, swap C and D
+            //      if zcomponent < 0, swap B and C, swap A and D
+            if (xcomponent < 0)
+            {
+                auto temp = floorPointA;
+                floorPointA = floorPointB;
+                floorPointB = temp;
+                temp = floorPointC;
+                floorPointC = floorPointD;
+                floorPointD = temp;
+            }
+            if (zcomponent < 0)
+            {
+                auto temp = floorPointB;
+                floorPointB = floorPointC;
+                floorPointC = temp;
+                temp = floorPointA;
+                floorPointA = floorPointD;
+                floorPointD = temp;
+            }
+            vec3 ceilPointA = floorPointA + height;
+            vec3 ceilPointB = floorPointB + height;
+            vec3 ceilPointC = floorPointC + height;
+            vec3 ceilPointD = floorPointD + height;
+
+            PrimitiveDrawLine(floorPointA, floorPointB, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
+            PrimitiveDrawLine(floorPointA, floorPointD, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
+            PrimitiveDrawLine(floorPointC, floorPointB, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
+            PrimitiveDrawLine(floorPointC, floorPointD, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
+
+            PrimitiveDrawLine(floorPointA, ceilPointA, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
+            PrimitiveDrawLine(floorPointB, ceilPointB, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
+            PrimitiveDrawLine(floorPointC, ceilPointC, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
+            PrimitiveDrawLine(floorPointD, ceilPointD, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
+
+            PrimitiveDrawLine(ceilPointA, ceilPointB, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
+            PrimitiveDrawLine(ceilPointA, ceilPointD, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
+            PrimitiveDrawLine(ceilPointC, ceilPointB, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
+            PrimitiveDrawLine(ceilPointC, ceilPointD, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
+
+            if (LMBReleasedThisFrame)
+            {
+                // if heigth component is zero or too small then just default to current grid increment
+
+                MapEdit::Volume createdVolume;
+                createdVolume.persistId = MapEdit::FreshVolumePersistId();
+
+                // complete with drawn height
+                MapEdit::Vert *fv0 = MapEdit::CreateVert(floorPointA, &createdVolume);
+                MapEdit::Vert *fv1 = MapEdit::CreateVert(floorPointB, &createdVolume);
+                MapEdit::Vert *fv2 = MapEdit::CreateVert(floorPointC, &createdVolume);
+                MapEdit::Vert *fv3 = MapEdit::CreateVert(floorPointD, &createdVolume);
+                MapEdit::Vert *cv0 = MapEdit::CreateVert(ceilPointA, &createdVolume);
+                MapEdit::Vert *cv1 = MapEdit::CreateVert(ceilPointB, &createdVolume);
+                MapEdit::Vert *cv2 = MapEdit::CreateVert(ceilPointC, &createdVolume);
+                MapEdit::Vert *cv3 = MapEdit::CreateVert(ceilPointD, &createdVolume);
+                if (heightcomponent < 0)
+                {
+                    auto temp0 = fv0;
+                    auto temp1 = fv1;
+                    auto temp2 = fv2;
+                    auto temp3 = fv3;
+                    fv0 = cv0;
+                    fv1 = cv1;
+                    fv2 = cv2;
+                    fv3 = cv3;
+                    cv0 = temp0;
+                    cv1 = temp1;
+                    cv2 = temp2;
+                    cv3 = temp3;
+                }
+
+                MapEdit::Edge *f0_to_f1 = MapEdit::CreateEdge(fv0, fv1, &createdVolume);
+                MapEdit::Edge *f1_to_f2 = MapEdit::CreateEdge(fv1, fv2, &createdVolume);
+                MapEdit::Edge *f2_to_f3 = MapEdit::CreateEdge(fv2, fv3, &createdVolume);
+                MapEdit::Edge *f3_to_f0 = MapEdit::CreateEdge(fv3, fv0, &createdVolume);
+                MapEdit::Edge *c0_to_c1 = MapEdit::CreateEdge(cv0, cv1, &createdVolume);
+                MapEdit::Edge *c1_to_c2 = MapEdit::CreateEdge(cv1, cv2, &createdVolume);
+                MapEdit::Edge *c2_to_c3 = MapEdit::CreateEdge(cv2, cv3, &createdVolume);
+                MapEdit::Edge *c3_to_c0 = MapEdit::CreateEdge(cv3, cv0, &createdVolume);
+                MapEdit::Edge *f0_to_c0 = MapEdit::CreateEdge(fv0, cv0, &createdVolume);
+                MapEdit::Edge *f1_to_c1 = MapEdit::CreateEdge(fv1, cv1, &createdVolume);
+                MapEdit::Edge *f2_to_c2 = MapEdit::CreateEdge(fv2, cv2, &createdVolume);
+                MapEdit::Edge *f3_to_c3 = MapEdit::CreateEdge(fv3, cv3, &createdVolume);
+
+                MapEdit::CreateFace({f0_to_f1, f1_to_f2, f2_to_f3, f3_to_f0}, &createdVolume);
+                MapEdit::Face *revthis = MapEdit::CreateFace({c0_to_c1, c1_to_c2, c2_to_c3, c3_to_c0},
+                                                             &createdVolume);
+                MapEdit::FaceLoopReverse(revthis);
+                MapEdit::CreateFace({f0_to_f1, f0_to_c0, f1_to_c1, c0_to_c1}, &createdVolume);
+                MapEdit::CreateFace({f1_to_f2, f1_to_c1, c1_to_c2, f2_to_c2}, &createdVolume);
+                MapEdit::CreateFace({f2_to_f3, f2_to_c2, c2_to_c3, f3_to_c3}, &createdVolume);
+                MapEdit::CreateFace({f3_to_f0, f3_to_c3, c3_to_c0, f0_to_c0}, &createdVolume);
+
+                LevelEditorVolumes.put(createdVolume);
+
+                for (size_t i = 0; i < createdVolume.faces.lenu(); ++i)
+                {
+                    MapEdit::Face *face = createdVolume.faces[i];
+                    MY_VERTEX_BUFFER.clear();
+                    TriangulateFace_QuickDumb(*face, &MY_VERTEX_BUFFER);
+                    RebindGPUMesh(&face->facemesh, (u32)(sizeof(float)*MY_VERTEX_BUFFER.size()), MY_VERTEX_BUFFER.data());
+                    face->texture = SelectedTexture; 
+                }
+
+                simpleBrushToolState = SimpleBrushToolState::NotActive;
+            }
+            if (KeysPressed[SDL_SCANCODE_ESCAPE])
+            {
+                simpleBrushToolState = SimpleBrushToolState::NotActive;
+            }
+            break;
     }
 }
 
