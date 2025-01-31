@@ -414,9 +414,9 @@ size_t dynamic_array<T>::lenu() const
 }
 
 template<typename T> 
-size_t dynamic_array<T>::setcap(int n)
+void dynamic_array<T>::setcap(int n)
 {
-    return arrsetcap(data, n);
+    arrsetcap(data, n);
 }
 
 template<typename T> 
