@@ -211,6 +211,9 @@ void level_editor_t::Tick()
         case PLACE_POINT_ENTITY:
             DoPlacePointEntity();
             break;
+        case MOVE_POINT_ENTITY:
+            DoMovePointEntity();
+            break;
         case FACE_MANIP:
             DoFaceManip();
             break;
@@ -440,6 +443,29 @@ void level_editor_t::EnterNextState()
     }
 }
 
+void level_editor_t::DrawEntityBillboards()
+{
+    // TODO i'm gonna load all the entity billboards into an atlas.
+
+    // TODO also fade out and don't draw gizmos that are small
+
+    for (size_t i = 0; i < LevelEntities.lenu(); ++i)
+    {
+        const level_entity_t& Ent = LevelEntities[i];
+        switch(Ent.Type)
+        {
+            case POINT_PLAYER_SPAWN:
+                billboard_t PlayerSpawnBillboard;
+                PlayerSpawnBillboard.Sz = 28.f;
+                DoPickableBillboard((u32)i+250, Ent.Position, -CameraDirection, PlayerSpawnBillboard);
+                break;
+        }
+    }
+
+    DrawPickableBillboards_GL(ActivePerspectiveMatrix.ptr(), ActiveViewMatrix.ptr(), false);
+    temp_clear_pickablebillboards();
+}
+
 void level_editor_t::ResetFaceToolData()
 {
     SelectedFace = NULL;
@@ -533,8 +559,14 @@ void level_editor_t::DoPlacePointEntity()
         PlacedPointEntity.Rotation = vec3();
         LevelEntities.put(PlacedPointEntity);
 
-        EnterNewStateNextFrame(LastState);
+        EnterNewStateNextFrame(MOVE_POINT_ENTITY);
     }
+}
+
+void level_editor_t::DoMovePointEntity()
+{
+    // if lmb then PickEntityBillboard and select that entity
+    // then we can move it same way we move a lone vertex selection
 }
 
 void level_editor_t::DoFaceManip()
@@ -609,7 +641,7 @@ void level_editor_t::DoFaceManip()
                 MapEdit::Face *face = selectedVol.faces[j];
                 MY_VERTEX_BUFFER.clear();
                 MapEdit::TriangulateFace_QuickDumb(*face, &MY_VERTEX_BUFFER);
-                RebindGPUMesh(&face->facemesh, (u32)(sizeof(float)*MY_VERTEX_BUFFER.size()), MY_VERTEX_BUFFER.data());
+                RebindGPUMesh(&face->facemesh, sizeof(float)*MY_VERTEX_BUFFER.size(), MY_VERTEX_BUFFER.data());
             }
         }
     }
@@ -717,7 +749,7 @@ void level_editor_t::DoVertexManip()
                 MapEdit::Face *face = selectedVol.faces[j];
                 MY_VERTEX_BUFFER.clear();
                 MapEdit::TriangulateFace_QuickDumb(*face, &MY_VERTEX_BUFFER);
-                RebindGPUMesh(&face->facemesh, (u32)(sizeof(float)*MY_VERTEX_BUFFER.size()), MY_VERTEX_BUFFER.data());
+                RebindGPUMesh(&face->facemesh, sizeof(float)*MY_VERTEX_BUFFER.size(), MY_VERTEX_BUFFER.data());
             }
         }
     }
@@ -971,7 +1003,7 @@ void level_editor_t::DoSimpleBrushTool()
                     MapEdit::Face *face = createdVolume.faces[i];
                     MY_VERTEX_BUFFER.clear();
                     TriangulateFace_QuickDumb(*face, &MY_VERTEX_BUFFER);
-                    RebindGPUMesh(&face->facemesh, (u32)(sizeof(float)*MY_VERTEX_BUFFER.size()), MY_VERTEX_BUFFER.data());
+                    RebindGPUMesh(&face->facemesh, sizeof(float)*MY_VERTEX_BUFFER.size(), MY_VERTEX_BUFFER.data());
                     face->texture = SelectedTexture; 
                 }
 
@@ -1043,8 +1075,6 @@ void level_editor_t::Draw()
             UseShader(EditorShader_FaceSelected);
             float sf = (sinf(TimeSinceStart * 2.7f) + 1.f) / 2.f;
             sf *= 0.1f;
-            if (DoPrimitivesDepthTest)
-                sf = 0.0f;
             GLBind3f(EditorShader_FaceSelected, "tint", 1.0f, 1.0f - sf, 1.0f - sf);
             GLBindMatrix4fv(EditorShader_FaceSelected, "projMatrix", 1, perspectiveMatrix.ptr());
             GLBindMatrix4fv(EditorShader_FaceSelected, "viewMatrix", 1, viewMatrix.ptr());
@@ -1071,18 +1101,8 @@ void level_editor_t::Draw()
     // PRIMITIVES
 
     // Entity billboards
-    for (size_t i = 0; i < LevelEntities.lenu(); ++i)
-    {
-        const level_entity_t& Ent = LevelEntities[i];
-        switch(Ent.Type)
-        {
-            case POINT_PLAYER_SPAWN:
-                // TODO Draw player spawn billboard "gizmo"
-                PrimitiveDrawSolidDisc(Ent.Position, -CameraDirection,
-                    12.f, vec4(0.f, 1.f, 1.f, 1.f));
-                break;
-        }
-    }
+    DrawEntityBillboards();
+
 
     // Draw outline of selected faces
     for (int i = 0; i < SELECTED_MAP_VOLUMES_INDICES.count; ++i)
@@ -1111,12 +1131,8 @@ void level_editor_t::Draw()
                                    discHandleColor);
         }
     }
-    if (KeysPressed[SDL_SCANCODE_X])
-        DoPrimitivesDepthTest = !DoPrimitivesDepthTest;
-    if (DoPrimitivesDepthTest)
-        glEnable(GL_DEPTH_TEST);
-    else
-        glDisable(GL_DEPTH_TEST);
+
+    glDisable(GL_DEPTH_TEST);
     glDisable(GL_CULL_FACE);
     vec3 gridTranslation = vec3(SnapToGrid(LevelEditor.CameraPosition.x), 0.f, SnapToGrid(LevelEditor.CameraPosition.z));
     mat3 gridRotation = mat3();
@@ -1326,7 +1342,7 @@ bool level_editor_t::LoadMap(const char *mapFilePath)
 
             MY_VERTEX_BUFFER.clear();
             TriangulateFace_QuickDumb(*face, &MY_VERTEX_BUFFER); // TODO(Kevin): do smarter triangulation...
-            RebindGPUMesh(&face->facemesh, (u32) MY_VERTEX_BUFFER.size() * sizeof(float), MY_VERTEX_BUFFER.data());
+            RebindGPUMesh(&face->facemesh, sizeof(float)*MY_VERTEX_BUFFER.size(), MY_VERTEX_BUFFER.data());
 
             face->texture = Assets.GetTextureById(faceTexturePersistId);
         }

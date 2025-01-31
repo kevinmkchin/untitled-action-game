@@ -150,6 +150,8 @@ static bool DrawAxisLines = false;
 static GPUFrameBuffer mousePickingRenderTarget;
 static u32 HANDLES_VAO = 0;
 static u32 HANDLES_VBO = 0;
+static NiceArray<float, 256 * 128> HANDLES_VB;
+
 static GPUShader HANDLES_SHADER;
 static const char* HANDLES_SHADER_VS =
     "#version 330 core\n"
@@ -169,7 +171,39 @@ static const char* HANDLES_SHADER_FS =
     "void main() {\n"
     "    colour = vec4(handlesIdRGB, 1.0);\n"
     "}\n";
-static NiceArray<float, 256 * 128> HANDLES_VB;
+
+static GPUMesh PICKABLE_BILLBOARDS_MESH;
+static dynamic_array<float> PICKABLE_BILLBOARDS_VB; 
+static GPUShader PICKABLE_BILLBOARDS_SHADER;
+static const char *PICKABLE_BILLBOARDS_SHADER_VS =
+    "#version 330 core\n"
+    "layout (location = 0) in vec3 pos;\n"
+    "layout (location = 1) in vec2 uv;\n"
+    "layout (location = 2) in vec3 idRGB;\n"
+    "uniform mat4 projectionMatrix;\n"
+    "uniform mat4 viewMatrix;\n"
+    "out vec2 billboardUV;\n"
+    "out vec3 handlesIdRGB;\n"
+    "void main() {\n"
+    "    billboardUV = uv;\n"
+    "    handlesIdRGB = idRGB;\n"
+    "    gl_Position = projectionMatrix * viewMatrix * vec4(pos, 1.0);\n"
+    "}\n";
+static const char *PICKABLE_BILLBOARDS_SHADER_FS =
+    "#version 330 core\n"
+    "in vec2 billboardUV;\n"
+    "in vec3 handlesIdRGB;\n"
+    "uniform sampler2D BillboardTexture;\n"
+    "uniform int UseColorIds;\n"
+    "out vec4 colour;\n"
+    "void main() {\n"
+    "    vec4 TexColor = texture(BillboardTexture, billboardUV);\n"
+    "    if (UseColorIds == 0) { \n"
+    "        colour = TexColor; \n"
+    "    } else { \n"
+    "        colour = vec4(handlesIdRGB, ceil(TexColor.a)); \n"
+    "    }\n"
+    "}\n";
 
 static u32 GRID_MESH_VAO;
 static u32 GRID_MESH_VBO;
@@ -247,6 +281,10 @@ void InitPrimitivesAndHandlesSystems()
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
     GLCreateShaderProgram(HANDLES_SHADER, HANDLES_SHADER_VS, HANDLES_SHADER_FS);
+
+    CreateGPUMesh(&PICKABLE_BILLBOARDS_MESH, 3, 2, 3, GL_DYNAMIC_DRAW);
+    PICKABLE_BILLBOARDS_VB.setcap(384);
+    GLCreateShaderProgram(PICKABLE_BILLBOARDS_SHADER, PICKABLE_BILLBOARDS_SHADER_VS, PICKABLE_BILLBOARDS_SHADER_FS);
 
     vec3 gridmeshdata[4001*4];
     for (int i = -2000; i <= 2000; ++i)
@@ -493,6 +531,38 @@ void DoDiscHandle(u32 id, vec3 worldpos, vec3 normal, float radius)
     }
 }
 
+void DoPickableBillboard(u32 Id, vec3 WorldPos, vec3 Normal, billboard_t Billboard)
+{
+    // TODO batch/atlas this shit
+
+    vec3 idrgb = HandleIdToRGB(Id);
+    vec3 RightTangent = Normalize(Cross(Normal == GM_UP_VECTOR ? GM_RIGHT_VECTOR : GM_UP_VECTOR, Normal));
+    vec3 UpTangent = Normalize(Cross(Normal, RightTangent));
+
+    RightTangent *= Billboard.Sz;
+    UpTangent *= Billboard.Sz;
+
+    vec3 BL = WorldPos - UpTangent - RightTangent;
+    vec3 BR = WorldPos - UpTangent + RightTangent;
+    vec3 TL = WorldPos + UpTangent - RightTangent;
+    vec3 TR = WorldPos + UpTangent + RightTangent;
+
+    // BL BR TL
+    // TL BR TR
+    float BillboardVertsTemp[48] = {
+        BL.x, BL.y, BL.z, 0.f, 0.f, idrgb.x, idrgb.y, idrgb.z, 
+        BR.x, BR.y, BR.z, 1.f, 0.f, idrgb.x, idrgb.y, idrgb.z,
+        TL.x, TL.y, TL.z, 0.f, 1.f, idrgb.x, idrgb.y, idrgb.z,
+        TL.x, TL.y, TL.z, 0.f, 1.f, idrgb.x, idrgb.y, idrgb.z,
+        BR.x, BR.y, BR.z, 1.f, 0.f, idrgb.x, idrgb.y, idrgb.z,
+        TR.x, TR.y, TR.z, 1.f, 1.f, idrgb.x, idrgb.y, idrgb.z,
+    };
+
+    float *BillboardVerts = PICKABLE_BILLBOARDS_VB.addnptr(48);
+
+    memmove(BillboardVerts, BillboardVertsTemp, 48*sizeof(float));
+}
+
 void AddTrianglesToPickableHandles(float *vertices, int count)
 {
     if (HANDLES_VB.count + count > HANDLES_VB.capacity)
@@ -521,22 +591,42 @@ void DrawHandlesVertexArray_GL(float *vertexArrayData, u32 vertexArrayDataCount,
     glBindVertexArray(0);
 }
 
-void DrawHandlesVertexArray_GL(float *vertexArrayData, u32 vertexArrayDataCount, 
-    u32 fboId, int viewportW, int viewportH, float *projectionMat, float *viewMat)
+void DrawPickableBillboards_GL(float *ProjectionMat, float *ViewMat, bool UseColorIds)
 {
-    glBindFramebuffer(GL_FRAMEBUFFER, fboId);
-    glViewport(0,0,viewportW,viewportH);
-    glClearColor(0.f,0.f,0.f,1.f); // clear with rgb(id 0)
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    glEnable(GL_DEPTH_TEST);
+    // pickable billboards can have transparent area and non-transparent area.
+    // so if the used texture gives alpha of 0 at a point
+    // ok so just draw the same billboards, but use a shader that overwrites texture
+    // sample with handle id
 
-    DrawHandlesVertexArray_GL(vertexArrayData, vertexArrayDataCount, projectionMat, viewMat);
+    // because these can be transparent, I need to sort them
+    // then assemble the vertex buffer here instead
+
+    UseShader(PICKABLE_BILLBOARDS_SHADER);
+
+    GLBindMatrix4fv(PICKABLE_BILLBOARDS_SHADER, "projectionMatrix", 1, ProjectionMat);
+    GLBindMatrix4fv(PICKABLE_BILLBOARDS_SHADER, "viewMatrix", 1, ViewMat);
+    GLBind1i(PICKABLE_BILLBOARDS_SHADER, "UseColorIds", UseColorIds);
+
+    RebindGPUMesh(
+        &PICKABLE_BILLBOARDS_MESH,
+        PICKABLE_BILLBOARDS_VB.lenu() * sizeof(float),
+        PICKABLE_BILLBOARDS_VB.data);
+    RenderGPUMesh(
+        PICKABLE_BILLBOARDS_MESH.idVAO,
+        PICKABLE_BILLBOARDS_MESH.idVBO,
+        PICKABLE_BILLBOARDS_MESH.vertexCount,
+        &Assets.PickableBillboardsAtlas);
+}
+
+void temp_clear_pickablebillboards()
+{
+    PICKABLE_BILLBOARDS_VB.setlen(0);
 }
 
 u32 FlushHandles(ivec2 clickat, const GPUFrameBuffer activeSceneTarget,
                  const mat4& activeViewMatrix, const mat4& activeProjectionMatrix, bool orthographic)
 {
-    if (HANDLES_VB.count == 0) return 0;
+    if (HANDLES_VB.count == 0 || PICKABLE_BILLBOARDS_VB.lenu() == 0) return 0;
 
     const float sceneResolutionW = (float)activeSceneTarget.width;
     const float sceneResolutionH = (float)activeSceneTarget.height;
@@ -559,11 +649,20 @@ u32 FlushHandles(ivec2 clickat, const GPUFrameBuffer activeSceneTarget,
         scaledDownFrustum[2][1] -= offsetY;
     }
 
-    DrawHandlesVertexArray_GL(HANDLES_VB.data, HANDLES_VB.count, 
-        mousePickingRenderTarget.fbo, (int)mousePickTargetW, (int)mousePickTargetH, 
-        scaledDownFrustum.ptr(), activeViewMatrix.ptr());
+    glBindFramebuffer(GL_FRAMEBUFFER, mousePickingRenderTarget.fbo);
+    glViewport(0,0,(int)mousePickTargetW,(int)mousePickTargetH);
+    glClearColor(0.f,0.f,0.f,1.f); // clear with rgb(id 0)
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glEnable(GL_DEPTH_TEST);
+
+    if (HANDLES_VB.count > 0)
+        DrawHandlesVertexArray_GL(HANDLES_VB.data, HANDLES_VB.count,
+            scaledDownFrustum.ptr(), activeViewMatrix.ptr());
+    if (PICKABLE_BILLBOARDS_VB.lenu() > 0)
+        DrawPickableBillboards_GL(scaledDownFrustum.ptr(), activeViewMatrix.ptr(), true);
 
     HANDLES_VB.ResetCount();
+    PICKABLE_BILLBOARDS_VB.setlen(0);
 
     glFlush();
     glFinish();

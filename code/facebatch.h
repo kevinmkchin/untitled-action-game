@@ -12,6 +12,6 @@ struct face_batch_t
 };
 
 void CreateFaceBatch(face_batch_t *FaceBatch);
-void RebindFaceBatch(face_batch_t *FaceBatch, u32 SizeInBytes, float *Data);
+void RebindFaceBatch(face_batch_t *FaceBatch, size_t SizeInBytes, float *Data);
 void RenderFaceBatch(const GPUShader *Shader, const face_batch_t *FaceBatch);
 void DeleteFaceBatch(const face_batch_t *FaceBatch);

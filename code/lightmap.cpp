@@ -375,7 +375,7 @@ void BakeStaticLighting(game_map_build_data_t& BuildData)
         memcpy(writeto, vb.data(), sizeof(float)*vb.size());
     }
     CreateFaceBatch(&SceneLightingModel);
-    RebindFaceBatch(&SceneLightingModel, u32(sizeof(float)*arrlenu(patches_vb)), patches_vb);
+    RebindFaceBatch(&SceneLightingModel, sizeof(float)*arrlenu(patches_vb), patches_vb);
     arrfree(patches_vb);
     SceneLightingModel.ColorTexture = Assets.DefaultMissingTexture;
 
