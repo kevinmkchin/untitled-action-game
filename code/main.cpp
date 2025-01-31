@@ -5,9 +5,9 @@ Priorty #1 is building the game, not the engine/tech
 Handcrafted with love.
 
 Quick todo:
+- billboard for player spawn
 - translate point entities
 - list all point entites in the scene
-- billboard for player spawn
 
 
 TODO:
@@ -304,7 +304,6 @@ GPUFrameBuffer RenderTargetGUI;
 GPUMeshIndexed FinalRenderOutputQuad;
 float GAMEPROJECTION_NEARCLIP = 4.f; // even 2 works fine to remove z fighting
 float GAMEPROJECTION_FARCLIP = 32000.f;
-bool DoPrimitivesDepthTest = false;
 
 
 

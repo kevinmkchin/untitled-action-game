@@ -135,7 +135,7 @@ bool LoadGameMap(const char *path)
         FaceBatch.ColorTexture = Assets.GetTextureById(texturePersistId).gputex;
         FaceBatch.LightMapTexture = LevelLightmapTexture;
         CreateFaceBatch(&FaceBatch);
-        RebindFaceBatch(&FaceBatch, u32(sizeof(float)*VertexCount), vb.data());
+        RebindFaceBatch(&FaceBatch, sizeof(float)*VertexCount, vb.data());
         GameLevelFaceBatches.push_back(FaceBatch);
     }
 

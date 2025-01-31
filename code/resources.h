@@ -74,12 +74,14 @@ void CreateGPUFrameBuffer(GPUFrameBuffer *buffer, GLenum TargetFormat = GL_RGBA,
 void UpdateGPUFrameBufferSize(GPUFrameBuffer *buffer, i32 w, i32 h);
 void DeleteGPUFrameBuffer(GPUFrameBuffer *buffer);
 
+// Allows up to three arbitrary float attributes in the vertex buffer
+// It doesn't have to be position, texture, normal 
 void CreateGPUMesh(GPUMesh *mesh,
                    u8 positionAttribSize = 3,
                    u8 textureAttribSize = 2,
                    u8 normalAttribSize = 3,
                    GLenum drawUsage = GL_STATIC_DRAW);
-void RebindGPUMesh(GPUMesh *mesh, u32 sizeInBytes, float *data, GLenum drawUsage = GL_DYNAMIC_DRAW);
+void RebindGPUMesh(GPUMesh *mesh, size_t sizeInBytes, float *data, GLenum drawUsage = GL_DYNAMIC_DRAW);
 void RenderGPUMesh(u32 idVAO, u32 idVBO, u32 vertexCount, const GPUTexture *texture);
 void DeleteGPUMesh(u32 idVAO, u32 idVBO);
 
@@ -147,6 +149,7 @@ struct asset_db_t
 public:
     db_tex_t DefaultEditorTexture;
     GPUTexture DefaultMissingTexture; // Conceptually, missing texture is not a persisted resource
+    GPUTexture PickableBillboardsAtlas;
 
 private:
     u32 TexturePersistIdCounter;

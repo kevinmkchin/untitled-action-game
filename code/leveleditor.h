@@ -19,6 +19,7 @@ enum editor_state_t
     FACE_MANIP = 43,
 
     PLACE_POINT_ENTITY,
+    MOVE_POINT_ENTITY,
 
     INVALID_EDITOR_STATE
 };
@@ -47,13 +48,16 @@ private:
     // on the XZ-plane if no face was clicked. Return false if 
     // neither were clicked.
     bool PickPointAndNormalInLevel(vec3 *PlanePoint, vec3 *PlaneNormal);
+    void PickEntityBillboard();
 
     void DoPlacePointEntity();
+    void DoMovePointEntity();
     void DoFaceManip();
     void DoVertexManip();
     void DoSimpleBrushTool();
 
 private:
+    void DrawEntityBillboards();
     void ResetFaceToolData();
 
 public:

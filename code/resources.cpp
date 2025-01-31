@@ -203,7 +203,7 @@ void DeleteGPUMesh(u32 idVAO, u32 idVBO)
     glDeleteVertexArrays(1, &idVAO);
 }
 
-void RebindGPUMesh(GPUMesh *mesh, u32 sizeInBytes, float *data, GLenum drawUsage)
+void RebindGPUMesh(GPUMesh *mesh, size_t sizeInBytes, float *data, GLenum drawUsage)
 {
     glBindVertexArray(mesh->idVAO);
     glBindBuffer(GL_ARRAY_BUFFER, mesh->idVBO);
@@ -212,7 +212,7 @@ void RebindGPUMesh(GPUMesh *mesh, u32 sizeInBytes, float *data, GLenum drawUsage
     glBindVertexArray(0);
 
     if (mesh->vertexStride)
-        mesh->vertexCount = sizeInBytes / mesh->vertexStride;
+        mesh->vertexCount = (u32) sizeInBytes / mesh->vertexStride;
 }
 
 void RenderGPUMesh(u32 idVAO, u32 idVBO, u32 vertexCount, const GPUTexture *texture)
@@ -220,10 +220,14 @@ void RenderGPUMesh(u32 idVAO, u32 idVBO, u32 vertexCount, const GPUTexture *text
     glBindVertexArray(idVAO);
     glBindBuffer(GL_ARRAY_BUFFER, idVBO);
 
-    if (texture && texture->id > 0)
+    if (texture)
     {
+        GLuint texId = texture->id;
+        if (texture->id == 0)
+            texId = Assets.DefaultMissingTexture.id;
+
         glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, texture->id);
+        glBindTexture(GL_TEXTURE_2D, texId);
     }
 
     glDrawArrays(GL_TRIANGLES, 0, vertexCount);

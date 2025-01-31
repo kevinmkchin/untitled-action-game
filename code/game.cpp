@@ -241,7 +241,8 @@ void RenderGameLayer()
     // GLBindMatrix4fv(gameLevelShader, "modelMatrix", 1, modelMatrix.ptr());
     // RenderModelGLTF(model_Knight);
 
-    // PRIMITIVES
+    // PRIMITIVES    
+    static bool DoPrimitivesDepthTest = false;
     if (KeysPressed[SDL_SCANCODE_X])
         DoPrimitivesDepthTest = !DoPrimitivesDepthTest;
     if (DoPrimitivesDepthTest)

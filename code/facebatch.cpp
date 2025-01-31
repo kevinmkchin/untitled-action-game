@@ -22,12 +22,12 @@ void CreateFaceBatch(face_batch_t *FaceBatch)
     glBindVertexArray(0);
 }
 
-void RebindFaceBatch(face_batch_t *FaceBatch, u32 SizeInBytes, float *Data)
+void RebindFaceBatch(face_batch_t *FaceBatch, size_t SizeInBytes, float *Data)
 {
     glBindVertexArray(FaceBatch->VAO);
     glBindBuffer(GL_ARRAY_BUFFER, FaceBatch->VBO);
     glBufferData(GL_ARRAY_BUFFER, SizeInBytes, Data, GL_DYNAMIC_DRAW);
-    FaceBatch->VertexCount = SizeInBytes / (sizeof(float) * 10);
+    FaceBatch->VertexCount = (u32) SizeInBytes / (sizeof(float) * 10);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
 }
