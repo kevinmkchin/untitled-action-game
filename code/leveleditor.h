@@ -9,6 +9,20 @@
 
 */
 
+enum editor_state_t
+{
+    NOTHING_EDITOR_STATE,
+
+    SIMPLE_BRUSH_TOOL = 40,
+    VERTEX_MANIP = 41,
+    EDGE_MANIP = 42,
+    FACE_MANIP = 43,
+
+    PLACE_POINT_ENTITY,
+
+    INVALID_EDITOR_STATE
+};
+
 struct level_editor_t
 {
 
@@ -22,14 +36,22 @@ struct level_editor_t
     bool LoadMap(const char *MapFilePath);
 
 private:
+    void EnterNewStateNextFrame(editor_state_t NextState);
+    void EnterNextState();
+
     void ResetFaceToolData();
 
     u32 PickVolume(MapEdit::Volume *volumes, u32 arraycount);
     u32 PickFace(MapEdit::Face **faces, u32 arraycount);
 
+    void DoPlacePointEntity();
+
 public:
     dynamic_array<MapEdit::Volume> LevelEditorVolumes;
     bool IsActive = false;
+private:
+    dynamic_array<level_entity_t> LevelEntities;
+
 public:
     vec3 CameraPosition = vec3(600, 500, 600);
     vec3 CameraRotation = vec3(0, 192.3f, 7.56f);// vec3(0,130,-30);
@@ -41,9 +63,17 @@ public:
     MapEdit::Face *SelectedFace = NULL;
     db_tex_t SelectedTexture;
 
-private:
-    // hotHandleId;
-    // move all the editor session specific data here
+private: // move all the editor session specific data here
+    u32 HotHandleId = 0;
+
+    // Do not set directly; use EnterNewStateNextFrame and EnterNextState
+    editor_state_t ActiveState = NOTHING_EDITOR_STATE;
+    editor_state_t QueuedState = INVALID_EDITOR_STATE;
+    editor_state_t LastState = NOTHING_EDITOR_STATE;
+
+    bool LMBPressedThisFrame = false;
+    bool LMBReleasedThisFrame = false;
+    bool LMBIsPressed = false;
 
 };
 

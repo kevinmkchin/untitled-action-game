@@ -250,6 +250,7 @@ inline std::string data_path(const std::string& name) { return wd_path() + "data
 #include "primitives.h"
 #include "lightmap.h"
 #include "winged.h"
+#include "levelentities.h"
 #include "leveleditor.h"
 #include "saveloadlevel.h"
 #include "gui.h"
