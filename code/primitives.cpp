@@ -238,7 +238,9 @@ static const char* GRID_MESH_SHADER_FS =
     "    }\n"
     "}\n";
 
-void InitPrimitivesAndHandlesSystems()
+support_renderer_t SupportRenderer;
+
+void support_renderer_t::Initialize()
 {
     glGenVertexArrays(1, &PRIM_VERTEX_POS_AND_COLOR_VAO);
     glBindVertexArray(PRIM_VERTEX_POS_AND_COLOR_VAO);
@@ -310,7 +312,7 @@ void InitPrimitivesAndHandlesSystems()
     CreateGPUFrameBuffer(&mousePickingRenderTarget);
 }
 
-void DrawGrid(float scale, mat3 rotation, vec3 translation, const mat4 *projectionMatrix, const mat4 *viewMatrix, GLuint sceneDepthTextureId, vec2 framebufferSize)
+void support_renderer_t::DrawGrid(float scale, mat3 rotation, vec3 translation, const mat4 *projectionMatrix, const mat4 *viewMatrix, GLuint sceneDepthTextureId, vec2 framebufferSize)
 {
     mat4 transformMatrix = TranslationMatrix(translation) * mat4(rotation) * ScaleMatrix(scale, scale, scale);
 
@@ -332,7 +334,7 @@ void DrawGrid(float scale, mat3 rotation, vec3 translation, const mat4 *projecti
     glBindVertexArray(0);
 }
 
-void PrimitiveDrawAll(const mat4 *projectionMatrix, const mat4 *viewMatrix, GLuint sceneDepthTextureId, vec2 framebufferSize)
+void support_renderer_t::FlushPrimitives(const mat4 *projectionMatrix, const mat4 *viewMatrix, GLuint sceneDepthTextureId, vec2 framebufferSize)
 {
     if (PRIMITIVE_LINES_VB.count > 0)
     {
@@ -404,7 +406,7 @@ void PrimitiveDrawAll(const mat4 *projectionMatrix, const mat4 *viewMatrix, GLui
     }
 }
 
-void PrimitiveDrawSolidDisc(vec3 center, vec3 normal, float radius, vec4 color)
+void support_renderer_t::DrawSolidDisc(vec3 center, vec3 normal, float radius, vec4 color)
 {
     vec3 tangent = Normalize(Cross(normal == GM_UP_VECTOR ? GM_RIGHT_VECTOR : GM_UP_VECTOR, normal));
     quat q = quat(GM_DEG2RAD * 30.f, normal);
@@ -441,12 +443,12 @@ void PrimitiveDrawSolidDisc(vec3 center, vec3 normal, float radius, vec4 color)
     }
 }
 
-void PrimitiveDrawSolidDisc(vec3 center, vec3 normal, float radius)
+void support_renderer_t::DrawSolidDisc(vec3 center, vec3 normal, float radius)
 {
-    PrimitiveDrawSolidDisc(center, normal, radius, vec4(RGB255TO1(248, 230, 60), 1.f));
+    DrawSolidDisc(center, normal, radius, vec4(RGB255TO1(248, 230, 60), 1.f));
 }
 
-void PrimitiveDrawLine(vec3 p1, vec3 p2, vec4 color)
+void support_renderer_t::DrawLine(vec3 p1, vec3 p2, vec4 color)
 {
     PRIMITIVE_LINES_VB.PushBack(p1.x);
     PRIMITIVE_LINES_VB.PushBack(p1.y);
@@ -465,7 +467,7 @@ void PrimitiveDrawLine(vec3 p1, vec3 p2, vec4 color)
     PRIMITIVE_LINES_VB.PushBack(color.w);
 }
 
-void PrimitiveDrawLine(vec3 p1, vec3 p2, vec4 color, float thickness)
+void support_renderer_t::DrawLine(vec3 p1, vec3 p2, vec4 color, float thickness)
 {
     PRIMITIVE_FATLINES_VB.PushBack(p1.x);
     PRIMITIVE_FATLINES_VB.PushBack(p1.y);
@@ -487,7 +489,7 @@ void PrimitiveDrawLine(vec3 p1, vec3 p2, vec4 color, float thickness)
 }
 
 
-vec3 HandleIdToRGB(u32 id)
+vec3 support_renderer_t::HandleIdToRGB(u32 id)
 {
     float r = (float) ((id & 0x000000FF) >> 0);
     float g = (float) ((id & 0x0000FF00) >> 8);
@@ -495,7 +497,7 @@ vec3 HandleIdToRGB(u32 id)
     return vec3(r,g,b)/255.f;
 }
 
-void DoDiscHandle(u32 id, vec3 worldpos, vec3 normal, float radius)
+void support_renderer_t::DoDiscHandle(u32 id, vec3 worldpos, vec3 normal, float radius)
 {
     vec3 idrgb = HandleIdToRGB(id);
 
@@ -531,7 +533,7 @@ void DoDiscHandle(u32 id, vec3 worldpos, vec3 normal, float radius)
     }
 }
 
-void DoPickableBillboard(u32 Id, vec3 WorldPos, vec3 Normal, billboard_t Billboard)
+void support_renderer_t::DoPickableBillboard(u32 Id, vec3 WorldPos, vec3 Normal, billboard_t Billboard)
 {
     // TODO batch/atlas this shit
 
@@ -563,7 +565,7 @@ void DoPickableBillboard(u32 Id, vec3 WorldPos, vec3 Normal, billboard_t Billboa
     memmove(BillboardVerts, BillboardVertsTemp, 48*sizeof(float));
 }
 
-void AddTrianglesToPickableHandles(float *vertices, int count)
+void support_renderer_t::AddTrianglesToPickableHandles(float *vertices, int count)
 {
     if (HANDLES_VB.count + count > HANDLES_VB.capacity)
     {
@@ -575,7 +577,7 @@ void AddTrianglesToPickableHandles(float *vertices, int count)
     HANDLES_VB.count += count;
 }
 
-void DrawHandlesVertexArray_GL(float *vertexArrayData, u32 vertexArrayDataCount, 
+void support_renderer_t::DrawHandlesVertexArray_GL(float *vertexArrayData, u32 vertexArrayDataCount, 
     float *projectionMat, float *viewMat)
 {
     UseShader(HANDLES_SHADER);
@@ -591,7 +593,7 @@ void DrawHandlesVertexArray_GL(float *vertexArrayData, u32 vertexArrayDataCount,
     glBindVertexArray(0);
 }
 
-void DrawPickableBillboards_GL(float *ProjectionMat, float *ViewMat, bool UseColorIds)
+void support_renderer_t::DrawPickableBillboards_GL(float *ProjectionMat, float *ViewMat, bool UseColorIds)
 {
     // pickable billboards can have transparent area and non-transparent area.
     // so if the used texture gives alpha of 0 at a point
@@ -618,12 +620,12 @@ void DrawPickableBillboards_GL(float *ProjectionMat, float *ViewMat, bool UseCol
         &Assets.PickableBillboardsAtlas);
 }
 
-void temp_clear_pickablebillboards()
+void support_renderer_t::ClearPickableBillboards()
 {
     PICKABLE_BILLBOARDS_VB.setlen(0);
 }
 
-u32 FlushHandles(ivec2 clickat, const GPUFrameBuffer activeSceneTarget,
+u32 support_renderer_t::FlushHandles(ivec2 clickat, const GPUFrameBuffer activeSceneTarget,
                  const mat4& activeViewMatrix, const mat4& activeProjectionMatrix, bool orthographic)
 {
     if (HANDLES_VB.count == 0 && PICKABLE_BILLBOARDS_VB.lenu() == 0) return 0;
@@ -662,7 +664,7 @@ u32 FlushHandles(ivec2 clickat, const GPUFrameBuffer activeSceneTarget,
         DrawPickableBillboards_GL(scaledDownFrustum.ptr(), activeViewMatrix.ptr(), true);
 
     HANDLES_VB.ResetCount();
-    PICKABLE_BILLBOARDS_VB.setlen(0);
+    ClearPickableBillboards();
 
     glFlush();
     glFinish();

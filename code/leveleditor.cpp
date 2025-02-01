@@ -131,9 +131,9 @@ void level_editor_t::Tick()
     ActiveViewMatrix = ViewMatrixLookAt(CameraPosition, CameraPosition + CameraDirection, CameraUp);
 
     // DRAW AXIS LINES
-    PrimitiveDrawLine(vec3(320000.f, 0.f, 0.f), vec3(-320000.f, 0.f, 0.f), vec4(RGB255TO1(205, 56, 9), 0.8f));
-    // PrimitiveDrawLine(vec3(0.f, 320000.f, 0.f), vec3(0.f, -320000.f, 0.f), vec4(RGB255TO1(67, 123, 9), 0.8f));
-    PrimitiveDrawLine(vec3(0.f, 0.f, 320000.f), vec3(0.f, 0.f, -320000.f), vec4(RGB255TO1(21, 129, 205), 0.8f));
+    SupportRenderer.DrawLine(vec3(320000.f, 0.f, 0.f), vec3(-320000.f, 0.f, 0.f), vec4(RGB255TO1(205, 56, 9), 0.8f));
+    // SupportRenderer.DrawLine(vec3(0.f, 320000.f, 0.f), vec3(0.f, -320000.f, 0.f), vec4(RGB255TO1(67, 123, 9), 0.8f));
+    SupportRenderer.DrawLine(vec3(0.f, 0.f, 320000.f), vec3(0.f, 0.f, -320000.f), vec4(RGB255TO1(21, 129, 205), 0.8f));
 
 
     DoEditorGUI();
@@ -456,7 +456,7 @@ void level_editor_t::DrawEntityBillboards()
             case POINT_PLAYER_SPAWN:
                 billboard_t PlayerSpawnBillboard;
                 PlayerSpawnBillboard.Sz = 28.f;
-                DoPickableBillboard((u32)Index+1, Ent.Position, -CameraDirection, PlayerSpawnBillboard);
+                SupportRenderer.DoPickableBillboard((u32)Index+1, Ent.Position, -CameraDirection, PlayerSpawnBillboard);
                 break;
         }
     }
@@ -474,7 +474,7 @@ u32 level_editor_t::PickVolume(MapEdit::Volume *volumes, u32 arraycount)
     // returns the 1 + index of the volume in the provided array. 0 is nothing picked.
     for (u32 volumeFrameId = 1; volumeFrameId <= arraycount; ++volumeFrameId)
     {
-        vec3 idrgb = HandleIdToRGB(volumeFrameId);
+        vec3 idrgb = SupportRenderer.HandleIdToRGB(volumeFrameId);
         MapEdit::Volume& vol = volumes[volumeFrameId - 1];
         for (size_t i = 0; i < vol.faces.lenu(); ++i)
         {
@@ -482,10 +482,10 @@ u32 level_editor_t::PickVolume(MapEdit::Volume *volumes, u32 arraycount)
             int count;
             // TODO(Kevin): instead of triangulate every face every time, probably cache this somehow?
             MapEdit::TriangulateFace_QuickDumb_WithColor(*face, idrgb, PickableTrianglesBuf, &count);
-            AddTrianglesToPickableHandles(PickableTrianglesBuf, count);
+            SupportRenderer.AddTrianglesToPickableHandles(PickableTrianglesBuf, count);
         }
     }
-    u32 pickedVolumeFrameId = FlushHandles(MousePos, RenderTargetGame, ActiveViewMatrix, ActivePerspectiveMatrix, false);
+    u32 pickedVolumeFrameId = SupportRenderer.FlushHandles(MousePos, RenderTargetGame, ActiveViewMatrix, ActivePerspectiveMatrix, false);
     return pickedVolumeFrameId;
 }
 
@@ -497,13 +497,13 @@ u32 level_editor_t::PickFace(MapEdit::Face **faces, u32 arraycount)
     for (u32 id = 1; id <= arraycount; ++id)
     {
         MapEdit::Face *face = faces[id-1];
-        vec3 idrgb = HandleIdToRGB(id);
+        vec3 idrgb = SupportRenderer.HandleIdToRGB(id);
         int count;
         // TODO(Kevin): instead of triangulate every face every time, probably cache this somehow?
         MapEdit::TriangulateFace_QuickDumb_WithColor(*face, idrgb, PickableTrianglesBuf, &count);
-        AddTrianglesToPickableHandles(PickableTrianglesBuf, count);
+        SupportRenderer.AddTrianglesToPickableHandles(PickableTrianglesBuf, count);
     }
-    u32 faceId = FlushHandles(MousePos, RenderTargetGame, ActiveViewMatrix, ActivePerspectiveMatrix, false);
+    u32 faceId = SupportRenderer.FlushHandles(MousePos, RenderTargetGame, ActiveViewMatrix, ActivePerspectiveMatrix, false);
     return faceId;
 }
 
@@ -568,7 +568,7 @@ void level_editor_t::DoMovePointEntity()
     if (LMBPressedThisFrame)
     {
         DrawEntityBillboards();
-        u32 PickedId = FlushHandles(MousePos, RenderTargetGame, ActiveViewMatrix, ActivePerspectiveMatrix, false);
+        u32 PickedId = SupportRenderer.FlushHandles(MousePos, RenderTargetGame, ActiveViewMatrix, ActivePerspectiveMatrix, false);
         if (PickedId == 0) 
             return;
         u32 PickedEntityIndex = PickedId - 1;
@@ -615,7 +615,7 @@ void level_editor_t::DoMovePointEntity()
 
             if (KeysCurrent[SDL_SCANCODE_LALT])
             {
-                PrimitiveDrawLine(EntityMoveStartPoint, Ent.Position, vec4(0,0.8f,0,1));
+                SupportRenderer.DrawLine(EntityMoveStartPoint, Ent.Position, vec4(0,0.8f,0,1));
                 GUI::PrimitiveTextFmt(GUI::MouseXInGUI+3,GUI::MouseYInGUI-3,GUI::GetFontSize(),GUI::LEFT,
                     "Y: %f", TotalTranslation.y);
             }
@@ -725,9 +725,9 @@ void level_editor_t::DoVertexManip()
         for (u32 id = 1; id <= SELECTABLE_VERTICES.size(); ++id)
         {
             MapEdit::Vert *vert = SELECTABLE_VERTICES[id-1];
-            DoDiscHandle(id, vert->pos, CameraPosition, GetEditorHandleSize(vert->pos, DISC_HANDLE_RADIUS + 4.f));
+            SupportRenderer.DoDiscHandle(id, vert->pos, CameraPosition, GetEditorHandleSize(vert->pos, DISC_HANDLE_RADIUS + 4.f));
         }
-        u32 clickedId = FlushHandles(MousePos, RenderTargetGame, ActiveViewMatrix, ActivePerspectiveMatrix, false);
+        u32 clickedId = SupportRenderer.FlushHandles(MousePos, RenderTargetGame, ActiveViewMatrix, ActivePerspectiveMatrix, false);
 
         if (clickedId > 0)
         {
@@ -891,19 +891,19 @@ void level_editor_t::DoSimpleBrushTool()
                 endpoint = SnapToGrid(endpoint);
                 vec3 startToEndVector = vec3(endpoint - rectstartpoint);
 
-                // PrimitiveDrawSolidDisc(rectstartpoint, drawingplanenormal, 4, vec4(0,0,1,1));
-                // PrimitiveDrawSolidDisc(endpoint, drawingplanenormal, 4, vec4(0,0,1,1));
-                // PrimitiveDrawLine(rectstartpoint, rectstartpoint + drawinghorizontal * 16.f, vec4(0,0,1,1), 2.f); 
-                // PrimitiveDrawLine(rectstartpoint, rectstartpoint + drawingvertical * 16.f, vec4(0,0,1,1), 2.f); 
+                // SupportRenderer.DrawSolidDisc(rectstartpoint, drawingplanenormal, 4, vec4(0,0,1,1));
+                // SupportRenderer.DrawSolidDisc(endpoint, drawingplanenormal, 4, vec4(0,0,1,1));
+                // SupportRenderer.DrawLine(rectstartpoint, rectstartpoint + drawinghorizontal * 16.f, vec4(0,0,1,1), 2.f); 
+                // SupportRenderer.DrawLine(rectstartpoint, rectstartpoint + drawingvertical * 16.f, vec4(0,0,1,1), 2.f); 
                 vec3 startToEndProjOnToHorizontal = Dot(startToEndVector, drawinghorizontal) * drawinghorizontal;
                 vec3 startToEndProjOnToVertical = Dot(startToEndVector, drawingvertical) * drawingvertical;
-                PrimitiveDrawLine(rectstartpoint, rectstartpoint + startToEndProjOnToVertical,
+                SupportRenderer.DrawLine(rectstartpoint, rectstartpoint + startToEndProjOnToVertical,
                                   vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
-                PrimitiveDrawLine(rectstartpoint, rectstartpoint + startToEndProjOnToHorizontal,
+                SupportRenderer.DrawLine(rectstartpoint, rectstartpoint + startToEndProjOnToHorizontal,
                                   vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
-                PrimitiveDrawLine(endpoint, endpoint - startToEndProjOnToVertical,
+                SupportRenderer.DrawLine(endpoint, endpoint - startToEndProjOnToVertical,
                                   vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
-                PrimitiveDrawLine(endpoint, endpoint - startToEndProjOnToHorizontal,
+                SupportRenderer.DrawLine(endpoint, endpoint - startToEndProjOnToHorizontal,
                                   vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
             }
             if (LMBReleasedThisFrame)
@@ -986,20 +986,20 @@ void level_editor_t::DoSimpleBrushTool()
             vec3 ceilPointC = floorPointC + height;
             vec3 ceilPointD = floorPointD + height;
 
-            PrimitiveDrawLine(floorPointA, floorPointB, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
-            PrimitiveDrawLine(floorPointA, floorPointD, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
-            PrimitiveDrawLine(floorPointC, floorPointB, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
-            PrimitiveDrawLine(floorPointC, floorPointD, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
+            SupportRenderer.DrawLine(floorPointA, floorPointB, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
+            SupportRenderer.DrawLine(floorPointA, floorPointD, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
+            SupportRenderer.DrawLine(floorPointC, floorPointB, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
+            SupportRenderer.DrawLine(floorPointC, floorPointD, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
 
-            PrimitiveDrawLine(floorPointA, ceilPointA, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
-            PrimitiveDrawLine(floorPointB, ceilPointB, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
-            PrimitiveDrawLine(floorPointC, ceilPointC, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
-            PrimitiveDrawLine(floorPointD, ceilPointD, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
+            SupportRenderer.DrawLine(floorPointA, ceilPointA, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
+            SupportRenderer.DrawLine(floorPointB, ceilPointB, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
+            SupportRenderer.DrawLine(floorPointC, ceilPointC, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
+            SupportRenderer.DrawLine(floorPointD, ceilPointD, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
 
-            PrimitiveDrawLine(ceilPointA, ceilPointB, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
-            PrimitiveDrawLine(ceilPointA, ceilPointD, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
-            PrimitiveDrawLine(ceilPointC, ceilPointB, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
-            PrimitiveDrawLine(ceilPointC, ceilPointD, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
+            SupportRenderer.DrawLine(ceilPointA, ceilPointB, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
+            SupportRenderer.DrawLine(ceilPointA, ceilPointD, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
+            SupportRenderer.DrawLine(ceilPointC, ceilPointB, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
+            SupportRenderer.DrawLine(ceilPointC, ceilPointD, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
 
             if (LMBReleasedThisFrame)
             {
@@ -1169,7 +1169,7 @@ void level_editor_t::Draw()
             std::vector<MapEdit::Edge*> faceEdges = selVolFace->GetEdges();
             for (MapEdit::Edge* e : faceEdges)
             {
-                PrimitiveDrawLine(e->a->pos, e->b->pos, vec4(1,0,0,0.5f), 2.f);
+                SupportRenderer.DrawLine(e->a->pos, e->b->pos, vec4(1,0,0,0.5f), 2.f);
             }
         }
     }
@@ -1182,7 +1182,7 @@ void level_editor_t::Draw()
             vec4 discHandleColor = vec4(RGBHEXTO1(0xFF8000), 1.f);
             if (std::find(SELECTED_VERTICES.begin(), SELECTED_VERTICES.end(), v) != SELECTED_VERTICES.end())
                 discHandleColor = vec4(RGB255TO1(254,8,8),1.f);
-            PrimitiveDrawSolidDisc(v->pos, LevelEditor.CameraPosition - v->pos, GetEditorHandleSize(v->pos, DISC_HANDLE_RADIUS),
+            SupportRenderer.DrawSolidDisc(v->pos, LevelEditor.CameraPosition - v->pos, GetEditorHandleSize(v->pos, DISC_HANDLE_RADIUS),
                                    discHandleColor);
         }
     }
@@ -1196,16 +1196,16 @@ void level_editor_t::Draw()
         gridTranslation = GRID_ORIGIN;
         gridRotation = GetGridRotationMatrix();
     }
-    DrawGrid(GRID_INCREMENT, gridRotation, gridTranslation, &perspectiveMatrix, &viewMatrix, RenderTargetGame.depthTexId, vec2((float)RenderTargetGame.width, (float)RenderTargetGame.height));
-    PrimitiveDrawAll(&perspectiveMatrix, &viewMatrix, RenderTargetGame.depthTexId, vec2((float)RenderTargetGame.width, (float)RenderTargetGame.height));
+    SupportRenderer.DrawGrid(GRID_INCREMENT, gridRotation, gridTranslation, &perspectiveMatrix, &viewMatrix, RenderTargetGame.depthTexId, vec2((float)RenderTargetGame.width, (float)RenderTargetGame.height));
+    SupportRenderer.FlushPrimitives(&perspectiveMatrix, &viewMatrix, RenderTargetGame.depthTexId, vec2((float)RenderTargetGame.width, (float)RenderTargetGame.height));
 
     // TODO I need to mess around with the order of editor rendering because
     // maybe I want billboards to still show up (but faded) when occluded 
     glEnable(GL_DEPTH_TEST);
     // Entity billboards
     DrawEntityBillboards();
-    DrawPickableBillboards_GL(ActivePerspectiveMatrix.ptr(), ActiveViewMatrix.ptr(), false);
-    temp_clear_pickablebillboards();
+    SupportRenderer.DrawPickableBillboards_GL(ActivePerspectiveMatrix.ptr(), ActiveViewMatrix.ptr(), false);
+    SupportRenderer.ClearPickableBillboards();
 
     // // UseShader(editorShader_Wireframe);
     // // glEnable(GL_CULL_FACE);
@@ -1220,7 +1220,7 @@ void level_editor_t::Draw()
     //     std::vector<MapEdit::Edge*> faceEdges = editorVolumeFace->GetEdges();
     //     for (MapEdit::Edge* e : faceEdges)
     //     {
-    //         PrimitiveDrawLine(e->a->pos, e->b->pos, vec4(1,1,1,1), 1.2f);
+    //         SupportRenderer.DrawLine(e->a->pos, e->b->pos, vec4(1,1,1,1), 1.2f);
     //     }
     //     // const FaceBatch fb = editorVolumeFace->facemesh;
     //     // RenderFaceBatch(fb);
