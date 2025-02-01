@@ -5,8 +5,11 @@ Priorty #1 is building the game, not the engine/tech
 Handcrafted with love.
 
 Quick todo:
+
+- billboard texture atlas assembly
+- billboard sorting and vertices assembly
 - billboard for player spawn
-- translate point entities
+- DONE! translate point entities
 - list all point entites in the scene
 
 
@@ -418,7 +421,7 @@ static void InitGameRenderer()
     };
     CreateGPUMeshIndexed(&FinalRenderOutputQuad, refQuadVertices, refQuadIndices, 16, 6, 2, 2, 0, GL_STATIC_DRAW);
 
-    InitPrimitivesAndHandlesSystems();
+    SupportRenderer.Initialize();
 }
 
 

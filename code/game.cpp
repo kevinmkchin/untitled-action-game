@@ -64,8 +64,8 @@ void UnloadPreviousLevel()
 void PrePhysicsTick()
 {
 #if !SUNLIGHT_TEST
-    // PrimitiveDrawSolidDisc(TestLightSource, -CameraDirection, 3.f);
-    // PrimitiveDrawSolidDisc(TestLightSource2, -CameraDirection, 3.f);
+    // SupportRenderer.DrawSolidDisc(TestLightSource, -CameraDirection, 3.f);
+    // SupportRenderer.DrawSolidDisc(TestLightSource2, -CameraDirection, 3.f);
 #endif
 
     // CALCULATE PLAYER FACING DIRECTION
@@ -250,7 +250,7 @@ void RenderGameLayer()
     else
         glDisable(GL_DEPTH_TEST);
     glDisable(GL_CULL_FACE);
-    PrimitiveDrawAll(&perspectiveMatrix, &viewMatrix, RenderTargetGame.depthTexId, vec2((float)RenderTargetGame.width, (float)RenderTargetGame.height));
+    SupportRenderer.FlushPrimitives(&perspectiveMatrix, &viewMatrix, RenderTargetGame.depthTexId, vec2((float)RenderTargetGame.width, (float)RenderTargetGame.height));
 
     DoDebugDrawRecast();
 }
@@ -858,7 +858,7 @@ void DoDebugDrawRecast()
     float fovy = HorizontalFOVToVerticalFOV_RadianToRadian(90.f*GM_DEG2RAD, aspectratio);
     mat4 perspectiveMatrix = ProjectionMatrixPerspective(fovy, aspectratio, GAMEPROJECTION_NEARCLIP, GAMEPROJECTION_FARCLIP);
     mat4 viewMatrix = GameViewMatrix;
-    DrawHandlesVertexArray_GL((float*)VertexBuffer.data(), (u32)VertexBuffer.size()*3,
+    SupportRenderer.DrawHandlesVertexArray_GL((float*)VertexBuffer.data(), (u32)VertexBuffer.size()*3,
         perspectiveMatrix.ptr(), viewMatrix.ptr());
 
     // dd->end();
