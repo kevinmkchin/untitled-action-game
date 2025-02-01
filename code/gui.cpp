@@ -30,6 +30,15 @@ namespace GUI
     int style_paddingRight = 1;
     vec4 style_editorWindowBackgroundColor = vec4(0.1f, 0.1f, 0.1f, 0.85f);
 
+    int GetFontSize()
+    {
+        if (style_textFont.ptr == nullptr)
+        {
+            LogError("GUI::style_textFont has null vtxt_font. Failed to retrieve font size.");
+            return 0;
+        }
+        return style_textFont.ptr->font_height_px;
+    }
 
     static NiceArray<vtxt_font, 10> s_vtxtLoadedFonts;
     static Font s_Fonts[32];
@@ -110,7 +119,6 @@ namespace GUI
     bool anyElementActive = false;
     bool anyWindowHovered = false;
 
-
     static MemoryLinearBuffer drawRequestsFrameStorageBuffer;
 #define MESAIMGUI_NEW_DRAW_REQUEST(type) new (MEMORY_LINEAR_ALLOCATE(&drawRequestsFrameStorageBuffer, type)) type()
 
@@ -166,8 +174,8 @@ namespace GUI
         // add to array with depth info and process later
     }
 
-    static int mouseX_InGuiTarget = 0;
-    static int mouseY_InGuiTarget = 0;
+    int MouseXInGUI = 0;
+    int MouseYInGUI = 0;
 
     bool MouseWentUp()
     {
@@ -185,8 +193,8 @@ namespace GUI
         int top = rect.y;
         int right = left + rect.w;
         int bottom = top + rect.h;
-        if (left <= mouseX_InGuiTarget && mouseX_InGuiTarget < right
-            && top <= mouseY_InGuiTarget && mouseY_InGuiTarget < bottom)
+        if (left <= MouseXInGUI && MouseXInGUI < right
+            && top <= MouseYInGUI && MouseYInGUI < bottom)
         {
             return true;
         }
@@ -444,7 +452,7 @@ namespace GUI
                     {
                         activeTextInputBuffer.At(0) = char(keycodeASCII);
                     }
-                    else if (activeTextInputBuffer.count < 9) // just to prevent integers that are too big
+                    else if (activeTextInputBuffer.count < 8) // just to prevent integers that are too big
                     {
                         activeTextInputBuffer.PushBack(char(keycodeASCII));
                     }
@@ -514,12 +522,12 @@ namespace GUI
         {
             if (activeTextInputBuffer.count > 0)
             {
-                PrimitiveText(rect.x + rect.w, rect.y + rect.h, 9, Align::RIGHT, activeTextInputBuffer.data);
+                PrimitiveText(rect.x + rect.w, rect.y + rect.h, GetFontSize(), Align::RIGHT, activeTextInputBuffer.data);
             }
         }
         else
         {
-            PrimitiveText(rect.x + rect.w, rect.y + rect.h, 9, Align::RIGHT, std::to_string(*v).c_str());
+            PrimitiveText(rect.x + rect.w, rect.y + rect.h, GetFontSize(), Align::RIGHT, std::to_string(*v).c_str());
         }
     }
 
@@ -538,7 +546,7 @@ namespace GUI
                     {
                         activeTextInputBuffer.At(0) = char(keycodeASCII);
                     }
-                    else if (activeTextInputBuffer.count < 9) // just to prevent floats that are too big
+                    else if (activeTextInputBuffer.count < 8) // just to prevent floats that are too big
                     {
                         activeTextInputBuffer.PushBack(char(keycodeASCII));
                     }
@@ -617,14 +625,14 @@ namespace GUI
         {
             if (activeTextInputBuffer.count > 0)
             {
-                PrimitiveText(rect.x + rect.w, rect.y + rect.h, 9, Align::RIGHT, activeTextInputBuffer.data);
+                PrimitiveText(rect.x + rect.w, rect.y + rect.h, GetFontSize(), Align::RIGHT, activeTextInputBuffer.data);
             }
         }
         else
         {
             char cbuf[32];
             stbsp_sprintf(cbuf, "%.2f", *v);
-            PrimitiveText(rect.x + rect.w, rect.y + rect.h, 9, Align::RIGHT, cbuf);
+            PrimitiveText(rect.x + rect.w, rect.y + rect.h, GetFontSize(), Align::RIGHT, cbuf);
         }
     }
 
@@ -632,7 +640,7 @@ namespace GUI
 
     bool PrimitiveLabelledButton(UIRect rect, const char* label, Align textAlignment)
     {
-        int ascenderTextSize = style_textFont.ptr->font_height_px;
+        int ascenderTextSize = GetFontSize();
         float yTextPaddingRatio = (1.f - (float(ascenderTextSize) / float(rect.h))) / 2.f;
         ivec2 textPadding = ivec2(10, (int) roundf(rect.h * yTextPaddingRatio));
         int textX = rect.x + textPadding.x;
@@ -733,7 +741,7 @@ namespace GUI
         int y;
         Window_GetCurrentOffsets(&x, &y);
 
-        int sz = style_textFont.ptr->font_height_px;
+        int sz = GetFontSize();
 
         PrimitiveText(x + style_paddingLeft, y + sz + style_paddingTop, sz, Align::LEFT, text);
 
@@ -793,7 +801,7 @@ namespace GUI
     {
         Window_CommitLastElementDimension();
 
-        int labelTextSize = style_textFont.ptr->font_height_px;
+        int labelTextSize = GetFontSize();
         float textW;
         float textH;
         vtxt_get_text_bounding_box_info(&textW, &textH, label, style_textFont.ptr, labelTextSize);
@@ -824,7 +832,7 @@ namespace GUI
         Window_GetCurrentOffsets(&x, &y);
 
         int w = 50;
-        int h = 9 + 4;
+        int h = GetFontSize() + 4;
 
         PrimitivePanel(UIRect(x, y, w-2, h), vec4(0.4f, 0.4f, 0.4f, 1.f));
         PrimitiveIntegerInputField(FreshID(), UIRect(x + 1, y + 1, w-4, h - 2), v);
@@ -836,7 +844,7 @@ namespace GUI
         {
             (*v) -= increment;
         }
-        PrimitiveText(x + w + 12, y + h, 9, Align::LEFT, label);
+        PrimitiveText(x + w + 12, y + h, GetFontSize(), Align::LEFT, label);
 
         // TODO stage width
         Window_StageLastElementDimension(0, style_paddingTop + h + style_paddingBottom);
@@ -850,7 +858,7 @@ namespace GUI
         Window_GetCurrentOffsets(&x, &y);
 
         int w = 50;
-        int h = 9+4;
+        int h = GetFontSize()+4;
 
         PrimitivePanel(UIRect(x, y, w-2, h), vec4(0.4f, 0.4f, 0.4f, 1.f));
         PrimitiveFloatInputField(FreshID(), UIRect(x + 1, y + 1, w-4, h - 2), v);
@@ -862,7 +870,7 @@ namespace GUI
         {
             (*v) -= increment;
         }
-        PrimitiveText(x + w + 12, y + h, 9, Align::LEFT, label);
+        PrimitiveText(x + w + 12, y + h, GetFontSize(), Align::LEFT, label);
 
         // TODO stage width
         Window_StageLastElementDimension(0, style_paddingTop + h + style_paddingBottom);
@@ -891,14 +899,14 @@ namespace GUI
         if (*selected)
         {
             PrimitivePanel(selectableRegion, style_buttonActiveColor);
-            PrimitiveText(x + 1, y + 10, 9, Align::LEFT, label);
+            PrimitiveText(x + 1, y + 10, GetFontSize(), Align::LEFT, label);
             Window_StageLastElementDimension(selectableRegion.w, selectableRegion.h);
         }
         else
         {
             *selected = PrimitiveButton(FreshID(), selectableRegion, 
                 style_buttonNormalColor, style_buttonHoveredColor, style_buttonActiveColor, true);
-            PrimitiveText(x + 1, y + 10, 9, Align::LEFT, label);
+            PrimitiveText(x + 1, y + 10, GetFontSize(), Align::LEFT, label);
             Window_StageLastElementDimension(selectableRegion.w, selectableRegion.h);
             if (*selected)
             {
@@ -915,7 +923,7 @@ namespace GUI
         Window_GetCurrentOffsets(&x, &y);
         x += style_paddingLeft;
         y += style_paddingTop;
-        int labelTextSize = style_textFont.ptr->font_height_px;
+        int labelTextSize = GetFontSize();
         int w = 40;
         int h = labelTextSize + 4;
 
@@ -1149,19 +1157,19 @@ namespace GUI
 
         if (IsActive(id))
         {
-            i32 chromaSMouseX = GM_clamp(mouseX_InGuiTarget - chromaselectorrect.x, 0, chromaselectorrect.w - 1);
-            i32 chromaVMouseY = GM_clamp(chromaselectorrect.h - (mouseY_InGuiTarget - chromaselectorrect.y) - 1, 0, chromaselectorrect.h - 1);
+            i32 chromaSMouseX = GM_clamp(MouseXInGUI - chromaselectorrect.x, 0, chromaselectorrect.w - 1);
+            i32 chromaVMouseY = GM_clamp(chromaselectorrect.h - (MouseYInGUI - chromaselectorrect.y) - 1, 0, chromaselectorrect.h - 1);
             *saturation = float(chromaSMouseX) / float (chromaselectorrect.w - 1);
             *value = float(chromaVMouseY) / float (chromaselectorrect.h - 1);
         }
         else if (IsActive(id + 1))
         {
-            i32 hueselectormousex = GM_clamp(mouseX_InGuiTarget - hueselectorrect.x, 0, hueselectorrect.w - 1);
+            i32 hueselectormousex = GM_clamp(MouseXInGUI - hueselectorrect.x, 0, hueselectorrect.w - 1);
             *hue = float(hueselectormousex) / float(hueselectorrect.w - 1);
         }
         else if (IsActive(id + 2))
         {
-            i32 alphaselectormousex = GM_clamp(mouseX_InGuiTarget - alphaselectorrect.x, 0, alphaselectorrect.w - 1);
+            i32 alphaselectormousex = GM_clamp(MouseXInGUI - alphaselectorrect.x, 0, alphaselectorrect.w - 1);
             *opacity = float(alphaselectormousex) / float(alphaselectorrect.w - 1);
         }
 
@@ -1497,8 +1505,8 @@ namespace GUI
             {
                 // NOTE(Kevin): For game GUI where window aspect ratio does not match game aspect ratio, must
                 //              map from window mouse pos to gui canvas mouse pos
-                mouseX_InGuiTarget = int(float(MousePos.x) * (float(RenderTargetGUI.width) / float(BackbufferWidth)));
-                mouseY_InGuiTarget = int(float(MousePos.y) * (float(RenderTargetGUI.height) / float(BackbufferHeight)));
+                MouseXInGUI = int(float(MousePos.x) * (float(RenderTargetGUI.width) / float(BackbufferWidth)));
+                MouseYInGUI = int(float(MousePos.y) * (float(RenderTargetGUI.height) / float(BackbufferHeight)));
             }break;
             case SDL_KEYDOWN:
             {
