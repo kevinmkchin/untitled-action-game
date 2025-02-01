@@ -626,7 +626,7 @@ void temp_clear_pickablebillboards()
 u32 FlushHandles(ivec2 clickat, const GPUFrameBuffer activeSceneTarget,
                  const mat4& activeViewMatrix, const mat4& activeProjectionMatrix, bool orthographic)
 {
-    if (HANDLES_VB.count == 0 || PICKABLE_BILLBOARDS_VB.lenu() == 0) return 0;
+    if (HANDLES_VB.count == 0 && PICKABLE_BILLBOARDS_VB.lenu() == 0) return 0;
 
     const float sceneResolutionW = (float)activeSceneTarget.width;
     const float sceneResolutionH = (float)activeSceneTarget.height;
