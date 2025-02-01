@@ -15,10 +15,9 @@ TODO:
     - Player spawn "marker"
     - Jolt debug renderer
     - remove SUNLIGHT_TEST flag and add proper light sources
+- show lines visualizing total translation when moving things. up and down axis as well
 
 - srgb gamma correction bull shit for editor texture that are not lit
-
-- refactor out font size 9
 
 - Enemy moves and shoots at player
 - Player shoots at enemy
@@ -658,7 +657,7 @@ static void ApplicationLoop()
         GUI::EditorLabelledButton("PLAY playground1.map");
         GUI::EndWindow();
 
-        GUI::PrimitiveText(RenderTargetGUI.width/2-13, RenderTargetGUI.height/2, 9, GUI::LEFT, "PAUSED");
+        GUI::PrimitiveText(RenderTargetGUI.width/2-13, RenderTargetGUI.height/2, GUI::GetFontSize(), GUI::LEFT, "PAUSED");
     }
 }
 

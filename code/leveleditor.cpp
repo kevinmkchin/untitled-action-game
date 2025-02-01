@@ -551,7 +551,7 @@ void level_editor_t::DoPlacePointEntity()
 
         level_entity_t PlacedPointEntity;
         PlacedPointEntity.Type = POINT_PLAYER_SPAWN;
-        PlacedPointEntity.Position = PickedPoint;
+        PlacedPointEntity.Position = SnapToGrid(PickedPoint);
         PlacedPointEntity.Rotation = vec3();
         LevelEntities.put(PlacedPointEntity);
 
@@ -600,7 +600,7 @@ void level_editor_t::DoMovePointEntity()
                     WorldPosMouse, WorldRayMouse, &Intersect);
                 float yTranslation = Dot((Intersect - DragPlanePoint), GM_UP_VECTOR);
                 TotalTranslation = vec3(0.f,yTranslation,0.f);
-                // TotalTranslation = SnapToGrid(TotalTranslation);
+                TotalTranslation = SnapToGrid(TotalTranslation);
             }
             else
             {
@@ -608,10 +608,17 @@ void level_editor_t::DoMovePointEntity()
                 IntersectPlaneAndLine(DragPlanePoint, GM_UP_VECTOR, 
                     WorldPosMouse, WorldRayMouse, &Intersect);
                 TotalTranslation = Intersect - DragPlanePoint;
-                // TotalTranslation = SnapToGrid(TotalTranslation);
+                TotalTranslation = SnapToGrid(TotalTranslation);
             }
 
             Ent.Position = EntityMoveStartPoint + TotalTranslation;
+
+            if (KeysCurrent[SDL_SCANCODE_LALT])
+            {
+                PrimitiveDrawLine(EntityMoveStartPoint, Ent.Position, vec4(0,0.8f,0,1));
+                GUI::PrimitiveTextFmt(GUI::MouseXInGUI+3,GUI::MouseYInGUI-3,GUI::GetFontSize(),GUI::LEFT,
+                    "Y: %f", TotalTranslation.y);
+            }
         }
     }
 
@@ -1192,6 +1199,9 @@ void level_editor_t::Draw()
     DrawGrid(GRID_INCREMENT, gridRotation, gridTranslation, &perspectiveMatrix, &viewMatrix, RenderTargetGame.depthTexId, vec2((float)RenderTargetGame.width, (float)RenderTargetGame.height));
     PrimitiveDrawAll(&perspectiveMatrix, &viewMatrix, RenderTargetGame.depthTexId, vec2((float)RenderTargetGame.width, (float)RenderTargetGame.height));
 
+    // TODO I need to mess around with the order of editor rendering because
+    // maybe I want billboards to still show up (but faded) when occluded 
+    glEnable(GL_DEPTH_TEST);
     // Entity billboards
     DrawEntityBillboards();
     DrawPickableBillboards_GL(ActivePerspectiveMatrix.ptr(), ActiveViewMatrix.ptr(), false);

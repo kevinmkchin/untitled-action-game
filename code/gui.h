@@ -16,13 +16,16 @@ typedef u64 ui_id;
 
 namespace GUI
 {
-    extern NiceArray<SDL_Keycode, 32> keyboardInputASCIIKeycodeThisFrame;
-    extern vec4 style_textColor;
+    // extern NiceArray<SDL_Keycode, 32> keyboardInputASCIIKeycodeThisFrame;
+    // extern vec4 style_textColor;
 
     // Use to prevent mouse events from registering through UI or windows
     extern bool anyElementHovered;
     extern bool anyElementActive;
     extern bool anyWindowHovered;
+    // Mouse position in GUI render target resolution
+    extern int MouseXInGUI;
+    extern int MouseYInGUI;
 
     enum Align
     {
@@ -63,6 +66,9 @@ namespace GUI
     bool MouseWentDown();
     bool MouseInside(const UIRect& rect);
     // IsMouseInsideWindow?
+
+    /* Utility helpers */
+    int GetFontSize();
 
     /* Behaviours
     * "building block" behaviours for making interactible GUI elements */
