@@ -105,12 +105,12 @@ template<typename T> struct dynamic_array
     void delswap(int p);
 
 
-    T& operator[](int index) { return data[index]; }
-    T& operator[](u32 index) { return data[index]; }
-    T& operator[](size_t index) { return data[index]; }
-    const T& operator[](int index) const { return data[index]; }
-    const T& operator[](u32 index) const { return data[index]; }
-    const T& operator[](size_t index) const { return data[index]; }
+    T& operator[](int index) { ASSERT(0 <= index && index <= (int)arrlenu(data)); return data[index]; }
+    T& operator[](u32 index) { ASSERT(index <= (u32)arrlenu(data)); return data[index]; }
+    T& operator[](size_t index) { ASSERT(index <= arrlenu(data)); return data[index]; }
+    const T& operator[](int index) const { ASSERT(0 <= index && index <= (int)arrlenu(data)); return data[index]; }
+    const T& operator[](u32 index) const { ASSERT(index <= (u32)arrlenu(data)); return data[index]; }
+    const T& operator[](size_t index) const { ASSERT(index <= arrlenu(data)); return data[index]; }
 };
 
 
