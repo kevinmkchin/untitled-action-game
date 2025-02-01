@@ -446,24 +446,20 @@ void level_editor_t::EnterNextState()
 void level_editor_t::DrawEntityBillboards()
 {
     // TODO i'm gonna load all the entity billboards into an atlas.
-
     // TODO also fade out and don't draw gizmos that are small
 
-    for (size_t i = 0; i < LevelEntities.lenu(); ++i)
+    for (size_t Index = 0; Index < LevelEntities.lenu(); ++Index)
     {
-        const level_entity_t& Ent = LevelEntities[i];
+        const level_entity_t& Ent = LevelEntities[Index];
         switch(Ent.Type)
         {
             case POINT_PLAYER_SPAWN:
                 billboard_t PlayerSpawnBillboard;
                 PlayerSpawnBillboard.Sz = 28.f;
-                DoPickableBillboard((u32)i+250, Ent.Position, -CameraDirection, PlayerSpawnBillboard);
+                DoPickableBillboard((u32)Index+1, Ent.Position, -CameraDirection, PlayerSpawnBillboard);
                 break;
         }
     }
-
-    DrawPickableBillboards_GL(ActivePerspectiveMatrix.ptr(), ActiveViewMatrix.ptr(), false);
-    temp_clear_pickablebillboards();
 }
 
 void level_editor_t::ResetFaceToolData()
@@ -565,8 +561,64 @@ void level_editor_t::DoPlacePointEntity()
 
 void level_editor_t::DoMovePointEntity()
 {
-    // if lmb then PickEntityBillboard and select that entity
-    // then we can move it same way we move a lone vertex selection
+    static int HotEntityIndex = -1;
+    static vec3 DragPlanePoint;
+    static vec3 EntityMoveStartPoint;
+
+    if (LMBPressedThisFrame)
+    {
+        DrawEntityBillboards();
+        u32 PickedId = FlushHandles(MousePos, RenderTargetGame, ActiveViewMatrix, ActivePerspectiveMatrix, false);
+        if (PickedId == 0) 
+            return;
+        u32 PickedEntityIndex = PickedId - 1;
+
+        SelectedEntityIndex = PickedEntityIndex;
+        HotEntityIndex = PickedEntityIndex;
+    }
+
+    if (LMBIsPressed && HotEntityIndex == SelectedEntityIndex && SelectedEntityIndex >= 0)
+    {
+        level_entity_t& Ent = LevelEntities[SelectedEntityIndex];
+        vec3 WorldPosMouse = ScreenPointToWorldPoint(MousePos, 0.f);
+        vec3 WorldRayMouse = ScreenPointToWorldRay(MousePos);
+
+        if (LMBPressedThisFrame) // refactor translation code into one util function 
+        {
+            EntityMoveStartPoint = Ent.Position;
+            IntersectPlaneAndLineWithDirections(Ent.Position, -CameraDirection, 
+                WorldPosMouse, WorldRayMouse, &DragPlanePoint);
+        }
+        else
+        {
+            vec3 TotalTranslation;
+            if (KeysCurrent[SDL_SCANCODE_LALT])
+            {
+                vec3 Intersect;
+                IntersectPlaneAndLineWithDirections(DragPlanePoint, 
+                    vec3(-CameraDirection.x, 0.f, -CameraDirection.z), 
+                    WorldPosMouse, WorldRayMouse, &Intersect);
+                float yTranslation = Dot((Intersect - DragPlanePoint), GM_UP_VECTOR);
+                TotalTranslation = vec3(0.f,yTranslation,0.f);
+                // TotalTranslation = SnapToGrid(TotalTranslation);
+            }
+            else
+            {
+                vec3 Intersect;
+                IntersectPlaneAndLine(DragPlanePoint, GM_UP_VECTOR, 
+                    WorldPosMouse, WorldRayMouse, &Intersect);
+                TotalTranslation = Intersect - DragPlanePoint;
+                // TotalTranslation = SnapToGrid(TotalTranslation);
+            }
+
+            Ent.Position = EntityMoveStartPoint + TotalTranslation;
+        }
+    }
+
+    if (LMBReleasedThisFrame)
+    {
+        HotEntityIndex = -1;
+    }
 }
 
 void level_editor_t::DoFaceManip()
@@ -1100,10 +1152,6 @@ void level_editor_t::Draw()
 
     // PRIMITIVES
 
-    // Entity billboards
-    DrawEntityBillboards();
-
-
     // Draw outline of selected faces
     for (int i = 0; i < SELECTED_MAP_VOLUMES_INDICES.count; ++i)
     {
@@ -1143,6 +1191,11 @@ void level_editor_t::Draw()
     }
     DrawGrid(GRID_INCREMENT, gridRotation, gridTranslation, &perspectiveMatrix, &viewMatrix, RenderTargetGame.depthTexId, vec2((float)RenderTargetGame.width, (float)RenderTargetGame.height));
     PrimitiveDrawAll(&perspectiveMatrix, &viewMatrix, RenderTargetGame.depthTexId, vec2((float)RenderTargetGame.width, (float)RenderTargetGame.height));
+
+    // Entity billboards
+    DrawEntityBillboards();
+    DrawPickableBillboards_GL(ActivePerspectiveMatrix.ptr(), ActiveViewMatrix.ptr(), false);
+    temp_clear_pickablebillboards();
 
     // // UseShader(editorShader_Wireframe);
     // // glEnable(GL_CULL_FACE);

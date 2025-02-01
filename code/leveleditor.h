@@ -88,5 +88,7 @@ private: // move all the editor session specific data here
     bool LMBPressedThisFrame = false;
     bool LMBReleasedThisFrame = false;
     bool LMBIsPressed = false;
+
+    int SelectedEntityIndex = -1;
 };
 
