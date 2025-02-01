@@ -25,6 +25,7 @@ struct billboard_t
     float Sz;
 };
 
+// Should probably rename "Handles" to "Pickables"
 vec3 HandleIdToRGB(u32 id);
 
 void DoDiscHandle(u32 id, vec3 worldpos, vec3 normal, float radius);
