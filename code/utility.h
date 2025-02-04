@@ -12,6 +12,15 @@ bool IntersectPlaneAndLineWithDirections(vec3 pointOnPlane, vec3 normalOfPlane,
 float HorizontalFOVToVerticalFOV_RadianToRadian(float FOVXInRadians, float AspectRatio);
 
 // Blit all of B into A at x y
+//    A is destination
+//    AW is destination bitmap resolution width (how many pixels across? not bytes)
+//    AH is destination bitmap resolution height
+//    B is source
+//    BW is how many pixels wide source bitmap is 
+//    BH is how many pixels tall source bitmap is
+//    x and y is pixel X and Y in destination bitmap
+//    pixelsz is size of each pixel (for RGBA32F, it would be sizeof(float)*4 assuming float is 32 bits)
+//    for RGBA8, it would be sizeof(char)*4
 void BlitRect(u8 *A, int AW, int AH, u8 *B, int BW, int BH, int x, int y, size_t pixelsz);
 
 #define RGB255TO1(r,g,b) ((float)r)/255.f, ((float)g)/255.f, ((float)b)/255.f
@@ -59,13 +68,13 @@ template<typename T> struct dynamic_array
     {
     }
 
-    dynamic_array(int size, bool setlength = false)
-    {
-        if (setlength)
-            setlen(size);
-        else
-            setcap(size);
-    }
+    // dynamic_array(int size, bool setlength = false)
+    // {
+    //     if (setlength)
+    //         setlen(size);
+    //     else
+    //         setcap(size);
+    // }
 
     // Frees the array.
     void free();

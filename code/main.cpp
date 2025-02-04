@@ -6,10 +6,6 @@ Handcrafted with love.
 
 Quick todo:
 
-- billboard texture atlas assembly
-- billboard sorting and vertices assembly
-- billboard for player spawn
-- DONE! translate point entities
 - list all point entites in the scene
 
 

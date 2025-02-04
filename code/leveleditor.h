@@ -90,5 +90,6 @@ private: // move all the editor session specific data here
     bool LMBIsPressed = false;
 
     int SelectedEntityIndex = -1;
+    entity_types_t EntityTypeToPlace;
 };
 

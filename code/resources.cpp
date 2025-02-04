@@ -654,6 +654,84 @@ db_tex_t asset_db_t::LoadNewTexture(const char *path)
     return tex;
 }
 
+void asset_db_t::CreateEntityBillboardAtlasForSupportRenderer(BitmapHandle *BillboardBitmaps)
+{
+    stbrp_rect *EntBilRects = NULL;
+    for (int i = 0; i < 64; ++i)
+    {
+        BitmapHandle Bitmap = BillboardBitmaps[i];
+        if (Bitmap.memory)
+        {
+            if (Bitmap.bitDepth != 4)
+            {
+                LogError("Entity billboard loading error: All entity billboard bitmaps must have RGBA components (32 bit depth).");
+                continue;
+            }
+            stbrp_rect Rect;
+            Rect.id = i; // entity_types_t
+            Rect.w = Bitmap.width;
+            Rect.h = Bitmap.height;
+            arrput(EntBilRects, Rect);
+        }
+    }
+
+    // Pack the rects
+    i32 BillboardAtlasW = 512;
+    i32 BillboardAtlasH = 512;
+    stbrp_node *BillboardPackerNodes = NULL;
+    arrsetlen(BillboardPackerNodes, BillboardAtlasW);
+    stbrp_context BillboardPacker;
+    stbrp_init_target(&BillboardPacker, BillboardAtlasW, BillboardAtlasH, 
+        BillboardPackerNodes, (int)arrlenu(BillboardPackerNodes));
+    stbrp_pack_rects(&BillboardPacker, EntBilRects, (int)arrlenu(EntBilRects));
+    arrfree(BillboardPackerNodes);
+    // EntBilRects is populated at this point
+
+    // Take packed rect info; blit to BillboardAtlas and cache UV rect
+    dynamic_array<u8> BillboardAtlasBuffer;
+    BillboardAtlasBuffer.setlen(BillboardAtlasW * BillboardAtlasH * 4);
+    memset(BillboardAtlasBuffer.data, 100, BillboardAtlasBuffer.lenu());
+    for (int i = 0; i < arrlenu(EntBilRects); ++i)
+    {
+        stbrp_rect PackedRect = EntBilRects[i];
+        if (!PackedRect.was_packed)
+        {
+            LogError("Entity billboard atlas packing error. Failed to pack a billboard.");
+            continue;
+        }
+
+        BitmapHandle BillboardBitmap = BillboardBitmaps[PackedRect.id];
+
+        BlitRect(BillboardAtlasBuffer.data, BillboardAtlasW, BillboardAtlasH,
+            (u8*)BillboardBitmap.memory, PackedRect.w, PackedRect.h,
+            PackedRect.x, PackedRect.y, sizeof(u8) * 4/*RGBA*/);
+
+        vec4 *UVRect = &SupportRenderer.EntityBillboardRectMap[PackedRect.id];
+        vec2 MinUV = vec2((float)(PackedRect.x) / (float)BillboardAtlasW, 
+            (float)(PackedRect.y) / (float)BillboardAtlasH);
+        vec2 MaxUV = vec2((float)(PackedRect.x + PackedRect.w) / (float)BillboardAtlasW, 
+            (float)(PackedRect.y + PackedRect.h) / (float)BillboardAtlasH);
+        UVRect->x = MinUV.x; // bottom left x
+        UVRect->y = MinUV.y; // bottom left y
+        UVRect->z = MaxUV.x; // top right x
+        UVRect->w = MaxUV.y; // top right y
+
+        float *BillboardWidth = &SupportRenderer.EntityBillboardWidthMap[PackedRect.id];
+        *BillboardWidth = (float)PackedRect.w;
+    }
+
+    CreateGPUTextureFromBitmap(&SupportRenderer.EntityBillboardAtlas,
+        BillboardAtlasBuffer.data, BillboardAtlasW, BillboardAtlasH,
+        GL_RGBA, GL_RGBA);
+
+    // Release all temporary buffers
+    for (int i = 0; i < 64; ++i)
+        if (BillboardBitmaps[i].memory)
+            FreeImage(BillboardBitmaps[i]);
+    arrfree(EntBilRects);
+    BillboardAtlasBuffer.free();
+}
+
 void asset_db_t::LoadAllResources()
 {
     LoadNewTexture(wd_path("default.png").c_str());
@@ -676,4 +754,13 @@ void asset_db_t::LoadAllResources()
 
     DefaultEditorTexture = GetTextureById(1);
     CreateGPUTextureFromDisk(&DefaultMissingTexture, wd_path("missing_texture.png").c_str());
+
+    // === Level entity billboards ===
+    // Load all the billboard bitmaps
+    BitmapHandle BillboardBitmaps[64];
+    ReadImage(BillboardBitmaps[POINT_PLAYER_SPAWN], wd_path("ent_bil_playerstart.png").c_str());
+    ReadImage(BillboardBitmaps[POINT_LIGHT], wd_path("ent_bil_pointlight.png").c_str());
+    CreateEntityBillboardAtlasForSupportRenderer(BillboardBitmaps);
+    
+
 }
