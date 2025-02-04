@@ -159,6 +159,8 @@ the editor. Then I could have
 #define STB_TRUETYPE_IMPLEMENTATION
 #include <stb_truetype.h>
 #define STB_DS_IMPLEMENTATION
+#define STBDS_REALLOC(c,p,s) ::realloc(p,s)
+#define STBDS_FREE(c,p)      ::free(p) // ensure global namespace
 #include <stb_ds.h>
 
 #define VERTEXT_IMPLEMENTATION
