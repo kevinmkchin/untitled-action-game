@@ -330,6 +330,7 @@ Mix_Chunk *Mixer_LoadChunk(const char *filepath)
 #include "saveloadlevel.cpp"
 #include "game.cpp"
 #include "gui.cpp"
+#include "levelentities.cpp"
 
 
 

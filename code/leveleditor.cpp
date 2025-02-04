@@ -1327,6 +1327,13 @@ bool level_editor_t::SaveMap(const char *mapFilePath)
 
     ByteBufferWrite(&mapbuf, u64, MAPSER_VOLUMES_U64_DIVIDER_END);
 
+    ByteBufferWrite(&mapbuf, size_t, LevelEntities.lenu());
+    for (size_t i = 0; i < LevelEntities.lenu(); ++i)
+    {
+        level_entity_t& Ent = LevelEntities[i];
+        Ent.SerializeToEditableMapFile(&mapbuf);
+    }
+
     bool writtenToFile = ByteBufferWriteToFile(&mapbuf, mapFilePath) == 1;
 
     ByteBufferFree(&mapbuf);
@@ -1419,6 +1426,15 @@ bool level_editor_t::LoadMap(const char *mapFilePath)
 
     ByteBufferRead(&mapbuf, u64, &u64slot);
     ASSERT(u64slot == MAPSER_VOLUMES_U64_DIVIDER_END);
+
+     size_t LevelEntitiesCount = 0;
+     ByteBufferRead(&mapbuf, size_t, &LevelEntitiesCount);
+     for (size_t i = 0; i < LevelEntitiesCount; ++i)
+     {
+         level_entity_t Ent;
+         Ent.DeserializeFromEditableMapFile(&mapbuf);
+         LevelEntities.put(Ent);
+     }
 
     ByteBufferFree(&mapbuf);
 

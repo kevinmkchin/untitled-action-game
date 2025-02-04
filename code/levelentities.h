@@ -14,5 +14,7 @@ struct level_entity_t
 
     vec3 Position;
     vec3 Rotation;
-};
 
+    void SerializeToEditableMapFile(ByteBuffer *Buf);
+    void DeserializeFromEditableMapFile(ByteBuffer *Buf);
+};
