@@ -7,12 +7,6 @@
  * 
  * */
 
-struct billboard_t
-{
-    int Id;
-    float Sz;
-};
-
 struct support_renderer_t
 {
     void Initialize();
@@ -39,22 +33,20 @@ public: // Primitives
 public: // Pickables
     
     // Get color id from u32
-    vec3 HandleIdToRGB(u32 id);
+    vec3 HandleIdToRGB(u32 Id);
 
     // Add a pickable disc handle
-    void DoDiscHandle(u32 id, vec3 worldpos, vec3 normal, float radius);
+    void DoDiscHandle(u32 Id, vec3 WorldPosition, vec3 WorldNormal, float Radius);
     // Add arbitrary triangles to pickable handles vertex buffer
     //      worldpos x y z color r g b
-    void AddTrianglesToPickableHandles(float *vertices, int count);
+    void AddTrianglesToPickableHandles(float *Vertices, int Count);
     // Immediately draw given vertex buffer to the active frame buffer
     //      Uses HANDLES_SHADER but works with any triangle vertex buffer of XYZRGB layout
-    void DrawHandlesVertexArray_GL(float *vertexArrayData, u32 vertexArrayDataCount, 
-        float *projectionMat, float *viewMat);
-
-    // TODO I need a texture atlas and a map from entity_types_t to a rect in that texture atlas
+    void DrawHandlesVertexArray_GL(float *VertexBuffer, u32 VertexBufferCount, 
+        float *ProjectionMat, float *ViewMat);
 
     // Queue a pickable billboard to be drawn with the provided parameters
-    void DoPickableBillboard(u32 id, vec3 worldpos, vec3 normal, billboard_t billboard);
+    void DoPickableBillboard(u32 Id, vec3 WorldPosition, vec3 WorldNormal, int BillboardId);
     // Immediately draw pickable editor billboards
     //      Can be used for color id picking or to draw the actual billboard textures
     void DrawPickableBillboards_GL(float *ProjectionMat, float *ViewMat, bool UseColorIds);
@@ -64,6 +56,23 @@ public: // Pickables
     //      Reset pickable handles buffers
     u32 FlushHandles(ivec2 clickat, const GPUFrameBuffer activeSceneTarget,
         const mat4& activeViewMatrix, const mat4& activeProjectionMatrix, bool orthographic);
+
+public:
+    // a texture atlas and a map from entity_types_t to a rect in that texture atlas
+    GPUTexture EntityBillboardAtlas;
+    vec4       EntityBillboardRectMap[64];
+    float      EntityBillboardWidthMap[64];
+
+    struct entity_billboard_data_t 
+    {
+        vec3 IdRGB;
+        vec3 WorldPos;
+        vec3 RightTangent;
+        vec3 UpTangent;
+        int BillboardId;
+        float HowFarAlongCameraDirection;
+    };
+    std::vector<entity_billboard_data_t> BillboardsRequested;
 };
 
 extern support_renderer_t SupportRenderer;

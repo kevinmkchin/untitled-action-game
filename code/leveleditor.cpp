@@ -397,8 +397,19 @@ void level_editor_t::DoEditorGUI()
     bool PlacePointEntityActive = ActiveState == PLACE_POINT_ENTITY;
     GUI::EditorBeginHorizontal();
     if (GUI::EditorSelectable_2("", &PlacePointEntityActive))
+    {
+        EntityTypeToPlace = POINT_PLAYER_SPAWN;
         EnterNewStateNextFrame(PLACE_POINT_ENTITY);
+    }
     GUI::EditorText(" Place POINT_PLAYER_SPAWN");
+    GUI::EditorEndHorizontal();
+    GUI::EditorBeginHorizontal();
+    if (GUI::EditorSelectable_2("", &PlacePointEntityActive))
+    {
+        EntityTypeToPlace = POINT_LIGHT;
+        EnterNewStateNextFrame(PLACE_POINT_ENTITY);
+    }
+    GUI::EditorText(" Place POINT_LIGHT");
     GUI::EditorEndHorizontal();
     GUI::EndWindow();
 }
@@ -445,20 +456,14 @@ void level_editor_t::EnterNextState()
 
 void level_editor_t::DrawEntityBillboards()
 {
-    // TODO i'm gonna load all the entity billboards into an atlas.
+    // GUI::PrimitivePanel(GUI::UIRect(0, 0, 512, 512), SupportRenderer.EntityBillboardAtlas.id);
     // TODO also fade out and don't draw gizmos that are small
 
     for (size_t Index = 0; Index < LevelEntities.lenu(); ++Index)
     {
         const level_entity_t& Ent = LevelEntities[Index];
-        switch(Ent.Type)
-        {
-            case POINT_PLAYER_SPAWN:
-                billboard_t PlayerSpawnBillboard;
-                PlayerSpawnBillboard.Sz = 28.f;
-                SupportRenderer.DoPickableBillboard((u32)Index+1, Ent.Position, -CameraDirection, PlayerSpawnBillboard);
-                break;
-        }
+        SupportRenderer.DoPickableBillboard((u32)Index+1, 
+            Ent.Position, -CameraDirection, (int)Ent.Type);
     }
 }
 
@@ -550,7 +555,7 @@ void level_editor_t::DoPlacePointEntity()
             return;
 
         level_entity_t PlacedPointEntity;
-        PlacedPointEntity.Type = POINT_PLAYER_SPAWN;
+        PlacedPointEntity.Type = EntityTypeToPlace;
         PlacedPointEntity.Position = SnapToGrid(PickedPoint);
         PlacedPointEntity.Rotation = vec3();
         LevelEntities.put(PlacedPointEntity);
@@ -1199,9 +1204,8 @@ void level_editor_t::Draw()
     SupportRenderer.DrawGrid(GRID_INCREMENT, gridRotation, gridTranslation, &perspectiveMatrix, &viewMatrix, RenderTargetGame.depthTexId, vec2((float)RenderTargetGame.width, (float)RenderTargetGame.height));
     SupportRenderer.FlushPrimitives(&perspectiveMatrix, &viewMatrix, RenderTargetGame.depthTexId, vec2((float)RenderTargetGame.width, (float)RenderTargetGame.height));
 
-    // TODO I need to mess around with the order of editor rendering because
     // maybe I want billboards to still show up (but faded) when occluded 
-    glEnable(GL_DEPTH_TEST);
+    // glEnable(GL_DEPTH_TEST);
     // Entity billboards
     DrawEntityBillboards();
     SupportRenderer.DrawPickableBillboards_GL(ActivePerspectiveMatrix.ptr(), ActiveViewMatrix.ptr(), false);

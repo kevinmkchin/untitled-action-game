@@ -347,7 +347,7 @@ void support_renderer_t::FlushPrimitives(const mat4 *projectionMatrix, const mat
         GLBind1i(LINES_SHADER, "sceneDepthTexture", 0);
         GLBind2f(LINES_SHADER, "framebufferSize", framebufferSize.x, framebufferSize.y);
 
-        GLBind1f(LINES_SHADER, "occludedOpacity", 0.0f);
+        GLBind1f(LINES_SHADER, "occludedOpacity", 0.5f);
         glBindVertexArray(PRIM_VERTEX_POS_AND_COLOR_VAO);
         glBindBuffer(GL_ARRAY_BUFFER, PRIM_VERTEX_POS_AND_COLOR_VBO);
         glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr) sizeof(float) * PRIMITIVE_LINES_VB.count, PRIMITIVE_LINES_VB.data,
@@ -497,18 +497,18 @@ vec3 support_renderer_t::HandleIdToRGB(u32 id)
     return vec3(r,g,b)/255.f;
 }
 
-void support_renderer_t::DoDiscHandle(u32 id, vec3 worldpos, vec3 normal, float radius)
+void support_renderer_t::DoDiscHandle(u32 Id, vec3 WorldPosition, vec3 WorldNormal, float Radius)
 {
-    vec3 idrgb = HandleIdToRGB(id);
+    vec3 idrgb = HandleIdToRGB(Id);
 
-    vec3 tangent = Normalize(Cross(normal == GM_UP_VECTOR ? GM_RIGHT_VECTOR : GM_UP_VECTOR, normal));
-    quat q = quat(GM_DEG2RAD * 30.f, normal);
+    vec3 tangent = Normalize(Cross(WorldNormal == GM_UP_VECTOR ? GM_RIGHT_VECTOR : GM_UP_VECTOR, WorldNormal));
+    quat q = quat(GM_DEG2RAD * 30.f, WorldNormal);
     for(int i = 0; i < 12; ++i)
     {
-        vec3 a = worldpos;
-        vec3 b = worldpos + tangent * radius;
+        vec3 a = WorldPosition;
+        vec3 b = WorldPosition + tangent * Radius;
         tangent = RotateVector(tangent, q);
-        vec3 c = worldpos + tangent * radius;
+        vec3 c = WorldPosition + tangent * Radius;
 
         HANDLES_VB.PushBack(a.x);
         HANDLES_VB.PushBack(a.y);
@@ -533,75 +533,99 @@ void support_renderer_t::DoDiscHandle(u32 id, vec3 worldpos, vec3 normal, float 
     }
 }
 
-void support_renderer_t::DoPickableBillboard(u32 Id, vec3 WorldPos, vec3 Normal, billboard_t Billboard)
+void support_renderer_t::DoPickableBillboard(u32 Id, vec3 WorldPos, vec3 Normal, int BillboardId)
 {
-    // TODO batch/atlas this shit
-
     vec3 idrgb = HandleIdToRGB(Id);
     vec3 RightTangent = Normalize(Cross(Normal == GM_UP_VECTOR ? GM_RIGHT_VECTOR : GM_UP_VECTOR, Normal));
     vec3 UpTangent = Normalize(Cross(Normal, RightTangent));
 
-    RightTangent *= Billboard.Sz;
-    UpTangent *= Billboard.Sz;
+    // Lets scale down billboard texture width by some factor
+    float ScaleFactor = EntityBillboardWidthMap[BillboardId] / 4.f;
+    RightTangent *= ScaleFactor;
+    UpTangent *= ScaleFactor;
 
-    vec3 BL = WorldPos - UpTangent - RightTangent;
-    vec3 BR = WorldPos - UpTangent + RightTangent;
-    vec3 TL = WorldPos + UpTangent - RightTangent;
-    vec3 TR = WorldPos + UpTangent + RightTangent;
+    float HowFarAlongCameraDirection = Dot(WorldPos, Normalize(LevelEditor.CameraDirection));
 
-    // BL BR TL
-    // TL BR TR
-    float BillboardVertsTemp[48] = {
-        BL.x, BL.y, BL.z, 0.f, 0.f, idrgb.x, idrgb.y, idrgb.z, 
-        BR.x, BR.y, BR.z, 1.f, 0.f, idrgb.x, idrgb.y, idrgb.z,
-        TL.x, TL.y, TL.z, 0.f, 1.f, idrgb.x, idrgb.y, idrgb.z,
-        TL.x, TL.y, TL.z, 0.f, 1.f, idrgb.x, idrgb.y, idrgb.z,
-        BR.x, BR.y, BR.z, 1.f, 0.f, idrgb.x, idrgb.y, idrgb.z,
-        TR.x, TR.y, TR.z, 1.f, 1.f, idrgb.x, idrgb.y, idrgb.z,
-    };
-
-    float *BillboardVerts = PICKABLE_BILLBOARDS_VB.addnptr(48);
-
-    memmove(BillboardVerts, BillboardVertsTemp, 48*sizeof(float));
+    BillboardsRequested.push_back({ idrgb, WorldPos, RightTangent, UpTangent, 
+        BillboardId, HowFarAlongCameraDirection });
 }
 
-void support_renderer_t::AddTrianglesToPickableHandles(float *vertices, int count)
+void support_renderer_t::AddTrianglesToPickableHandles(float *Vertices, int Count)
 {
-    if (HANDLES_VB.count + count > HANDLES_VB.capacity)
+    if (HANDLES_VB.count + Count > HANDLES_VB.capacity)
     {
         LogError("AddTrianglesToPickableHandles exceeds allocated HANDLES_VB buffer.");
         return;
     }
 
-    memcpy(HANDLES_VB.data + HANDLES_VB.count, vertices, count * sizeof(float));
-    HANDLES_VB.count += count;
+    memcpy(HANDLES_VB.data + HANDLES_VB.count, Vertices, Count * sizeof(float));
+    HANDLES_VB.count += Count;
 }
 
-void support_renderer_t::DrawHandlesVertexArray_GL(float *vertexArrayData, u32 vertexArrayDataCount, 
-    float *projectionMat, float *viewMat)
+void support_renderer_t::DrawHandlesVertexArray_GL(float *VertexBuffer, u32 VertexBufferCount, 
+        float *ProjectionMat, float *ViewMat)
 {
     UseShader(HANDLES_SHADER);
 
-    GLBindMatrix4fv(HANDLES_SHADER, "projectionMatrix", 1, projectionMat);
-    GLBindMatrix4fv(HANDLES_SHADER, "viewMatrix", 1, viewMat);
+    GLBindMatrix4fv(HANDLES_SHADER, "projectionMatrix", 1, ProjectionMat);
+    GLBindMatrix4fv(HANDLES_SHADER, "viewMatrix", 1, ViewMat);
 
     glBindVertexArray(HANDLES_VAO);
     glBindBuffer(GL_ARRAY_BUFFER, HANDLES_VBO);
-    glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)sizeof(float)*vertexArrayDataCount, vertexArrayData, GL_DYNAMIC_DRAW);
-    glDrawArrays(GL_TRIANGLES, 0, vertexArrayDataCount / 6);
+    glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)sizeof(float)*VertexBufferCount, VertexBuffer, GL_DYNAMIC_DRAW);
+    glDrawArrays(GL_TRIANGLES, 0, VertexBufferCount / 6);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
 }
 
+static bool BillboardDistCompare(const support_renderer_t::entity_billboard_data_t& a, 
+    const support_renderer_t::entity_billboard_data_t& b)
+{
+    return a.HowFarAlongCameraDirection > b.HowFarAlongCameraDirection;
+}
 void support_renderer_t::DrawPickableBillboards_GL(float *ProjectionMat, float *ViewMat, bool UseColorIds)
 {
-    // pickable billboards can have transparent area and non-transparent area.
-    // so if the used texture gives alpha of 0 at a point
-    // ok so just draw the same billboards, but use a shader that overwrites texture
-    // sample with handle id
+    // NOTE(Kevin): 2025-02-03 not exactly sure how this sort makes the billboards draw nicely...
+    //      If it all goes into the same mesh, how does this ensure that the further parts of the mesh
+    //      are drawn first before the closer parts of the mesh? not sure but this works even after
+    //      disabling GL_DEPTH_TEST
+    std::sort(BillboardsRequested.begin(), BillboardsRequested.end(), BillboardDistCompare);
 
-    // because these can be transparent, I need to sort them
-    // then assemble the vertex buffer here instead
+    PICKABLE_BILLBOARDS_VB.setlen(0);
+    for (const entity_billboard_data_t& Billboard : BillboardsRequested)
+    {
+        vec3 IdRGB = Billboard.IdRGB;
+        vec3 WorldPos = Billboard.WorldPos;
+        vec3 RightTangent = Billboard.RightTangent;
+        vec3 UpTangent = Billboard.UpTangent;
+
+        vec3 BL = WorldPos - UpTangent - RightTangent;
+        vec3 BR = WorldPos - UpTangent + RightTangent;
+        vec3 TL = WorldPos + UpTangent - RightTangent;
+        vec3 TR = WorldPos + UpTangent + RightTangent;
+
+        vec4 UVRect = EntityBillboardRectMap[Billboard.BillboardId];
+        float MinU = UVRect.x;
+        float MinV = UVRect.y;
+        float MaxU = UVRect.z;
+        float MaxV = UVRect.w;
+
+        // BL BR TL
+        // TL BR TR
+        float BillboardVertsTemp[48] = {
+            BL.x, BL.y, BL.z, MinU, MinV, IdRGB.x, IdRGB.y, IdRGB.z, 
+            BR.x, BR.y, BR.z, MaxU, MinV, IdRGB.x, IdRGB.y, IdRGB.z,
+            TL.x, TL.y, TL.z, MinU, MaxV, IdRGB.x, IdRGB.y, IdRGB.z,
+            TL.x, TL.y, TL.z, MinU, MaxV, IdRGB.x, IdRGB.y, IdRGB.z,
+            BR.x, BR.y, BR.z, MaxU, MinV, IdRGB.x, IdRGB.y, IdRGB.z,
+            TR.x, TR.y, TR.z, MaxU, MaxV, IdRGB.x, IdRGB.y, IdRGB.z,
+        };
+
+        float *BillboardVerts = PICKABLE_BILLBOARDS_VB.addnptr(48);
+
+        memmove(BillboardVerts, BillboardVertsTemp, 48*sizeof(float));
+    }
+
 
     UseShader(PICKABLE_BILLBOARDS_SHADER);
 
@@ -617,12 +641,12 @@ void support_renderer_t::DrawPickableBillboards_GL(float *ProjectionMat, float *
         PICKABLE_BILLBOARDS_MESH.idVAO,
         PICKABLE_BILLBOARDS_MESH.idVBO,
         PICKABLE_BILLBOARDS_MESH.vertexCount,
-        &Assets.PickableBillboardsAtlas);
+        &EntityBillboardAtlas);
 }
 
 void support_renderer_t::ClearPickableBillboards()
 {
-    PICKABLE_BILLBOARDS_VB.setlen(0);
+    BillboardsRequested.clear();
 }
 
 u32 support_renderer_t::FlushHandles(ivec2 clickat, const GPUFrameBuffer activeSceneTarget,
@@ -658,13 +682,17 @@ u32 support_renderer_t::FlushHandles(ivec2 clickat, const GPUFrameBuffer activeS
     glEnable(GL_DEPTH_TEST);
 
     if (HANDLES_VB.count > 0)
+    {
         DrawHandlesVertexArray_GL(HANDLES_VB.data, HANDLES_VB.count,
             scaledDownFrustum.ptr(), activeViewMatrix.ptr());
-    if (PICKABLE_BILLBOARDS_VB.lenu() > 0)
-        DrawPickableBillboards_GL(scaledDownFrustum.ptr(), activeViewMatrix.ptr(), true);
+        HANDLES_VB.ResetCount();
+    }
 
-    HANDLES_VB.ResetCount();
-    ClearPickableBillboards();
+    if (PICKABLE_BILLBOARDS_VB.lenu() > 0)
+    {
+        DrawPickableBillboards_GL(scaledDownFrustum.ptr(), activeViewMatrix.ptr(), true);
+        ClearPickableBillboards();
+    }
 
     glFlush();
     glFinish();

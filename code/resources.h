@@ -149,10 +149,12 @@ struct asset_db_t
 public:
     db_tex_t DefaultEditorTexture;
     GPUTexture DefaultMissingTexture; // Conceptually, missing texture is not a persisted resource
-    GPUTexture PickableBillboardsAtlas;
 
 private:
     u32 TexturePersistIdCounter;
+
+private:
+    void CreateEntityBillboardAtlasForSupportRenderer(BitmapHandle *BillboardBitmaps);
 };
 
 extern asset_db_t Assets;

@@ -4,7 +4,8 @@
 
 enum entity_types_t
 {
-    POINT_PLAYER_SPAWN
+    POINT_PLAYER_SPAWN,
+    POINT_LIGHT
 };
 
 struct level_entity_t
