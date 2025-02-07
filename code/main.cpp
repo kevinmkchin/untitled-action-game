@@ -4,16 +4,14 @@ Something fucking cool.
 Priorty #1 is building the game, not the engine/tech
 Handcrafted with love.
 
-Quick todo:
 
-- list all point entites in the scene
 
 
 TODO:
+- list all point entites in the scene
 - have small debug menu to switch between the game and map editor
-    - Player spawn "marker"
-    - Jolt debug renderer
-    - remove SUNLIGHT_TEST flag and add proper light sources
+    - Jolt debug renderer (? maybe unnecessary)
+    - remove SUNLIGHT_TEST flag and add proper directional light source
 - show lines visualizing total translation when moving things. up and down axis as well
 
 - srgb gamma correction bull shit for editor texture that are not lit

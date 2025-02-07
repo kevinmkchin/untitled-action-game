@@ -183,3 +183,8 @@ public:
     bp_layer_interface_t    BroadPhaseLayerInterface; // mapping from object layer to broadphase layer
     obj_vs_bp_layer_impl_t  ObjectVsBroadphaseFilter; // filters object vs broadphase layers
 };
+
+JPH::RVec3 ToJoltVec3(vec3 GMathVec3);
+vec3 FromJoltVec3(JPH::RVec3 JoltVec3);
+JPH::Quat ToJoltQuat(quat GMathQuat);
+quat FromJoltQuat(JPH::Quat JoltQuat);

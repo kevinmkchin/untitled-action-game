@@ -155,6 +155,26 @@ void physics_t::Tick()
     PhysicsSystem->Update(DeltaTime, cCollisionSteps, &PhysTempAllocator, &PhysJobSystem);
 }
 
+JPH::RVec3 ToJoltVec3(vec3 GMathVec3)
+{
+    return JPH::RVec3(GMathVec3.x, GMathVec3.y, GMathVec3.z);
+}
+
+vec3 FromJoltVec3(JPH::RVec3 JoltVec3)
+{
+    return vec3(JoltVec3.GetX(), JoltVec3.GetY(), JoltVec3.GetZ());
+}
+
+JPH::Quat ToJoltQuat(quat GMathQuat)
+{
+    return JPH::Quat(GMathQuat.x, GMathQuat.y, GMathQuat.z, GMathQuat.w);
+}
+
+quat FromJoltQuat(JPH::Quat JoltQuat)
+{
+    return quat(JoltQuat.GetW(), JoltQuat.GetX(), JoltQuat.GetY(), JoltQuat.GetZ());
+}
+
 // void HelloWorld()
 // {
 

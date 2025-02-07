@@ -62,9 +62,8 @@ private:
 
 public:
     dynamic_array<MapEdit::Volume> LevelEditorVolumes;
-    bool IsActive = false;
-private:
     dynamic_array<level_entity_t> LevelEntities;
+    bool IsActive = false;
 
 public:
     vec3 CameraPosition = vec3(776.0f, 508.9f, 302.7f);
