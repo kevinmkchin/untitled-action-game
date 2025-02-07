@@ -540,7 +540,7 @@ void support_renderer_t::DoPickableBillboard(u32 Id, vec3 WorldPos, vec3 Normal,
     vec3 UpTangent = Normalize(Cross(Normal, RightTangent));
 
     // Lets scale down billboard texture width by some factor
-    float ScaleFactor = EntityBillboardWidthMap[BillboardId] / 4.f;
+    float ScaleFactor = EntityBillboardWidthMap[BillboardId] / 8.f;
     RightTangent *= ScaleFactor;
     UpTangent *= ScaleFactor;
 

@@ -147,7 +147,7 @@ void PostPhysicsTick()
     Player.mCharacter->PostSimulation(cCollisionTolerance);
 
     JPH::RVec3 cpos = Player.mCharacter->GetPosition();
-    LogMessage("character pos %f, %f, %f", cpos.GetX(), cpos.GetY(), cpos.GetZ());
+    // LogMessage("character pos %f, %f, %f", cpos.GetX(), cpos.GetY(), cpos.GetZ());
 
     Player.Root.x = cpos.GetX();
     Player.Root.y = cpos.GetY();
