@@ -760,6 +760,7 @@ void asset_db_t::LoadAllResources()
     BitmapHandle BillboardBitmaps[64];
     ReadImage(BillboardBitmaps[POINT_PLAYER_SPAWN], wd_path("ent_bil_playerstart.png").c_str());
     ReadImage(BillboardBitmaps[POINT_LIGHT], wd_path("ent_bil_pointlight.png").c_str());
+    ReadImage(BillboardBitmaps[DIRECTIONAL_LIGHT_PROPERTIES], wd_path("ent_bil_dlight.png").c_str());
     CreateEntityBillboardAtlasForSupportRenderer(BillboardBitmaps);
     
 

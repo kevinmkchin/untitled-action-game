@@ -28,8 +28,10 @@ struct game_map_build_data_t
 
     dynamic_array<static_point_light_t> PointLights;
 
-    vec3 PlayerStartPosition;
-    vec3 PlayerStartRotation;
+    vec3 PlayerStartPosition = vec3();
+    vec3 PlayerStartRotation = vec3();
+
+    vec3 DirectionToSun = vec3();
 };
 
 void BakeStaticLighting(game_map_build_data_t& BuildData);

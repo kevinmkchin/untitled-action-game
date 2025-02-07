@@ -69,10 +69,6 @@ void UnloadPreviousLevel()
 
 void PrePhysicsTick()
 {
-#if !SUNLIGHT_TEST
-    // SupportRenderer.DrawSolidDisc(TestLightSource, -CameraDirection, 3.f);
-    // SupportRenderer.DrawSolidDisc(TestLightSource2, -CameraDirection, 3.f);
-#endif
 
     // CALCULATE PLAYER FACING DIRECTION
     float camYawDelta = MouseDelta.x * 0.085f;
@@ -258,7 +254,7 @@ void RenderGameLayer()
     glDisable(GL_CULL_FACE);
     SupportRenderer.FlushPrimitives(&perspectiveMatrix, &viewMatrix, RenderTargetGame.depthTexId, vec2((float)RenderTargetGame.width, (float)RenderTargetGame.height));
 
-    DoDebugDrawRecast();
+    // DoDebugDrawRecast();
 }
 
 #include <Recast.h>

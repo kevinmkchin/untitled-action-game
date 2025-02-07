@@ -9,14 +9,16 @@ Handcrafted with love.
 
 TODO:
 - list all point entites in the scene
-- have small debug menu to switch between the game and map editor
-    - Jolt debug renderer (? maybe unnecessary)
-    - remove SUNLIGHT_TEST flag and add proper directional light source
-- show lines visualizing total translation when moving things. up and down axis as well
-
-- srgb gamma correction bull shit for editor texture that are not lit
+- entity placement window with dropdown
+- entity properties window
+- reset data when switching between game and map editor
 
 - Enemy moves and shoots at player
+- Jolt debug renderer (? maybe unnecessary)
+
+- show lines visualizing total translation when moving things. up and down axis as well
+- srgb gamma correction bull shit for editor texture that are not lit
+
 - Player shoots at enemy
 - Gun model?
 - save/load texture database
@@ -111,7 +113,6 @@ the editor. Then I could have
 
 
 */
-#define SUNLIGHT_TEST 0
 
 #include <cstdint>
 #include <cassert>
@@ -494,7 +495,7 @@ static bool InitializeApplication()
 #endif
 
     SDL_SetWindowMinimumSize(SDLMainWindow, 200, 100);
-    SDL_GL_SetSwapInterval(1);
+    SDL_GL_SetSwapInterval(0);
 
     if (Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 2, 2048) < 0 || Mix_Init(MIX_INIT_OGG) < 0)
         return false;
@@ -652,9 +653,9 @@ static void ApplicationLoop()
             ShowDebugMenu = false;
         }
         GUI::EditorSpacer(0, 10);
-        GUI::EditorLabelledButton("PLAY buildtest.map");
-        GUI::EditorLabelledButton("PLAY house.map");
         GUI::EditorLabelledButton("PLAY playground1.map");
+        GUI::EditorLabelledButton("PLAY playground2.map");
+        GUI::EditorLabelledButton("PLAY house.map");
         GUI::EndWindow();
 
         GUI::PrimitiveText(RenderTargetGUI.width/2-13, RenderTargetGUI.height/2, GUI::GetFontSize(), GUI::LEFT, "PAUSED");
@@ -672,7 +673,7 @@ int main(int argc, char* argv[])
     // RDOCAPI->LaunchReplayUI(1, "");
 
     InitializeGame();
-    // LoadLevel(wd_path("switchtest0.map").c_str());
+    // LoadLevel(wd_path("switch.map").c_str());
     LevelEditor.Open();
 
     while (!ProgramShutdownRequested)
