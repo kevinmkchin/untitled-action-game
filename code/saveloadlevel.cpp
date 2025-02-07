@@ -18,6 +18,10 @@ static void BuildOutLevelEntities(game_map_build_data_t *BuildData)
                 BuildData->PlayerStartPosition = Ent.Position;
                 BuildData->PlayerStartRotation = Ent.Rotation;
             } break;
+            case DIRECTIONAL_LIGHT_PROPERTIES: {
+                // If DirectionToSun is 0,0,0 then no sun in the level
+                BuildData->DirectionToSun = Ent.Rotation;
+            } break;
         }
     }
 }

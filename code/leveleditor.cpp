@@ -411,6 +411,14 @@ void level_editor_t::DoEditorGUI()
     }
     GUI::EditorText(" Place POINT_LIGHT");
     GUI::EditorEndHorizontal();
+    GUI::EditorBeginHorizontal();
+    if (GUI::EditorSelectable_2("", &PlacePointEntityActive))
+    {
+        EntityTypeToPlace = DIRECTIONAL_LIGHT_PROPERTIES;
+        EnterNewStateNextFrame(PLACE_POINT_ENTITY);
+    }
+    GUI::EditorText(" Place DIRECTIONAL_LIGHT_PROPERTIES");
+    GUI::EditorEndHorizontal();
     GUI::EndWindow();
 }
 
@@ -558,6 +566,8 @@ void level_editor_t::DoPlacePointEntity()
         PlacedPointEntity.Type = EntityTypeToPlace;
         PlacedPointEntity.Position = SnapToGrid(PickedPoint);
         PlacedPointEntity.Rotation = vec3();
+        if (EntityTypeToPlace == DIRECTIONAL_LIGHT_PROPERTIES) // TODO introduce property window
+            PlacedPointEntity.Rotation = vec3(-1.0f, 0.9f, -0.16f);
         LevelEntities.put(PlacedPointEntity);
 
         EnterNewStateNextFrame(MOVE_POINT_ENTITY);

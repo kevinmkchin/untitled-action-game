@@ -33,6 +33,9 @@ void ThreadSafe_DoDirectLightingIntoLightMap(u32 patchIndexStart, u32 patchIndex
     // |  * |
     //  ----
 
+    bool SunExists = BuildDataShared->DirectionToSun != vec3();
+    vec3 DLightIncidenceRay = Normalize(BuildDataShared->DirectionToSun);
+
     for (u32 i = patchIndexStart; i < patchIndexEnd; ++i)
     {
         vec3 patch_position = all_lm_pos[i];
@@ -54,32 +57,32 @@ void ThreadSafe_DoDirectLightingIntoLightMap(u32 patchIndexStart, u32 patchIndex
         float SampleIntensityAccumulator = 0.f;
 
         for (u32 sample = 0; sample < 4; ++sample)
-        {   
-#if SUNLIGHT_TEST
-            vec3 incidence_ray = vec3(-1.0f, 0.9f, -0.16f); // direction to sun
-            // vec3 incidence_ray = vec3(-0.16f, 0.9f, -0.16f); // direction to sun
-            float costheta = Dot(Normalize(incidence_ray), patch_normal);
-            if (costheta > 0.f)
+        {
+            if (SunExists)
             {
-                // occlusion test
-                LineCollider ray_collider;
-                ray_collider.a = patch_position + Normalize(incidence_ray) * 32000.0f;
-                ray_collider.b = patch_position + Normalize(incidence_ray) * 0.2f;
-                bool occluded = false;
-
-                if (LightMapOcclusionTree.Query(ray_collider))
+                float costheta = Dot(DLightIncidenceRay, patch_normal);
+                if (costheta > 0.f)
                 {
-                    occluded = true;
-                }
+                    // occlusion test
+                    LineCollider ray_collider;
+                    ray_collider.a = patch_position + DLightIncidenceRay * 32000.0f;
+                    ray_collider.b = patch_position + DLightIncidenceRay * 0.2f;
+                    bool occluded = false;
 
-                if (!occluded)
-                {
-                    float intensity = costheta;
-                    intensity = GM_min(intensity, 1.0f);
-                    SampleIntensityAccumulator += intensity;
+                    if (LightMapOcclusionTree.Query(ray_collider))
+                    {
+                        occluded = true;
+                    }
+
+                    if (!occluded)
+                    {
+                        float intensity = costheta;
+                        intensity = GM_min(intensity, 1.0f);
+                        SampleIntensityAccumulator += intensity;
+                    }
                 }
             }
-#else
+
             for (size_t i = 0; i < BuildDataShared->PointLights.lenu(); ++i)
             {
                 static_point_light_t PointLight = BuildDataShared->PointLights[i];
@@ -115,7 +118,6 @@ void ThreadSafe_DoDirectLightingIntoLightMap(u32 patchIndexStart, u32 patchIndex
                     }
                 }
             }
-#endif
         }
 
         all_light_direct[i] = SampleIntensityAccumulator * 0.25f;
