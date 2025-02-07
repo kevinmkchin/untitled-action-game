@@ -12,8 +12,6 @@ float *all_light_indirect = NULL;
 
 
 
-vec3 TestLightSource = vec3(0, 110, 0);
-vec3 TestLightSource2 = vec3(150, 110, 0);
 LevelPolygonOctree LightMapOcclusionTree;
 const float LightMapTexelSize = 8.f; // in world units
 const int HemicubeFaceW = 100;
@@ -21,6 +19,7 @@ const int HemicubeFaceH = HemicubeFaceW;
 const int HemicubeFaceWHalf = HemicubeFaceW/2;
 const int HemicubeFaceHHalf = HemicubeFaceH/2;
 
+game_map_build_data_t *BuildDataShared = nullptr;
 
 void ThreadSafe_DoDirectLightingIntoLightMap(u32 patchIndexStart, u32 patchIndexEnd)
 {
@@ -81,65 +80,41 @@ void ThreadSafe_DoDirectLightingIntoLightMap(u32 patchIndexStart, u32 patchIndex
                 }
             }
 #else
-            vec3 incidence_ray = TestLightSource - SamplePositions[sample];
-            float costheta = Dot(Normalize(incidence_ray), patch_normal);
-            if (costheta > 0.f)
+            for (size_t i = 0; i < BuildDataShared->PointLights.lenu(); ++i)
             {
-                float dist = Magnitude(incidence_ray);
+                static_point_light_t PointLight = BuildDataShared->PointLights[i];
 
-                // occlusion test
-                LineCollider ray_collider;
-                ray_collider.a = TestLightSource;
-                ray_collider.b = TestLightSource - incidence_ray * 0.98f;
-                bool occluded = false;
-
-                if (LightMapOcclusionTree.Query(ray_collider))
+                vec3 incidence_ray = PointLight.Pos - SamplePositions[sample];
+                float costheta = Dot(Normalize(incidence_ray), patch_normal);
+                if (costheta > 0.f)
                 {
-                    occluded = true;
-                }
+                    float dist = Magnitude(incidence_ray);
 
-                if (!occluded)
-                {
-                    // point light attenuation
-                    // doing quadratic component is too dark when there is no gamma correction
-                    float atten_lin = 0.02f;
-                    float atten_quad = 0.00019f;
-                    float attenuation = 1.f / 
-                        (1.f + atten_lin * dist + atten_quad * dist * dist);
-                    float intensity = costheta * attenuation;
-                    intensity = GM_min(intensity, 1.0f);
-                    SampleIntensityAccumulator += intensity;
+                    // occlusion test
+                    LineCollider ray_collider;
+                    ray_collider.a = PointLight.Pos;
+                    ray_collider.b = PointLight.Pos - incidence_ray * 0.98f;
+                    bool occluded = false;
+
+                    if (LightMapOcclusionTree.Query(ray_collider))
+                    {
+                        occluded = true;
+                    }
+
+                    if (!occluded)
+                    {
+                        // point light attenuation
+                        // doing quadratic component is too dark when there is no gamma correction
+                        float atten_lin = 0.02f;
+                        float atten_quad = 0.00019f;
+                        float attenuation = 1.f / 
+                            (1.f + atten_lin * dist + atten_quad * dist * dist);
+                        float intensity = costheta * attenuation;
+                        intensity = GM_min(intensity, 1.0f);
+                        SampleIntensityAccumulator += intensity;
+                    }
                 }
             }
-
-            // vec3 incidence_ray2 = TestLightSource2 - SamplePositions[sample];
-            // costheta = Dot(Normalize(incidence_ray2), patch_normal);
-            // if (costheta > 0.f)
-            // {
-            //     float dist = Magnitude(incidence_ray2);
-
-            //     // occlusion test
-            //     LineCollider ray_collider;
-            //     ray_collider.a = TestLightSource2;
-            //     ray_collider.b = TestLightSource2 - incidence_ray2 * 0.98f;
-            //     bool occluded = false;
-
-            //     if (LightMapOcclusionTree.Query(ray_collider))
-            //     {
-            //         occluded = true;
-            //     }
-
-            //     if (!occluded)
-            //     {
-            //         float atten_lin = 0.022f;
-            //         float atten_quad = 0.0019f;
-            //         float attenuation = 1.f / 
-            //             (1.f + atten_lin * dist + atten_quad * dist * dist);
-            //         float intensity = costheta * attenuation;
-            //         intensity = GM_min(intensity, 1.0f);
-            //         SampleIntensityAccumulator += intensity;
-            //     }
-            // }
 #endif
         }
 
@@ -152,6 +127,8 @@ void ThreadSafe_DoDirectLightingIntoLightMap(u32 patchIndexStart, u32 patchIndex
 
 void BakeStaticLighting(game_map_build_data_t& BuildData)
 {
+    BuildDataShared = &BuildData;
+
     const int totalfacecount = BuildData.TotalFaceCount;
     std::unordered_map<u32, std::vector<float>>& VertexBuffers = BuildData.VertexBuffers;
     std::vector<vec3>& ColliderWorldPoints = BuildData.ColliderWorldPoints;
@@ -709,5 +686,7 @@ void BakeStaticLighting(game_map_build_data_t& BuildData)
     // arrfree(all_patches_id);
     arrfree(all_light_direct);
     arrfree(all_light_indirect);
+
+    BuildDataShared = nullptr;
 }
 

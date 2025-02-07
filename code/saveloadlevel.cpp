@@ -2,6 +2,33 @@
 std::vector<vec3> LoadingLevelColliderPoints;
 std::vector<u32> LoadingLevelColliderSpans;
 
+static void BuildOutLevelEntities(game_map_build_data_t *BuildData)
+{
+    for (size_t i = 0; i < LevelEditor.LevelEntities.lenu(); ++i)
+    {
+        const level_entity_t& Ent = LevelEditor.LevelEntities[i];
+        switch (Ent.Type)
+        {
+            case POINT_LIGHT: {
+                static_point_light_t PointLight;
+                PointLight.Pos = Ent.Position;
+                BuildData->PointLights.put(PointLight);
+            } break;
+            case POINT_PLAYER_SPAWN: {
+                BuildData->PlayerStartPosition = Ent.Position;
+                BuildData->PlayerStartRotation = Ent.Rotation;
+            } break;
+        }
+    }
+}
+
+static void DeallocateGameMapBuildData(game_map_build_data_t *BuildData)
+{
+    BuildData->VertexBuffers.clear();
+    BuildData->ColliderWorldPoints.clear();
+    BuildData->ColliderSpans.clear();
+    BuildData->PointLights.free();
+}
 
 bool BuildGameMap(const char *path)
 {
@@ -41,8 +68,12 @@ bool BuildGameMap(const char *path)
         ColliderSpans.push_back(ColliderSpan);
     }
 
-    BakeStaticLighting(BuildData);
+    BuildOutLevelEntities(&BuildData);
 
+    ByteBufferWrite(&BuildData.Output, vec3, BuildData.PlayerStartPosition);
+    ByteBufferWrite(&BuildData.Output, vec3, BuildData.PlayerStartRotation);
+
+    BakeStaticLighting(BuildData);
 
     // colliders
     size_t numColliderPoints = ColliderWorldPoints.size();
@@ -73,17 +104,27 @@ bool BuildGameMap(const char *path)
     float TimeElapsedToBuildGameMapInSeconds = (TimeAtEndOfBuildGameMap - TimeAtStartOfBuildGameMap)/1000.f;
     LogMessage("Took %fs to build.", TimeElapsedToBuildGameMapInSeconds);
 
+    DeallocateGameMapBuildData(&BuildData);
+
     return writtenToFile;
 }
 
-bool LoadGameMap(const char *path)
+map_load_result_t LoadGameMap(const char *path)
 {
+    map_load_result_t Result;
+
     std::unordered_map<u32, void*> DeserElemIdToElem;
 
     // deserialize
     ByteBuffer mapbuf;
     if (ByteBufferReadFromFile(&mapbuf, path) == 0)
-        return false;
+    {
+        Result.Success = false;
+        return Result;
+    }
+
+    ByteBufferRead(&mapbuf, vec3, &Result.PlayerStartPosition);
+    ByteBufferRead(&mapbuf, vec3, &Result.PlayerStartRotation);
 
     i32 lmw, lmh;
     ByteBufferRead(&mapbuf, i32, &lmw);
@@ -141,5 +182,7 @@ bool LoadGameMap(const char *path)
 
     ByteBufferFree(&mapbuf);
 
-    return true;
+    Result.Success = true;
+
+    return Result;
 }

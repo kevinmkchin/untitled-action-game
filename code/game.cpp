@@ -38,7 +38,8 @@ void LoadLevel(const char *MapPath)
     if (LevelLoaded)
         UnloadPreviousLevel();
 
-    if (LoadGameMap(MapPath) == false)
+    map_load_result_t MapLoadResult = LoadGameMap(MapPath);
+    if (MapLoadResult.Success == false)
     {
         LogError("failed to load game map");
         return;
@@ -46,6 +47,11 @@ void LoadLevel(const char *MapPath)
 
     CreateAndRegisterLevelCollider();
     bool yo = CreateRecastNavMesh();
+
+    Player.mCharacter->SetPositionAndRotation(
+        ToJoltVec3(MapLoadResult.PlayerStartPosition),
+        ToJoltQuat(EulerToQuat(MapLoadResult.PlayerStartRotation)));
+    // Apply to Jolt Character or my camera rotation?
 
     LevelLoaded = true;
 }

@@ -12,6 +12,11 @@ struct lm_face_t
     i32 h = -1;
 };
 
+struct static_point_light_t
+{
+    vec3 Pos;
+};
+
 struct game_map_build_data_t
 {
     ByteBuffer Output;
@@ -20,6 +25,11 @@ struct game_map_build_data_t
     std::unordered_map<u32, std::vector<float>> VertexBuffers;
     std::vector<vec3> ColliderWorldPoints;
     std::vector<u32> ColliderSpans;
+
+    dynamic_array<static_point_light_t> PointLights;
+
+    vec3 PlayerStartPosition;
+    vec3 PlayerStartRotation;
 };
 
 void BakeStaticLighting(game_map_build_data_t& BuildData);
