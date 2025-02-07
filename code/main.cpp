@@ -8,13 +8,14 @@ Handcrafted with love.
 
 
 TODO:
-- list all point entites in the scene
-- entity placement window with dropdown
-- entity properties window
-- reset data when switching between game and map editor
 
 - Enemy moves and shoots at player
 - Jolt debug renderer (? maybe unnecessary)
+
+- list all point entities in the scene
+- entity placement window with dropdown
+- entity properties window
+- reset data when switching between game and map editor
 
 - show lines visualizing total translation when moving things. up and down axis as well
 - srgb gamma correction bull shit for editor texture that are not lit
@@ -495,7 +496,7 @@ static bool InitializeApplication()
 #endif
 
     SDL_SetWindowMinimumSize(SDLMainWindow, 200, 100);
-    SDL_GL_SetSwapInterval(0);
+    SDL_GL_SetSwapInterval(1);
 
     if (Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 2, 2048) < 0 || Mix_Init(MIX_INIT_OGG) < 0)
         return false;
@@ -673,8 +674,8 @@ int main(int argc, char* argv[])
     // RDOCAPI->LaunchReplayUI(1, "");
 
     InitializeGame();
-    // LoadLevel(wd_path("switch.map").c_str());
-    LevelEditor.Open();
+    LoadLevel(wd_path("playground_0.map").c_str());
+    // LevelEditor.Open();
 
     while (!ProgramShutdownRequested)
     {
