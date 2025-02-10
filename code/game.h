@@ -11,6 +11,8 @@ void DoGameLoop();
 // private
 void CreateAndRegisterLevelCollider();
 bool CreateRecastNavMesh();
+void DestroyRecastNavMesh();
+void DetourTesting();
 void CreateAndRegisterPlayerPhysicsController();
 void PrePhysicsTick();
 void PostPhysicsTick();

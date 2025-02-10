@@ -35,6 +35,13 @@ inline bool IsOneOfArray(T v, T* array, int count);
 /* Pick random integer in range [min, max] inclusive. */
 int RandomInt(int min, int max);
 
+// Returns a random number [0..1]
+float frand()
+{
+//  return ((float)(rand() & 0xffff)/(float)0xffff);
+    return (float)rand()/(float)RAND_MAX;
+}
+
 i32 ModifyASCIIBasedOnModifiers(i32 keycodeASCII, bool shift);
 
 std::string& RemoveCharactersFromEndOfString(std::string& str, char c);
