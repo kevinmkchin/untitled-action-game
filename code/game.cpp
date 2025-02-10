@@ -13,6 +13,9 @@ player_t Player;
 mat4 GameViewMatrix;
 JPH::BodyID LevelColliderBodyId; 
 
+// dynamic_array<enemy_t> Enemies;
+vec3 EnemyPosition;
+
 void InitializeGame()
 {
     // testing stuff here
@@ -27,6 +30,7 @@ void InitializeGame()
 void DestroyGame()
 {
     Physics.Destroy();
+    // Enemies.free();
 }
 
 void LoadLevel(const char *MapPath)
@@ -53,6 +57,10 @@ void LoadLevel(const char *MapPath)
         ToJoltQuat(EulerToQuat(MapLoadResult.PlayerStartRotation)));
     // Apply to Jolt Character or my camera rotation?
 
+    // enemy_t Enemy0;
+    // Enemy0.Position = vec3();
+    // Enemies.put(Enemy0);
+
     LevelLoaded = true;
 }
 
@@ -63,6 +71,9 @@ void UnloadPreviousLevel()
         Physics.BodyInterface->RemoveBody(LevelColliderBodyId);
         Physics.BodyInterface->DestroyBody(LevelColliderBodyId);
     }
+
+    // Enemies.free();
+    DestroyRecastNavMesh();
 
     LevelLoaded = false;
 }
@@ -239,10 +250,6 @@ void RenderGameLayer()
         RenderFaceBatch(&GameLevelShader, &fb);
     }
 
-    // modelMatrix = TranslationMatrix(enemy0.root) * RotationMatrix(DirectionToOrientation(enemy0.facing));
-    // GLBindMatrix4fv(gameLevelShader, "modelMatrix", 1, modelMatrix.ptr());
-    // RenderModelGLTF(model_Knight);
-
     // PRIMITIVES    
     static bool DoPrimitivesDepthTest = false;
     if (KeysPressed[SDL_SCANCODE_X])
@@ -254,13 +261,24 @@ void RenderGameLayer()
     glDisable(GL_CULL_FACE);
     SupportRenderer.FlushPrimitives(&perspectiveMatrix, &viewMatrix, RenderTargetGame.depthTexId, vec2((float)RenderTargetGame.width, (float)RenderTargetGame.height));
 
-    // DoDebugDrawRecast();
+    DoDebugDrawRecast();
+
+    DetourTesting();
+    UseShader(EditorShader_Scene);
+    glEnable(GL_DEPTH_TEST);
+    GLBindMatrix4fv(EditorShader_Scene, "projMatrix", 1, perspectiveMatrix.ptr());
+    GLBindMatrix4fv(EditorShader_Scene, "viewMatrix", 1, viewMatrix.ptr());
+    mat4 ModelMatrix = TranslationMatrix(EnemyPosition);// * RotationMatrix(DirectionToOrientation(enemy0.facing));
+    GLBindMatrix4fv(EditorShader_Scene, "modelMatrix", 1, ModelMatrix.ptr());
+    RenderModelGLTF(Model_Knight);
 }
 
 #include <Recast.h>
 #include <DebugDraw.h>
 #include <RecastDebugDraw.h>
-// #include <DetourNavMesh.h>
+#include <DetourNavMesh.h>
+#include <DetourNavMeshBuilder.h>
+#include <DetourNavMeshQuery.h>
 
 #ifdef __GNUC__
 #include <stdint.h>
@@ -463,6 +481,9 @@ static rcContourSet *m_cset;
 static rcPolyMesh *m_pmesh;
 static rcPolyMeshDetail* m_dmesh;
 
+static dtNavMesh* m_navMesh;
+static dtNavMeshQuery* m_navQuery;
+
 enum SamplePartitionType
 {
     SAMPLE_PARTITION_WATERSHED,
@@ -526,6 +547,10 @@ bool CreateRecastNavMesh()
     // NOTE(Kevin): Need to tweak these configs to fit my levels
     //              5 cell size and 2 cell height seems to work ok
     
+    float AgentHeight = 64.0f;
+    float AgentRadius = 8.0f;
+    float AgentMaxClimb = 5.f;
+
     //
     // Step 1. Initialize build config.
     //
@@ -533,21 +558,23 @@ bool CreateRecastNavMesh()
     // Init build configuration from GUI
     memset(&m_cfg, 0, sizeof(m_cfg));
     /// The xz-plane cell size to use for fields. [Limit: > 0] [Units: wu] 
-    m_cfg.cs = 3.f;//8;
+    m_cfg.cs = 4.0f;//8;
     /// The y-axis cell size to use for fields. [Limit: > 0] [Units: wu]
-    m_cfg.ch = 2.f;//6;
+    m_cfg.ch = 1.2f;//6;
     /// The maximum slope that is considered walkable. [Limits: 0 <= value < 90] [Units: Degrees] 
     m_cfg.walkableSlopeAngle = 45;
     /// Minimum floor to 'ceiling' height that will still allow the floor area to 
     /// be considered walkable. [Limit: >= 3] [Units: vx] 
-    m_cfg.walkableHeight = (int)ceilf(2.0f / m_cfg.ch);//6;//(int)ceilf(m_agentHeight / m_cfg.ch);
+    m_cfg.walkableHeight = (int)ceilf(AgentHeight / m_cfg.ch);
     /// Maximum ledge height that is considered to still be traversable. [Limit: >=0] [Units: vx]
-    m_cfg.walkableClimb = (int)floorf(0.9f / m_cfg.ch);//6;//(int)floorf(m_agentMaxClimb / m_cfg.ch);
+    // should be around 4...
+    m_cfg.walkableClimb = (int)floorf(AgentMaxClimb / m_cfg.ch);
     /// The distance to erode/shrink the walkable area of the heightfield away from 
     /// obstructions.  [Limit: >=0] [Units: vx] 
-    m_cfg.walkableRadius = (int)ceilf(0.6f / m_cfg.cs);//2;//(int)ceilf(m_agentRadius / m_cfg.cs);
+    m_cfg.walkableRadius = (int)ceilf(AgentRadius / m_cfg.cs);
     /// The maximum allowed length for contour edges along the border of the mesh. [Limit: >=0] [Units: vx] 
-    m_cfg.maxEdgeLen = (int)(12.f / m_cfg.cs);//40;//(int)(m_edgeMaxLen / m_cellSize);
+    /// maxEdgeLength to zero will disabled the edge length feature. See rcBuildContours.
+    m_cfg.maxEdgeLen = 0; //1000;//40;
     /// The maximum distance a simplified contour's border edges should deviate 
     /// the original raw contour. [Limit: >=0] [Units: vx]
     m_cfg.maxSimplificationError = 1.3f;//35;//m_edgeMaxError;
@@ -565,7 +592,7 @@ bool CreateRecastNavMesh()
     m_cfg.detailSampleDist = m_cfg.cs * 6.f;//8.f;//m_detailSampleDist < 0.9f ? 0 : m_cellSize * m_detailSampleDist;
     /// The maximum distance the detail mesh surface should deviate from heightfield
     /// data. (For height detail only.) [Limit: >=0] [Units: wu] 
-    m_cfg.detailSampleMaxError = m_cfg.ch * 1.f;//m_cellHeight * m_detailSampleMaxError;
+    m_cfg.detailSampleMaxError = 0.1f;//m_cfg.ch * 1.f;//m_cellHeight * m_detailSampleMaxError;
     
     // Set the area where the navigation will be build.
     // Here the bounds of the input mesh are used, but the
@@ -803,8 +830,221 @@ bool CreateRecastNavMesh()
     // At this point the navigation mesh data is ready, you can access it from m_pmesh.
     // See duDebugDrawPolyMesh or dtCreateNavMeshData as examples how to access the data.
 
+    //
+    // Step 8. Create Detour data from Recast poly mesh.
+    //
+
+    // Only build the detour navmesh if we do not exceed the limit.
+    if (m_cfg.maxVertsPerPoly <= DT_VERTS_PER_POLYGON)
+    {
+        unsigned char* navData = 0;
+        int navDataSize = 0;
+
+        // NOTE(Kevin): Polygon flags MUST be set to non-zero otherwise 
+        // the query filter will reject it.
+        // Update poly flags from areas.
+        for (int i = 0; i < m_pmesh->npolys; ++i)
+        {
+            m_pmesh->flags[i] = 0x01;
+
+            // u8 areas = m_pmesh->areas[i];
+            // u16 flags = m_pmesh->flags[i];
+
+            // if (m_pmesh->areas[i] == RC_WALKABLE_AREA)
+            //     m_pmesh->areas[i] = SAMPLE_POLYAREA_GROUND;
+                
+            // if (m_pmesh->areas[i] == SAMPLE_POLYAREA_GROUND ||
+            //     m_pmesh->areas[i] == SAMPLE_POLYAREA_GRASS ||
+            //     m_pmesh->areas[i] == SAMPLE_POLYAREA_ROAD)
+            // {
+            //     m_pmesh->flags[i] = SAMPLE_POLYFLAGS_WALK;
+            // }
+            // else if (m_pmesh->areas[i] == SAMPLE_POLYAREA_WATER)
+            // {
+            //     m_pmesh->flags[i] = SAMPLE_POLYFLAGS_SWIM;
+            // }
+            // else if (m_pmesh->areas[i] == SAMPLE_POLYAREA_DOOR)
+            // {
+            //     m_pmesh->flags[i] = SAMPLE_POLYFLAGS_WALK | SAMPLE_POLYFLAGS_DOOR;
+            // }
+        }
+
+
+        dtNavMeshCreateParams params;
+        memset(&params, 0, sizeof(params));
+        params.verts = m_pmesh->verts;
+        params.vertCount = m_pmesh->nverts;
+        params.polys = m_pmesh->polys;
+        params.polyAreas = m_pmesh->areas;
+        params.polyFlags = m_pmesh->flags;
+        params.polyCount = m_pmesh->npolys;
+        params.nvp = m_pmesh->nvp;
+        params.detailMeshes = m_dmesh->meshes;
+        params.detailVerts = m_dmesh->verts;
+        params.detailVertsCount = m_dmesh->nverts;
+        params.detailTris = m_dmesh->tris;
+        params.detailTriCount = m_dmesh->ntris;
+        // params.offMeshConVerts = m_geom->getOffMeshConnectionVerts();
+        // params.offMeshConRad = m_geom->getOffMeshConnectionRads();
+        // params.offMeshConDir = m_geom->getOffMeshConnectionDirs();
+        // params.offMeshConAreas = m_geom->getOffMeshConnectionAreas();
+        // params.offMeshConFlags = m_geom->getOffMeshConnectionFlags();
+        // params.offMeshConUserID = m_geom->getOffMeshConnectionId();
+        // params.offMeshConCount = m_geom->getOffMeshConnectionCount();
+        params.offMeshConVerts = NULL;
+        params.offMeshConRad = NULL;
+        params.offMeshConDir = NULL;
+        params.offMeshConAreas = NULL;
+        params.offMeshConFlags = NULL;
+        params.offMeshConUserID = NULL;
+        params.offMeshConCount = NULL;
+        params.walkableHeight = AgentHeight;
+        params.walkableRadius = AgentRadius;
+        params.walkableClimb = AgentMaxClimb;
+        rcVcopy(params.bmin, m_pmesh->bmin);
+        rcVcopy(params.bmax, m_pmesh->bmax);
+        params.cs = m_cfg.cs;
+        params.ch = m_cfg.ch;
+        params.buildBvTree = true;
+        
+        if (!dtCreateNavMeshData(&params, &navData, &navDataSize))
+        {
+            m_ctx->log(RC_LOG_ERROR, "Could not build Detour navmesh.");
+            return false;
+        }
+        
+        m_navQuery = dtAllocNavMeshQuery();
+
+        m_navMesh = dtAllocNavMesh();
+        if (!m_navMesh)
+        {
+            dtFree(navData);
+            m_ctx->log(RC_LOG_ERROR, "Could not create Detour navmesh");
+            return false;
+        }
+        
+        dtStatus status;
+        
+        status = m_navMesh->init(navData, navDataSize, DT_TILE_FREE_DATA);
+        if (dtStatusFailed(status))
+        {
+            dtFree(navData);
+            m_ctx->log(RC_LOG_ERROR, "Could not init Detour navmesh");
+            return false;
+        }
+        
+        status = m_navQuery->init(m_navMesh, 2048);
+        if (dtStatusFailed(status))
+        {
+            m_ctx->log(RC_LOG_ERROR, "Could not init Detour navmesh query");
+            return false;
+        }
+    }
 
     return true;
+}
+
+void DetourTesting()
+{
+    static dynamic_array<dtPolyRef> PolygonCorridor;
+    PolygonCorridor.setlen(256);
+    static int PathCount;
+
+    static vec3 StraightPathPoints[16];
+    static u8 StraightPathFlags[16];
+    static dtPolyRef StraightPathPolyRefs[16];
+    static int StraightPathPointCount = 0;
+
+    static int Iter = 1;
+
+    // static bool runonce = true;
+    // if (runonce)
+    if (KeysPressed[SDL_SCANCODE_N])
+    {
+        // runonce = false;
+        LogMessage("Pathing towards player!");
+        Iter = 1;
+
+        vec3 EnemyStartPos = EnemyPosition;//vec3(4.f, 4.f, 4.f);
+        vec3 SearchHalfExtents = vec3(16.f,16.f,16.f);
+        dtQueryFilter QueryFilter;
+
+        dtPolyRef StartNearestPoly;
+        vec3      StartNearestPoint;
+
+        dtStatus Status = m_navQuery->findNearestPoly(
+            (float*)&EnemyStartPos, (float*)&SearchHalfExtents, &QueryFilter, 
+            &StartNearestPoly, (float*)&StartNearestPoint);
+        //dtStatus Status = m_navQuery->findRandomPoint(&QueryFilter, frand, 
+        //    &StartNearestPoly, (float*)&StartNearestPoint);
+        ASSERT(dtStatusSucceed(Status));
+
+        LogMessage("start nearest poly point %f, %f, %f", 
+            StartNearestPoint.x, StartNearestPoint.y, StartNearestPoint.z);
+
+        EnemyPosition = StartNearestPoint;
+
+        dtPolyRef EndNearestPoly;
+        vec3      EndNearestPoint;
+
+        Status = m_navQuery->findNearestPoly(
+            (float*)&Player.Root, (float*)&SearchHalfExtents, &QueryFilter, 
+            &EndNearestPoly, (float*)&EndNearestPoint);
+        ASSERT(dtStatusSucceed(Status));
+
+        LogMessage("end nearest poly point %f, %f, %f", 
+            EndNearestPoint.x, EndNearestPoint.y, EndNearestPoint.z);
+
+        Status = m_navQuery->findPath(StartNearestPoly, EndNearestPoly, 
+            (float*)&StartNearestPoint, (float*)&EndNearestPoint, &QueryFilter,
+            PolygonCorridor.data, &PathCount, 256);
+        ASSERT(dtStatusSucceed(Status));
+
+
+        m_navQuery->findStraightPath(
+            (float*)&StartNearestPoint, (float*)&EndNearestPoint, PolygonCorridor.data, PathCount,
+            (float*)StraightPathPoints, StraightPathFlags, StraightPathPolyRefs, &StraightPathPointCount,
+            16); // DT_STRAIGHTPATH_AREA_CROSSINGS | DT_STRAIGHTPATH_ALL_CROSSINGS
+    }
+
+    if (Iter < StraightPathPointCount)
+    {
+        vec3 SteerPoint = StraightPathPoints[Iter];
+        vec3 DirToSteerPoint = Normalize(SteerPoint - EnemyPosition);
+        vec3 EnemyMoveDelta = DirToSteerPoint * 64.f * DeltaTime;
+        float DistTravelled = Magnitude(EnemyMoveDelta);
+        float DistToSteerPoint = Magnitude(SteerPoint - EnemyPosition);
+        if (DistTravelled >= DistToSteerPoint)
+        {
+            EnemyPosition = SteerPoint;
+            ++Iter;
+        }
+        else
+        {
+            EnemyPosition += EnemyMoveDelta;
+        }
+    }
+}
+
+void DestroyRecastNavMesh()
+{
+    delete [] m_triareas;
+    m_triareas = 0;
+    rcFreeHeightField(m_solid);
+    m_solid = 0;
+    rcFreeCompactHeightfield(m_chf);
+    m_chf = 0;
+    rcFreeContourSet(m_cset);
+    m_cset = 0;
+    rcFreePolyMesh(m_pmesh);
+    m_pmesh = 0;
+    rcFreePolyMeshDetail(m_dmesh);
+    m_dmesh = 0;
+    dtFreeNavMesh(m_navMesh);
+    m_navMesh = 0;
+
+    dtFreeNavMeshQuery(m_navQuery);
+    dtFreeNavMesh(m_navMesh);
 }
 
 void DoDebugDrawRecast()
@@ -823,6 +1063,16 @@ void DoDebugDrawRecast()
     static std::vector<vec3> VertexBuffer;
     VertexBuffer.clear();
     
+    vec3 ColorTable[] = {
+        vec3(0.91f,0.59f,0.48f),
+        vec3(1.00f,1.00f,0.00f),
+        vec3(0.31f,0.58f,0.80f),
+        vec3(1.00f,0.50f,0.00f),
+        vec3(0.00f,1.00f,1.00f),
+        vec3(0.58f,0.00f,0.83f),
+        vec3(0.13f,0.55f,0.13f),
+    };
+
     for (int i = 0; i < mesh.npolys; ++i)
     {
         const unsigned short* p = &mesh.polys[i*nvp*2];
@@ -836,6 +1086,8 @@ void DoDebugDrawRecast()
         // else
         //     color = dd->areaToCol(area);
         
+        vec3 Color = ColorTable[i%7];
+
         unsigned short vi[3];
         for (int j = 2; j < nvp; ++j)
         {
@@ -851,7 +1103,7 @@ void DoDebugDrawRecast()
                 const float z = orig[2] + v[2]*cs;
                 // dd->vertex(x,y,z, color);
                 VertexBuffer.push_back(vec3(x,y,z));
-                VertexBuffer.push_back(vec3(1.0,0.0,1.0));
+                VertexBuffer.push_back(Color);
             }
         }
     }

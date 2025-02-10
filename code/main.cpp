@@ -9,7 +9,13 @@ Handcrafted with love.
 
 TODO:
 
+- I need to implement a debug drawer for Recast and draw the height field to see the voxels
+  because slopes are being navmeshed strangely.
+
 - Enemy moves and shoots at player
+    - placeholder mesh navigating the navmesh. no colliders.
+    - mesh changes color when enemy state changes from patrol to chase to shoot to melee
+
 - Jolt debug renderer (? maybe unnecessary)
 
 - list all point entities in the scene
@@ -20,8 +26,7 @@ TODO:
 - show lines visualizing total translation when moving things. up and down axis as well
 - srgb gamma correction bull shit for editor texture that are not lit
 
-- Player shoots at enemy
-- Gun model?
+- Player has a gun and shoots at enemy
 - save/load texture database
 - Anisotropic filtering https://www.khronos.org/opengl/wiki/Sampler_Object#Anisotropic_filtering
 
@@ -260,6 +265,7 @@ inline std::string data_path(const std::string& name) { return wd_path() + "data
 #include "gui.h"
 #include "player.h"
 #include "game.h"
+#include "enemy.h"
 
 
 
@@ -496,7 +502,7 @@ static bool InitializeApplication()
 #endif
 
     SDL_SetWindowMinimumSize(SDLMainWindow, 200, 100);
-    SDL_GL_SetSwapInterval(1);
+    SDL_GL_SetSwapInterval(0);
 
     if (Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 2, 2048) < 0 || Mix_Init(MIX_INIT_OGG) < 0)
         return false;
@@ -674,7 +680,7 @@ int main(int argc, char* argv[])
     // RDOCAPI->LaunchReplayUI(1, "");
 
     InitializeGame();
-    LoadLevel(wd_path("playground_0.map").c_str());
+    LoadLevel(wd_path("playground_1.map").c_str());
     // LevelEditor.Open();
 
     while (!ProgramShutdownRequested)
