@@ -266,6 +266,7 @@ inline std::string data_path(const std::string& name) { return wd_path() + "data
 #include "player.h"
 #include "game.h"
 #include "enemy.h"
+#include "nav.h"
 
 
 
@@ -337,7 +338,7 @@ Mix_Chunk *Mixer_LoadChunk(const char *filepath)
 #include "game.cpp"
 #include "gui.cpp"
 #include "levelentities.cpp"
-
+#include "nav.cpp"
 
 
 static void RenderGUILayer()
