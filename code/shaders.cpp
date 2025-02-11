@@ -168,7 +168,7 @@ bool GLHasErrors()
 
         fprintf(stderr, error_str);
         error = glGetError();
-        assert(false);
+        ASSERT(false);
     }
 
     return true;
