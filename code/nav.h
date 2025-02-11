@@ -5,7 +5,9 @@
 bool CreateRecastNavMesh();
 void DestroyRecastNavMesh();
 void DetourTesting();
+
 void DoDebugDrawRecast(float *ProjMatrix, float *ViewMatrix, enum recast_debug_drawmode DrawMode);
+// Port Detour debug drawing for pathfinding from RecastDemo 
 
 enum recast_debug_drawmode
 {

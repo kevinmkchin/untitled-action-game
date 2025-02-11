@@ -10,8 +10,7 @@ Handcrafted with love.
 TODO:
 
 - FIX the slope/height field navmesh issue using the recast/detour debug drawer
-    - I need to implement a debug drawer for Recast and draw the height field to see the voxels 
-    because slopes are being navmeshed strangely.
+    - Replace find straight path with find follow path code
 - FIX the stutter when SwapInterval(1)
     - could be when rendering takes longer...not as noticeable when rendering time is small 
     fraction of frame time
@@ -698,7 +697,7 @@ int main(int argc, char* argv[])
     // RDOCAPI->LaunchReplayUI(1, "");
 
     InitializeGame();
-    LoadLevel(wd_path("slopetest5.map").c_str());
+    LoadLevel(wd_path("playground_1.map").c_str());
     // LevelEditor.Open();
 
     while (!ProgramShutdownRequested)
