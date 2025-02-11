@@ -50,7 +50,7 @@ void LoadLevel(const char *MapPath)
     }
 
     CreateAndRegisterLevelCollider();
-    bool yo = CreateRecastNavMesh();
+    ASSERT(CreateRecastNavMesh());
 
     Player.mCharacter->SetPositionAndRotation(
         ToJoltVec3(MapLoadResult.PlayerStartPosition),
@@ -260,7 +260,7 @@ void RenderGameLayer()
     glDisable(GL_CULL_FACE);
     SupportRenderer.FlushPrimitives(&perspectiveMatrix, &viewMatrix, RenderTargetGame.depthTexId, vec2((float)RenderTargetGame.width, (float)RenderTargetGame.height));
 
-    DoDebugDrawRecast();
+    DoDebugDrawRecast(perspectiveMatrix.ptr(), viewMatrix.ptr());
 
     DetourTesting();
     UseShader(EditorShader_Scene);

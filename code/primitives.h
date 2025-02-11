@@ -10,7 +10,7 @@
 struct support_renderer_t
 {
     void Initialize();
-    // void Destroy();
+    void Destroy();
 
 public: // Primitives
 

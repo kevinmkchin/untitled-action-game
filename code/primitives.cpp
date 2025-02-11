@@ -312,6 +312,12 @@ void support_renderer_t::Initialize()
     CreateGPUFrameBuffer(&mousePickingRenderTarget);
 }
 
+void support_renderer_t::Destroy()
+{
+    // TODO !!!
+    LogError("NOT IMPLEMENTED");
+}
+
 void support_renderer_t::DrawGrid(float scale, mat3 rotation, vec3 translation, const mat4 *projectionMatrix, const mat4 *viewMatrix, GLuint sceneDepthTextureId, vec2 framebufferSize)
 {
     mat4 transformMatrix = TranslationMatrix(translation) * mat4(rotation) * ScaleMatrix(scale, scale, scale);

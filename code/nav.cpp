@@ -1,5 +1,4 @@
 #include <Recast.h>
-#include <DebugDraw.h>
 #include <RecastDebugDraw.h>
 #include <DetourNavMesh.h>
 #include <DetourNavMeshBuilder.h>
@@ -208,6 +207,8 @@ static rcPolyMeshDetail* m_dmesh;
 
 static dtNavMesh* m_navMesh;
 static dtNavMeshQuery* m_navQuery;
+
+static recast_debug_draw_gl3_t RecastDebugDrawer;
 
 enum SamplePartitionType
 {
@@ -772,73 +773,245 @@ void DestroyRecastNavMesh()
     dtFreeNavMesh(m_navMesh);
 }
 
-void DoDebugDrawRecast()
+void DoDebugDrawRecast(float *ProjMatrix, float *ViewMatrix)
 {
-    // keep in mind I can write my own duDebugDraw subclass that uses
-    // OpenGL 3+
+    RecastDebugDrawer.Ready(ProjMatrix, ViewMatrix);
+    duDebugDrawPolyMesh(&RecastDebugDrawer, *m_pmesh);
+    GLHasErrors();
 
-    const rcPolyMesh& mesh = *m_pmesh;
-    const int nvp = mesh.nvp;
-    const float cs = mesh.cs;
-    const float ch = mesh.ch;
-    const float* orig = mesh.bmin;
-    
-    // dd->begin(DU_DRAW_TRIS);
+    // // keep in mind I can write my own duDebugDraw subclass that uses
+    // // OpenGL 3+
 
-    static std::vector<vec3> VertexBuffer;
-    VertexBuffer.clear();
+    // const rcPolyMesh& mesh = *m_pmesh;
+    // const int nvp = mesh.nvp;
+    // const float cs = mesh.cs;
+    // const float ch = mesh.ch;
+    // const float* orig = mesh.bmin;
     
-    vec3 ColorTable[] = {
-        vec3(0.91f,0.59f,0.48f),
-        vec3(1.00f,1.00f,0.00f),
-        vec3(0.31f,0.58f,0.80f),
-        vec3(1.00f,0.50f,0.00f),
-        vec3(0.00f,1.00f,1.00f),
-        vec3(0.58f,0.00f,0.83f),
-        vec3(0.13f,0.55f,0.13f),
+    // // dd->begin(DU_DRAW_TRIS);
+
+    // static std::vector<vec3> VertexBuffer;
+    // VertexBuffer.clear();
+    
+    // vec3 ColorTable[] = {
+    //     vec3(0.91f,0.59f,0.48f),
+    //     vec3(1.00f,1.00f,0.00f),
+    //     vec3(0.31f,0.58f,0.80f),
+    //     vec3(1.00f,0.50f,0.00f),
+    //     vec3(0.00f,1.00f,1.00f),
+    //     vec3(0.58f,0.00f,0.83f),
+    //     vec3(0.13f,0.55f,0.13f),
+    // };
+
+    // for (int i = 0; i < mesh.npolys; ++i)
+    // {
+    //     const unsigned short* p = &mesh.polys[i*nvp*2];
+    //     const unsigned char area = mesh.areas[i];
+        
+    //     // unsigned int color;
+    //     // if (area == RC_WALKABLE_AREA)
+    //     //     color = duRGBA(0,192,255,64);
+    //     // else if (area == RC_NULL_AREA)
+    //     //     color = duRGBA(0,0,0,64);
+    //     // else
+    //     //     color = dd->areaToCol(area);
+        
+    //     vec3 Color = ColorTable[i%7];
+
+    //     unsigned short vi[3];
+    //     for (int j = 2; j < nvp; ++j)
+    //     {
+    //         if (p[j] == RC_MESH_NULL_IDX) break;
+    //         vi[0] = p[0];
+    //         vi[1] = p[j-1];
+    //         vi[2] = p[j];
+    //         for (int k = 0; k < 3; ++k)
+    //         {
+    //             const unsigned short* v = &mesh.verts[vi[k]*3];
+    //             const float x = orig[0] + v[0]*cs;
+    //             const float y = orig[1] + (v[1]+1)*ch;
+    //             const float z = orig[2] + v[2]*cs;
+    //             // dd->vertex(x,y,z, color);
+    //             VertexBuffer.push_back(vec3(x,y,z));
+    //             VertexBuffer.push_back(Color);
+    //         }
+    //     }
+    // }
+
+    // float aspectratio = float(BackbufferWidth) / float(BackbufferHeight);
+    // float fovy = HorizontalFOVToVerticalFOV_RadianToRadian(90.f*GM_DEG2RAD, aspectratio);
+    // mat4 perspectiveMatrix = ProjectionMatrixPerspective(fovy, aspectratio, GAMEPROJECTION_NEARCLIP, GAMEPROJECTION_FARCLIP);
+    // mat4 viewMatrix = GameViewMatrix;
+    // SupportRenderer.DrawHandlesVertexArray_GL((float*)VertexBuffer.data(), (u32)VertexBuffer.size()*3,
+    //     perspectiveMatrix.ptr(), viewMatrix.ptr());
+
+    // // dd->end();
+}
+
+void recast_debug_draw_gl3_t::Init()
+{
+    GLCreateShaderProgram(RECAST_DEBUG_GL3_SHADER, RECAST_DEBUG_GL3_VS, RECAST_DEBUG_GL3_FS);
+
+    // pos x y z, color r g b a, texture u v
+    CreateGPUMesh(&DebugDrawMesh, 3, 4, 2, GL_DYNAMIC_DRAW);
+}
+
+void recast_debug_draw_gl3_t::Destroy()
+{
+    if (RECAST_DEBUG_GL3_SHADER.idShaderProgram)
+        GLDeleteShader(RECAST_DEBUG_GL3_SHADER);
+    if (DebugDrawMesh.idVAO)
+        DeleteGPUMesh(DebugDrawMesh.idVAO, DebugDrawMesh.idVBO);
+}
+
+void recast_debug_draw_gl3_t::Ready(float *ProjMatrix, float *ViewMatrix)
+{
+    // assume that viewport and target framebuffer is already set up
+    // just use shader, set up render pipeline and uniforms
+
+    glEnable(GL_BLEND);
+    glEnable(GL_DEPTH_TEST);
+
+    UseShader(RECAST_DEBUG_GL3_SHADER);
+    GLBindMatrix4fv(RECAST_DEBUG_GL3_SHADER, "ProjMatrix", 1, ProjMatrix);
+    GLBindMatrix4fv(RECAST_DEBUG_GL3_SHADER, "ViewMatrix", 1, ViewMatrix);
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, Assets.DefaultEditorTexture.gputex.id);
+    GLBind1i(RECAST_DEBUG_GL3_SHADER, "Texture0", 0);
+
+    GLBind1i(RECAST_DEBUG_GL3_SHADER, "UseTexture", false);
+
+    GLHasErrors();
+}
+
+void recast_debug_draw_gl3_t::depthMask(bool state)
+{
+    if (state)
+        glEnable(GL_DEPTH_TEST);
+    else
+        glDisable(GL_DEPTH_TEST);
+}
+
+void recast_debug_draw_gl3_t::texture(bool state)
+{
+    GLBind1i(RECAST_DEBUG_GL3_SHADER, "UseTexture", state);
+}
+
+void recast_debug_draw_gl3_t::begin(duDebugDrawPrimitives prim, float size)
+{
+    CurrentPrimitiveDrawMode = prim;
+
+    switch (prim)
+    {
+        case DU_DRAW_POINTS:
+            glPointSize(size);
+            CurrentPrimitiveDrawMode = GL_POINTS;
+            break;
+        case DU_DRAW_LINES:
+            // glLineWidth(size); size of > 1.0 is not supported on my pc
+            CurrentPrimitiveDrawMode = GL_LINES;
+            break;
+        case DU_DRAW_TRIS:
+            CurrentPrimitiveDrawMode = GL_TRIANGLES;
+            break;
+        case DU_DRAW_QUADS:
+            CurrentPrimitiveDrawMode = GL_QUADS;
+            break;
     };
 
-    for (int i = 0; i < mesh.npolys; ++i)
-    {
-        const unsigned short* p = &mesh.polys[i*nvp*2];
-        const unsigned char area = mesh.areas[i];
-        
-        // unsigned int color;
-        // if (area == RC_WALKABLE_AREA)
-        //     color = duRGBA(0,192,255,64);
-        // else if (area == RC_NULL_AREA)
-        //     color = duRGBA(0,0,0,64);
-        // else
-        //     color = dd->areaToCol(area);
-        
-        vec3 Color = ColorTable[i%7];
+    // GLHasErrors();
+}
 
-        unsigned short vi[3];
-        for (int j = 2; j < nvp; ++j)
-        {
-            if (p[j] == RC_MESH_NULL_IDX) break;
-            vi[0] = p[0];
-            vi[1] = p[j-1];
-            vi[2] = p[j];
-            for (int k = 0; k < 3; ++k)
-            {
-                const unsigned short* v = &mesh.verts[vi[k]*3];
-                const float x = orig[0] + v[0]*cs;
-                const float y = orig[1] + (v[1]+1)*ch;
-                const float z = orig[2] + v[2]*cs;
-                // dd->vertex(x,y,z, color);
-                VertexBuffer.push_back(vec3(x,y,z));
-                VertexBuffer.push_back(Color);
-            }
-        }
-    }
+void recast_debug_draw_gl3_t::vertex(const float* pos, unsigned int color)
+{
+    u8* Colors = (u8*)&color;
+    float r = float(Colors[0]) / 255.f;
+    float g = float(Colors[1]) / 255.f;
+    float b = float(Colors[2]) / 255.f;
+    float a = float(Colors[3]) / 255.f;
 
-    float aspectratio = float(BackbufferWidth) / float(BackbufferHeight);
-    float fovy = HorizontalFOVToVerticalFOV_RadianToRadian(90.f*GM_DEG2RAD, aspectratio);
-    mat4 perspectiveMatrix = ProjectionMatrixPerspective(fovy, aspectratio, GAMEPROJECTION_NEARCLIP, GAMEPROJECTION_FARCLIP);
-    mat4 viewMatrix = GameViewMatrix;
-    SupportRenderer.DrawHandlesVertexArray_GL((float*)VertexBuffer.data(), (u32)VertexBuffer.size()*3,
-        perspectiveMatrix.ptr(), viewMatrix.ptr());
+    VertexBuffer.put(pos[0]);
+    VertexBuffer.put(pos[1]);
+    VertexBuffer.put(pos[2]);
+    VertexBuffer.put(r);
+    VertexBuffer.put(g);
+    VertexBuffer.put(b);
+    VertexBuffer.put(a);
+    VertexBuffer.put(0.f);
+    VertexBuffer.put(0.f);
+}
 
-    // dd->end();
+void recast_debug_draw_gl3_t::vertex(const float x, const float y, const float z, unsigned int color)
+{
+    u8* Colors = (u8*)&color;
+    float r = float(Colors[0]) / 255.f;
+    float g = float(Colors[1]) / 255.f;
+    float b = float(Colors[2]) / 255.f;
+    float a = float(Colors[3]) / 255.f;
+
+    VertexBuffer.put(x);
+    VertexBuffer.put(y);
+    VertexBuffer.put(z);
+    VertexBuffer.put(r);
+    VertexBuffer.put(g);
+    VertexBuffer.put(b);
+    VertexBuffer.put(a);
+    VertexBuffer.put(0.f);
+    VertexBuffer.put(0.f);
+}
+
+void recast_debug_draw_gl3_t::vertex(const float* pos, unsigned int color, const float* uv)
+{
+    u8* Colors = (u8*)&color;
+    float r = float(Colors[0]) / 255.f;
+    float g = float(Colors[1]) / 255.f;
+    float b = float(Colors[2]) / 255.f;
+    float a = float(Colors[3]) / 255.f;
+
+    VertexBuffer.put(pos[0]);
+    VertexBuffer.put(pos[1]);
+    VertexBuffer.put(pos[2]);
+    VertexBuffer.put(r);
+    VertexBuffer.put(g);
+    VertexBuffer.put(b);
+    VertexBuffer.put(a);
+    VertexBuffer.put(uv[0]);
+    VertexBuffer.put(uv[1]);
+}
+
+void recast_debug_draw_gl3_t::vertex(const float x, const float y, const float z, unsigned int color, const float u, const float v)
+{
+    u8* Colors = (u8*)&color;
+    float r = float(Colors[0]) / 255.f;
+    float g = float(Colors[1]) / 255.f;
+    float b = float(Colors[2]) / 255.f;
+    float a = float(Colors[3]) / 255.f;
+
+    VertexBuffer.put(x);
+    VertexBuffer.put(y);
+    VertexBuffer.put(z);
+    VertexBuffer.put(r);
+    VertexBuffer.put(g);
+    VertexBuffer.put(b);
+    VertexBuffer.put(a);
+    VertexBuffer.put(u);
+    VertexBuffer.put(v);
+}
+
+void recast_debug_draw_gl3_t::end()
+{
+    RebindGPUMesh(&DebugDrawMesh, sizeof(float)*VertexBuffer.lenu(), VertexBuffer.data);
+    int VertexCount = (int)VertexBuffer.lenu() / 9;
+
+    glBindVertexArray(DebugDrawMesh.idVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, DebugDrawMesh.idVBO);
+    glDrawArrays(CurrentPrimitiveDrawMode, 0, VertexCount);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
+
+    glPointSize(1.0f);
+    // GLHasErrors();
+
+    VertexBuffer.setlen(0);
 }
