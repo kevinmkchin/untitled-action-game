@@ -260,7 +260,7 @@ void RenderGameLayer()
     glDisable(GL_CULL_FACE);
     SupportRenderer.FlushPrimitives(&perspectiveMatrix, &viewMatrix, RenderTargetGame.depthTexId, vec2((float)RenderTargetGame.width, (float)RenderTargetGame.height));
 
-    DoDebugDrawRecast(perspectiveMatrix.ptr(), viewMatrix.ptr());
+    DoDebugDrawRecast(perspectiveMatrix.ptr(), viewMatrix.ptr(), DRAWMODE_NAVMESH);
 
     DetourTesting();
     UseShader(EditorShader_Scene);

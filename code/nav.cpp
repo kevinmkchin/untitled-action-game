@@ -1,8 +1,9 @@
 #include <Recast.h>
-#include <RecastDebugDraw.h>
 #include <DetourNavMesh.h>
 #include <DetourNavMeshBuilder.h>
 #include <DetourNavMeshQuery.h>
+#include <RecastDebugDraw.h>
+#include <DetourDebugDraw.h>
 
 #ifdef __GNUC__
 #include <stdint.h>
@@ -683,8 +684,6 @@ void DetourTesting()
 
     static int Iter = 1;
 
-    // static bool runonce = true;
-    // if (runonce)
     if (KeysPressed[SDL_SCANCODE_N])
     {
         // runonce = false;
@@ -773,79 +772,90 @@ void DestroyRecastNavMesh()
     dtFreeNavMesh(m_navMesh);
 }
 
-void DoDebugDrawRecast(float *ProjMatrix, float *ViewMatrix)
+void DoDebugDrawRecast(float *ProjMatrix, float *ViewMatrix, recast_debug_drawmode DrawMode)
 {
     RecastDebugDrawer.Ready(ProjMatrix, ViewMatrix);
-    duDebugDrawPolyMesh(&RecastDebugDrawer, *m_pmesh);
+
+    // duDebugDrawPolyMesh(&RecastDebugDrawer, *m_pmesh);
+
+    if (m_navMesh && m_navQuery &&
+        (DrawMode == DRAWMODE_NAVMESH ||
+        DrawMode == DRAWMODE_NAVMESH_TRANS ||
+        DrawMode == DRAWMODE_NAVMESH_BVTREE ||
+        DrawMode == DRAWMODE_NAVMESH_NODES ||
+        DrawMode == DRAWMODE_NAVMESH_INVIS))
+    {
+        if (DrawMode != DRAWMODE_NAVMESH_INVIS)
+            duDebugDrawNavMeshWithClosedList(&RecastDebugDrawer, *m_navMesh, *m_navQuery, 0);
+        if (DrawMode == DRAWMODE_NAVMESH_BVTREE)
+            duDebugDrawNavMeshBVTree(&RecastDebugDrawer, *m_navMesh);
+        if (DrawMode == DRAWMODE_NAVMESH_NODES)
+            duDebugDrawNavMeshNodes(&RecastDebugDrawer, *m_navQuery);
+        // duDebugDrawNavMeshPolysWithFlags(&RecastDebugDrawer, *m_navMesh, SAMPLE_POLYFLAGS_DISABLED, duRGBA(0,0,0,128));
+    }
+        
+    glDepthMask(GL_TRUE);
+
+    if (m_chf && DrawMode == DRAWMODE_COMPACT)
+        duDebugDrawCompactHeightfieldSolid(&RecastDebugDrawer, *m_chf);
+
+    if (m_chf && DrawMode == DRAWMODE_COMPACT_DISTANCE)
+        duDebugDrawCompactHeightfieldDistance(&RecastDebugDrawer, *m_chf);
+    if (m_chf && DrawMode == DRAWMODE_COMPACT_REGIONS)
+        duDebugDrawCompactHeightfieldRegions(&RecastDebugDrawer, *m_chf);
+    if (m_solid && DrawMode == DRAWMODE_VOXELS)
+    {
+        // glEnable(GL_FOG);
+        duDebugDrawHeightfieldSolid(&RecastDebugDrawer, *m_solid);
+        // glDisable(GL_FOG);
+    }
+    if (m_solid && DrawMode == DRAWMODE_VOXELS_WALKABLE)
+    {
+        // glEnable(GL_FOG);
+        duDebugDrawHeightfieldWalkable(&RecastDebugDrawer, *m_solid);
+        // glDisable(GL_FOG);
+    }
+    if (m_cset && DrawMode == DRAWMODE_RAW_CONTOURS)
+    {
+        glDepthMask(GL_FALSE);
+        duDebugDrawRawContours(&RecastDebugDrawer, *m_cset);
+        glDepthMask(GL_TRUE);
+    }
+    if (m_cset && DrawMode == DRAWMODE_BOTH_CONTOURS)
+    {
+        glDepthMask(GL_FALSE);
+        duDebugDrawRawContours(&RecastDebugDrawer, *m_cset, 0.5f);
+        duDebugDrawContours(&RecastDebugDrawer, *m_cset);
+        glDepthMask(GL_TRUE);
+    }
+    if (m_cset && DrawMode == DRAWMODE_CONTOURS)
+    {
+        glDepthMask(GL_FALSE);
+        duDebugDrawContours(&RecastDebugDrawer, *m_cset);
+        glDepthMask(GL_TRUE);
+    }
+    if (m_chf && m_cset && DrawMode == DRAWMODE_REGION_CONNECTIONS)
+    {
+        duDebugDrawCompactHeightfieldRegions(&RecastDebugDrawer, *m_chf);
+            
+        glDepthMask(GL_FALSE);
+        duDebugDrawRegionConnections(&RecastDebugDrawer, *m_cset);
+        glDepthMask(GL_TRUE);
+    }
+    if (m_pmesh && DrawMode == DRAWMODE_POLYMESH)
+    {
+        glDepthMask(GL_FALSE);
+        duDebugDrawPolyMesh(&RecastDebugDrawer, *m_pmesh);
+        glDepthMask(GL_TRUE);
+    }
+    if (m_dmesh && DrawMode == DRAWMODE_POLYMESH_DETAIL)
+    {
+        glDepthMask(GL_FALSE);
+        duDebugDrawPolyMeshDetail(&RecastDebugDrawer, *m_dmesh);
+        glDepthMask(GL_TRUE);
+    }
+
     GLHasErrors();
-
-    // // keep in mind I can write my own duDebugDraw subclass that uses
-    // // OpenGL 3+
-
-    // const rcPolyMesh& mesh = *m_pmesh;
-    // const int nvp = mesh.nvp;
-    // const float cs = mesh.cs;
-    // const float ch = mesh.ch;
-    // const float* orig = mesh.bmin;
-    
-    // // dd->begin(DU_DRAW_TRIS);
-
-    // static std::vector<vec3> VertexBuffer;
-    // VertexBuffer.clear();
-    
-    // vec3 ColorTable[] = {
-    //     vec3(0.91f,0.59f,0.48f),
-    //     vec3(1.00f,1.00f,0.00f),
-    //     vec3(0.31f,0.58f,0.80f),
-    //     vec3(1.00f,0.50f,0.00f),
-    //     vec3(0.00f,1.00f,1.00f),
-    //     vec3(0.58f,0.00f,0.83f),
-    //     vec3(0.13f,0.55f,0.13f),
-    // };
-
-    // for (int i = 0; i < mesh.npolys; ++i)
-    // {
-    //     const unsigned short* p = &mesh.polys[i*nvp*2];
-    //     const unsigned char area = mesh.areas[i];
-        
-    //     // unsigned int color;
-    //     // if (area == RC_WALKABLE_AREA)
-    //     //     color = duRGBA(0,192,255,64);
-    //     // else if (area == RC_NULL_AREA)
-    //     //     color = duRGBA(0,0,0,64);
-    //     // else
-    //     //     color = dd->areaToCol(area);
-        
-    //     vec3 Color = ColorTable[i%7];
-
-    //     unsigned short vi[3];
-    //     for (int j = 2; j < nvp; ++j)
-    //     {
-    //         if (p[j] == RC_MESH_NULL_IDX) break;
-    //         vi[0] = p[0];
-    //         vi[1] = p[j-1];
-    //         vi[2] = p[j];
-    //         for (int k = 0; k < 3; ++k)
-    //         {
-    //             const unsigned short* v = &mesh.verts[vi[k]*3];
-    //             const float x = orig[0] + v[0]*cs;
-    //             const float y = orig[1] + (v[1]+1)*ch;
-    //             const float z = orig[2] + v[2]*cs;
-    //             // dd->vertex(x,y,z, color);
-    //             VertexBuffer.push_back(vec3(x,y,z));
-    //             VertexBuffer.push_back(Color);
-    //         }
-    //     }
-    // }
-
-    // float aspectratio = float(BackbufferWidth) / float(BackbufferHeight);
-    // float fovy = HorizontalFOVToVerticalFOV_RadianToRadian(90.f*GM_DEG2RAD, aspectratio);
-    // mat4 perspectiveMatrix = ProjectionMatrixPerspective(fovy, aspectratio, GAMEPROJECTION_NEARCLIP, GAMEPROJECTION_FARCLIP);
-    // mat4 viewMatrix = GameViewMatrix;
-    // SupportRenderer.DrawHandlesVertexArray_GL((float*)VertexBuffer.data(), (u32)VertexBuffer.size()*3,
-    //     perspectiveMatrix.ptr(), viewMatrix.ptr());
-
-    // // dd->end();
 }
 
 void recast_debug_draw_gl3_t::Init()
