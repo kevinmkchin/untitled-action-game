@@ -776,8 +776,6 @@ void DoDebugDrawRecast(float *ProjMatrix, float *ViewMatrix, recast_debug_drawmo
 {
     RecastDebugDrawer.Ready(ProjMatrix, ViewMatrix);
 
-    // duDebugDrawPolyMesh(&RecastDebugDrawer, *m_pmesh);
-
     if (m_navMesh && m_navQuery &&
         (DrawMode == DRAWMODE_NAVMESH ||
         DrawMode == DRAWMODE_NAVMESH_TRANS ||
@@ -1040,6 +1038,8 @@ void recast_debug_draw_gl3_t::end()
         VertexBufferCopy.free();
         CurrentPrimitiveDrawMode = GL_TRIANGLES;
     }
+    // Could check here if draw mode is lines then modify the vertex buffer to replace
+    // the line vertices with triangles to form a thin quad.
 
     RebindGPUMesh(&DebugDrawMesh, sizeof(float)*VertexBuffer.lenu(), VertexBuffer.data);
     int VertexCount = (int)VertexBuffer.lenu() / 9;
