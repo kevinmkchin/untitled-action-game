@@ -150,19 +150,19 @@ bool GLHasErrors()
         switch (error)
         {
             case GL_INVALID_OPERATION:
-                error_str = "INVALID_OPERATION\n";
+                error_str = "GL error: INVALID_OPERATION\n";
                 break;
             case GL_INVALID_ENUM:
-                error_str = "INVALID_ENUM\n";
+                error_str = "GL error: INVALID_ENUM\n";
                 break;
             case GL_INVALID_VALUE:
-                error_str = "INVALID_VALUE\n";
+                error_str = "GL error: INVALID_VALUE\n";
                 break;
             case GL_OUT_OF_MEMORY:
-                error_str = "OUT_OF_MEMORY\n";
+                error_str = "GL error: OUT_OF_MEMORY\n";
                 break;
             case GL_INVALID_FRAMEBUFFER_OPERATION:
-                error_str = "INVALID_FRAMEBUFFER_OPERATION\n";
+                error_str = "GL error: INVALID_FRAMEBUFFER_OPERATION\n";
                 break;
         }
 

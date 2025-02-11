@@ -9,8 +9,14 @@ Handcrafted with love.
 
 TODO:
 
-- I need to implement a debug drawer for Recast and draw the height field to see the voxels
-  because slopes are being navmeshed strangely.
+- FIX the slope/height field navmesh issue using the recast/detour debug drawer
+    - I need to implement a debug drawer for Recast and draw the height field to see the voxels 
+    because slopes are being navmeshed strangely.
+- FIX the stutter when SwapInterval(1)
+    - could be when rendering takes longer...not as noticeable when rendering time is small 
+    fraction of frame time
+- Work on the enemy steering/path finding code. Only have basic prototype right now. 
+
 
 - Enemy moves and shoots at player
     - placeholder mesh navigating the navmesh. no colliders.
@@ -428,6 +434,7 @@ static void InitGameRenderer()
     CreateGPUMeshIndexed(&FinalRenderOutputQuad, refQuadVertices, refQuadIndices, 16, 6, 2, 2, 0, GL_STATIC_DRAW);
 
     SupportRenderer.Initialize();
+    RecastDebugDrawer.Init();
 }
 
 
@@ -670,6 +677,16 @@ static void ApplicationLoop()
     }
 }
 
+static void ApplicationEnd()
+{
+    SupportRenderer.Destroy();
+    RecastDebugDrawer.Destroy();
+
+    SDL_DestroyWindow(SDLMainWindow);
+    SDL_GL_DeleteContext(SDLGLContext);
+    SDL_Quit();
+}
+
 int main(int argc, char* argv[])
 {
     if (!InitializeApplication()) return -1;
@@ -716,8 +733,7 @@ int main(int argc, char* argv[])
     LevelEditor.Close();
     DestroyGame();
 
-    SDL_DestroyWindow(SDLMainWindow);
-    SDL_GL_DeleteContext(SDLGLContext);
-    SDL_Quit();
+    ApplicationEnd();
+
     return 0;
 }
