@@ -376,7 +376,7 @@ bool CreateRecastNavMesh()
         return false;
     }
 
-    const bool m_keepInterResults = false;
+    const bool m_keepInterResults = true;
     const bool m_filterLowHangingObstacles = true;
     const bool m_filterLedgeSpans = true;
     const bool m_filterWalkableLowHeightSpans = true;
@@ -1011,17 +1011,49 @@ void recast_debug_draw_gl3_t::vertex(const float x, const float y, const float z
 
 void recast_debug_draw_gl3_t::end()
 {
+    if (CurrentPrimitiveDrawMode == GL_QUADS)
+    {
+        // GL_QUAD not supported on my pc so I need to change this quad vb to tris vb
+        dynamic_array<float> VertexBufferCopy;
+        VertexBufferCopy.setlen((int)VertexBuffer.lenu());
+        memcpy(VertexBufferCopy.data, VertexBuffer.data, VertexBuffer.lenu()*sizeof(float));
+        VertexBuffer.setlen(size_t(VertexBuffer.lenu() * 1.5f));
+        size_t vbi = 0;
+        for (size_t i = 0; i < VertexBufferCopy.lenu(); i += 36) // 4*9*sizeof(float)
+        {
+            // TL -> BL -> BR -> TR
+            // i+0   i+9   i+18  i+27
+            float *TL = &VertexBufferCopy[i+0];
+            float *BL = &VertexBufferCopy[i+9];
+            float *BR = &VertexBufferCopy[i+18];
+            float *TR = &VertexBufferCopy[i+27];
+
+            memcpy(&VertexBuffer[vbi+0], TL, 9*sizeof(float));
+            memcpy(&VertexBuffer[vbi+9], BL, 9*sizeof(float));
+            memcpy(&VertexBuffer[vbi+18], BR, 9*sizeof(float));
+            memcpy(&VertexBuffer[vbi+27], TL, 9*sizeof(float));
+            memcpy(&VertexBuffer[vbi+36], BR, 9*sizeof(float));
+            memcpy(&VertexBuffer[vbi+45], TR, 9*sizeof(float));
+
+            vbi += 54; // 6*9*sizeof(float)
+        }
+        VertexBufferCopy.free();
+        CurrentPrimitiveDrawMode = GL_TRIANGLES;
+    }
+
     RebindGPUMesh(&DebugDrawMesh, sizeof(float)*VertexBuffer.lenu(), VertexBuffer.data);
     int VertexCount = (int)VertexBuffer.lenu() / 9;
+    GLHasErrors();
 
     glBindVertexArray(DebugDrawMesh.idVAO);
     glBindBuffer(GL_ARRAY_BUFFER, DebugDrawMesh.idVBO);
     glDrawArrays(CurrentPrimitiveDrawMode, 0, VertexCount);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
+    GLHasErrors();
 
     glPointSize(1.0f);
-    // GLHasErrors();
+    GLHasErrors();
 
     VertexBuffer.setlen(0);
 }
