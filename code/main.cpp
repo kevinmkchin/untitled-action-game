@@ -698,7 +698,7 @@ int main(int argc, char* argv[])
     // RDOCAPI->LaunchReplayUI(1, "");
 
     InitializeGame();
-    LoadLevel(wd_path("playground_1.map").c_str());
+    LoadLevel(wd_path("slopetest5.map").c_str());
     // LevelEditor.Open();
 
     while (!ProgramShutdownRequested)
