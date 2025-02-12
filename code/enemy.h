@@ -6,7 +6,7 @@ struct enemy_t
     void Destroy();
 
     vec3 Position;
-    vec3 Rotation;
+    quat Orientation;
 
     dynamic_array<float> SmoothPath;
     int SmoothPathCount;

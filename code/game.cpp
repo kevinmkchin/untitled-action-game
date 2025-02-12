@@ -70,12 +70,8 @@ void LoadLevel(const char *MapPath)
     GetRandomPointOnNavMesh((float*)&Enemy2.Position);
 
     Enemies.put(Enemy0);
-    // Enemies.put(Enemy1);
-    // Enemies.put(Enemy2);
-
-    // enemy_t Enemy0;
-    // Enemy0.Position = vec3();
-    // Enemies.put(Enemy0);
+    Enemies.put(Enemy1);
+    Enemies.put(Enemy2);
 
     LevelLoaded = true;
 }
@@ -288,15 +284,15 @@ void RenderGameLayer()
     GLBindMatrix4fv(EditorShader_Scene, "projMatrix", 1, perspectiveMatrix.ptr());
     GLBindMatrix4fv(EditorShader_Scene, "viewMatrix", 1, viewMatrix.ptr());
 
-    mat4 ModelMatrix = TranslationMatrix(Enemies[0].Position);
+    mat4 ModelMatrix = TranslationMatrix(Enemies[0].Position) * RotationMatrix(Enemies[0].Orientation);
     GLBindMatrix4fv(EditorShader_Scene, "modelMatrix", 1, ModelMatrix.ptr());
     RenderModelGLTF(Model_Knight);
-    // ModelMatrix = TranslationMatrix(Enemies[1].Position);
-    // GLBindMatrix4fv(EditorShader_Scene, "modelMatrix", 1, ModelMatrix.ptr());
-    // RenderModelGLTF(Model_Knight);
-    // ModelMatrix = TranslationMatrix(Enemies[2].Position);
-    // GLBindMatrix4fv(EditorShader_Scene, "modelMatrix", 1, ModelMatrix.ptr());
-    // RenderModelGLTF(Model_Knight);
+    ModelMatrix = TranslationMatrix(Enemies[1].Position) * RotationMatrix(Enemies[1].Orientation);
+    GLBindMatrix4fv(EditorShader_Scene, "modelMatrix", 1, ModelMatrix.ptr());
+    RenderModelGLTF(Model_Knight);
+    ModelMatrix = TranslationMatrix(Enemies[2].Position) * RotationMatrix(Enemies[2].Orientation);
+    GLBindMatrix4fv(EditorShader_Scene, "modelMatrix", 1, ModelMatrix.ptr());
+    RenderModelGLTF(Model_Knight);
 }
 
 void CreateAndRegisterLevelCollider()
