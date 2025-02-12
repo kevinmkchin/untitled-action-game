@@ -4,16 +4,15 @@ Something fucking cool.
 Priorty #1 is building the game, not the engine/tech
 Handcrafted with love.
 
-
+This is what I think. I can upgrade to SDL3 and use their GPU API. I can learn DX12 and
+rewrite graphics code using DX12. I can stick with OpenGL and have less control over
+rendering. These are all valid. I shouldn't worry about this stuff until the game is
+further along. 
 
 
 TODO:
 
-- FIX the stutter when SwapInterval(1)
-    - could be when rendering takes longer...not as noticeable when rendering time is small 
-    fraction of frame time
 - Work on the enemy steering/path finding code. Only have basic prototype right now. 
-
 
 - Enemy moves and shoots at player
     - placeholder mesh navigating the navmesh. no colliders.
@@ -508,6 +507,11 @@ static bool InitializeApplication()
 
     SDL_SetWindowMinimumSize(SDLMainWindow, 200, 100);
     SDL_GL_SetSwapInterval(0);
+    // if (SDL_GL_SetSwapInterval(-1) == -1)
+    // {
+    //     LogWarning("Hardware does not support adaptive vsync.");
+    //     SDL_GL_SetSwapInterval(1);
+    // }
 
     if (Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 2, 2048) < 0 || Mix_Init(MIX_INIT_OGG) < 0)
         return false;
@@ -724,7 +728,6 @@ int main(int argc, char* argv[])
         FinalRenderToBackBuffer();
 
         SDL_GL_SwapWindow(SDLMainWindow);
-        glFinish();
     }
 
     LevelEditor.Close();
