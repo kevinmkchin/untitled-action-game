@@ -22,7 +22,7 @@ void UpdateAllEnemies()
 
         Enemy.TimeSinceLastPathFind += DeltaTime;
 
-        if (Enemy.TimeSinceLastPathFind > 1.f)
+        if (Enemy.TimeSinceLastPathFind > 0.3f)
         {
             FindSmoothPathTo(Enemy.Position, Player.Root, Enemy.SmoothPath.data, &Enemy.SmoothPathCount);
             Enemy.TimeSinceLastPathFind = 0.f;
@@ -46,6 +46,9 @@ void UpdateAllEnemies()
             {
                 Enemy.Position += EnemyMoveDelta;
             }
+
+            vec3 FlatDir = Normalize(vec3(DirToSteerPoint.x, 0.f, DirToSteerPoint.z));
+            Enemy.Orientation = DirectionToOrientation(FlatDir);
         }
     }
 }
