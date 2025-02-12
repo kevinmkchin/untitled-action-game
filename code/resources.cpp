@@ -561,11 +561,11 @@ bool LoadModelGLTF2Bin(ModelGLTF *model, const char *filepath)
             aiString path;
             if (mat->GetTexture(aiTextureType_EMISSIVE, 0, &path) == AI_SUCCESS)
             {
-                ALWAYSASSERT(path.C_Str()[0] == '*'); // Assert texture is embedded into the binary
+                ASSERT(path.C_Str()[0] == '*'); // Assert texture is embedded into the binary
 
                 int textureIndex = std::atoi(path.C_Str()+1); // Skip the '*' character
                 
-                ALWAYSASSERT(textureIndex >= 0 && textureIndex < (int)scene->mNumTextures);
+                ASSERT(textureIndex >= 0 && textureIndex < (int)scene->mNumTextures);
 
                 aiTexture *texture = scene->mTextures[textureIndex];
 
@@ -580,10 +580,10 @@ bool LoadModelGLTF2Bin(ModelGLTF *model, const char *filepath)
                     u8 *compressedImageData = (u8*)texture->pcData;
                     i32 channelsInFile;
                     rawPixelData = (void*)stbi_load_from_memory(compressedImageData, texture->mWidth, &width, &height, &channelsInFile, 0);
-                    ALWAYSASSERT(channelsInFile == 4);
+                    ASSERT(channelsInFile == 4);
                 }
 
-                ALWAYSASSERT(rawPixelData);
+                ASSERT(rawPixelData);
 
                 CreateGPUTextureFromBitmap(&gputexEmissive, rawPixelData, width, height, 
                     GL_RGBA, GL_RGBA, GL_NEAREST, GL_NEAREST);

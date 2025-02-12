@@ -535,7 +535,7 @@ void BakeStaticLighting(game_map_build_data_t& BuildData)
                 GLBindMatrix4fv(PatchesIDShader, "viewMatrix", 1, HemicubeViewMatrix.ptr());
                 RenderFaceBatch(&PatchesIDShader, &SceneLightingModel);
 
-                if (RDOCAPI) RDOCAPI->EndFrameCapture(NULL, NULL);
+                // if (RDOCAPI) RDOCAPI->EndFrameCapture(NULL, NULL);
 
                 // Putting the glReadPixels together at the end of the draw calls is somehow appreciably faster
                 glReadPixels(0, 0, HemicubeFaceW, HemicubeFaceH, GL_RGBA, GL_FLOAT, 0);

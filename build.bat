@@ -24,7 +24,11 @@ goto ParamCheck
 set CurrentDir=%cd%
 set CurrentDir=%CurrentDir:\=/%
 :: maybe InternalBuild should be always if not Release mode?
-set IsInternalBuild=1
+if %ReleaseMode%==0 (
+    set IsInternalBuild=1
+) else (
+    set IsInternalBuild=0
+)
 echo #pragma once                                        > code\BUILDINFO.H
 echo #define PROJECT_WORKING_DIR "%CurrentDir%/wd/"     >> code\BUILDINFO.H
 echo #define MESA_WINDOWS 1                             >> code\BUILDINFO.H

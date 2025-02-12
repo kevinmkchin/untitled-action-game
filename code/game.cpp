@@ -30,7 +30,9 @@ void InitializeGame()
 
     Enemies.free();
 
+#if INTERNAL_BUILD
     RecastDebugDrawer.Init();
+#endif // INTERNAL_BUILD
 #ifdef JPH_DEBUG_RENDERER
     JoltDebugDraw = new jph_debug_draw_gl3_t();
     JoltDebugDraw->Init();
@@ -42,7 +44,9 @@ void DestroyGame()
     Physics.Destroy();
     Enemies.free();
 
+#if INTERNAL_BUILD
     RecastDebugDrawer.Destroy();
+#endif // INTERNAL_BUILD
 #ifdef JPH_DEBUG_RENDERER
     JoltDebugDraw->Destroy();
     delete JoltDebugDraw;
@@ -306,11 +310,13 @@ void RenderGameLayer()
     glDisable(GL_CULL_FACE);
     SupportRenderer.FlushPrimitives(&perspectiveMatrix, &viewMatrix, RenderTargetGame.depthTexId, vec2((float)RenderTargetGame.width, (float)RenderTargetGame.height));
 
+#if INTERNAL_BUILD
     if (KeysCurrent[SDL_SCANCODE_B])
     {
         DoDebugDrawRecast(perspectiveMatrix.ptr(), viewMatrix.ptr(), DRAWMODE_NAVMESH);
         DebugDrawFollowPath();
     }
+#endif // INTERNAL_BUILD
 #ifdef JPH_DEBUG_RENDERER
     mat4 ViewProjectionMatrix = perspectiveMatrix * viewMatrix;
     JoltDebugDraw->Flush(ViewProjectionMatrix.ptr());
