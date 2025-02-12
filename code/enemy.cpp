@@ -27,9 +27,12 @@ void UpdateAllEnemies()
 
         if (Enemy.TimeSinceLastPathFind > 0.3f)
         {
-            FindSmoothPathTo(Enemy.Position, Player.Root, Enemy.SmoothPath.data, &Enemy.SmoothPathCount);
-            Enemy.TimeSinceLastPathFind = 0.f;
-            Enemy.SmoothPathIter = 1;
+            // TODO replace Player.Root with a target
+            if (FindSmoothPathTo(Enemy.Position, Player.Root, Enemy.SmoothPath.data, &Enemy.SmoothPathCount))
+            {
+                Enemy.TimeSinceLastPathFind = 0.f;
+                Enemy.SmoothPathIter = 1;
+            }
         }
 
         if (Enemy.SmoothPathIter < Enemy.SmoothPathCount)

@@ -13,9 +13,13 @@ player_t Player;
 mat4 GameViewMatrix;
 JPH::BodyID LevelColliderBodyId; 
 
+#ifdef JPH_DEBUG_RENDERER
+jph_debug_draw_gl3_t *JoltDebugDraw;
+#endif // JPH_DEBUG_RENDERER
 
 void InitializeGame()
 {
+
     // testing stuff here
     sfx_Jump = Mixer_LoadChunk(wd_path("gunshot-37055.ogg").c_str());
     LoadModelGLTF2Bin(&Model_Knight, wd_path("models/knight.glb").c_str());
@@ -25,12 +29,24 @@ void InitializeGame()
     CreateAndRegisterPlayerPhysicsController();
 
     Enemies.free();
+
+    RecastDebugDrawer.Init();
+#ifdef JPH_DEBUG_RENDERER
+    JoltDebugDraw = new jph_debug_draw_gl3_t();
+    JoltDebugDraw->Init();
+#endif // JPH_DEBUG_RENDERER
 }
 
 void DestroyGame()
 {
     Physics.Destroy();
     Enemies.free();
+
+    RecastDebugDrawer.Destroy();
+#ifdef JPH_DEBUG_RENDERER
+    JoltDebugDraw->Destroy();
+    delete JoltDebugDraw;
+#endif // JPH_DEBUG_RENDERER
 }
 
 void LoadLevel(const char *MapPath)
@@ -163,10 +179,27 @@ void PrePhysicsTick()
         Player.mCharacter->SetLinearVelocity(new_velocity);
     }
 
+#ifdef JPH_DEBUG_RENDERER
+    JoltDebugDraw->Ready();
+
+    // Physics.BodyInterface->GetShape(LevelColliderBodyId)->Draw(JoltDebugDraw,
+    //     Physics.BodyInterface->GetCenterOfMassTransform(LevelColliderBodyId),
+    //     JPH::Vec3::sReplicate(1.0f), JPH::Color(0,255,0,70), true, false);
+
+    // Player.mCharacter->GetShape()->Draw(JoltDebugDraw, 
+    //     Physics.BodyInterface->GetCenterOfMassTransform(Player.mCharacter->GetBodyID()), 
+    //     JPH::Vec3::sReplicate(1.0f), JPH::Color::sGreen, false, true);
+
+    // JoltDebugDrawCharacterState(JoltDebugDraw, Player.mCharacter,   
+    //     Player.mCharacter->GetWorldTransform(), 
+    //     Player.mCharacter->GetLinearVelocity());
+#endif // JPH_DEBUG_RENDERER
 }
 
 void PostPhysicsTick()
 {
+    // NOTE(Kevin): Jolt sample uses about 3.7% of the character height, but 
+    //              big value causes glitches for me
     static const float cCollisionTolerance = 0.05f;
     Player.mCharacter->PostSimulation(cCollisionTolerance);
 
@@ -278,6 +311,10 @@ void RenderGameLayer()
         DoDebugDrawRecast(perspectiveMatrix.ptr(), viewMatrix.ptr(), DRAWMODE_NAVMESH);
         DebugDrawFollowPath();
     }
+#ifdef JPH_DEBUG_RENDERER
+    mat4 ViewProjectionMatrix = perspectiveMatrix * viewMatrix;
+    JoltDebugDraw->Flush(ViewProjectionMatrix.ptr());
+#endif // JPH_DEBUG_RENDERER
 
     UseShader(EditorShader_Scene);
     glEnable(GL_DEPTH_TEST);
