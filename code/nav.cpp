@@ -672,31 +672,28 @@ bool CreateRecastNavMesh()
     return true;
 }
 
-static void DebugDrawAgent(const float* pos, float r, float h, float c, const unsigned int col)
+void DestroyRecastNavMesh()
 {
-    duDebugDraw& dd = RecastDebugDrawer;
-    
-    dd.depthMask(false);
-    
-    // Agent dimensions.    
-    duDebugDrawCylinderWire(&dd, pos[0]-r, pos[1]+0.02f, pos[2]-r, pos[0]+r, pos[1]+h, pos[2]+r, col, 2.0f);
+    delete [] m_triareas;
+    m_triareas = 0;
+    rcFreeHeightField(m_solid);
+    m_solid = 0;
+    rcFreeCompactHeightfield(m_chf);
+    m_chf = 0;
+    rcFreeContourSet(m_cset);
+    m_cset = 0;
+    rcFreePolyMesh(m_pmesh);
+    m_pmesh = 0;
+    rcFreePolyMeshDetail(m_dmesh);
+    m_dmesh = 0;
+    dtFreeNavMesh(m_navMesh);
+    m_navMesh = 0;
 
-    duDebugDrawCircle(&dd, pos[0],pos[1]+c,pos[2],r,duRGBA(0,0,0,64),1.0f);
-
-    unsigned int colb = duRGBA(0,0,0,196);
-    dd.begin(DU_DRAW_LINES);
-    dd.vertex(pos[0], pos[1]-c, pos[2], colb);
-    dd.vertex(pos[0], pos[1]+c, pos[2], colb);
-    dd.vertex(pos[0]-r/2, pos[1]+0.02f, pos[2], colb);
-    dd.vertex(pos[0]+r/2, pos[1]+0.02f, pos[2], colb);
-    dd.vertex(pos[0], pos[1]+0.02f, pos[2]-r/2, colb);
-    dd.vertex(pos[0], pos[1]+0.02f, pos[2]+r/2, colb);
-    dd.end();
-    
-    dd.depthMask(true);
+    dtFreeNavMeshQuery(m_navQuery);
+    dtFreeNavMesh(m_navMesh);
 }
 
-int dtMergeCorridorStartMoved(dtPolyRef* path, const int npath, const int maxPath,
+static int dtMergeCorridorStartMoved(dtPolyRef* path, const int npath, const int maxPath,
                               const dtPolyRef* visited, const int nvisited)
 {
     int furthestPath = -1;
@@ -1012,48 +1009,6 @@ void TOOLMODE_PATHFIND_FOLLOW()
     // at this point m_smoothPath is populated with m_nsmoothPath vector3s
 }
 
-void DebugDrawFollowPath()
-{
-    duDebugDraw& dd = RecastDebugDrawer;
-
-    const unsigned int startCol = duRGBA(128,25,0,192);
-    const unsigned int endCol = duRGBA(51,102,0,129);
-    const unsigned int pathCol = duRGBA(0,0,0,64);
-    
-    const float agentHeight = 64.0f;
-    const float agentRadius = 8.0f;
-    const float agentClimb = 5.f;
-
-    dd.depthMask(false);
-    DebugDrawAgent(m_spos, agentRadius, agentHeight, agentClimb, startCol);
-    DebugDrawAgent(m_epos, agentRadius, agentHeight, agentClimb, endCol);
-    dd.depthMask(true);
-
-    duDebugDrawNavMeshPoly(&dd, *m_navMesh, m_startRef, startCol);
-    duDebugDrawNavMeshPoly(&dd, *m_navMesh, m_endRef, endCol);
-    
-    if (m_npolys)
-    {
-        for (int i = 0; i < m_npolys; ++i)
-        {
-            if (m_polys[i] == m_startRef || m_polys[i] == m_endRef)
-                continue;
-            duDebugDrawNavMeshPoly(&dd, *m_navMesh, m_polys[i], pathCol);
-        }
-    }
-            
-    if (m_nsmoothPath)
-    {
-        dd.depthMask(false);
-        const unsigned int spathCol = duRGBA(0,0,0,220);
-        dd.begin(DU_DRAW_LINES, 3.0f);
-        for (int i = 0; i < m_nsmoothPath; ++i)
-            dd.vertex(m_smoothPath[i*3], m_smoothPath[i*3+1]+0.1f, m_smoothPath[i*3+2], spathCol);
-        dd.end();
-        dd.depthMask(true);
-    }
-}
-
 void DetourTesting()
 {
     static dynamic_array<dtPolyRef> PolygonCorridor;
@@ -1124,27 +1079,6 @@ void DetourTesting()
             EnemyPosition += EnemyMoveDelta;
         }
     }
-}
-
-void DestroyRecastNavMesh()
-{
-    delete [] m_triareas;
-    m_triareas = 0;
-    rcFreeHeightField(m_solid);
-    m_solid = 0;
-    rcFreeCompactHeightfield(m_chf);
-    m_chf = 0;
-    rcFreeContourSet(m_cset);
-    m_cset = 0;
-    rcFreePolyMesh(m_pmesh);
-    m_pmesh = 0;
-    rcFreePolyMeshDetail(m_dmesh);
-    m_dmesh = 0;
-    dtFreeNavMesh(m_navMesh);
-    m_navMesh = 0;
-
-    dtFreeNavMeshQuery(m_navQuery);
-    dtFreeNavMesh(m_navMesh);
 }
 
 void DoDebugDrawRecast(float *ProjMatrix, float *ViewMatrix, recast_debug_drawmode DrawMode)
@@ -1229,6 +1163,72 @@ void DoDebugDrawRecast(float *ProjMatrix, float *ViewMatrix, recast_debug_drawmo
     }
 
     GLHasErrors();
+}
+
+static void DebugDrawAgent(const float* pos, float r, float h, float c, const unsigned int col)
+{
+    duDebugDraw& dd = RecastDebugDrawer;
+    
+    dd.depthMask(false);
+    
+    // Agent dimensions.    
+    duDebugDrawCylinderWire(&dd, pos[0]-r, pos[1]+0.02f, pos[2]-r, pos[0]+r, pos[1]+h, pos[2]+r, col, 2.0f);
+
+    duDebugDrawCircle(&dd, pos[0],pos[1]+c,pos[2],r,duRGBA(0,0,0,64),1.0f);
+
+    unsigned int colb = duRGBA(0,0,0,196);
+    dd.begin(DU_DRAW_LINES);
+    dd.vertex(pos[0], pos[1]-c, pos[2], colb);
+    dd.vertex(pos[0], pos[1]+c, pos[2], colb);
+    dd.vertex(pos[0]-r/2, pos[1]+0.02f, pos[2], colb);
+    dd.vertex(pos[0]+r/2, pos[1]+0.02f, pos[2], colb);
+    dd.vertex(pos[0], pos[1]+0.02f, pos[2]-r/2, colb);
+    dd.vertex(pos[0], pos[1]+0.02f, pos[2]+r/2, colb);
+    dd.end();
+    
+    dd.depthMask(true);
+}
+
+void DebugDrawFollowPath()
+{
+    duDebugDraw& dd = RecastDebugDrawer;
+
+    const unsigned int startCol = duRGBA(128,25,0,192);
+    const unsigned int endCol = duRGBA(51,102,0,129);
+    const unsigned int pathCol = duRGBA(0,0,0,64);
+    
+    const float agentHeight = 64.0f;
+    const float agentRadius = 8.0f;
+    const float agentClimb = 5.f;
+
+    dd.depthMask(false);
+    DebugDrawAgent(m_spos, agentRadius, agentHeight, agentClimb, startCol);
+    DebugDrawAgent(m_epos, agentRadius, agentHeight, agentClimb, endCol);
+    dd.depthMask(true);
+
+    duDebugDrawNavMeshPoly(&dd, *m_navMesh, m_startRef, startCol);
+    duDebugDrawNavMeshPoly(&dd, *m_navMesh, m_endRef, endCol);
+    
+    if (m_npolys)
+    {
+        for (int i = 0; i < m_npolys; ++i)
+        {
+            if (m_polys[i] == m_startRef || m_polys[i] == m_endRef)
+                continue;
+            duDebugDrawNavMeshPoly(&dd, *m_navMesh, m_polys[i], pathCol);
+        }
+    }
+            
+    if (m_nsmoothPath)
+    {
+        dd.depthMask(false);
+        const unsigned int spathCol = duRGBA(0,0,0,220);
+        dd.begin(DU_DRAW_LINES, 3.0f);
+        for (int i = 0; i < m_nsmoothPath; ++i)
+            dd.vertex(m_smoothPath[i*3], m_smoothPath[i*3+1]+0.1f, m_smoothPath[i*3+2], spathCol);
+        dd.end();
+        dd.depthMask(true);
+    }
 }
 
 void recast_debug_draw_gl3_t::Init()
