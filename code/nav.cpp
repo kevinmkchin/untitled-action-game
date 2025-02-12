@@ -184,20 +184,6 @@ const char* BuildContext::getLogText(const int i) const
     return m_messages[i]+1;
 }
 
-// class DebugDrawGL : public duDebugDraw
-// {
-// public:
-//     virtual void depthMask(bool state);
-//     virtual void texture(bool state);
-//     virtual void begin(duDebugDrawPrimitives prim, float size = 1.0f);
-//     virtual void vertex(const float* pos, unsigned int color);
-//     virtual void vertex(const float x, const float y, const float z, unsigned int color);
-//     virtual void vertex(const float* pos, unsigned int color, const float* uv);
-//     virtual void vertex(const float x, const float y, const float z, unsigned int color, const float u, const float v);
-//     virtual void end();
-// };
-
-
 static BuildContext *m_ctx;
 static rcConfig m_cfg;
 static rcHeightfield *m_solid;
@@ -854,25 +840,24 @@ static bool getSteerTarget(dtNavMeshQuery* navQuery, const float* startPos, cons
 }
 
 static const int MAX_POLYS = 256;
-static const int MAX_SMOOTH = 2048;
-dtPolyRef m_polys[MAX_POLYS];
-int m_npolys;
-float m_smoothPath[MAX_SMOOTH*3];
-int m_nsmoothPath;
-dtPolyRef m_startRef;
-dtPolyRef m_endRef;
-float m_spos[3];
-float m_epos[3];
-dtQueryFilter m_filter;
+static dtPolyRef m_polys[MAX_POLYS];
+static int m_npolys;
+static float m_smoothPath[MAX_SMOOTH*3];
+static int m_nsmoothPath;
+static dtPolyRef m_startRef;
+static dtPolyRef m_endRef;
+static float m_spos[3];
+static float m_epos[3];
+static dtQueryFilter m_filter;
 
 void TOOLMODE_PATHFIND_FOLLOW()
 {
 
-#if INTERNAL_BUILD
-    printf("pi  %f %f %f  %f %f %f  0x%x 0x%x\n",
-           m_spos[0],m_spos[1],m_spos[2], m_epos[0],m_epos[1],m_epos[2],
-           m_filter.getIncludeFlags(), m_filter.getExcludeFlags()); 
-#endif
+// #if INTERNAL_BUILD
+//     printf("pi  %f %f %f  %f %f %f  0x%x 0x%x\n",
+//            m_spos[0],m_spos[1],m_spos[2], m_epos[0],m_epos[1],m_epos[2],
+//            m_filter.getIncludeFlags(), m_filter.getExcludeFlags()); 
+// #endif
 
     m_npolys = 0;
 
@@ -1009,77 +994,114 @@ void TOOLMODE_PATHFIND_FOLLOW()
     // at this point m_smoothPath is populated with m_nsmoothPath vector3s
 }
 
-void DetourTesting()
+void FindSmoothPathTo(vec3 Origin, vec3 Target, float *SmoothPath, int *SmoothPathCount)
 {
-    static dynamic_array<dtPolyRef> PolygonCorridor;
-    PolygonCorridor.setlen(256);
-    static int PathCount;
+    vec3 SearchHalfExtents = vec3(16.f,16.f,16.f);
 
-    static vec3 StraightPathPoints[16];
-    static u8 StraightPathFlags[16];
-    static dtPolyRef StraightPathPolyRefs[16];
-    static int StraightPathPointCount = 0;
+    dtStatus Status = m_navQuery->findNearestPoly(
+        (float*)&Origin, (float*)&SearchHalfExtents, &m_filter, 
+        &m_startRef, m_spos);
+    if (!dtStatusSucceed(Status))
+        return;
 
-    static int Iter = 1;
+    Status = m_navQuery->findNearestPoly(
+        (float*)&Target, (float*)&SearchHalfExtents, &m_filter, 
+        &m_endRef, m_epos);
+    if (!dtStatusSucceed(Status))
+        return;
 
-    if (KeysPressed[SDL_SCANCODE_N])
+    TOOLMODE_PATHFIND_FOLLOW();
+
+    if (m_nsmoothPath > 0)
     {
-        // runonce = false;
-        LogMessage("Pathing towards player!");
-        Iter = 1;
-
-        vec3 EnemyStartPos = EnemyPosition;//vec3(4.f, 4.f, 4.f);
-        vec3 SearchHalfExtents = vec3(16.f,16.f,16.f);
-        // dtQueryFilter QueryFilter;
-
-        dtStatus Status = m_navQuery->findNearestPoly(
-            (float*)&EnemyStartPos, (float*)&SearchHalfExtents, &m_filter, 
-            &m_startRef, m_spos);
-        //dtStatus Status = m_navQuery->findRandomPoint(&m_filter, frand, 
-        //    &StartNearestPoly, (float*)&StartNearestPoint);
-        ASSERT(dtStatusSucceed(Status));
-
-        // EnemyPosition = StartNearestPoint;
-
-        Status = m_navQuery->findNearestPoly(
-            (float*)&Player.Root, (float*)&SearchHalfExtents, &m_filter, 
-            &m_endRef, m_epos);
-        ASSERT(dtStatusSucceed(Status));
-
-        TOOLMODE_PATHFIND_FOLLOW();
-
-        // Status = m_navQuery->findPath(StartNearestPoly, EndNearestPoly, 
-        //     (float*)&StartNearestPoint, (float*)&EndNearestPoint, &m_filter,
-        //     PolygonCorridor.data, &PathCount, 256);
-        // ASSERT(dtStatusSucceed(Status));
-
-        // m_navQuery->findStraightPath(
-        //     (float*)&StartNearestPoint, (float*)&EndNearestPoint, PolygonCorridor.data, PathCount,
-        //     (float*)StraightPathPoints, StraightPathFlags, StraightPathPolyRefs, &StraightPathPointCount,
-        //     16); // DT_STRAIGHTPATH_AREA_CROSSINGS | DT_STRAIGHTPATH_ALL_CROSSINGS
+        memcpy(SmoothPath, m_smoothPath, m_nsmoothPath * 3 * sizeof(float));
+        *SmoothPathCount = m_nsmoothPath;
     }
 
-    // NOTE(Kevin): I think using the smooth path finding might be slow. Navmesh doesn't really care about Y coord,
-    //              so maybe I should just use physics or something to correctly position the enemy above ground.
-
-    if (Iter < m_nsmoothPath)
-    {
-        vec3 SteerPoint = *(vec3*)&m_smoothPath[Iter*3];
-        vec3 DirToSteerPoint = Normalize(SteerPoint - EnemyPosition);
-        vec3 EnemyMoveDelta = DirToSteerPoint * 64.f * DeltaTime;
-        float DistTravelled = Magnitude(EnemyMoveDelta);
-        float DistToSteerPoint = Magnitude(SteerPoint - EnemyPosition);
-        if (DistTravelled >= DistToSteerPoint)
-        {
-            EnemyPosition = SteerPoint;
-            ++Iter;
-        }
-        else
-        {
-            EnemyPosition += EnemyMoveDelta;
-        }
-    }
+    // m_nsmoothPath = 0;
 }
+
+void GetRandomPointOnNavMesh(float *Point)
+{
+    dtPolyRef RandomPoly;
+    dtStatus Status = m_navQuery->findRandomPoint(&m_filter, frand, 
+        &RandomPoly, Point);
+    ASSERT(dtStatusSucceed(Status));
+}
+
+#if INTERNAL_BUILD
+// void DetourTesting()
+// {
+//     static dynamic_array<dtPolyRef> PolygonCorridor;
+//     PolygonCorridor.setlen(256);
+//     static int PathCount;
+
+//     static vec3 StraightPathPoints[16];
+//     static u8 StraightPathFlags[16];
+//     static dtPolyRef StraightPathPolyRefs[16];
+//     static int StraightPathPointCount = 0;
+
+//     static int Iter = 1;
+
+//     if (KeysPressed[SDL_SCANCODE_N])
+//     {
+//         // runonce = false;
+//         LogMessage("Pathing towards player!");
+//         Iter = 1;
+
+//         vec3 EnemyStartPos = EnemyPosition;//vec3(4.f, 4.f, 4.f);
+//         vec3 SearchHalfExtents = vec3(16.f,16.f,16.f);
+//         // dtQueryFilter QueryFilter;
+
+//         dtStatus Status = m_navQuery->findNearestPoly(
+//             (float*)&EnemyStartPos, (float*)&SearchHalfExtents, &m_filter, 
+//             &m_startRef, m_spos);
+//         //dtStatus Status = m_navQuery->findRandomPoint(&m_filter, frand, 
+//         //    &StartNearestPoly, (float*)&StartNearestPoint);
+//         ASSERT(dtStatusSucceed(Status));
+
+//         // EnemyPosition = StartNearestPoint;
+
+//         Status = m_navQuery->findNearestPoly(
+//             (float*)&Player.Root, (float*)&SearchHalfExtents, &m_filter, 
+//             &m_endRef, m_epos);
+//         ASSERT(dtStatusSucceed(Status));
+
+//         TOOLMODE_PATHFIND_FOLLOW();
+
+//         // Status = m_navQuery->findPath(StartNearestPoly, EndNearestPoly, 
+//         //     (float*)&StartNearestPoint, (float*)&EndNearestPoint, &m_filter,
+//         //     PolygonCorridor.data, &PathCount, 256);
+//         // ASSERT(dtStatusSucceed(Status));
+
+//         // m_navQuery->findStraightPath(
+//         //     (float*)&StartNearestPoint, (float*)&EndNearestPoint, PolygonCorridor.data, PathCount,
+//         //     (float*)StraightPathPoints, StraightPathFlags, StraightPathPolyRefs, &StraightPathPointCount,
+//         //     16); // DT_STRAIGHTPATH_AREA_CROSSINGS | DT_STRAIGHTPATH_ALL_CROSSINGS
+//     }
+
+//     // NOTE(Kevin): I think using the smooth path finding might be slow. Navmesh doesn't really care about Y coord,
+//     //              so maybe I should just use physics or something to correctly position the enemy above ground.
+
+//     if (Iter < m_nsmoothPath)
+//     {
+//         vec3 SteerPoint = *(vec3*)&m_smoothPath[Iter*3];
+//         vec3 DirToSteerPoint = Normalize(SteerPoint - EnemyPosition);
+//         vec3 EnemyMoveDelta = DirToSteerPoint * 64.f * DeltaTime;
+//         float DistTravelled = Magnitude(EnemyMoveDelta);
+//         float DistToSteerPoint = Magnitude(SteerPoint - EnemyPosition);
+//         if (DistTravelled >= DistToSteerPoint)
+//         {
+//             EnemyPosition = SteerPoint;
+//             ++Iter;
+//         }
+//         else
+//         {
+//             EnemyPosition += EnemyMoveDelta;
+//         }
+//     }
+// }
+#endif
 
 void DoDebugDrawRecast(float *ProjMatrix, float *ViewMatrix, recast_debug_drawmode DrawMode)
 {

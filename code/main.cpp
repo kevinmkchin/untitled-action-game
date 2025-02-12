@@ -340,6 +340,7 @@ Mix_Chunk *Mixer_LoadChunk(const char *filepath)
 #include "game.cpp"
 #include "gui.cpp"
 #include "levelentities.cpp"
+#include "enemy.cpp"
 #include "nav.cpp"
 
 
