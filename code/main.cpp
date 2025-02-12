@@ -12,11 +12,9 @@ further along.
 
 TODO:
 
-- Work on the enemy steering/path finding code. Only have basic prototype right now. 
-
 - Enemy moves and shoots at player
-    - placeholder mesh navigating the navmesh. no colliders.
     - mesh changes color when enemy state changes from patrol to chase to shoot to melee
+    - Use Jolt physics based movement with colliders
 
 - Jolt debug renderer (? maybe unnecessary)
 

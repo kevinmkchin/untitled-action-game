@@ -16,6 +16,9 @@ void enemy_t::Destroy()
 
 void UpdateAllEnemies()
 {
+
+    // TODO (Kevin): I THINK I should replace this with physics based movement so that the enemies 
+    //               don't overlap, and also it'll ensure enemy stays on navmesh rather than clipping
     for (size_t i = 0; i < Enemies.lenu(); ++i)
     {
         enemy_t& Enemy = Enemies[i];
