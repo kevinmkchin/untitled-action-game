@@ -8,21 +8,6 @@ I could port the GL code to Vulkan
 
 TODO:
 
-- consolidate build configs
-    Debug, Release, Distribution? or just two?
-    Worry about distribution config later. for now, just Debug and Release
-
-    Debug
-        - portable debug info generated
-        - uses JOLT and RECAST Debug Renderers
-        - I want ASSERTS for Release and Distribution too, which means, I should have a second macro
-    Release
-        - fast code
-        - no debug info
-        - no debug renderers
-        - no 
-
-
 - Enemy moves and shoots at player
     - mesh changes color when enemy state changes from patrol to chase to shoot to melee
     - Use Jolt physics based movement with colliders
@@ -211,15 +196,14 @@ typedef i32           bool32;
 
 
 #if (defined _MSC_VER)
-#define ALWAYSASSERT(predicate) if(!(predicate)) { __debugbreak(); }
+#define ASSERT(predicate) if(!(predicate)) { __debugbreak(); }
 #else
-#define ALWAYSASSERT(predicate) if(!(predicate)) { __builtin_trap(); }
+#define ASSERT(predicate) if(!(predicate)) { __builtin_trap(); }
 #endif
-
 #if INTERNAL_BUILD
-    #define ASSERT(predicate) ALWAYSASSERT(predicate)
+    #define ASSERTDEBUG(predicate) ASSERT(predicate)
 #else
-    #define ASSERT(predicate)
+    #define ASSERTDEBUG(predicate)
 #endif
 
 inline std::string wd_path() { return std::string(PROJECT_WORKING_DIR); }
@@ -720,9 +704,11 @@ int main(int argc, char* argv[])
         GUI::NewFrame();
         ProcessSDLEvents();
 
+#if INTERNAL_BUILD
         if (RDOCAPI && KeysPressed[SDL_SCANCODE_HOME])
             if (RDOCAPI->ShowReplayUI() == 0)
                 RDOCAPI->LaunchReplayUI(1, "");
+#endif // INTERNAL_BUILD
 
         ApplicationLoop();
 

@@ -12,7 +12,6 @@ void GetRandomPointOnNavMesh(float *Point);
 
 #if INTERNAL_BUILD
 // void DetourTesting();
-#endif
 
 void DoDebugDrawRecast(float *ProjMatrix, float *ViewMatrix, enum recast_debug_drawmode DrawMode);
 void DebugDrawFollowPath();
@@ -102,3 +101,5 @@ private:
 };
 
 extern recast_debug_draw_gl3_t RecastDebugDrawer;
+
+#endif // INTERNAL_BUILD

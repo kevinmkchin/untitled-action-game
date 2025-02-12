@@ -196,7 +196,9 @@ static rcPolyMeshDetail* m_dmesh;
 static dtNavMesh* m_navMesh;
 static dtNavMeshQuery* m_navQuery;
 
+#if INTERNAL_BUILD
 recast_debug_draw_gl3_t RecastDebugDrawer;
+#endif // INTERNAL_BUILD
 
 enum SamplePartitionType
 {
@@ -363,7 +365,11 @@ bool CreateRecastNavMesh()
         return false;
     }
 
+#if INTERNAL_BUILD
     const bool m_keepInterResults = true;
+#else
+    const bool m_keepInterResults = false;
+#endif // INTERNAL_BUILD
     const bool m_filterLowHangingObstacles = true;
     const bool m_filterLedgeSpans = true;
     const bool m_filterWalkableLowHeightSpans = true;
@@ -1035,7 +1041,9 @@ void GetRandomPointOnNavMesh(float *Point)
     ASSERT(dtStatusSucceed(Status));
 }
 
+
 #if INTERNAL_BUILD
+
 // void DetourTesting()
 // {
 //     static dynamic_array<dtPolyRef> PolygonCorridor;
@@ -1107,7 +1115,6 @@ void GetRandomPointOnNavMesh(float *Point)
 //         }
 //     }
 // }
-#endif
 
 void DoDebugDrawRecast(float *ProjMatrix, float *ViewMatrix, recast_debug_drawmode DrawMode)
 {
@@ -1460,3 +1467,5 @@ void recast_debug_draw_gl3_t::end()
 
     VertexBuffer.setlen(0);
 }
+
+#endif // INTERNAL_BUILD
