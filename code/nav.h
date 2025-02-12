@@ -4,7 +4,15 @@
 
 bool CreateRecastNavMesh();
 void DestroyRecastNavMesh();
-void DetourTesting();
+
+#define MAX_SMOOTH 300
+void FindSmoothPathTo(vec3 Origin, vec3 Target, float *SmoothPath, int *SmoothPathCount);
+
+void GetRandomPointOnNavMesh(float *Point);
+
+#if INTERNAL_BUILD
+// void DetourTesting();
+#endif
 
 void DoDebugDrawRecast(float *ProjMatrix, float *ViewMatrix, enum recast_debug_drawmode DrawMode);
 void DebugDrawFollowPath();
