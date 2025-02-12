@@ -6,7 +6,7 @@ bool CreateRecastNavMesh();
 void DestroyRecastNavMesh();
 
 #define MAX_SMOOTH 300
-void FindSmoothPathTo(vec3 Origin, vec3 Target, float *SmoothPath, int *SmoothPathCount);
+bool FindSmoothPathTo(vec3 Origin, vec3 Target, float *SmoothPath, int *SmoothPathCount);
 
 void GetRandomPointOnNavMesh(float *Point);
 
@@ -101,3 +101,4 @@ private:
     "}";
 };
 
+extern recast_debug_draw_gl3_t RecastDebugDrawer;

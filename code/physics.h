@@ -6,6 +6,9 @@
 
 // The Jolt headers don't include Jolt.h. Always include Jolt.h before including any other Jolt header.
 // You can use Jolt.h in your precompiled header to speed up compilation.
+#if INTERNAL_BUILD
+#define JPH_DEBUG_RENDERER
+#endif
 #include <Jolt/Jolt.h>
 // Jolt includes
 #include <Jolt/RegisterTypes.h>

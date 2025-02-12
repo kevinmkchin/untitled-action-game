@@ -196,7 +196,7 @@ static rcPolyMeshDetail* m_dmesh;
 static dtNavMesh* m_navMesh;
 static dtNavMeshQuery* m_navQuery;
 
-static recast_debug_draw_gl3_t RecastDebugDrawer;
+recast_debug_draw_gl3_t RecastDebugDrawer;
 
 enum SamplePartitionType
 {
@@ -994,7 +994,7 @@ void TOOLMODE_PATHFIND_FOLLOW()
     // at this point m_smoothPath is populated with m_nsmoothPath vector3s
 }
 
-void FindSmoothPathTo(vec3 Origin, vec3 Target, float *SmoothPath, int *SmoothPathCount)
+bool FindSmoothPathTo(vec3 Origin, vec3 Target, float *SmoothPath, int *SmoothPathCount)
 {
     vec3 SearchHalfExtents = vec3(16.f,16.f,16.f);
 
@@ -1002,13 +1002,16 @@ void FindSmoothPathTo(vec3 Origin, vec3 Target, float *SmoothPath, int *SmoothPa
         (float*)&Origin, (float*)&SearchHalfExtents, &m_filter, 
         &m_startRef, m_spos);
     if (!dtStatusSucceed(Status))
-        return;
+        return false;
 
     Status = m_navQuery->findNearestPoly(
         (float*)&Target, (float*)&SearchHalfExtents, &m_filter, 
         &m_endRef, m_epos);
     if (!dtStatusSucceed(Status))
-        return;
+        return false;
+
+    if (m_startRef == 0 || m_endRef == 0)
+        return false;
 
     TOOLMODE_PATHFIND_FOLLOW();
 
@@ -1016,9 +1019,12 @@ void FindSmoothPathTo(vec3 Origin, vec3 Target, float *SmoothPath, int *SmoothPa
     {
         memcpy(SmoothPath, m_smoothPath, m_nsmoothPath * 3 * sizeof(float));
         *SmoothPathCount = m_nsmoothPath;
+        return true;
     }
-
-    // m_nsmoothPath = 0;
+    else
+    {
+        return false;
+    }
 }
 
 void GetRandomPointOnNavMesh(float *Point)

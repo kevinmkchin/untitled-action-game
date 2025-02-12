@@ -4,19 +4,30 @@ Something fucking cool.
 Priorty #1 is building the game, not the engine/tech
 Handcrafted with love.
 
-This is what I think. I can upgrade to SDL3 and use their GPU API. I can learn DX12 and
-rewrite graphics code using DX12. I can stick with OpenGL and have less control over
-rendering. These are all valid. I shouldn't worry about this stuff until the game is
-further along. 
-
+I could port the GL code to Vulkan
 
 TODO:
+
+- consolidate build configs
+    Debug, Release, Distribution? or just two?
+    Worry about distribution config later. for now, just Debug and Release
+
+    Debug
+        - portable debug info generated
+        - uses JOLT and RECAST Debug Renderers
+        - I want ASSERTS for Release and Distribution too, which means, I should have a second macro
+    Release
+        - fast code
+        - no debug info
+        - no debug renderers
+        - no 
+
 
 - Enemy moves and shoots at player
     - mesh changes color when enemy state changes from patrol to chase to shoot to melee
     - Use Jolt physics based movement with colliders
 
-- Jolt debug renderer (? maybe unnecessary)
+- Use JPH::CharacterVirtual instead of Character
 
 - list all point entities in the scene
 - entity placement window with dropdown
@@ -252,10 +263,11 @@ inline std::string data_path(const std::string& name) { return wd_path() + "data
 
 #include "utility.h"
 #include "resources.h"
-#include "physics.h"
 #include "shaders.h"
 #include "facebatch.h"
 #include "filedialog.h"
+#include "physics.h"
+#include "physics_debug.h"
 #include "primitives.h"
 #include "lightmap.h"
 #include "winged.h"
@@ -327,6 +339,7 @@ Mix_Chunk *Mixer_LoadChunk(const char *filepath)
 #include "utility.cpp"
 #include "resources.cpp"
 #include "physics.cpp"
+#include "physics_debug.cpp"
 #include "shaders.cpp"
 #include "facebatch.cpp"
 #include "filedialog.cpp"
@@ -429,7 +442,6 @@ static void InitGameRenderer()
     CreateGPUMeshIndexed(&FinalRenderOutputQuad, refQuadVertices, refQuadIndices, 16, 6, 2, 2, 0, GL_STATIC_DRAW);
 
     SupportRenderer.Initialize();
-    RecastDebugDrawer.Init();
 }
 
 
@@ -680,7 +692,6 @@ static void ApplicationLoop()
 static void ApplicationEnd()
 {
     SupportRenderer.Destroy();
-    RecastDebugDrawer.Destroy();
 
     SDL_DestroyWindow(SDLMainWindow);
     SDL_GL_DeleteContext(SDLGLContext);
@@ -696,6 +707,8 @@ int main(int argc, char* argv[])
     Assets.LoadAllResources();
 
     // RDOCAPI->LaunchReplayUI(1, "");
+
+    srand(100);
 
     InitializeGame();
     LoadLevel(wd_path("playground_1.map").c_str());

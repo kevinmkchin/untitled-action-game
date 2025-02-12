@@ -29,7 +29,10 @@ Captures saved to C:\Users\Kevin\AppData\Local\Temp\RenderDoc but can be changed
 == Dependencies ==
 
 Jolt - physics https://github.com/jrouwe/JoltPhysics
+     - built with JPH_DEBUG_RENDERER only for Debug config
+     - otherwise, mostly default configs in their CMakeLists were used
 Recast - navigation mesh https://github.com/recastnavigation/recastnavigation
+       - built with their default configs without any conflicts
 gmath.h - math
 stb_ds.h - dynamic arrays
 
