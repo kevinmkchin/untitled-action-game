@@ -894,7 +894,7 @@ void TOOLMODE_PATHFIND_FOLLOW()
         m_navQuery->closestPointOnPoly(m_startRef, m_spos, iterPos, 0);
         m_navQuery->closestPointOnPoly(polys[npolys-1], m_epos, targetPos, 0);
         
-        const float STEP_SIZE = 10.f;
+        const float STEP_SIZE = 16.f;
         const float SLOP = 2.f;
         
         m_nsmoothPath = 0;
@@ -1104,23 +1104,26 @@ void DetourTesting()
         //     16); // DT_STRAIGHTPATH_AREA_CROSSINGS | DT_STRAIGHTPATH_ALL_CROSSINGS
     }
 
-    // if (Iter < StraightPathPointCount)
-    // {
-    //     vec3 SteerPoint = StraightPathPoints[Iter];
-    //     vec3 DirToSteerPoint = Normalize(SteerPoint - EnemyPosition);
-    //     vec3 EnemyMoveDelta = DirToSteerPoint * 64.f * DeltaTime;
-    //     float DistTravelled = Magnitude(EnemyMoveDelta);
-    //     float DistToSteerPoint = Magnitude(SteerPoint - EnemyPosition);
-    //     if (DistTravelled >= DistToSteerPoint)
-    //     {
-    //         EnemyPosition = SteerPoint;
-    //         ++Iter;
-    //     }
-    //     else
-    //     {
-    //         EnemyPosition += EnemyMoveDelta;
-    //     }
-    // }
+    // NOTE(Kevin): I think using the smooth path finding might be slow. Navmesh doesn't really care about Y coord,
+    //              so maybe I should just use physics or something to correctly position the enemy above ground.
+
+    if (Iter < m_nsmoothPath)
+    {
+        vec3 SteerPoint = *(vec3*)&m_smoothPath[Iter*3];
+        vec3 DirToSteerPoint = Normalize(SteerPoint - EnemyPosition);
+        vec3 EnemyMoveDelta = DirToSteerPoint * 64.f * DeltaTime;
+        float DistTravelled = Magnitude(EnemyMoveDelta);
+        float DistToSteerPoint = Magnitude(SteerPoint - EnemyPosition);
+        if (DistTravelled >= DistToSteerPoint)
+        {
+            EnemyPosition = SteerPoint;
+            ++Iter;
+        }
+        else
+        {
+            EnemyPosition += EnemyMoveDelta;
+        }
+    }
 }
 
 void DestroyRecastNavMesh()

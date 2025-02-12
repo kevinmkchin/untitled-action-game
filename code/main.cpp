@@ -9,8 +9,6 @@ Handcrafted with love.
 
 TODO:
 
-- FIX the slope/height field navmesh issue using the recast/detour debug drawer
-    - Replace find straight path with find follow path code
 - FIX the stutter when SwapInterval(1)
     - could be when rendering takes longer...not as noticeable when rendering time is small 
     fraction of frame time
