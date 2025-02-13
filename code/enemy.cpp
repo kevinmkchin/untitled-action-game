@@ -14,7 +14,7 @@ void enemy_t::Destroy()
     SmoothPath.free();
 }
 
-void UpdateAllEnemies()
+void UpdateAllEnemiesFixedTick()
 {
 
     // TODO (Kevin): I THINK I should replace this with physics based movement so that the enemies 
@@ -23,7 +23,7 @@ void UpdateAllEnemies()
     {
         enemy_t& Enemy = Enemies[i];
 
-        Enemy.TimeSinceLastPathFind += DeltaTime;
+        Enemy.TimeSinceLastPathFind += FixedDeltaTime;
 
         if (Enemy.TimeSinceLastPathFind > 0.3f)
         {
@@ -38,9 +38,8 @@ void UpdateAllEnemies()
         if (Enemy.SmoothPathIter < Enemy.SmoothPathCount)
         {
             vec3 SteerPoint = *(vec3*)&Enemy.SmoothPath[Enemy.SmoothPathIter*3];
-            SupportRenderer.DrawSolidDisc(SteerPoint + vec3(0.f,0.3f,0.f), GM_UP_VECTOR, 8.f);
             vec3 DirToSteerPoint = Normalize(SteerPoint - Enemy.Position);
-            vec3 EnemyMoveDelta = DirToSteerPoint * 64.f * DeltaTime;
+            vec3 EnemyMoveDelta = DirToSteerPoint * 64.f * FixedDeltaTime;
             float DistTravelled = Magnitude(EnemyMoveDelta);
             float DistToSteerPoint = Magnitude(SteerPoint - Enemy.Position);
             if (DistTravelled >= DistToSteerPoint)

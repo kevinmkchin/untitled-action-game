@@ -14,7 +14,7 @@ struct enemy_t
     float TimeSinceLastPathFind = 0.f;
 };
 
-void UpdateAllEnemies();
+void UpdateAllEnemiesFixedTick();
 
 extern dynamic_array<enemy_t> Enemies;
 
