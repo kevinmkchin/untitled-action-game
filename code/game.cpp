@@ -26,7 +26,7 @@ void InitializeGame()
 
     Physics.Initialize();
 
-    CreateAndRegisterPlayerPhysicsController();
+    Player.Init();
 
     Enemies.free();
 
@@ -72,10 +72,9 @@ void LoadLevel(const char *MapPath)
     CreateAndRegisterLevelCollider();
     ASSERT(CreateRecastNavMesh());
 
-    Player.mCharacter->SetPositionAndRotation(
-        ToJoltVec3(MapLoadResult.PlayerStartPosition),
-        ToJoltQuat(EulerToQuat(MapLoadResult.PlayerStartRotation)));
-    // Apply to Jolt Character or my camera rotation?
+    Player.mCharacter->SetPosition(ToJoltVec3(MapLoadResult.PlayerStartPosition));
+    // TODO Apply rotation to camera rotation instead
+    // Player.mCharacter->SetRotation(ToJoltQuat(EulerToQuat(MapLoadResult.PlayerStartRotation)));
 
     enemy_t Enemy0;
     enemy_t Enemy1;
@@ -127,8 +126,8 @@ void NonPhysicsTick()
     Player.WalkDirectionRight = Player.CameraRight;
     Player.WalkDirectionForward = Normalize(Cross(GM_UP_VECTOR, Player.WalkDirectionRight));
 
-    Player.DesiredMoveDirection = vec3();
     // PLAYER MOVE
+    Player.DesiredMoveDirection = vec3();
     if (KeysCurrent[SDL_SCANCODE_W])
         Player.DesiredMoveDirection += Player.WalkDirectionForward;
     if (KeysCurrent[SDL_SCANCODE_A])
@@ -138,8 +137,7 @@ void NonPhysicsTick()
     if (KeysCurrent[SDL_SCANCODE_D])
         Player.DesiredMoveDirection += Player.WalkDirectionRight;
 
-    Player.JumpRequested = false;
-    if (KeysCurrent[SDL_SCANCODE_SPACE])
+    if (KeysPressed[SDL_SCANCODE_SPACE])
         Player.JumpRequested = true;
 
 #ifdef JPH_DEBUG_RENDERER
@@ -148,14 +146,6 @@ void NonPhysicsTick()
     // Physics.BodyInterface->GetShape(LevelColliderBodyId)->Draw(JoltDebugDraw,
     //     Physics.BodyInterface->GetCenterOfMassTransform(LevelColliderBodyId),
     //     JPH::Vec3::sReplicate(1.0f), JPH::Color(0,255,0,70), true, false);
-
-    // Player.mCharacter->GetShape()->Draw(JoltDebugDraw, 
-    //     Physics.BodyInterface->GetCenterOfMassTransform(Player.mCharacter->GetBodyID()), 
-    //     JPH::Vec3::sReplicate(1.0f), JPH::Color::sGreen, false, true);
-
-    // JoltDebugDrawCharacterState(JoltDebugDraw, Player.mCharacter,   
-    //     Player.mCharacter->GetWorldTransform(), 
-    //     Player.mCharacter->GetLinearVelocity());
 #endif // JPH_DEBUG_RENDERER
 }
 
@@ -163,62 +153,20 @@ void PrePhysicsTick()
 {
     PrePhysicsTickAllEnemies();
 
-    // Cancel movement in opposite direction of normal when touching something we can't walk up
-    JPH::Vec3 movement_direction = ToJoltVec3(Player.DesiredMoveDirection);
-    JPH::Character::EGroundState ground_state = Player.mCharacter->GetGroundState();
-    if (ground_state == JPH::Character::EGroundState::OnSteepGround || 
-        ground_state == JPH::Character::EGroundState::NotSupported)
-    {
-        JPH::Vec3 normal = Player.mCharacter->GetGroundNormal();
-        normal.SetY(0.0f);
-        float dot = normal.Dot(movement_direction);
-        if (dot < 0.0f)
-            movement_direction -= (dot * normal) / normal.LengthSq();
-    }
-
-    //// Stance switch
-    //if (inSwitchStance)
-    //    Player.mCharacter->SetShape(Player.mCharacter->GetShape() == mStandingShape ? mCrouchingShape : mStandingShape, 1.5f * mPhysicsSystem->GetPhysicsSettings().mPenetrationSlop);
-    const float sCharacterSpeed = 6.0f*32.f;
-    const float sJumpSpeed = 4.0f*32.f;
-    if (/*sControlMovementDuringJump || */ Player.mCharacter->IsSupported())
-    {
-        // Update velocity
-        JPH::Vec3 current_velocity = Player.mCharacter->GetLinearVelocity();
-        // try printing magnitude of current velocity
-        JPH::Vec3 desired_velocity = sCharacterSpeed * movement_direction;
-        if (!desired_velocity.IsNearZero() || current_velocity.GetY() < 0.0f || !Player.mCharacter->IsSupported())
-            desired_velocity.SetY(current_velocity.GetY());
-        JPH::Vec3 new_velocity = 0.75f * current_velocity + 0.25f * desired_velocity;
-
-        // Jump
-        if (Player.JumpRequested && ground_state == JPH::Character::EGroundState::OnGround)
-        {
-            new_velocity += JPH::Vec3(0, sJumpSpeed, 0);
-
-            // static int channelrotationtesting = 0;
-            // Mix_VolumeChunk(sfx_Jump, 48);
-            // Mix_PlayChannel(channelrotationtesting++%3, sfx_Jump, 0);
-        }
-
-        // Update the velocity
-        Player.mCharacter->SetLinearVelocity(new_velocity);
-    }
+    Player.PrePhysicsUpdate();
 }
 
 void PostPhysicsTick()
 {
     PostPhysicsTickAllEnemies();
 
-    // NOTE(Kevin): Jolt sample uses about 3.7% of the character height, but 
-    //              big value causes glitches for me
-    static const float cCollisionTolerance = 0.05f;
-    Player.mCharacter->PostSimulation(cCollisionTolerance);
-    Player.Root = FromJoltVec3(Player.mCharacter->GetPosition());
+    Player.PostPhysicsUpdate();
 }
 
 void LateNonPhysicsTick()
 {
+    Player.LateNonPhysicsTick();
+
     vec3 CameraPosOffsetFromRoot = vec3(0,40,0);
     vec3 CameraPosition = Player.Root + CameraPosOffsetFromRoot;
     // LogMessage("pos %f, %f, %f", playerControllerRoot.x, playerControllerRoot.y, playerControllerRoot.z);
@@ -400,24 +348,4 @@ void CreateAndRegisterLevelCollider()
     // You should definitely not call this every frame or when e.g. streaming in a new level section as it is an expensive operation.
     // Instead insert all new objects in batches instead of 1 at a time to keep the broad phase efficient.
     Physics.PhysicsSystem->OptimizeBroadPhase();
-}
-
-void CreateAndRegisterPlayerPhysicsController()
-{
-    // make the character collider
-    static constexpr float cCharacterHeightStanding = 48.f;
-    static constexpr float cCharacterRadiusStanding = 8.f;
-    JPH::RefConst<JPH::Shape> mStandingShape = JPH::RotatedTranslatedShapeSettings(
-        JPH::Vec3(0, 0.5f * cCharacterHeightStanding + cCharacterRadiusStanding, 0), 
-        JPH::Quat::sIdentity(), 
-        new JPH::CapsuleShape(0.5f * cCharacterHeightStanding, cCharacterRadiusStanding)).Create().Get();
-
-    JPH::Ref<JPH::CharacterSettings> settings = new JPH::CharacterSettings();
-    settings->mMaxSlopeAngle = JPH::DegreesToRadians(45.0f);
-    settings->mLayer = Layers::MOVING;
-    settings->mShape = mStandingShape;
-    settings->mFriction = 0.5f;
-    settings->mSupportingVolume = JPH::Plane(JPH::Vec3::sAxisY(), -cCharacterRadiusStanding); // Accept contacts that touch the lower sphere of the capsule
-    Player.mCharacter = new JPH::Character(settings, JPH::RVec3(0,32,0), JPH::Quat::sIdentity(), 0, Physics.PhysicsSystem);
-    Player.mCharacter->AddToPhysicsSystem(JPH::EActivation::Activate);
 }
