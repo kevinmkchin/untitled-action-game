@@ -8,7 +8,7 @@
 // You can use Jolt.h in your precompiled header to speed up compilation.
 #if INTERNAL_BUILD
 #define JPH_DEBUG_RENDERER
-#endif
+#endif // INTERNAL_BUILD
 #include <Jolt/Jolt.h>
 // Jolt includes
 #include <Jolt/RegisterTypes.h>
@@ -31,6 +31,7 @@
 #include <cstdarg>
 
 using uint = unsigned int;
+using body_id = JPH::BodyID;
 
 // Layer that objects can be in, determines which other objects it can collide with
 // Typically you at least want to have 1 layer for moving bodies and 1 layer for static bodies,

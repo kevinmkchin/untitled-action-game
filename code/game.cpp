@@ -110,10 +110,8 @@ void UnloadPreviousLevel()
     LevelLoaded = false;
 }
 
-void PrePhysicsTick()
+void NonPhysicsTick()
 {
-    UpdateAllEnemies();
-
     // CALCULATE PLAYER FACING DIRECTION
     float camYawDelta = MouseDelta.x * 0.085f;
     float camPitchDelta = MouseDelta.y * 0.085f;
@@ -129,20 +127,44 @@ void PrePhysicsTick()
     Player.WalkDirectionRight = Player.CameraRight;
     Player.WalkDirectionForward = Normalize(Cross(GM_UP_VECTOR, Player.WalkDirectionRight));
 
+    Player.DesiredMoveDirection = vec3();
     // PLAYER MOVE
-    vec3 desiredMoveDirection;
     if (KeysCurrent[SDL_SCANCODE_W])
-        desiredMoveDirection += Player.WalkDirectionForward;
+        Player.DesiredMoveDirection += Player.WalkDirectionForward;
     if (KeysCurrent[SDL_SCANCODE_A])
-        desiredMoveDirection += -Player.WalkDirectionRight;
+        Player.DesiredMoveDirection += -Player.WalkDirectionRight;
     if (KeysCurrent[SDL_SCANCODE_S])
-        desiredMoveDirection += -Player.WalkDirectionForward;
+        Player.DesiredMoveDirection += -Player.WalkDirectionForward;
     if (KeysCurrent[SDL_SCANCODE_D])
-        desiredMoveDirection += Player.WalkDirectionRight;
-    
+        Player.DesiredMoveDirection += Player.WalkDirectionRight;
+
+    Player.JumpRequested = false;
+    if (KeysCurrent[SDL_SCANCODE_SPACE])
+        Player.JumpRequested = true;
+
+#ifdef JPH_DEBUG_RENDERER
+    JoltDebugDraw->Ready();
+
+    // Physics.BodyInterface->GetShape(LevelColliderBodyId)->Draw(JoltDebugDraw,
+    //     Physics.BodyInterface->GetCenterOfMassTransform(LevelColliderBodyId),
+    //     JPH::Vec3::sReplicate(1.0f), JPH::Color(0,255,0,70), true, false);
+
+    // Player.mCharacter->GetShape()->Draw(JoltDebugDraw, 
+    //     Physics.BodyInterface->GetCenterOfMassTransform(Player.mCharacter->GetBodyID()), 
+    //     JPH::Vec3::sReplicate(1.0f), JPH::Color::sGreen, false, true);
+
+    // JoltDebugDrawCharacterState(JoltDebugDraw, Player.mCharacter,   
+    //     Player.mCharacter->GetWorldTransform(), 
+    //     Player.mCharacter->GetLinearVelocity());
+#endif // JPH_DEBUG_RENDERER
+}
+
+void PrePhysicsTick()
+{
+    UpdateAllEnemiesFixedTick();
 
     // Cancel movement in opposite direction of normal when touching something we can't walk up
-    JPH::Vec3 movement_direction = JPH::Vec3(desiredMoveDirection.x, desiredMoveDirection.y, desiredMoveDirection.z);
+    JPH::Vec3 movement_direction = ToJoltVec3(Player.DesiredMoveDirection);
     JPH::Character::EGroundState ground_state = Player.mCharacter->GetGroundState();
     if (ground_state == JPH::Character::EGroundState::OnSteepGround || 
         ground_state == JPH::Character::EGroundState::NotSupported)
@@ -170,7 +192,7 @@ void PrePhysicsTick()
         JPH::Vec3 new_velocity = 0.75f * current_velocity + 0.25f * desired_velocity;
 
         // Jump
-        if (KeysPressed[SDL_SCANCODE_SPACE] && ground_state == JPH::Character::EGroundState::OnGround)
+        if (Player.JumpRequested && ground_state == JPH::Character::EGroundState::OnGround)
         {
             new_velocity += JPH::Vec3(0, sJumpSpeed, 0);
 
@@ -182,22 +204,6 @@ void PrePhysicsTick()
         // Update the velocity
         Player.mCharacter->SetLinearVelocity(new_velocity);
     }
-
-#ifdef JPH_DEBUG_RENDERER
-    JoltDebugDraw->Ready();
-
-    // Physics.BodyInterface->GetShape(LevelColliderBodyId)->Draw(JoltDebugDraw,
-    //     Physics.BodyInterface->GetCenterOfMassTransform(LevelColliderBodyId),
-    //     JPH::Vec3::sReplicate(1.0f), JPH::Color(0,255,0,70), true, false);
-
-    // Player.mCharacter->GetShape()->Draw(JoltDebugDraw, 
-    //     Physics.BodyInterface->GetCenterOfMassTransform(Player.mCharacter->GetBodyID()), 
-    //     JPH::Vec3::sReplicate(1.0f), JPH::Color::sGreen, false, true);
-
-    // JoltDebugDrawCharacterState(JoltDebugDraw, Player.mCharacter,   
-    //     Player.mCharacter->GetWorldTransform(), 
-    //     Player.mCharacter->GetLinearVelocity());
-#endif // JPH_DEBUG_RENDERER
 }
 
 void PostPhysicsTick()
@@ -246,14 +252,18 @@ void DoGameLoop()
     if (!GameLoopCanRun) 
         return;
 
-    // pre physics tick
-    PrePhysicsTick();
+    NonPhysicsTick();
 
-    // physics tick
-    Physics.Tick();
+    static float Accumulator = 0.f;
+    Accumulator += DeltaTime;
+    while (Accumulator >= FixedDeltaTime)
+    {
+        PrePhysicsTick();
+        Physics.Tick();
+        PostPhysicsTick();
 
-    // post physics tick
-    PostPhysicsTick();
+        Accumulator -= FixedDeltaTime;
+    }
 
     // Do animation loop
 

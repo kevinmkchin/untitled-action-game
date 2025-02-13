@@ -269,7 +269,8 @@ inline std::string data_path(const std::string& name) { return wd_path() + "data
 SDL_Window *SDLMainWindow;
 SDL_GLContext SDLGLContext;
 bool ProgramShutdownRequested = false;
-float DeltaTime = 0.f; // NOTE(Kevin 2025-01-30): capped at 16ms
+const float FixedDeltaTime = 1.0f / 60.0f;
+float DeltaTime = 0.f;
 float RealDeltaTime = 0.f; // Unscaled and uncapped
 float GameTimeScale = 1.f;
 float CurrentTime = 0.f;
@@ -441,7 +442,7 @@ static void TickTime()
     RealDeltaTime = deltaTimeInSeconds;
     TimeSinceStart += RealDeltaTime;
 
-    static const float CappedDeltaTime = 1.0f / 58.0f; // with some tolerance from 60
+    static const float CappedDeltaTime = 1.0f / 8.0f;
     DeltaTime = GM_min(RealDeltaTime, CappedDeltaTime);
     DeltaTime = DeltaTime * GameTimeScale;
 }
