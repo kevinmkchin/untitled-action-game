@@ -8,13 +8,20 @@ struct enemy_t
     vec3 Position;
     quat Orientation;
 
+    JPH::Character *RigidBody;
+
     dynamic_array<float> SmoothPath;
     int SmoothPathCount;
     int SmoothPathIter;
     float TimeSinceLastPathFind = 0.f;
+
+private:
+    void AddToPhysicsSystem();
+    void RemoveFromPhysicsSystem();
 };
 
-void UpdateAllEnemiesFixedTick();
+void PrePhysicsTickAllEnemies();
+void PostPhysicsTickAllEnemies();
 
 extern dynamic_array<enemy_t> Enemies;
 

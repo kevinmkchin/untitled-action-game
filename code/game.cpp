@@ -81,13 +81,13 @@ void LoadLevel(const char *MapPath)
     enemy_t Enemy1;
     enemy_t Enemy2;
 
-    Enemy0.Init();
-    Enemy1.Init();
-    Enemy2.Init();
-
     GetRandomPointOnNavMesh((float*)&Enemy0.Position);
     GetRandomPointOnNavMesh((float*)&Enemy1.Position);
     GetRandomPointOnNavMesh((float*)&Enemy2.Position);
+
+    Enemy0.Init();
+    Enemy1.Init();
+    Enemy2.Init();
 
     Enemies.put(Enemy0);
     Enemies.put(Enemy1);
@@ -161,7 +161,7 @@ void NonPhysicsTick()
 
 void PrePhysicsTick()
 {
-    UpdateAllEnemiesFixedTick();
+    PrePhysicsTickAllEnemies();
 
     // Cancel movement in opposite direction of normal when touching something we can't walk up
     JPH::Vec3 movement_direction = ToJoltVec3(Player.DesiredMoveDirection);
@@ -208,20 +208,17 @@ void PrePhysicsTick()
 
 void PostPhysicsTick()
 {
+    PostPhysicsTickAllEnemies();
+
     // NOTE(Kevin): Jolt sample uses about 3.7% of the character height, but 
     //              big value causes glitches for me
     static const float cCollisionTolerance = 0.05f;
     Player.mCharacter->PostSimulation(cCollisionTolerance);
+    Player.Root = FromJoltVec3(Player.mCharacter->GetPosition());
+}
 
-    JPH::RVec3 cpos = Player.mCharacter->GetPosition();
-    // LogMessage("character pos %f, %f, %f", cpos.GetX(), cpos.GetY(), cpos.GetZ());
-
-    Player.Root.x = cpos.GetX();
-    Player.Root.y = cpos.GetY();
-    Player.Root.z = cpos.GetZ();
-
-
-    // PLAYER CAMERA 
+void LateNonPhysicsTick()
+{
     vec3 CameraPosOffsetFromRoot = vec3(0,40,0);
     vec3 CameraPosition = Player.Root + CameraPosOffsetFromRoot;
     // LogMessage("pos %f, %f, %f", playerControllerRoot.x, playerControllerRoot.y, playerControllerRoot.z);
@@ -264,6 +261,8 @@ void DoGameLoop()
 
         Accumulator -= FixedDeltaTime;
     }
+
+    LateNonPhysicsTick();
 
     // Do animation loop
 
