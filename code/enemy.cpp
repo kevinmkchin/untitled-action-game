@@ -7,18 +7,48 @@ void enemy_t::Init()
     SmoothPathCount = 0;
     SmoothPathIter = 1;
     TimeSinceLastPathFind = 0.f;
+
+    AddToPhysicsSystem();
 }
 
 void enemy_t::Destroy()
 {
     SmoothPath.free();
+
+    RemoveFromPhysicsSystem();
 }
 
-void UpdateAllEnemiesFixedTick()
+void enemy_t::AddToPhysicsSystem()
 {
+    static constexpr float CharacterHeightStanding = 48.f;
+    static constexpr float CharacterRadiusStanding = 8.f;
+    
+    JPH::RefConst<JPH::Shape> StandingShape = JPH::RotatedTranslatedShapeSettings(
+        JPH::Vec3(0, 0.5f * CharacterHeightStanding + CharacterRadiusStanding, 0), 
+        JPH::Quat::sIdentity(), 
+        new JPH::CapsuleShape(0.5f * CharacterHeightStanding, CharacterRadiusStanding)).Create().Get();
 
-    // TODO (Kevin): I THINK I should replace this with physics based movement so that the enemies 
-    //               don't overlap, and also it'll ensure enemy stays on navmesh rather than clipping
+    JPH::Ref<JPH::CharacterSettings> Settings = new JPH::CharacterSettings();
+    Settings->mMaxSlopeAngle = JPH::DegreesToRadians(45.0f);
+    Settings->mLayer = Layers::MOVING;
+    Settings->mShape = StandingShape;
+    Settings->mFriction = 0.5f;
+    Settings->mSupportingVolume = JPH::Plane(JPH::Vec3::sAxisY(), -CharacterRadiusStanding); // Accept contacts that touch the lower sphere of the capsule
+    
+    RigidBody = new JPH::Character(Settings, ToJoltVec3(Position), 
+        ToJoltQuat(Orientation), 0, Physics.PhysicsSystem);
+
+    RigidBody->AddToPhysicsSystem(JPH::EActivation::Activate);
+}
+
+void enemy_t::RemoveFromPhysicsSystem()
+{
+    RigidBody->RemoveFromPhysicsSystem();
+    delete RigidBody;
+}
+
+void PrePhysicsTickAllEnemies()
+{
     for (size_t i = 0; i < Enemies.lenu(); ++i)
     {
         enemy_t& Enemy = Enemies[i];
@@ -39,21 +69,35 @@ void UpdateAllEnemiesFixedTick()
         {
             vec3 SteerPoint = *(vec3*)&Enemy.SmoothPath[Enemy.SmoothPathIter*3];
             vec3 DirToSteerPoint = Normalize(SteerPoint - Enemy.Position);
-            vec3 EnemyMoveDelta = DirToSteerPoint * 64.f * FixedDeltaTime;
-            float DistTravelled = Magnitude(EnemyMoveDelta);
+            vec3 FlatDir = Normalize(vec3(DirToSteerPoint.x, 0.f, DirToSteerPoint.z));
             float DistToSteerPoint = Magnitude(SteerPoint - Enemy.Position);
-            if (DistTravelled >= DistToSteerPoint)
+            if (DistToSteerPoint < 1.f)
             {
-                Enemy.Position = SteerPoint;
                 ++Enemy.SmoothPathIter;
             }
-            else
+
+            if (Enemy.RigidBody->IsSupported())
             {
-                Enemy.Position += EnemyMoveDelta;
+                vec3 GroundNormal = FromJoltVec3(Enemy.RigidBody->GetGroundNormal());
+                vec3 RightDir = Cross(DirToSteerPoint, GroundNormal);
+                vec3 ForwardDir = Cross(GroundNormal, RightDir);
+                Enemy.RigidBody->SetLinearVelocity(ToJoltVec3(ForwardDir * 64.f));
             }
 
-            vec3 FlatDir = Normalize(vec3(DirToSteerPoint.x, 0.f, DirToSteerPoint.z));
             Enemy.Orientation = DirectionToOrientation(FlatDir);
         }
     }
 }
+
+void PostPhysicsTickAllEnemies()
+{
+    for (size_t i = 0; i < Enemies.lenu(); ++i)
+    {
+        enemy_t& Enemy = Enemies[i];
+        
+        static const float MaxSeparationDistance = 0.05f;
+        Enemy.RigidBody->PostSimulation(MaxSeparationDistance);
+        Enemy.Position = FromJoltVec3(Enemy.RigidBody->GetPosition());
+    }
+}
+
