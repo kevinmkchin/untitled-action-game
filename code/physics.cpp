@@ -72,6 +72,8 @@ void physics_t::Initialize()
     JPH::Trace = TraceImpl;
     JPH_IF_ENABLE_ASSERTS(JPH::AssertFailed = AssertFailedImpl;)
 
+    TempAllocator = new JPH::TempAllocatorImpl(10 * 1024 * 1024);
+
     // Create a factory, this class is responsible for creating instances 
     // of classes based on their name or hash and is mainly used for 
     // deserialization of saved data. It is not directly used in this 
@@ -127,6 +129,8 @@ void physics_t::Initialize()
 
 void physics_t::Destroy()
 {
+    delete TempAllocator;
+
     delete PhysicsSystem;
     PhysicsSystem = nullptr;
     BodyInterface = nullptr;
@@ -141,7 +145,6 @@ void physics_t::Destroy()
 
 void physics_t::Tick()
 {
-    static JPH::TempAllocatorImpl PhysTempAllocator(10 * 1024 * 1024);
     static JPH::JobSystemThreadPool PhysJobSystem(JPH::cMaxPhysicsJobs, JPH::cMaxPhysicsBarriers, 
         std::thread::hardware_concurrency() - 1);
 
@@ -151,7 +154,69 @@ void physics_t::Tick()
     const float cDeltaTime = FixedDeltaTime;//1.0f / 60.0f;
     const int cCollisionSteps = 1;
 
-    PhysicsSystem->Update(cDeltaTime, cCollisionSteps, &PhysTempAllocator, &PhysJobSystem);
+    PhysicsSystem->Update(cDeltaTime, cCollisionSteps, TempAllocator, &PhysJobSystem);
+}
+
+void game_char_vs_char_handler_t::Remove(const JPH::CharacterVirtual *InCharacter)
+{
+    auto Iter = std::find(Characters.begin(), Characters.end(), InCharacter);
+    if (Iter != Characters.end())
+        Characters.erase(Iter);
+}
+
+void game_char_vs_char_handler_t::CollideCharacter(const JPH::CharacterVirtual *inCharacter, JPH::RMat44Arg inCenterOfMassTransform, const JPH::CollideShapeSettings &inCollideShapeSettings, JPH::RVec3Arg inBaseOffset, JPH::CollideShapeCollector &ioCollector) const
+{
+    // // Make shape 1 relative to inBaseOffset
+    // JPH::Mat44 transform1 = inCenterOfMassTransform.PostTranslated(-inBaseOffset).ToMat44();
+
+    // const JPH::Shape *shape = inCharacter->GetShape();
+    // JPH::CollideShapeSettings settings = inCollideShapeSettings;
+
+    // // Iterate over all characters
+    // for (const JPH::CharacterVirtual *c : Characters)
+    //     if (c != inCharacter
+    //         && !ioCollector.ShouldEarlyOut())
+    //     {
+    //         // Collector needs to know which character we're colliding with
+    //         ioCollector.SetUserData(reinterpret_cast<u64>(c));
+
+    //         // Make shape 2 relative to inBaseOffset
+    //         JPH::Mat44 transform2 = c->GetCenterOfMassTransform().PostTranslated(-inBaseOffset).ToMat44();
+
+    //         // We need to add the padding of character 2 so that we will detect collision with its outer shell
+    //         settings.mMaxSeparationDistance = inCollideShapeSettings.mMaxSeparationDistance + c->GetCharacterPadding();
+
+    //         // Note that this collides against the character's shape without padding, this will be corrected for in CharacterVirtual::GetContactsAtPosition
+    //         JPH::CollisionDispatch::sCollideShapeVsShape(shape, c->GetShape(), JPH::Vec3::sReplicate(1.0f), JPH::Vec3::sReplicate(1.0f), transform1, transform2, JPH::SubShapeIDCreator(), JPH::SubShapeIDCreator(), settings, ioCollector);
+    //     }
+
+    // // Reset the user data
+    // ioCollector.SetUserData(0);
+}
+
+void game_char_vs_char_handler_t::CastCharacter(const JPH::CharacterVirtual *inCharacter, JPH::RMat44Arg inCenterOfMassTransform, JPH::Vec3Arg inDirection, const JPH::ShapeCastSettings &inShapeCastSettings, JPH::RVec3Arg inBaseOffset, JPH::CastShapeCollector &ioCollector) const
+{
+    // // Convert shape cast relative to inBaseOffset
+    // JPH::Mat44 transform1 = inCenterOfMassTransform.PostTranslated(-inBaseOffset).ToMat44();
+    // JPH::ShapeCast shape_cast(inCharacter->GetShape(), JPH::Vec3::sReplicate(1.0f), transform1, inDirection);
+
+    // // Iterate over all characters
+    // for (const JPH::CharacterVirtual *c : Characters)
+    //     if (c != inCharacter
+    //         && !ioCollector.ShouldEarlyOut())
+    //     {
+    //         // Collector needs to know which character we're colliding with
+    //         ioCollector.SetUserData(reinterpret_cast<u64>(c));
+
+    //         // Make shape 2 relative to inBaseOffset
+    //         JPH::Mat44 transform2 = c->GetCenterOfMassTransform().PostTranslated(-inBaseOffset).ToMat44();
+
+    //         // Note that this collides against the character's shape without padding, this will be corrected for in CharacterVirtual::GetFirstContactForSweep
+    //         JPH::CollisionDispatch::sCastShapeVsShapeWorldSpace(shape_cast, inShapeCastSettings, c->GetShape(), JPH::Vec3::sReplicate(1.0f), { }, transform2, JPH::SubShapeIDCreator(), JPH::SubShapeIDCreator(), ioCollector);
+    //     }
+
+    // // Reset the user data
+    // ioCollector.SetUserData(0);
 }
 
 JPH::RVec3 ToJoltVec3(vec3 GMathVec3)

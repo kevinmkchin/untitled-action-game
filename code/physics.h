@@ -21,8 +21,11 @@
 #include <Jolt/Physics/Collision/Shape/SphereShape.h>
 #include <Jolt/Physics/Collision/Shape/MeshShape.h>
 #include <Jolt/Physics/Collision/Shape/CapsuleShape.h>
+#include <Jolt/Physics/Collision/CollideShape.h>
+#include <Jolt/Physics/Collision/CollisionDispatch.h>
 #include <Jolt/Physics/Collision/Shape/RotatedTranslatedShape.h>
 #include <Jolt/Physics/Character/Character.h>
+#include <Jolt/Physics/Character/CharacterVirtual.h>
 #include <Jolt/Physics/Body/BodyCreationSettings.h>
 #include <Jolt/Physics/Body/BodyActivationListener.h>
 // STL includes
@@ -154,6 +157,12 @@ public:
 //     }
 // };
 
+// // This class receives callbacks when a virtual character hits something.
+// class MyVirtualCharacterContactListener : public CharacterContactListener
+// {
+
+// };
+
 // // A body activation listener gets notified when bodies activate and go to sleep
 // // Note that this is called from a job so whatever you do here needs to be thread safe.
 // // Registering one is entirely optional.
@@ -171,7 +180,46 @@ public:
 //         cout << "A body went to sleep" << endl;
 //     }
 // };
+    
+/** Allows a CharacterVirtual to check collision with other CharacterVirtual instances.
+    Since CharacterVirtual instances are not registered anywhere, it is up to the 
+    application to test collision against relevant characters. The characters could be
+    stored in a tree structure to make this more efficient. */
+struct game_char_vs_char_handler_t : public JPH::CharacterVsCharacterCollision
+{
+    /// Add a character to the list of characters to check collision against.
+    void Add(JPH::CharacterVirtual *InCharacter) { Characters.push_back(InCharacter); }
 
+    /// Remove a character from the list of characters to check collision against.
+    void Remove(const JPH::CharacterVirtual *InCharacter);
+
+    /// Collide a character against other CharacterVirtuals.
+    /// @param inCharacter The character to collide.
+    /// @param inCenterOfMassTransform Center of mass transform for this character.
+    /// @param inCollideShapeSettings Settings for the collision check.
+    /// @param inBaseOffset All hit results will be returned relative to this offset, can be zero to get results in world position, but when you're testing far from the origin you get better precision by picking a position that's closer e.g. GetPosition() since floats are most accurate near the origin
+    /// @param ioCollector Collision collector that receives the collision results.
+    virtual void CollideCharacter(const JPH::CharacterVirtual *inCharacter, JPH::RMat44Arg inCenterOfMassTransform, const JPH::CollideShapeSettings &inCollideShapeSettings, JPH::RVec3Arg inBaseOffset, JPH::CollideShapeCollector &ioCollector) const override;
+
+    /// Cast a character against other CharacterVirtuals.
+    /// @param inCharacter The character to cast.
+    /// @param inCenterOfMassTransform Center of mass transform for this character.
+    /// @param inDirection Direction and length to cast in.
+    /// @param inShapeCastSettings Settings for the shape cast.
+    /// @param inBaseOffset All hit results will be returned relative to this offset, can be zero to get results in world position, but when you're testing far from the origin you get better precision by picking a position that's closer e.g. GetPosition() since floats are most accurate near the origin
+    /// @param ioCollector Collision collector that receives the collision results.
+    virtual void CastCharacter(const JPH::CharacterVirtual *inCharacter, JPH::RMat44Arg inCenterOfMassTransform, JPH::Vec3Arg inDirection, const JPH::ShapeCastSettings &inShapeCastSettings, JPH::RVec3Arg inBaseOffset, JPH::CastShapeCollector &ioCollector) const override;
+
+    std::vector<JPH::CharacterVirtual*> Characters;
+};
+
+/*
+Note that the physics simulation works best if you use SI units (meters, radians, seconds, kg). In 
+order for the simulation to be accurate, dynamic objects should be in the order [0.1, 10] meters long, 
+have speeds in the order of [0, 500] m/s and have gravity in the order of [0, 10] m/s^2. Static object 
+should be in the order [0.1, 2000] meter long. If you are using different units, consider scaling the 
+objects before passing them on to the physics simulation.
+*/
 struct physics_t
 {
     void Initialize();
@@ -186,6 +234,11 @@ public:
     obj_layer_pair_filter_t ObjectVsObjectFilter; // filters object vs object layers
     bp_layer_interface_t    BroadPhaseLayerInterface; // mapping from object layer to broadphase layer
     obj_vs_bp_layer_impl_t  ObjectVsBroadphaseFilter; // filters object vs broadphase layers
+
+    // List of active virtual characters in the scene so they can collide
+    game_char_vs_char_handler_t CharacterVirtualsHandler;
+
+    JPH::TempAllocatorImpl *TempAllocator;
 };
 
 JPH::RVec3 ToJoltVec3(vec3 GMathVec3);

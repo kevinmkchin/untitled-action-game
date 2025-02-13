@@ -10,9 +10,8 @@ TODO:
 
 - Enemy moves and shoots at player
     - mesh changes color when enemy state changes from patrol to chase to shoot to melee
-    - Use Jolt physics based movement with colliders
 
-- Use JPH::CharacterVirtual instead of Character
+- Probably scale down vectors and units before passing into Jolt Physics
 
 - list all point entities in the scene
 - entity placement window with dropdown
@@ -338,6 +337,7 @@ Mix_Chunk *Mixer_LoadChunk(const char *filepath)
 #include "levelentities.cpp"
 #include "enemy.cpp"
 #include "nav.cpp"
+#include "player.cpp"
 
 
 static void RenderGUILayer()
