@@ -72,7 +72,7 @@ void LoadLevel(const char *MapPath)
     CreateAndRegisterLevelCollider();
     ASSERT(CreateRecastNavMesh());
 
-    Player.mCharacter->SetPosition(ToJoltVec3(MapLoadResult.PlayerStartPosition));
+    Player.CharacterController->SetPosition(ToJoltVec3(MapLoadResult.PlayerStartPosition));
     // TODO Apply rotation to camera rotation instead
     // Player.mCharacter->SetRotation(ToJoltQuat(EulerToQuat(MapLoadResult.PlayerStartRotation)));
 
