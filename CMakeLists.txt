@@ -2,7 +2,7 @@
 # CMakeLists.txt equivalent of build.bat
 # Exists for compatibility with IDEs like CLion
 # This project only compiles with MSVC!!!
-# Must set both toolchain and generator in CLion to Visual Studio
+# Must set both toolchain and generator in CLion or Visual Studio to Visual Studio
 # This may not be kept up to date with build.bat
 #
 
