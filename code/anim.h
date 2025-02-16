@@ -3,8 +3,8 @@
 
 struct ModelGLTF
 {
-    GPUMeshIndexed *meshes   = NULL;
-    GPUTexture     *color    = NULL;
+    struct GPUMeshIndexed *meshes   = NULL;
+    struct GPUTexture     *color    = NULL;
     // animations and bones and shit
 };
 
