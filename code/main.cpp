@@ -8,10 +8,14 @@ I could port the GL code to Vulkan
 
 TODO:
 
-- Enemy moves and shoots at player
-    - mesh changes color when enemy state changes from patrol to chase to shoot to melee
-
 - Probably scale down vectors and units before passing into Jolt Physics
+
+- Animation system
+
+- Enemy moves and shoots at player
+    - Try using straight path instead of smooth path
+    - State machine - mesh changes color when enemy state changes from patrol to chase to shoot to melee
+    - sound
 
 - list all point entities in the scene
 - entity placement window with dropdown
@@ -245,6 +249,7 @@ inline std::string data_path(const std::string& name) { return wd_path() + "data
 
 
 #include "utility.h"
+#include "anim.h"
 #include "resources.h"
 #include "shaders.h"
 #include "facebatch.h"
@@ -321,6 +326,7 @@ Mix_Chunk *Mixer_LoadChunk(const char *filepath)
 
 
 #include "utility.cpp"
+#include "anim.cpp"
 #include "resources.cpp"
 #include "physics.cpp"
 #include "physics_debug.cpp"

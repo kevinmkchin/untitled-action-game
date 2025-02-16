@@ -117,18 +117,6 @@ void UpdateGPUTextureFromBitmap(GPUTexture *texture, unsigned char *bitmap, i32 
 void DeleteGPUTexture(GPUTexture *texture);
 
 
-struct ModelGLTF
-{
-    GPUMeshIndexed *meshes   = NULL;
-    GPUTexture     *color    = NULL;
-    // animations and bones and shit
-};
-
-void FreeModelGLTF(ModelGLTF model);
-void RenderModelGLTF(ModelGLTF model);
-bool LoadModelGLTF2Bin(ModelGLTF *model, const char *filepath);
-
-
 // Game Assets Database
 
 struct db_tex_t
