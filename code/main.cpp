@@ -211,6 +211,8 @@ typedef i32           bool32;
 
 inline std::string wd_path() { return std::string(PROJECT_WORKING_DIR); }
 inline std::string wd_path(const std::string& name) { return wd_path() + std::string(name); }
+inline std::string shader_path() { return wd_path() + "shaders/"; }
+inline std::string shader_path(const std::string& name) { return wd_path() + "shaders/" + name; }
 inline std::string model_path() { return wd_path() + "models/"; }
 inline std::string model_path(const std::string& name) { return wd_path() + "models/" + name; }
 inline std::string texture_path() { return wd_path() + "textures/"; }
@@ -302,6 +304,7 @@ level_editor_t LevelEditor;
 
 
 GPUShader GameLevelShader;
+GPUShader GameAnimatedCharacterShader;
 GPUShader PatchesIDShader;
 GPUShader EditorShader_Scene;
 GPUShader EditorShader_Wireframe;
@@ -411,8 +414,9 @@ static void InitGameRenderer()
     CreateGPUFrameBuffer(&RenderTargetGUI);
 
 
-    GLLoadShaderProgramFromFile(GameLevelShader, wd_path("__game_level.vert").c_str(), wd_path("__game_level.frag").c_str());
-    GLLoadShaderProgramFromFile(PatchesIDShader, wd_path("__patches_id.vert").c_str(), wd_path("__patches_id.frag").c_str());
+    GLLoadShaderProgramFromFile(GameLevelShader, shader_path("__game_level.vert").c_str(), shader_path("__game_level.frag").c_str());
+    GLLoadShaderProgramFromFile(GameAnimatedCharacterShader, shader_path("game_animated_character.vert").c_str(), shader_path("game_animated_character.frag").c_str());
+    GLLoadShaderProgramFromFile(PatchesIDShader, shader_path("__patches_id.vert").c_str(), shader_path("__patches_id.frag").c_str());
     GLCreateShaderProgram(EditorShader_Scene, __editor_scene_shader_vs, __editor_scene_shader_fs);
     GLCreateShaderProgram(EditorShader_Wireframe, __editor_scene_wireframe_shader_vs, __editor_scene_wireframe_shader_fs);
     GLCreateShaderProgram(EditorShader_FaceSelected, __editor_shader_face_selected_vs, __editor_shader_face_selected_fs);
