@@ -21,10 +21,9 @@ skeletal_animator_t Animator;
 
 void InitializeGame()
 {
-
     // testing stuff here
     sfx_Jump = Mixer_LoadChunk(wd_path("gunshot-37055.ogg").c_str());
-    LoadAnimatedModel_GLTF2Bin(&Model_Knight, wd_path("models/knight_animated.glb").c_str());
+    LoadAnimatedModel_GLTF2Bin(&Model_Knight, wd_path("models/Rumba Dancing.dae").c_str());
 
     //Animator.PlayAnimation(NULL);
     Animator.PlayAnimation(Model_Knight.Animations[0]);
@@ -158,14 +157,14 @@ void NonPhysicsTick()
 
 void PrePhysicsTick()
 {
-    PrePhysicsTickAllEnemies();
+    // PrePhysicsTickAllEnemies();
 
     Player.PrePhysicsUpdate();
 }
 
 void PostPhysicsTick()
 {
-    PostPhysicsTickAllEnemies();
+    // PostPhysicsTickAllEnemies();
 
     Player.PostPhysicsUpdate();
 }
@@ -182,7 +181,7 @@ void LateNonPhysicsTick()
     static float camLean = 0.f;
     static float desiredCamLean = 0.f;
     const float camLeanSpeed = 15;
-    const float maxCamLean = 0.07f;
+    const float maxCamLean = 0.035f;
     desiredCamLean = 0.f;
     if(KeysCurrent[SDL_SCANCODE_D])
         desiredCamLean += maxCamLean;
@@ -292,7 +291,8 @@ void RenderGameLayer()
     GLBindMatrix4fv(GameAnimatedCharacterShader, "Projection", 1, perspectiveMatrix.ptr());
     GLBindMatrix4fv(GameAnimatedCharacterShader, "View", 1, viewMatrix.ptr());
 
-    mat4 ModelMatrix = TranslationMatrix(Enemies[0].Position) * RotationMatrix(Enemies[0].Orientation);
+    mat4 ModelMatrix = TranslationMatrix(Enemies[0].Position) * RotationMatrix(Enemies[0].Orientation)
+        * ScaleMatrix(14.f,14.f,14.f);
     GLBindMatrix4fv(GameAnimatedCharacterShader, "Model", 1, ModelMatrix.ptr());
 
     GLBindMatrix4fv(GameAnimatedCharacterShader, "FinalBonesMatrices[0]", 108, 

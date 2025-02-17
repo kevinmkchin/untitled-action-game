@@ -251,8 +251,8 @@ bool LoadAnimatedModel_GLTF2Bin(anim_model_t *Model, const char *FilePath)
 
     animation_t *Animation = new animation_t();
 
-    const bool TEMPFLAG_IsGLB = true;
-    aiAnimation *AssimpAnim = Scene->mAnimations[1];
+    const bool TEMPFLAG_IsGLB = false;
+    aiAnimation *AssimpAnim = Scene->mAnimations[0];
     // GLTF2.0 exports animation clip durations in MILLISECONDS!
     // Therefore Animation TicksPerSeconds must be set to 1000.
     Animation->DurationInTicks = (float)AssimpAnim->mDuration;
