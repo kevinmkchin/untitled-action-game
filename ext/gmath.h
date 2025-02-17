@@ -553,7 +553,7 @@ inline mat3 ProjectionMatrixOrthographic2D(float left, float right, float bottom
 inline mat4 ViewMatrixLookAt(vec3 const& eye, vec3 const& target, vec3 const& eyeUpVector);
 
 /** Checks if Dot product of a and b is within +/- tolerance */
-inline bool Similar(quat a, quat b, float tolerance = 0.00001f);
+inline bool Similar(quat a, quat b, float tolerance = 0.0001f);
 
 /** Combines rotations represented by quaternions. Equivalent to second * first. */
 inline quat CombineRotations(quat firstRotation, quat secondRotation);
@@ -1717,20 +1717,44 @@ inline mat4 QuatToMat4(quat q)
 
 inline quat Slerp(const quat from, const quat to, const float ratio)
 {
-    if (Similar(from, to))
-    {
-        return from;
-    }
-
-    float t = ratio;
     quat start = Normalize(from);
     quat end = Normalize(to);
-    quat d = end * from.GetInverse();
-    float cos_theta = Dot(start, end);
-    float theta = acosf(cos_theta);
-    theta *= t;
-    quat d_raised_t = quat(theta, vec3(d.x, d.y, d.z));
-    return d_raised_t * start;
+
+    // From Jolt Physics Library Quat.inl
+
+    // Difference at which to LERP instead of SLERP
+    const float delta = 0.0001f;
+
+    // Calc cosine
+    float sign_scale1 = 1.0f;
+    float cos_omega = Dot(start, end);
+
+    // Adjust signs (if necessary)
+    if (cos_omega < 0.0f)
+    {
+        cos_omega = -cos_omega;
+        sign_scale1 = -1.0f;
+    }
+
+    // Calculate coefficients
+    float scale0, scale1;
+    if (1.0f - cos_omega > delta)
+    {
+        // Standard case (slerp)
+        float omega = acosf(cos_omega);
+        float sin_omega = sinf(omega);
+        scale0 = sinf((1.0f - ratio) * omega) / sin_omega;
+        scale1 = sign_scale1 * sinf(ratio * omega) / sin_omega;
+    }
+    else
+    {
+        // Quaternions are very close so we can do a linear interpolation
+        scale0 = 1.0f - ratio;
+        scale1 = sign_scale1 * ratio;
+    }
+
+    // Interpolate between the two quaternions
+    return Normalize(Add(Mul(start, scale0), Mul(end, scale1)));
 }
 
 inline float Lerp(float from, float to, float ratio)
