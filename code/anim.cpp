@@ -49,7 +49,7 @@ void anim_model_t::ExtractBoneWeightForVertices(dynamic_array<anim_vertex_t> Ver
         {
             bone_info_t BoneInfo;
             BoneInfo.Id = BoneCounter;
-            BoneInfo.Offset = AssimpMatrixToColumnMajor(Mesh->mBones[BoneIndex]->mOffsetMatrix);
+            BoneInfo.InverseBindPoseTransform = AssimpMatrixToColumnMajor(Mesh->mBones[BoneIndex]->mOffsetMatrix);
             BoneInfoMap[BoneName] = BoneInfo;
             BoneID = BoneCounter;
             ++BoneCounter;

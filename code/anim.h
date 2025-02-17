@@ -4,7 +4,7 @@
 struct bone_info_t
 {
     int Id = -1; // index in FinalBonesMatrices
-    mat4 Offset; // transforms vertex from model space to bone space
+    mat4 InverseBindPoseTransform; // transforms vertex from model space to bone/joint space
 };
 
 struct anim_vertex_t
@@ -75,6 +75,7 @@ struct keyframe_rotation_t
 
 struct keyframe_scale_t
 {
+    // NOTE(Kevin): I should disallow non-uniform scaling and have a single float here
     vec3 Scale;
     float Timestamp;
 };
@@ -96,6 +97,8 @@ struct anim_bone_t
     int GetRotationIndex(float AnimationTime);
     int GetScaleIndex(float AnimationTime);
 
+    // Instead of storing the local transform, each bone can index into its parent,
+    // calculate the current pose matrix, and store that
     mat4 LocalTransform;
     std::string Name;
     int Id;
@@ -156,6 +159,11 @@ private:
 
 struct skeletal_animator_t
 {
+    // Skinning matrix palette
+    // This array is known as a matrix palette. The matrix palette is passed to the
+    // rendering engine when rendering a skinned mesh. For each vertex, the
+    // renderer looks up the appropriate joint’s skinning matrix in the palette
+    // and uses it to transform the vertex from bind pose into current pose.
     dynamic_array<mat4> FinalBonesMatrices;
 
     animation_t* m_CurrentAnimation;
@@ -186,31 +194,33 @@ struct skeletal_animator_t
         }
     }
     
-    void CalculateBoneTransform(const assimp_node_data_t* node, mat4 parentTransform)
+    void CalculateBoneTransform(const assimp_node_data_t* node, mat4 ModelSpaceFromParentSpace)
     {
         std::string nodeName = node->Name;
-        mat4 nodeTransform = node->Transformation;
+        mat4 ParentJointSpaceFromLocalJointSpace = node->Transformation; // bind pose
     
         anim_bone_t* Bone = m_CurrentAnimation->FindBone(nodeName);
     
         if (Bone)
         {
             Bone->Update(m_CurrentTime);
-            nodeTransform = Bone->LocalTransform;
+            // The Current Pose Transform
+            ParentJointSpaceFromLocalJointSpace = Bone->LocalTransform; // current pose
         }
     
-        mat4 globalTransformation = parentTransform * nodeTransform;
+        // The complete Skinning Matrix
+        mat4 GlobalModelFromJoint = ModelSpaceFromParentSpace * ParentJointSpaceFromLocalJointSpace;
     
         auto boneInfoMap = m_CurrentAnimation->m_BoneInfoMap;
         if (boneInfoMap.find(nodeName) != boneInfoMap.end())
         {
             int index = boneInfoMap[nodeName].Id;
-            mat4 offset = boneInfoMap[nodeName].Offset;
-            FinalBonesMatrices[index] = globalTransformation * offset;
+            mat4 JointFromModel = boneInfoMap[nodeName].InverseBindPoseTransform;
+            FinalBonesMatrices[index] = GlobalModelFromJoint * JointFromModel;
         }
     
         for (int i = 0; i < node->ChildrenCount; ++i)
-            CalculateBoneTransform(&node->Children[i], globalTransformation);
+            CalculateBoneTransform(&node->Children[i], GlobalModelFromJoint);
     }
 
 };
