@@ -8,9 +8,14 @@ I could port the GL code to Vulkan
 
 TODO:
 
+- move gmath as subrepo of this repo so i can keep tests updated
+
 - Probably scale down vectors and units before passing into Jolt Physics
 
 - Animation system
+- Single linear allocator for all animation and model resources
+- Fuck a pointer tree lol store bone hierarchy in flat array
+- std::map for bone name to bone is also slow
 
 - Enemy moves and shoots at player
     - Try using straight path instead of smooth path
@@ -706,7 +711,7 @@ int main(int argc, char* argv[])
     srand(100);
 
     InitializeGame();
-    LoadLevel(wd_path("playground_1.map").c_str());
+    LoadLevel(wd_path("playground_0.map").c_str());
     // LevelEditor.Open();
 
     while (!ProgramShutdownRequested)

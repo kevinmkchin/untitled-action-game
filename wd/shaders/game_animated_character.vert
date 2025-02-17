@@ -3,14 +3,14 @@
 layout(location = 0) in vec3 Pos;
 layout(location = 1) in vec2 Tex;
 layout(location = 2) in vec3 Norm;
-layout(location = 5) in ivec4 BoneIds; 
-layout(location = 6) in vec4 Weights;
+layout(location = 3) in ivec4 BoneIds; 
+layout(location = 4) in vec4 Weights;
     
 uniform mat4 Projection;
 uniform mat4 View;
 uniform mat4 Model;
     
-const int MAX_BONES = 100;
+const int MAX_BONES = 108;
 const int MAX_BONE_INFLUENCE = 4;
 uniform mat4 FinalBonesMatrices[MAX_BONES];
     

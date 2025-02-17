@@ -140,6 +140,7 @@ const char* __finalpass_shader_fs =
 
 bool GLHasErrors()
 {
+#if INTERNAL_BUILD
     GLenum error = glGetError();
 
     if (error == GL_NO_ERROR) return false;
@@ -172,6 +173,9 @@ bool GLHasErrors()
     }
 
     return true;
+#else
+    return false;
+#endif
 }
 
 

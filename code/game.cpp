@@ -1,6 +1,6 @@
 
 Mix_Chunk *sfx_Jump;
-ModelGLTF Model_Knight;
+anim_model_t Model_Knight;
 
 // extern
 std::vector<face_batch_t> GameLevelFaceBatches;
@@ -17,12 +17,17 @@ JPH::BodyID LevelColliderBodyId;
 jph_debug_draw_gl3_t *JoltDebugDraw;
 #endif // JPH_DEBUG_RENDERER
 
+skeletal_animator_t Animator;
+
 void InitializeGame()
 {
 
     // testing stuff here
     sfx_Jump = Mixer_LoadChunk(wd_path("gunshot-37055.ogg").c_str());
-    LoadModelGLTF2Bin(&Model_Knight, wd_path("models/knight.glb").c_str());
+    LoadAnimatedModel_GLTF2Bin(&Model_Knight, wd_path("models/knight_animated.glb").c_str());
+
+    //Animator.PlayAnimation(NULL);
+    Animator.PlayAnimation(Model_Knight.Animations[0]);
 
     Physics.Initialize();
 
@@ -77,20 +82,22 @@ void LoadLevel(const char *MapPath)
     // Player.mCharacter->SetRotation(ToJoltQuat(EulerToQuat(MapLoadResult.PlayerStartRotation)));
 
     enemy_t Enemy0;
-    enemy_t Enemy1;
-    enemy_t Enemy2;
+    // enemy_t Enemy1;
+    // enemy_t Enemy2;
 
-    GetRandomPointOnNavMesh((float*)&Enemy0.Position);
-    GetRandomPointOnNavMesh((float*)&Enemy1.Position);
-    GetRandomPointOnNavMesh((float*)&Enemy2.Position);
+    Enemy0.Position = vec3(0, 0, 30);
+    // Enemy1.Position = vec3(0, 0, -30);
+    // GetRandomPointOnNavMesh((float*)&Enemy0.Position);
+    // GetRandomPointOnNavMesh((float*)&Enemy1.Position);
+    // GetRandomPointOnNavMesh((float*)&Enemy2.Position);
 
     Enemy0.Init();
-    Enemy1.Init();
-    Enemy2.Init();
+    // Enemy1.Init();
+    // Enemy2.Init();
 
     Enemies.put(Enemy0);
-    Enemies.put(Enemy1);
-    Enemies.put(Enemy2);
+    // Enemies.put(Enemy1);
+    // Enemies.put(Enemy2);
 
     LevelLoaded = true;
 }
@@ -213,6 +220,7 @@ void DoGameLoop()
     LateNonPhysicsTick();
 
     // Do animation loop
+    Animator.UpdateAnimation(DeltaTime);
 
     // Do render loop
     RenderGameLayer();
@@ -279,20 +287,40 @@ void RenderGameLayer()
     JoltDebugDraw->Flush(ViewProjectionMatrix.ptr());
 #endif // JPH_DEBUG_RENDERER
 
-    UseShader(EditorShader_Scene);
+    UseShader(GameAnimatedCharacterShader);
     glEnable(GL_DEPTH_TEST);
-    GLBindMatrix4fv(EditorShader_Scene, "projMatrix", 1, perspectiveMatrix.ptr());
-    GLBindMatrix4fv(EditorShader_Scene, "viewMatrix", 1, viewMatrix.ptr());
+    GLBindMatrix4fv(GameAnimatedCharacterShader, "Projection", 1, perspectiveMatrix.ptr());
+    GLBindMatrix4fv(GameAnimatedCharacterShader, "View", 1, viewMatrix.ptr());
 
     mat4 ModelMatrix = TranslationMatrix(Enemies[0].Position) * RotationMatrix(Enemies[0].Orientation);
-    GLBindMatrix4fv(EditorShader_Scene, "modelMatrix", 1, ModelMatrix.ptr());
-    RenderModelGLTF(Model_Knight);
-    ModelMatrix = TranslationMatrix(Enemies[1].Position) * RotationMatrix(Enemies[1].Orientation);
-    GLBindMatrix4fv(EditorShader_Scene, "modelMatrix", 1, ModelMatrix.ptr());
-    RenderModelGLTF(Model_Knight);
-    ModelMatrix = TranslationMatrix(Enemies[2].Position) * RotationMatrix(Enemies[2].Orientation);
-    GLBindMatrix4fv(EditorShader_Scene, "modelMatrix", 1, ModelMatrix.ptr());
-    RenderModelGLTF(Model_Knight);
+    GLBindMatrix4fv(GameAnimatedCharacterShader, "Model", 1, ModelMatrix.ptr());
+
+    GLBindMatrix4fv(GameAnimatedCharacterShader, "FinalBonesMatrices[0]", 108, 
+        Animator.FinalBonesMatrices[0].ptr());
+
+    for (size_t i = 0; i < arrlenu(Model_Knight.meshes); ++i)
+    {
+        skeletal_mesh_t m = Model_Knight.meshes[i];
+        GPUTexture t = Model_Knight.textures[i];
+
+        glActiveTexture(GL_TEXTURE0);
+        //glBindTexture(GL_TEXTURE_2D, t.id);
+        glBindTexture(GL_TEXTURE_2D, Assets.DefaultEditorTexture.gputex.id);
+
+        glBindVertexArray(m.VAO);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m.IBO);
+        glDrawElements(GL_TRIANGLES, m.IndicesCount, GL_UNSIGNED_INT, nullptr);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+        glBindVertexArray(0);
+    }
+
+    // RenderModelGLTF(Model_Knight);
+    // ModelMatrix = TranslationMatrix(Enemies[1].Position) * RotationMatrix(Enemies[1].Orientation);
+    // GLBindMatrix4fv(EditorShader_Scene, "modelMatrix", 1, ModelMatrix.ptr());
+    // RenderModelGLTF(Model_Knight);
+    // ModelMatrix = TranslationMatrix(Enemies[2].Position) * RotationMatrix(Enemies[2].Orientation);
+    // GLBindMatrix4fv(EditorShader_Scene, "modelMatrix", 1, ModelMatrix.ptr());
+    // RenderModelGLTF(Model_Knight);
 }
 
 void CreateAndRegisterLevelCollider()
