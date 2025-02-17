@@ -553,7 +553,7 @@ inline mat3 ProjectionMatrixOrthographic2D(float left, float right, float bottom
 inline mat4 ViewMatrixLookAt(vec3 const& eye, vec3 const& target, vec3 const& eyeUpVector);
 
 /** Checks if Dot product of a and b is within +/- tolerance */
-inline bool Similar(quat a, quat b, float tolerance = 0.001f);
+inline bool Similar(quat a, quat b, float tolerance = 0.00001f);
 
 /** Combines rotations represented by quaternions. Equivalent to second * first. */
 inline quat CombineRotations(quat firstRotation, quat secondRotation);
