@@ -70,7 +70,7 @@ void jph_debug_draw_gl3_t::Flush(float *ViewProjectionMatrix)
 
     UseShader(JPH_DEBUG_GL3_SHADER);
     GLBindMatrix4fv(JPH_DEBUG_GL3_SHADER, "ViewProjectionMatrix", 1, ViewProjectionMatrix);
-    GLHasErrors();
+    //GLHasErrors();
 
     if (LinesVertices.lenu() > 0)
     {

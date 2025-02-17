@@ -68,6 +68,7 @@ template<typename T> struct dynamic_array
     //   * Unlike some other versions of the dynamic array, this version should
     //     be safe to use with strict-aliasing optimizations.
     //
+    //   * Doesn't wrap STL classes well...
 
     T *data = NULL;
 

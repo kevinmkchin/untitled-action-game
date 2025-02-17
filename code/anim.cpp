@@ -31,7 +31,12 @@ mat4 AssimpMatrixToColumnMajor(const aiMatrix4x4& from)
     to[0][2] = from.c1; to[1][2] = from.c2; to[2][2] = from.c3; to[3][2] = from.c4;
     to[0][3] = from.d1; to[1][3] = from.d2; to[2][3] = from.d3; to[3][3] = from.d4;
     return to;
-} 
+}
+
+quat AssimpQuatToMyQuat(const aiQuaternion& pOrientation)
+{
+    return quat(pOrientation.w, pOrientation.x, pOrientation.y, pOrientation.z);
+}
 
 void anim_model_t::ExtractBoneWeightForVertices(dynamic_array<anim_vertex_t> Vertices, aiMesh* Mesh)
 {
@@ -163,8 +168,302 @@ void CreateSkeletalMesh(skeletal_mesh_t *mesh,
 }
 
 
+bool LoadAnimatedModel_GLTF2Bin(anim_model_t *Model, const char *FilePath)
+{
+    Assimp::Importer Importer;
+
+    const aiScene *Scene = Importer.ReadFile(FilePath, aiProcess_Triangulate);
+
+    if (!Scene || Scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !Scene->mRootNode)
+    {
+        LogError("ASSIMP failed to load file at '%s'.\nErr msg: %s", FilePath, Importer.GetErrorString());
+        return false;
+    }
 
 
+    dynamic_array<GPUTexture> matEmissiveTextures;
+
+    for (u32 matIndex = 0; matIndex < Scene->mNumMaterials; ++matIndex)
+    {
+        aiMaterial *mat = Scene->mMaterials[matIndex];
+
+        GPUTexture gputexEmissive;
+        if (mat->GetTextureCount(aiTextureType_EMISSIVE))
+        {
+            aiString path;
+            if (mat->GetTexture(aiTextureType_EMISSIVE, 0, &path) == AI_SUCCESS)
+            {
+                ASSERT(path.C_Str()[0] == '*'); // Assert texture is embedded into the binary
+
+                int textureIndex = std::atoi(path.C_Str()+1); // Skip the '*' character
+                
+                ASSERT(textureIndex >= 0 && textureIndex < (int)Scene->mNumTextures);
+
+                aiTexture *texture = Scene->mTextures[textureIndex];
+
+                bool compressed = texture->mHeight == 0;
+                void *rawPixelData = (void*)texture->pcData;
+                i32 width = texture->mWidth; // Width is stored in mWidth for uncompressed
+                i32 height = texture->mHeight; // Height is stored in mHeight for uncompressed
+
+                // Uncompress if compressed format (e.g. PNG / JPG)
+                if (compressed)
+                {
+                    u8 *compressedImageData = (u8*)texture->pcData;
+                    i32 channelsInFile;
+                    rawPixelData = (void*)stbi_load_from_memory(compressedImageData, texture->mWidth, &width, &height, &channelsInFile, 0);
+                    ASSERT(channelsInFile == 4);
+                }
+
+                ASSERT(rawPixelData);
+
+                CreateGPUTextureFromBitmap(&gputexEmissive, rawPixelData, width, height, 
+                    GL_RGBA, GL_RGBA, GL_NEAREST, GL_NEAREST);
+
+                if (compressed)
+                {
+                    stbi_image_free(rawPixelData);
+                }
+            }
+        }
+        matEmissiveTextures.put(gputexEmissive);
+    }
+
+    ASSERT(Scene->mNumMeshes > 0);
+    ASSERT(Model->meshes == NULL);
+
+    arrsetcap(Model->meshes, Scene->mNumMeshes);
+    arrsetcap(Model->textures, Scene->mNumMeshes);
+
+    for (u32 meshIndex = 0; meshIndex < Scene->mNumMeshes; ++meshIndex)
+    {
+        aiMesh* MeshNode = Scene->mMeshes[meshIndex];
+        skeletal_mesh_t GPUSkeletalMesh = Model->ProcessMesh(MeshNode);
+        u32 MaterialIndex = MeshNode->mMaterialIndex;
+        GPUTexture ColorTex = matEmissiveTextures[MaterialIndex];
+
+        arrput(Model->meshes, GPUSkeletalMesh);
+        arrput(Model->textures, ColorTex);
+    }
+
+    matEmissiveTextures.free();
+
+
+    animation_t *Animation = new animation_t();
+
+    const bool TEMPFLAG_IsGLB = true;
+    aiAnimation *AssimpAnim = Scene->mAnimations[1];
+    // GLTF2.0 exports animation clip durations in MILLISECONDS!
+    // Therefore Animation TicksPerSeconds must be set to 1000.
+    Animation->DurationInTicks = (float)AssimpAnim->mDuration;
+    Animation->TicksPerSecond = TEMPFLAG_IsGLB ? 1000.f : (float)AssimpAnim->mTicksPerSecond;
+    Animation->ReadHierarchyData(Scene->mRootNode);
+    Animation->ReadBones(AssimpAnim, Model);
+
+    Model->Animations.put(Animation);
+
+    return true;
+}
+
+void anim_bone_t::Create(const std::string& InName, int InId, const aiNodeAnim *InChannel)
+{
+    Name = InName;
+    Id = InId;
+    LocalTransform = mat4();
+
+    Positions.setlen(InChannel->mNumPositionKeys);
+    Rotations.setlen(InChannel->mNumRotationKeys);
+    Scales.setlen(InChannel->mNumScalingKeys);
+
+    for (u32 i = 0; i < InChannel->mNumPositionKeys; ++i)
+    {
+        aiVector3D Pos = InChannel->mPositionKeys[i].mValue;
+        float Timestamp = (float)InChannel->mPositionKeys[i].mTime;
+        
+        keyframe_position_t *KeyData = &Positions[i];
+        KeyData->Position = vec3(Pos.x, Pos.y, Pos.z);
+        KeyData->Timestamp = Timestamp;
+    }
+
+    for (u32 i = 0; i < InChannel->mNumRotationKeys; ++i)
+    {
+        aiQuaternion Orientation = InChannel->mRotationKeys[i].mValue;
+        float Timestamp = (float)InChannel->mRotationKeys[i].mTime;
+
+        keyframe_rotation_t *KeyData = &Rotations[i];
+        KeyData->Orientation = AssimpQuatToMyQuat(Orientation);
+        KeyData->Timestamp = Timestamp;
+    }
+
+    for (u32 i = 0; i < InChannel->mNumScalingKeys; ++i)
+    {
+        aiVector3D Scale = InChannel->mScalingKeys[i].mValue;
+        float Timestamp = (float)InChannel->mScalingKeys[i].mTime;
+        
+        keyframe_scale_t *KeyData = &Scales[i];
+        KeyData->Scale = vec3(Scale.x, Scale.y, Scale.z);
+        KeyData->Timestamp = Timestamp;
+    }
+}
+
+void anim_bone_t::Delete()
+{
+    Positions.free();
+    Rotations.free();
+    Scales.free();
+}
+
+void anim_bone_t::Update(float AnimationTime)
+{
+    mat4 Translation = InterpolatePosition(AnimationTime);
+    mat4 Rotation = InterpolateRotation(AnimationTime);
+    mat4 Scale = InterpolateScale(AnimationTime);
+    LocalTransform = Translation * Rotation * Scale;
+}
+
+int anim_bone_t::GetPositionIndex(float AnimationTime)
+{
+    for (int i = 0; i < int(Positions.lenu()) - 1; ++i)
+    {
+        if (AnimationTime < Positions[i + 1].Timestamp)
+            return i;
+    }
+    ASSERT(0);
+    return 0;
+}
+
+int anim_bone_t::GetRotationIndex(float AnimationTime)
+{
+    for (int i = 0; i < int(Rotations.lenu()) - 1; ++i)
+    {
+        if (AnimationTime < Rotations[i + 1].Timestamp)
+            return i;
+    }
+    ASSERT(0);
+    return 0;
+}
+
+int anim_bone_t::GetScaleIndex(float AnimationTime)
+{
+    for (int i = 0; i < int(Scales.lenu()) - 1; ++i)
+    {
+        if (AnimationTime < Scales[i + 1].Timestamp)
+            return i;
+    }
+    ASSERT(0);
+    return 0;
+}
+
+float anim_bone_t::GetScaleFactor(float LastTimestamp, float NextTimestamp, float AnimationTime)
+{
+    float CurrentOffset = AnimationTime - LastTimestamp;
+    float FramesDiff = NextTimestamp - LastTimestamp;
+    return CurrentOffset / FramesDiff;
+}
+
+mat4 anim_bone_t::InterpolatePosition(float AnimationTime)
+{
+    if (Positions.lenu() == 1)
+        return TranslationMatrix(Positions[0].Position);
+
+    int P0Index = GetPositionIndex(AnimationTime);
+    int P1Index = P0Index + 1;
+    float ScaleFactor = GetScaleFactor(Positions[P0Index].Timestamp,
+        Positions[P1Index].Timestamp, AnimationTime);
+    
+    vec3 FinalPosition = Lerp(Positions[P0Index].Position, Positions[P1Index].Position, ScaleFactor);
+    return TranslationMatrix(FinalPosition);
+}
+
+mat4 anim_bone_t::InterpolateRotation(float AnimationTime)
+{
+    if (Rotations.lenu() == 1)
+        return mat4(Normalize(Rotations[0].Orientation));
+
+    int P0Index = GetRotationIndex(AnimationTime);
+    int P1Index = P0Index + 1;
+    float ScaleFactor = GetScaleFactor(Rotations[P0Index].Timestamp,
+        Rotations[P1Index].Timestamp, AnimationTime);
+
+    quat FinalRotation = Slerp(Rotations[P0Index].Orientation,
+        Rotations[P1Index].Orientation, ScaleFactor);
+    return mat4(Normalize(FinalRotation));
+}
+
+mat4 anim_bone_t::InterpolateScale(float AnimationTime)
+{
+    return mat4();
+
+    if (Scales.lenu() == 1)
+        return ScaleMatrix(Scales[0].Scale);
+
+    int P0Index = GetScaleIndex(AnimationTime);
+    int P1Index = P0Index + 1;
+    float ScaleFactor = GetScaleFactor(Scales[P0Index].Timestamp,
+        Scales[P1Index].Timestamp, AnimationTime);
+    
+    vec3 FinalScale = Lerp(Scales[P0Index].Scale, Scales[P1Index].Scale, ScaleFactor);
+    return TranslationMatrix(FinalScale);
+}
+
+void animation_t::Destroy()
+{
+    // TODO iterate through bones flat list and delete
+
+    // TODO destroy assimp_node_data_t
+    // for (Dest.Name)
+
+    // Dest.Name.clear();
+    // Dest.ChildrenCount = 0;
+}
+
+void animation_t::ReadHierarchyData(assimp_node_data_t& Dest, const aiNode* Src)
+{
+    ASSERT(Src);
+
+    Dest.Name = Src->mName.data;
+    Dest.Transformation = AssimpMatrixToColumnMajor(Src->mTransformation);
+    Dest.ChildrenCount = Src->mNumChildren;
+
+    for (u32 i = 0; i < Src->mNumChildren; ++i)
+    {
+        assimp_node_data_t ChildNode;
+        ReadHierarchyData(ChildNode, Src->mChildren[i]);
+        // Dest.Children.put(ChildNode);
+        Dest.Children.push_back(ChildNode);
+    }
+}
+
+void animation_t::ReadBones(const aiAnimation* AssimpAnim, anim_model_t *Model)
+{
+    // The number of bone animation channels. Each channel affects a single node.
+    int NumChannels = AssimpAnim->mNumChannels;
+
+    auto& boneInfoMap = Model->BoneInfoMap;//getting m_BoneInfoMap from Model class
+    int& boneCount = Model->BoneCounter; //getting the m_BoneCounter from Model class
+
+    // reading channels (bones engaged in an animation and their keyframes)
+    for (int i = 0; i < NumChannels; ++i)
+    {
+        aiNodeAnim *NodeAnimChannel = AssimpAnim->mChannels[i];
+        std::string boneName = NodeAnimChannel->mNodeName.data;
+
+        // check if missing this bone
+        if (boneInfoMap.find(boneName) == boneInfoMap.end())
+        {
+            boneInfoMap[boneName].Id = boneCount;
+            boneCount++;
+        }
+
+        anim_bone_t Bone;
+        Bone.Create(NodeAnimChannel->mNodeName.data, 
+            boneInfoMap[NodeAnimChannel->mNodeName.data].Id, 
+            NodeAnimChannel);
+        Bones.push_back(Bone);
+    }
+
+    m_BoneInfoMap = boneInfoMap;
+}
 
 
 

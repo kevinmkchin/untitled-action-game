@@ -1717,6 +1717,11 @@ inline mat4 QuatToMat4(quat q)
 
 inline quat Slerp(const quat from, const quat to, const float ratio)
 {
+    if (Similar(from, to))
+    {
+        return from;
+    }
+
     float t = ratio;
     quat start = Normalize(from);
     quat end = Normalize(to);
