@@ -257,7 +257,7 @@ bool LoadAnimatedModel_GLTF2Bin(anim_model_t *Model, const char *FilePath)
     // Therefore Animation TicksPerSeconds must be set to 1000.
     Animation->DurationInTicks = (float)AssimpAnim->mDuration;
     Animation->TicksPerSecond = TEMPFLAG_IsGLB ? 1000.f : (float)AssimpAnim->mTicksPerSecond;
-    Animation->ReadHierarchyData(Scene->mRootNode);
+    Animation->ReadHierarchyData(Scene->mRootNode, Model);
     Animation->ReadBones(AssimpAnim, Model);
 
     Model->Animations.put(Animation);
@@ -265,12 +265,8 @@ bool LoadAnimatedModel_GLTF2Bin(anim_model_t *Model, const char *FilePath)
     return true;
 }
 
-void anim_bone_t::Create(const std::string& InName, int InId, const aiNodeAnim *InChannel)
+void anim_bone_t::Create(const aiNodeAnim *InChannel)
 {
-    Name = InName;
-    Id = InId;
-    LocalTransform = mat4();
-
     Positions.setlen(InChannel->mNumPositionKeys);
     Rotations.setlen(InChannel->mNumRotationKeys);
     Scales.setlen(InChannel->mNumScalingKeys);
@@ -313,12 +309,13 @@ void anim_bone_t::Delete()
     Scales.free();
 }
 
-void anim_bone_t::Update(float AnimationTime)
+mat4 anim_bone_t::Update(float AnimationTime)
 {
     mat4 Translation = InterpolatePosition(AnimationTime);
     mat4 Rotation = InterpolateRotation(AnimationTime);
     mat4 Scale = InterpolateScale(AnimationTime);
-    LocalTransform = Translation * Rotation * Scale;
+    mat4 CurrentLocalTransform = Translation * Rotation * Scale;
+    return CurrentLocalTransform;
 }
 
 int anim_bone_t::GetPositionIndex(float AnimationTime)
@@ -417,20 +414,62 @@ void animation_t::Destroy()
     // Dest.ChildrenCount = 0;
 }
 
-void animation_t::ReadHierarchyData(assimp_node_data_t& Dest, const aiNode* Src)
+void animation_t::ReadHierarchyData(const aiNode* Src, anim_model_t *Model)
 {
     ASSERT(Src);
 
-    Dest.Name = Src->mName.data;
-    Dest.Transformation = AssimpMatrixToColumnMajor(Src->mTransformation);
-    Dest.ChildrenCount = Src->mNumChildren;
+    const char *BoneName = Src->mName.data;
+
+    if (Model->BoneInfoMap.find(BoneName) != Model->BoneInfoMap.end()) // is a bone
+    {
+        u8 ParentIndex = 0xFF;
+
+        const char *ParentNodeName = Src->mParent->mName.data;
+        bool ParentIsABone = Src->mParent && Model->BoneInfoMap.find(ParentNodeName) != Model->BoneInfoMap.end();
+        if (ParentIsABone)
+        {
+            int ParentPaletteIndex = Model->BoneInfoMap[ParentNodeName].Id;
+            anim_bone_t *ParentAnimBone = FindBone(ParentPaletteIndex);
+            ASSERT(ParentAnimBone);
+            ParentIndex = ParentAnimBone->SelfId;
+        } 
+        else
+        {
+            // otherwise, I am the root joint/bone therefore my parent index is 0xFF
+
+            // This root bone may be nested deeper in the transform hierarchy
+            // so we must find the transform from "skeleton or root joint space"
+            // to actual "model space"
+            // I can skip Src->mTransformation because the root bone's local transform for current pose
+            // will be calculated from the animation clip
+            mat4 AccumulateRootJointTransform = mat4();
+            aiNode *Parent = Src->mParent;
+            while (Parent)
+            {
+                AccumulateRootJointTransform *= AssimpMatrixToColumnMajor(Parent->mTransformation);
+                Parent = Parent->mParent;
+            }
+            RootTransform = AccumulateRootJointTransform;
+        }
+
+        int PaletteIndex = Model->BoneInfoMap[BoneName].Id;
+        u8 SelfId = (u8)Bones.size();
+        // mat4 LocalTransformInBindPose = AssimpMatrixToColumnMajor(Src->mTransformation);
+        // but i still need a sort of fallback matrix in case this bone is not animated
+
+        anim_bone_t Bone;
+        Bone.PaletteIndex = PaletteIndex;
+        Bone.ParentId = ParentIndex;
+        Bone.SelfId = SelfId;
+        Bone.InverseBindPose = Model->BoneInfoMap[BoneName].InverseBindPoseTransform;
+        // Bone.CurrentPoseTransform = _LocalTransformInBindPose;
+
+        Bones.push_back(Bone);
+    }
 
     for (u32 i = 0; i < Src->mNumChildren; ++i)
     {
-        assimp_node_data_t ChildNode;
-        ReadHierarchyData(ChildNode, Src->mChildren[i]);
-        // Dest.Children.put(ChildNode);
-        Dest.Children.push_back(ChildNode);
+        ReadHierarchyData(Src->mChildren[i], Model);
     }
 }
 
@@ -446,23 +485,22 @@ void animation_t::ReadBones(const aiAnimation* AssimpAnim, anim_model_t *Model)
     for (int i = 0; i < NumChannels; ++i)
     {
         aiNodeAnim *NodeAnimChannel = AssimpAnim->mChannels[i];
-        std::string boneName = NodeAnimChannel->mNodeName.data;
+        const char *BoneName = NodeAnimChannel->mNodeName.data;
 
         // check if missing this bone
-        if (boneInfoMap.find(boneName) == boneInfoMap.end())
+        if (boneInfoMap.find(BoneName) == boneInfoMap.end())
         {
-            boneInfoMap[boneName].Id = boneCount;
-            boneCount++;
+            ASSERT(0);
+            // boneInfoMap[BoneName].Id = boneCount;
+            // boneCount++;
         }
 
-        anim_bone_t Bone;
-        Bone.Create(NodeAnimChannel->mNodeName.data, 
-            boneInfoMap[NodeAnimChannel->mNodeName.data].Id, 
-            NodeAnimChannel);
-        Bones.push_back(Bone);
-    }
+        int PaletteIndex = boneInfoMap[BoneName].Id;
 
-    m_BoneInfoMap = boneInfoMap;
+        anim_bone_t *Bone = FindBone(PaletteIndex);
+        ASSERT(Bone);
+        Bone->Create(NodeAnimChannel);
+    }
 }
 
 
