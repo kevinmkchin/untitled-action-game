@@ -1,28 +1,11 @@
+#include "anim.h"
+
+#include <assimp/Importer.hpp>
+#include <assimp/scene.h>
+#include <assimp/postprocess.h>
 
 
-void anim_model_t::SetVertexBoneDataToDefault(anim_vertex_t *Vertex)
-{
-    for (int i = 0; i < MAX_BONE_INFLUENCE; ++i)
-    {
-        Vertex->BoneIDs[i] = -1;
-        Vertex->BoneWeights[i] = 0.f;
-    }
-}
-
-void anim_model_t::SetVertexBoneData(anim_vertex_t *Vertex, int BoneID, float Weight)
-{
-    for (int i = 0; i < MAX_BONE_INFLUENCE; ++i)
-    {
-        if (Vertex->BoneIDs[i] < 0)
-        {
-            Vertex->BoneWeights[i] = Weight;
-            Vertex->BoneIDs[i] = BoneID;
-            break;
-        }
-    }
-}
-
-mat4 AssimpMatrixToColumnMajor(const aiMatrix4x4& from)
+static mat4 AssimpMatrixToColumnMajor(const aiMatrix4x4& from)
 {
     mat4 to;
     //the a,b,c,d in assimp is the row ; the 1,2,3,4 is the column
@@ -33,53 +16,100 @@ mat4 AssimpMatrixToColumnMajor(const aiMatrix4x4& from)
     return to;
 }
 
-quat AssimpQuatToMyQuat(const aiQuaternion& pOrientation)
+static quat AssimpQuatToMyQuat(const aiQuaternion& pOrientation)
 {
     return quat(pOrientation.w, pOrientation.x, pOrientation.y, pOrientation.z);
 }
 
-void anim_model_t::ExtractBoneWeightForVertices(dynamic_array<anim_vertex_t> Vertices, aiMesh* Mesh)
+static void SetVertexBoneDataToDefault(skinned_vertex_t *Vertex)
 {
-    for (u32 BoneIndex = 0; BoneIndex < Mesh->mNumBones; ++BoneIndex)
+    for (int i = 0; i < MAX_BONE_INFLUENCE; ++i)
     {
-        int BoneID = -1;
-        std::string BoneName = Mesh->mBones[BoneIndex]->mName.C_Str();
+        Vertex->BoneIDs[i] = -1;
+        Vertex->BoneWeights[i] = 0.f;
+    }
+}
 
-        if (BoneInfoMap.find(BoneName) == BoneInfoMap.end())
+static void SetVertexBoneData(skinned_vertex_t *Vertex, int BoneIndex, float Weight)
+{
+    for (int i = 0; i < MAX_BONE_INFLUENCE; ++i)
+    {
+        if (Vertex->BoneIDs[i] < 0)
         {
-            bone_info_t BoneInfo;
-            BoneInfo.Id = BoneCounter;
-            BoneInfo.InverseBindPoseTransform = AssimpMatrixToColumnMajor(Mesh->mBones[BoneIndex]->mOffsetMatrix);
-            BoneInfoMap[BoneName] = BoneInfo;
-            BoneID = BoneCounter;
-            ++BoneCounter;
+            Vertex->BoneWeights[i] = Weight;
+            Vertex->BoneIDs[i] = BoneIndex;
+            break;
         }
-        else
-        {
-            // This bone also affects vertices outside of the scope of this mesh
-            BoneID = BoneInfoMap[BoneName].Id;
-        }
-        ASSERT(BoneID != -1);
+    }
+}
+
+static void ExtractBoneWeightForVertices(dynamic_array<skinned_vertex_t> Vertices, aiMesh* Mesh,
+    const skeleton_t *Skeleton)
+{
+    for (u32 i = 0; i < Mesh->mNumBones; ++i)
+    {
+        const char *BoneName = Mesh->mBones[i]->mName.C_Str();
+        auto Iter = Skeleton->JointNameToIndex.find(BoneName);
+        ASSERT(Iter != Skeleton->JointNameToIndex.end());
+        int JointIndex = Iter->second;
 
         // The influence weights of this bone, by vertex index
-        aiVertexWeight *Weights = Mesh->mBones[BoneIndex]->mWeights;
-        u32 NumWeights = Mesh->mBones[BoneIndex]->mNumWeights;
+        aiVertexWeight *Weights = Mesh->mBones[i]->mWeights;
+        u32 NumWeights = Mesh->mBones[i]->mNumWeights;
 
         for (u32 WeightIndex = 0; WeightIndex < NumWeights; ++WeightIndex)
         {
             int VertexIndex = Weights[WeightIndex].mVertexId;
             float Weight = Weights[WeightIndex].mWeight;
             ASSERT(VertexIndex <= Vertices.lenu());
-            // This bone influences this vertex by this much
-            SetVertexBoneData(&Vertices[VertexIndex], BoneID, Weight);
+            SetVertexBoneData(&Vertices[VertexIndex], JointIndex, Weight);
         }
     }
 }
 
-// Assimp mesh to GPU skeletal mesh
-skeletal_mesh_t anim_model_t::ProcessMesh(aiMesh* Mesh)
+static void CreateSkinnedMesh(skinned_mesh_t *mesh,
+    dynamic_array<skinned_vertex_t> Vertices, 
+    dynamic_array<u32> Indices)
 {
-    dynamic_array<anim_vertex_t> Vertices;
+    ASSERT(mesh->VAO == 0);
+
+    GLsizei StrideInBytes = sizeof(skinned_vertex_t);
+    GLsizeiptr VertexBufferSzInBytes = (GLsizeiptr)sizeof(skinned_vertex_t)*Vertices.lenu();
+    GLsizeiptr IndexBufferSzInBytes = (GLsizeiptr)sizeof(u32)*Indices.lenu();
+
+    mesh->IndicesCount = (u32)Indices.lenu();
+
+    glGenVertexArrays(1, &mesh->VAO);
+    glBindVertexArray(mesh->VAO);
+    glGenBuffers(1, &mesh->VBO);
+    glBindBuffer(GL_ARRAY_BUFFER, mesh->VBO);
+    glBufferData(GL_ARRAY_BUFFER, VertexBufferSzInBytes, Vertices.data, GL_STATIC_DRAW);
+
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, StrideInBytes, nullptr);
+
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, StrideInBytes, (void*)offsetof(skinned_vertex_t, Tex));
+
+    glEnableVertexAttribArray(2);
+    glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, StrideInBytes, (void*)offsetof(skinned_vertex_t, Norm));
+
+    glEnableVertexAttribArray(3);
+    glVertexAttribIPointer(3, 4, GL_INT, StrideInBytes, (void*)offsetof(skinned_vertex_t, BoneIDs));
+
+    glEnableVertexAttribArray(4);
+    glVertexAttribPointer(4, 4, GL_FLOAT, GL_FALSE, StrideInBytes, (void*)offsetof(skinned_vertex_t, BoneWeights));
+
+    glGenBuffers(1, &mesh->IBO);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh->IBO);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, IndexBufferSzInBytes, Indices.data, GL_STATIC_DRAW);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
+}
+
+static skinned_mesh_t ProcessSkinnedMesh(aiMesh* Mesh, const skeleton_t *Skeleton)
+{
+    dynamic_array<skinned_vertex_t> Vertices;
     dynamic_array<u32> Indices;
     Vertices.setlen(Mesh->mNumVertices);
     const u32 IndicesPerFace = Mesh->mFaces[0].mNumIndices;
@@ -89,7 +119,7 @@ skeletal_mesh_t anim_model_t::ProcessMesh(aiMesh* Mesh)
     // Extract vertices
     for (u32 i = 0; i < Mesh->mNumVertices; ++i)
     {
-        anim_vertex_t& Vertex = Vertices[i];
+        skinned_vertex_t& Vertex = Vertices[i];
 
         Vertex.Pos = vec3(Mesh->mVertices[i].x, Mesh->mVertices[i].y, Mesh->mVertices[i].z);
 
@@ -115,71 +145,148 @@ skeletal_mesh_t anim_model_t::ProcessMesh(aiMesh* Mesh)
     }
 
     // Extract bone data
-    ExtractBoneWeightForVertices(Vertices, Mesh);
+    ExtractBoneWeightForVertices(Vertices, Mesh, Skeleton);
 
-    skeletal_mesh_t SkeletalMesh;
-    CreateSkeletalMesh(&SkeletalMesh, Vertices, Indices);
+    // Create the mesh resource on GPU
+    skinned_mesh_t SkinnedMesh;
+    CreateSkinnedMesh(&SkinnedMesh, Vertices, Indices);
 
     Vertices.free();
     Indices.free();
 
-    return SkeletalMesh;
+    return SkinnedMesh;
 }
 
 
-void CreateSkeletalMesh(skeletal_mesh_t *mesh,
-    dynamic_array<anim_vertex_t> Vertices, 
-    dynamic_array<u32> Indices)
+static void ReadSkeletonJoints(const aiNode *Node, 
+    std::unordered_map<std::string, mat4>& BoneLookup,
+    skeleton_t *Skeleton)
 {
-    ASSERT(mesh->VAO == 0);
+    ASSERT(Node);
+    ASSERT(Skeleton);
 
-    GLsizei StrideInBytes = sizeof(anim_vertex_t);
-    GLsizeiptr VertexBufferSzInBytes = (GLsizeiptr)sizeof(anim_vertex_t)*Vertices.lenu();
-    GLsizeiptr IndexBufferSzInBytes = (GLsizeiptr)sizeof(u32)*Indices.lenu();
+    const char *BoneName = Node->mName.data;
+    if (BoneLookup.find(BoneName) != BoneLookup.end()) // is a bone
+    {
+        skeleton_joint_t Joint;
 
-    mesh->IndicesCount = (u32)Indices.lenu();
+        Joint.InverseBindPoseTransform = BoneLookup[BoneName];
+        Joint.ParentIndex = 0xFF;
 
-    glGenVertexArrays(1, &mesh->VAO);
-    glBindVertexArray(mesh->VAO);
-    glGenBuffers(1, &mesh->VBO);
-    glBindBuffer(GL_ARRAY_BUFFER, mesh->VBO);
-    glBufferData(GL_ARRAY_BUFFER, VertexBufferSzInBytes, Vertices.data, GL_STATIC_DRAW);
+        if (Node->mParent)
+        {
+            const char *ParentNodeName = Node->mParent->mName.data;
+            if (BoneLookup.find(ParentNodeName) != BoneLookup.end())
+            {
+                int ParentIndex = Skeleton->JointNameToIndex[ParentNodeName]; // parent is a bone too
+                Joint.ParentIndex = ParentIndex;
+            }
+        }
 
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, StrideInBytes, nullptr);
+        Skeleton->Joints.put(Joint);
+        Skeleton->JointNameToIndex[BoneName] = (int)Skeleton->Joints.lenu() - 1;
+    }
 
-    glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, StrideInBytes, (void*)offsetof(anim_vertex_t, Tex));
-
-    glEnableVertexAttribArray(2);
-    glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, StrideInBytes, (void*)offsetof(anim_vertex_t, Norm));
-
-    glEnableVertexAttribArray(3);
-    glVertexAttribIPointer(3, 4, GL_INT, StrideInBytes, (void*)offsetof(anim_vertex_t, BoneIDs));
-
-    glEnableVertexAttribArray(4);
-    glVertexAttribPointer(4, 4, GL_FLOAT, GL_FALSE, StrideInBytes, (void*)offsetof(anim_vertex_t, BoneWeights));
-
-    glGenBuffers(1, &mesh->IBO);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh->IBO);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, IndexBufferSzInBytes, Indices.data, GL_STATIC_DRAW);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-    glBindVertexArray(0);
+    for (u32 i = 0; i < Node->mNumChildren; ++i)
+        ReadSkeletonJoints(Node->mChildren[i], BoneLookup, Skeleton);
 }
 
+static animation_clip_t ReadAnimationClip(const aiAnimation *AssimpAnim, const skeleton_t *Skeleton)
+{
+    const bool TEMPFLAG_IsGLB = false;
+    // GLTF2.0 exports animation clip durations in MILLISECONDS!
+    // Therefore Animation TicksPerSeconds must be set to 1000.
+    animation_clip_t Clip = animation_clip_t(Skeleton);
+    Clip.DurationInTicks = (float)AssimpAnim->mDuration;
+    Clip.TicksPerSecond = TEMPFLAG_IsGLB ? 1000.f : (float)AssimpAnim->mTicksPerSecond;
+    // The number of bone animation channels. Each channel affects a single node.
+    u32 NumChannels = AssimpAnim->mNumChannels;
+    Clip.JointPoseSamplers.setlen(NumChannels);
+    ASSERT(NumChannels == (u32)Skeleton->Joints.lenu());
+    for (size_t i = 0; i < Clip.JointPoseSamplers.lenu(); ++i)
+    {
+        Clip.JointPoseSamplers[i].Positions.data = NULL;
+        Clip.JointPoseSamplers[i].Rotations.data = NULL;
+        Clip.JointPoseSamplers[i].Scales.data = NULL;
+    }
 
-bool LoadAnimatedModel_GLTF2Bin(anim_model_t *Model, const char *FilePath)
+    // Reading channels (bones engaged in an animation and their keyframes)
+    for (u32 i = 0; i < NumChannels; ++i)
+    {
+        aiNodeAnim *NodeAnimChannel = AssimpAnim->mChannels[i];
+        const char *JointName = NodeAnimChannel->mNodeName.data;
+
+        auto Iter = Skeleton->JointNameToIndex.find(JointName);
+        ASSERT(Iter != Skeleton->JointNameToIndex.end());
+        int JointIndex = Iter->second;
+
+        joint_pose_sampler_t *JointPoseSampler = &Clip.JointPoseSamplers[JointIndex];
+        ASSERT(JointPoseSampler->Positions.data == NULL);
+        JointPoseSampler->Create(NodeAnimChannel);
+    }
+
+    return Clip;
+}
+
+bool LoadSkeleton_GLTF2Bin(const char *InFilePath, skeleton_t *OutSkeleton)
 {
     Assimp::Importer Importer;
-
-    const aiScene *Scene = Importer.ReadFile(FilePath, aiProcess_Triangulate);
-
+    const aiScene *Scene = Importer.ReadFile(InFilePath, aiProcess_Triangulate);
     if (!Scene || Scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !Scene->mRootNode)
     {
-        LogError("ASSIMP failed to load file at '%s'.\nErr msg: %s", FilePath, Importer.GetErrorString());
+        LogError("ASSIMP failed to load file at '%s'.\nErr msg: %s", InFilePath, Importer.GetErrorString());
         return false;
     }
 
+    ASSERT(OutSkeleton->Joints.data == NULL);
+    OutSkeleton->JointNameToIndex.clear();
+    // Theres several ways I could get the set of bone nodes. If this file has meshes,
+    // then I can just look at the aiMeshes, but if in the future I want to have a 
+    // file that is purely just the armature, then I could try to use aiNode::mMetaData.
+
+    std::unordered_map<std::string, mat4> BoneNameToInverseBindPose;
+
+    for (u32 meshIndex = 0; meshIndex < Scene->mNumMeshes; ++meshIndex)
+    {
+        aiMesh* MeshNode = Scene->mMeshes[meshIndex];
+
+        for (u32 BoneIndex = 0; BoneIndex < MeshNode->mNumBones; ++BoneIndex)
+        {
+            std::string BoneName = MeshNode->mBones[BoneIndex]->mName.C_Str();
+            if (BoneNameToInverseBindPose.find(BoneName) == BoneNameToInverseBindPose.end())
+                BoneNameToInverseBindPose[BoneName] = AssimpMatrixToColumnMajor(MeshNode->mBones[BoneIndex]->mOffsetMatrix);
+        }
+    }
+
+    // Read skeleton data
+    ReadSkeletonJoints(Scene->mRootNode, BoneNameToInverseBindPose, OutSkeleton);
+
+    // Read animation clip data
+    for (u32 i = 0; i < Scene->mNumAnimations; ++i)
+    {
+        aiAnimation *AssimpAnim = Scene->mAnimations[i];
+        animation_clip_t AnimationClip = ReadAnimationClip(AssimpAnim, OutSkeleton);
+
+        // output Animation Clips
+        TestAnimClip = new animation_clip_t(OutSkeleton);
+        *TestAnimClip = AnimationClip;
+    }
+
+    return true;
+}
+
+
+bool LoadSkinnedModel_GLTF2Bin(const char* InFilePath, skinned_model_t *OutSkinnedModel)
+{
+    Assimp::Importer Importer;
+    const aiScene *Scene = Importer.ReadFile(InFilePath, aiProcess_Triangulate);
+    if (!Scene || Scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !Scene->mRootNode)
+    {
+        LogError("ASSIMP failed to load file at '%s'.\nErr msg: %s", InFilePath, Importer.GetErrorString());
+        return false;
+    }
+
+    ASSERT(OutSkinnedModel->GetSkeleton());
 
     dynamic_array<GPUTexture> matEmissiveTextures;
 
@@ -230,42 +337,28 @@ bool LoadAnimatedModel_GLTF2Bin(anim_model_t *Model, const char *FilePath)
     }
 
     ASSERT(Scene->mNumMeshes > 0);
-    ASSERT(Model->meshes == NULL);
+    ASSERT(OutSkinnedModel->Meshes == NULL);
+    ASSERT(OutSkinnedModel->Textures == NULL);
 
-    arrsetcap(Model->meshes, Scene->mNumMeshes);
-    arrsetcap(Model->textures, Scene->mNumMeshes);
+    arrsetcap(OutSkinnedModel->Meshes, Scene->mNumMeshes);
+    arrsetcap(OutSkinnedModel->Textures, Scene->mNumMeshes);
 
-    for (u32 meshIndex = 0; meshIndex < Scene->mNumMeshes; ++meshIndex)
+    for (u32 MeshIndex = 0; MeshIndex < Scene->mNumMeshes; ++MeshIndex)
     {
-        aiMesh* MeshNode = Scene->mMeshes[meshIndex];
-        skeletal_mesh_t GPUSkeletalMesh = Model->ProcessMesh(MeshNode);
+        aiMesh* MeshNode = Scene->mMeshes[MeshIndex];
+        skinned_mesh_t SkinnedMesh = ProcessSkinnedMesh(MeshNode, OutSkinnedModel->GetSkeleton());
         u32 MaterialIndex = MeshNode->mMaterialIndex;
         GPUTexture ColorTex = matEmissiveTextures[MaterialIndex];
-
-        arrput(Model->meshes, GPUSkeletalMesh);
-        arrput(Model->textures, ColorTex);
+        arrput(OutSkinnedModel->Meshes, SkinnedMesh);
+        arrput(OutSkinnedModel->Textures, ColorTex);
     }
 
     matEmissiveTextures.free();
 
-
-    animation_t *Animation = new animation_t();
-
-    const bool TEMPFLAG_IsGLB = false;
-    aiAnimation *AssimpAnim = Scene->mAnimations[0];
-    // GLTF2.0 exports animation clip durations in MILLISECONDS!
-    // Therefore Animation TicksPerSeconds must be set to 1000.
-    Animation->DurationInTicks = (float)AssimpAnim->mDuration;
-    Animation->TicksPerSecond = TEMPFLAG_IsGLB ? 1000.f : (float)AssimpAnim->mTicksPerSecond;
-    Animation->ReadHierarchyData(Scene->mRootNode, Model);
-    Animation->ReadBones(AssimpAnim, Model);
-
-    Model->Animations.put(Animation);
-
     return true;
 }
 
-void anim_bone_t::Create(const aiNodeAnim *InChannel)
+void joint_pose_sampler_t::Create(const aiNodeAnim *InChannel)
 {
     Positions.setlen(InChannel->mNumPositionKeys);
     Rotations.setlen(InChannel->mNumRotationKeys);
@@ -302,14 +395,14 @@ void anim_bone_t::Create(const aiNodeAnim *InChannel)
     }
 }
 
-void anim_bone_t::Delete()
+void joint_pose_sampler_t::Delete()
 {
     Positions.free();
     Rotations.free();
     Scales.free();
 }
 
-mat4 anim_bone_t::Update(float AnimationTime)
+mat4 joint_pose_sampler_t::SampleJointLocalPoseAt(float AnimationTime)
 {
     mat4 Translation = InterpolatePosition(AnimationTime);
     mat4 Rotation = InterpolateRotation(AnimationTime);
@@ -318,7 +411,7 @@ mat4 anim_bone_t::Update(float AnimationTime)
     return CurrentLocalTransform;
 }
 
-int anim_bone_t::GetPositionIndex(float AnimationTime)
+int joint_pose_sampler_t::GetPositionIndex(float AnimationTime)
 {
     for (int i = 0; i < int(Positions.lenu()) - 1; ++i)
     {
@@ -329,7 +422,7 @@ int anim_bone_t::GetPositionIndex(float AnimationTime)
     return 0;
 }
 
-int anim_bone_t::GetRotationIndex(float AnimationTime)
+int joint_pose_sampler_t::GetRotationIndex(float AnimationTime)
 {
     for (int i = 0; i < int(Rotations.lenu()) - 1; ++i)
     {
@@ -340,7 +433,7 @@ int anim_bone_t::GetRotationIndex(float AnimationTime)
     return 0;
 }
 
-int anim_bone_t::GetScaleIndex(float AnimationTime)
+int joint_pose_sampler_t::GetScaleIndex(float AnimationTime)
 {
     for (int i = 0; i < int(Scales.lenu()) - 1; ++i)
     {
@@ -351,14 +444,14 @@ int anim_bone_t::GetScaleIndex(float AnimationTime)
     return 0;
 }
 
-float anim_bone_t::GetScaleFactor(float LastTimestamp, float NextTimestamp, float AnimationTime)
+float joint_pose_sampler_t::GetScaleFactor(float LastTimestamp, float NextTimestamp, float AnimationTime)
 {
     float CurrentOffset = AnimationTime - LastTimestamp;
     float FramesDiff = NextTimestamp - LastTimestamp;
     return CurrentOffset / FramesDiff;
 }
 
-mat4 anim_bone_t::InterpolatePosition(float AnimationTime)
+mat4 joint_pose_sampler_t::InterpolatePosition(float AnimationTime)
 {
     if (Positions.lenu() == 1)
         return TranslationMatrix(Positions[0].Position);
@@ -372,7 +465,7 @@ mat4 anim_bone_t::InterpolatePosition(float AnimationTime)
     return TranslationMatrix(FinalPosition);
 }
 
-mat4 anim_bone_t::InterpolateRotation(float AnimationTime)
+mat4 joint_pose_sampler_t::InterpolateRotation(float AnimationTime)
 {
     if (Rotations.lenu() == 1)
         return mat4(Normalize(Rotations[0].Orientation));
@@ -387,7 +480,7 @@ mat4 anim_bone_t::InterpolateRotation(float AnimationTime)
     return mat4(Normalize(FinalRotation));
 }
 
-mat4 anim_bone_t::InterpolateScale(float AnimationTime)
+mat4 joint_pose_sampler_t::InterpolateScale(float AnimationTime)
 {
     return mat4();
 
@@ -401,106 +494,6 @@ mat4 anim_bone_t::InterpolateScale(float AnimationTime)
     
     vec3 FinalScale = Lerp(Scales[P0Index].Scale, Scales[P1Index].Scale, ScaleFactor);
     return TranslationMatrix(FinalScale);
-}
-
-void animation_t::Destroy()
-{
-    // TODO iterate through bones flat list and delete
-
-    // TODO destroy assimp_node_data_t
-    // for (Dest.Name)
-
-    // Dest.Name.clear();
-    // Dest.ChildrenCount = 0;
-}
-
-void animation_t::ReadHierarchyData(const aiNode* Src, anim_model_t *Model)
-{
-    ASSERT(Src);
-
-    const char *BoneName = Src->mName.data;
-
-    if (Model->BoneInfoMap.find(BoneName) != Model->BoneInfoMap.end()) // is a bone
-    {
-        u8 ParentIndex = 0xFF;
-
-        const char *ParentNodeName = Src->mParent->mName.data;
-        bool ParentIsABone = Src->mParent && Model->BoneInfoMap.find(ParentNodeName) != Model->BoneInfoMap.end();
-        if (ParentIsABone)
-        {
-            int ParentPaletteIndex = Model->BoneInfoMap[ParentNodeName].Id;
-            anim_bone_t *ParentAnimBone = FindBone(ParentPaletteIndex);
-            ASSERT(ParentAnimBone);
-            ParentIndex = ParentAnimBone->SelfId;
-        } 
-        else
-        {
-            // otherwise, I am the root joint/bone therefore my parent index is 0xFF
-
-            // This root bone may be nested deeper in the transform hierarchy
-            // so we must find the transform from "skeleton or root joint space"
-            // to actual "model space"
-            // I can skip Src->mTransformation because the root bone's local transform for current pose
-            // will be calculated from the animation clip
-            mat4 AccumulateRootJointTransform = mat4();
-            aiNode *Parent = Src->mParent;
-            while (Parent)
-            {
-                AccumulateRootJointTransform *= AssimpMatrixToColumnMajor(Parent->mTransformation);
-                Parent = Parent->mParent;
-            }
-            RootTransform = AccumulateRootJointTransform;
-        }
-
-        int PaletteIndex = Model->BoneInfoMap[BoneName].Id;
-        u8 SelfId = (u8)Bones.size();
-        // mat4 LocalTransformInBindPose = AssimpMatrixToColumnMajor(Src->mTransformation);
-        // but i still need a sort of fallback matrix in case this bone is not animated
-
-        anim_bone_t Bone;
-        Bone.PaletteIndex = PaletteIndex;
-        Bone.ParentId = ParentIndex;
-        Bone.SelfId = SelfId;
-        Bone.InverseBindPose = Model->BoneInfoMap[BoneName].InverseBindPoseTransform;
-        // Bone.CurrentPoseTransform = _LocalTransformInBindPose;
-
-        Bones.push_back(Bone);
-    }
-
-    for (u32 i = 0; i < Src->mNumChildren; ++i)
-    {
-        ReadHierarchyData(Src->mChildren[i], Model);
-    }
-}
-
-void animation_t::ReadBones(const aiAnimation* AssimpAnim, anim_model_t *Model)
-{
-    // The number of bone animation channels. Each channel affects a single node.
-    int NumChannels = AssimpAnim->mNumChannels;
-
-    auto& boneInfoMap = Model->BoneInfoMap;//getting m_BoneInfoMap from Model class
-    int& boneCount = Model->BoneCounter; //getting the m_BoneCounter from Model class
-
-    // reading channels (bones engaged in an animation and their keyframes)
-    for (int i = 0; i < NumChannels; ++i)
-    {
-        aiNodeAnim *NodeAnimChannel = AssimpAnim->mChannels[i];
-        const char *BoneName = NodeAnimChannel->mNodeName.data;
-
-        // check if missing this bone
-        if (boneInfoMap.find(BoneName) == boneInfoMap.end())
-        {
-            ASSERT(0);
-            // boneInfoMap[BoneName].Id = boneCount;
-            // boneCount++;
-        }
-
-        int PaletteIndex = boneInfoMap[BoneName].Id;
-
-        anim_bone_t *Bone = FindBone(PaletteIndex);
-        ASSERT(Bone);
-        Bone->Create(NodeAnimChannel);
-    }
 }
 
 

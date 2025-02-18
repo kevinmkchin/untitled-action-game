@@ -5,17 +5,17 @@ layout(location = 1) in vec2 Tex;
 layout(location = 2) in vec3 Norm;
 layout(location = 3) in ivec4 BoneIds; 
 layout(location = 4) in vec4 Weights;
-    
+
 uniform mat4 Projection;
 uniform mat4 View;
 uniform mat4 Model;
-    
-const int MAX_BONES = 108;
+
+const int MAX_BONES = 64;
 const int MAX_BONE_INFLUENCE = 4;
 uniform mat4 FinalBonesMatrices[MAX_BONES];
-    
+
 out vec2 TexCoords;
-    
+
 void main()
 {
     vec4 TotalPosition = vec4(0.0f);
@@ -32,7 +32,7 @@ void main()
         TotalPosition += LocalPosition * Weights[i];
         vec3 LocalNormal = mat3(FinalBonesMatrices[BoneIds[i]]) * Norm;
     }
-        
+
     mat4 ViewModel = View * Model;
     gl_Position =  Projection * ViewModel * TotalPosition;
     TexCoords = Tex;
