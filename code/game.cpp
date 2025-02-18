@@ -1,6 +1,9 @@
 
 Mix_Chunk *sfx_Jump;
-anim_model_t Model_Knight;
+
+skeleton_t *Skeleton_Humanoid;
+skinned_model_t *Model_Knight;
+animator_t Animator;
 
 // extern
 std::vector<face_batch_t> GameLevelFaceBatches;
@@ -17,16 +20,17 @@ JPH::BodyID LevelColliderBodyId;
 jph_debug_draw_gl3_t *JoltDebugDraw;
 #endif // JPH_DEBUG_RENDERER
 
-skeletal_animator_t Animator;
-
 void InitializeGame()
 {
     // testing stuff here
     sfx_Jump = Mixer_LoadChunk(wd_path("gunshot-37055.ogg").c_str());
-    LoadAnimatedModel_GLTF2Bin(&Model_Knight, wd_path("models/Rumba Dancing.dae").c_str());
 
-    //Animator.PlayAnimation(NULL);
-    Animator.PlayAnimation(Model_Knight.Animations[0]);
+    Skeleton_Humanoid = new skeleton_t();
+    LoadSkeleton_GLTF2Bin(wd_path("models/Rumba Dancing.dae").c_str(), Skeleton_Humanoid);
+    Model_Knight = new skinned_model_t(Skeleton_Humanoid);
+    LoadSkinnedModel_GLTF2Bin(wd_path("models/Rumba Dancing.dae").c_str(), Model_Knight);
+    ASSERT(TestAnimClip);
+    Animator.PlayAnimation(TestAnimClip);
 
     Physics.Initialize();
 
@@ -219,7 +223,8 @@ void DoGameLoop()
     LateNonPhysicsTick();
 
     // Do animation loop
-    Animator.UpdateAnimation(DeltaTime);
+    Animator.UpdateGlobalPoses(DeltaTime);
+    Animator.GetSkinningMatrixPalette();
 
     // Do render loop
     RenderGameLayer();
@@ -291,17 +296,17 @@ void RenderGameLayer()
     GLBindMatrix4fv(GameAnimatedCharacterShader, "Projection", 1, perspectiveMatrix.ptr());
     GLBindMatrix4fv(GameAnimatedCharacterShader, "View", 1, viewMatrix.ptr());
 
-    mat4 ModelMatrix = TranslationMatrix(Enemies[0].Position) * RotationMatrix(Enemies[0].Orientation)
-        * ScaleMatrix(14.f,14.f,14.f);
+    mat4 ModelMatrix = TranslationMatrix(Enemies[0].Position) * RotationMatrix(Enemies[0].Orientation);
+
     GLBindMatrix4fv(GameAnimatedCharacterShader, "Model", 1, ModelMatrix.ptr());
 
-    GLBindMatrix4fv(GameAnimatedCharacterShader, "FinalBonesMatrices[0]", 108, 
-        Animator.FinalBonesMatrices[0].ptr());
+    GLBindMatrix4fv(GameAnimatedCharacterShader, "FinalBonesMatrices[0]", MAX_BONES, 
+        Animator.SkinningMatrixPalette[0].ptr());
 
-    for (size_t i = 0; i < arrlenu(Model_Knight.meshes); ++i)
+    for (size_t i = 0; i < arrlenu(Model_Knight->Meshes); ++i)
     {
-        skeletal_mesh_t m = Model_Knight.meshes[i];
-        GPUTexture t = Model_Knight.textures[i];
+        skinned_mesh_t m = Model_Knight->Meshes[i];
+        GPUTexture t = Model_Knight->Textures[i];
 
         glActiveTexture(GL_TEXTURE0);
         //glBindTexture(GL_TEXTURE_2D, t.id);

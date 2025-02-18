@@ -1,26 +1,91 @@
 #pragma once
 
+struct animation_clip_t *TestAnimClip;
 
-struct bone_info_t
-{
-    int Id = -1; // index in FinalBonesMatrices
-    mat4 InverseBindPoseTransform; // transforms vertex from model space to bone/joint space
-};
+/*
 
-struct anim_vertex_t
+ANIMATION API (kevinmkchin 2025)
+
+The resources loading code is currently only implemented for GLTF2.0 binaries. Some
+other formats like DAE may load, but definitely not FBX because FBX stores nodes using
+an expanded sequence of transforms because originally created for motion capture. The
+animation API is format agnostic.
+
+Multiple skinned models can share skeletons and animation clips. For example, a humanoid
+skeleton and the animations for it can be shared across all humanoid characters. Of course,
+the model data must be created this way first in whatever DCC e.g. Blender.
+
+== Loading Skeletons and Animations ==
+
+These are read-only data that should not be modified after loading.
+
+skeleton_joint_t
+skeleton_t
+joint_pose_sampler_t
+animation_clip_t
+
+skeleton_t stores the joint hierarchy as a flat array. Each skeleton_joint_t contains
+the inverse of its bind pose transform and the index of its parent into the flat array.
+The layout of the skinning matrix palette matches exactly the layout of the joints in
+this flat array. As in, if the skeleton_joint_t at index 10 has a parent index of 7,
+the skinning matrix for that joint will be at position 10 in the palette and the skinning
+matrix for its parent joint will be at position 7. Joints are laid out in an order that
+ensures a child joint will always appear after its parent in the array i.e. joint 0 is root.
+
+== Loading Skinned Models ==
+
+Skinned models target a skeleton. This read-only skeleton must be loaded first.
+
+These are read-only data that should not be modified after loading.
+
+skinned_vertex_t
+skinned_mesh_t
+skinned_model_t
+
+skinned_vertex_t stores the indices of the joints to which it is bound. A joint index is
+the position of that joint in the skeleton_t joints array as well as the final skinning
+matrix palette that we want to calculate.
+
+== Per Animated Character Instance ==
+
+animator_t
+
+Each animated character must have an animator_t instance. The animator_t instance tracks
+the animation time and stores the local/global poses of the joints in the active animation
+clip.
+
+Currently, it also stores the skinning matrix palette.
+
+
+TODO
+- Memory clean up code!!!
+- Do I need "AccumulateRootJointTransform" or not?
+- Maybe move SkinningMatrixPalette storage out of animator_t since only one is used at a time
+- Skeleton management system
+- Animation clip management system
+- Simple linear allocator for all resources
+- Use u8 instead of int for BoneID in skinned_vertex_t (also in shader and attribs)
+- Change keyframe_scale_t to only use uniform-scaling and replace scale vec3 with float
+
+*/
+
+bool LoadSkeleton_GLTF2Bin(const char* InFilePath, struct skeleton_t *OutSkeleton);
+bool LoadSkinnedModel_GLTF2Bin(const char* InFilePath, struct skinned_model_t *OutSkinnedModel);
+
+
+#define MAX_BONES 64
+#define MAX_BONE_INFLUENCE 4
+
+struct skinned_vertex_t
 {
     vec3 Pos;
     vec2 Tex;
     vec3 Norm;
-
-#define MAX_BONE_INFLUENCE 4
-    //bone indexes which will influence this vertex
-    int BoneIDs[MAX_BONE_INFLUENCE];
-    //weights from each bone
-    float BoneWeights[MAX_BONE_INFLUENCE];
+    int BoneIDs[MAX_BONE_INFLUENCE]; // bone indexes which will influence this vertex
+    float BoneWeights[MAX_BONE_INFLUENCE]; // weights from each bone
 };
 
-struct skeletal_mesh_t
+struct skinned_mesh_t
 {
     u32 VAO = 0;
     u32 VBO = 0;
@@ -28,88 +93,60 @@ struct skeletal_mesh_t
     u32 IndicesCount = 0;
 };
 
-void CreateSkeletalMesh(skeletal_mesh_t *mesh, 
-    dynamic_array<anim_vertex_t> Vertices, 
-    dynamic_array<u32> Indices);
-
-struct anim_model_t
+struct skinned_model_t
 {
-    std::map<std::string, bone_info_t> BoneInfoMap;
-    int BoneCounter = 0;
+    skinned_model_t(const struct skeleton_t *InSkeleton)
+    {
+        Skeleton = InSkeleton;
+    }
 
-    // meshes
-    // textures?
-    struct skeletal_mesh_t *meshes   = NULL;
-    struct GPUTexture      *textures = NULL;
+    ~skinned_model_t()
+    {
+        // TODO delete the meshes and texture resources off the gpu and free the arrays
+    }
 
-    dynamic_array<struct animation_t*> Animations;
+    struct skinned_mesh_t *Meshes   = NULL;
+    struct GPUTexture     *Textures = NULL;
 
-public:
-    skeletal_mesh_t ProcessMesh(aiMesh* Mesh);
+    const struct skeleton_t *GetSkeleton() { return Skeleton; }
 private:
-    void SetVertexBoneDataToDefault(anim_vertex_t *Vertex);
-    void SetVertexBoneData(anim_vertex_t *Vertex, int BoneID, float Weight);
-    void ExtractBoneWeightForVertices(dynamic_array<anim_vertex_t> Vertices, aiMesh *Mesh);
-
+    const struct skeleton_t *Skeleton;
 };
 
-bool LoadAnimatedModel_GLTF2Bin(anim_model_t *Model, const char *FilePath);
-
-/*
-For each frame we want to interpolate all bones in the hierarchy and get
-their final transformations matrices which will be supplied to shader 
-uniform FinalBonesMatrices.
-*/
-
-struct keyframe_position_t
+struct skeleton_joint_t
 {
-    vec3 Position;
-    float Timestamp;
+    // int Id = -1; // index in FinalBonesMatrices
+    mat4 InverseBindPoseTransform; // transforms vertex from model space to bone/joint space
+    u8 ParentIndex;
 };
 
-struct keyframe_rotation_t
+struct skeleton_t
 {
-    quat Orientation;
-    float Timestamp;
+    dynamic_array<skeleton_joint_t> Joints;
+
+    // look up table from joint/bone/node name to INDEX into Joints
+    std::map<std::string, int> JointNameToIndex;
 };
 
-struct keyframe_scale_t
-{
-    // NOTE(Kevin): I should disallow non-uniform scaling and have a single float here
-    vec3 Scale;
-    float Timestamp;
-};
 
-struct anim_bone_t
+struct joint_pose_sampler_t
 {
     // Extract bone keyframes from aiNodeAnim
-    void Create(const aiNodeAnim *InChannel);
+    void Create(const struct aiNodeAnim *InChannel);
     void Delete();
 
     // Interpolates b/w positions, rotations, scaling keys based on the current time of 
     // the animation and prepares the local transformation matrix by combining all keys 
     // tranformations */
-    mat4 Update(float AnimationTime);
-    
+    mat4 SampleJointLocalPoseAt(float AnimationTime);
+
+private:
     // Gets the index of key Positions to interpolate from based on 
     // the current animation time
     int GetPositionIndex(float AnimationTime);
     int GetRotationIndex(float AnimationTime);
     int GetScaleIndex(float AnimationTime);
 
-    // Instead of storing the local transform, each bone can index into its parent,
-    // calculate the current pose matrix, and store that
-    // Actually, this should be in the animator. The animation clip and anim_bone data
-    // should be read-only
-    mat4 CurrentPoseTransform; // takes joint space into current pose model space
-
-    mat4 InverseBindPose;
-    // std::string Name;
-    int PaletteIndex;
-    u8 ParentId; // array index not palette index
-    u8 SelfId;
-
-private:
     // Get normalized [0, 1] value for Lerp & Slerp
     float GetScaleFactor(float LastTimestamp, float NextTimestamp, float AnimationTime);
 
@@ -119,135 +156,115 @@ private:
     mat4 InterpolateRotation(float AnimationTime);
     mat4 InterpolateScale(float AnimationTime);
 
+    struct keyframe_position_t
+    {
+        vec3 Position;
+        float Timestamp;
+    };
+
+    struct keyframe_rotation_t
+    {
+        quat Orientation;
+        float Timestamp;
+    };
+
+    struct keyframe_scale_t
+    {
+        vec3 Scale;
+        float Timestamp;
+    };
+
+public:
     dynamic_array<keyframe_position_t> Positions;
     dynamic_array<keyframe_rotation_t> Rotations;
     dynamic_array<keyframe_scale_t>    Scales;
 };
 
-// struct assimp_node_data_t
-// {
-//     mat4 Transformation;
-//     std::string Name;
-//     int ChildrenCount;
-//     //dynamic_array<assimp_node_data_t> Children;
-//     std::vector<assimp_node_data_t> Children;
-// };
-
-// Holds a hierarchical record of anim bones read from aiAnimation
-struct animation_t
+struct animation_clip_t
 {
-    float DurationInTicks;
-    float TicksPerSecond;
-    std::vector<anim_bone_t> Bones;
-    mat4 RootTransform;
-    // assimp_node_data_t RootNode;
-    // std::map<std::string, bone_info_t> m_BoneInfoMap;
+    float TicksPerSecond = 0.f;
+    float DurationInTicks = 0.f;
+    dynamic_array<joint_pose_sampler_t> JointPoseSamplers;
+    // bool IsLooping = false;
 
-    anim_bone_t *FindBone(const int PaletteIndex)
+    animation_clip_t(const skeleton_t *InSkeleton)
     {
-        auto iter = std::find_if(Bones.begin(), Bones.end(),
-            [&](const anim_bone_t& Bone)
-            {
-                return Bone.PaletteIndex == PaletteIndex;
-            }
-        );
-        if (iter == Bones.end()) return nullptr;
-        else return &(*iter);
+        Skeleton = InSkeleton;
     }
 
-    void Destroy();
+    ~animation_clip_t()
+    {
+        // TODO destroy each JointPoseSampler and free the array
+    }
 
-    void ReadHierarchyData(const aiNode *Src, anim_model_t *Model);
-    void ReadBones(const aiAnimation* AssimpAnim, anim_model_t *Model);
+    void UpdateLocalPoses(float AnimationTime, mat4 *OutLocalPoses)
+    {
+        ASSERT(JointPoseSamplers.lenu() == Skeleton->Joints.lenu());
+        for (size_t i = 0; i < JointPoseSamplers.lenu(); ++i)
+        {
+            OutLocalPoses[i] = JointPoseSamplers[i].SampleJointLocalPoseAt(AnimationTime);
+        }
+    }
+
+    const skeleton_t *GetSkeleton() { return Skeleton; }
+private:
+    const skeleton_t *Skeleton = nullptr;
+
 };
 
-struct skeletal_animator_t
+struct animator_t
 {
-    // Skinning matrix palette
-    // This array is known as a matrix palette. The matrix palette is passed to the
-    // rendering engine when rendering a skinned mesh. For each vertex, the
-    // renderer looks up the appropriate joint’s skinning matrix in the palette
-    // and uses it to transform the vertex from bind pose into current pose.
-    dynamic_array<mat4> FinalBonesMatrices;
+    animation_clip_t* CurrentAnimation;
+    float CurrentTime;
 
-    animation_t* m_CurrentAnimation;
-    float m_CurrentTime;
-    float m_DeltaTime;
+    mat4 LocalPosesArray[MAX_BONES];
+    mat4 GlobalPosesArray[MAX_BONES];
+    mat4 SkinningMatrixPalette[MAX_BONES];
 
-    void PlayAnimation(animation_t *pAnimation)
+    void PlayAnimation(animation_clip_t *AnimationClip)
     {
-        if (FinalBonesMatrices.data == nullptr)
-        {
-            FinalBonesMatrices.setlen(108);
-            for (int i = 0; i < 108; i++)
-                FinalBonesMatrices[i] = mat4();
-        }
-
-        m_CurrentAnimation = pAnimation;
-        m_CurrentTime = 0.0f;
+        CurrentAnimation = AnimationClip;
+        CurrentTime = 0.0f;
     }
 
-    void UpdateAnimation(float dt)
+    void UpdateGlobalPoses(float dt)
     {
-        m_DeltaTime = dt;
-        if (m_CurrentAnimation)
+        if (CurrentAnimation)
         {
-            m_CurrentTime += m_CurrentAnimation->TicksPerSecond * dt;
-            m_CurrentTime = fmod(m_CurrentTime, m_CurrentAnimation->DurationInTicks);
+            CurrentTime += CurrentAnimation->TicksPerSecond * dt;
+            CurrentTime = fmod(CurrentTime, CurrentAnimation->DurationInTicks);
 
-            auto& Bones = m_CurrentAnimation->Bones;
-            for (size_t i = 0; i < Bones.size(); ++i)
+            CurrentAnimation->UpdateLocalPoses(CurrentTime, LocalPosesArray);
+
+            dynamic_array<skeleton_joint_t> Joints = CurrentAnimation->GetSkeleton()->Joints;
+
+            for (size_t i = 0; i < Joints.lenu(); ++i)
             {
-                anim_bone_t& AnimBone = Bones[i];
-                mat4 LocalTransformCurrentPose = AnimBone.Update(m_CurrentTime);
-                mat4 ParentCurrentPoseTransform = mat4();
-                if (AnimBone.ParentId < 0xFF)
-                {
-                    ASSERT(AnimBone.ParentId < i);
-                    ParentCurrentPoseTransform = Bones[AnimBone.ParentId].CurrentPoseTransform;
-                }
-                else
-                {
-                    ParentCurrentPoseTransform = m_CurrentAnimation->RootTransform;
-                }
+                u8 ParentIndex = Joints[i].ParentIndex;
+                ASSERT(ParentIndex == 0xFF || ParentIndex < i);
 
-                AnimBone.CurrentPoseTransform = ParentCurrentPoseTransform * LocalTransformCurrentPose;
-                
-                FinalBonesMatrices[AnimBone.PaletteIndex] = AnimBone.CurrentPoseTransform * AnimBone.InverseBindPose;
+                mat4 ParentGlobalPose = mat4(); // perhaps AccumulateRootJointTransform
+                if (ParentIndex < 0xFF)
+                    ParentGlobalPose = GlobalPosesArray[ParentIndex];
+
+                GlobalPosesArray[i] = ParentGlobalPose * LocalPosesArray[i];
             }
-
-            // CalculateBoneTransform(&m_CurrentAnimation->RootNode, mat4());
         }
     }
-    
-    // void CalculateBoneTransform(const assimp_node_data_t* node, mat4 ModelSpaceFromParentSpace)
-    // {
-    //     std::string nodeName = node->Name;
-    //     mat4 ParentJointSpaceFromLocalJointSpace = node->Transformation; // bind pose
-    
-    //     anim_bone_t* Bone = m_CurrentAnimation->FindBone(nodeName);
-    
-    //     if (Bone)
-    //     {
-    //         Bone->Update(m_CurrentTime);
-    //         // The Current Pose Transform
-    //         ParentJointSpaceFromLocalJointSpace = Bone->LocalTransform; // current pose
-    //     }
-    
-    //     // The complete Skinning Matrix
-    //     mat4 GlobalModelFromJoint = ModelSpaceFromParentSpace * ParentJointSpaceFromLocalJointSpace;
-    
-    //     auto boneInfoMap = m_CurrentAnimation->m_BoneInfoMap;
-    //     if (boneInfoMap.find(nodeName) != boneInfoMap.end())
-    //     {
-    //         int index = boneInfoMap[nodeName].Id;
-    //         mat4 JointFromModel = boneInfoMap[nodeName].InverseBindPoseTransform;
-    //         FinalBonesMatrices[index] = GlobalModelFromJoint * JointFromModel;
-    //     }
-    
-    //     for (int i = 0; i < node->ChildrenCount; ++i)
-    //         CalculateBoneTransform(&node->Children[i], GlobalModelFromJoint);
-    // }
+
+    // The skinning matrix palette is passed to the rendering engine when rendering
+    // a skinned mesh. For each vertex, the renderer looks up the appropriate joint’s
+    // skinning matrix in the palette and uses it to transform the vertex from bind 
+    // pose into current pose.
+    void GetSkinningMatrixPalette()
+    {
+        if (CurrentAnimation)
+        {
+            dynamic_array<skeleton_joint_t> Joints = CurrentAnimation->GetSkeleton()->Joints;
+            for (size_t i = 0; i < Joints.lenu(); ++i)
+                SkinningMatrixPalette[i] = GlobalPosesArray[i] * Joints[i].InverseBindPoseTransform;
+        }
+    }
 
 };
 

@@ -12,11 +12,6 @@ TODO:
 
 - Probably scale down vectors and units before passing into Jolt Physics
 
-- Animation system
-- Single linear allocator for all animation and model resources
-- Fuck a pointer tree lol store bone hierarchy in flat array
-- std::map for bone name to bone is also slow
-
 - Enemy moves and shoots at player
     - Try using straight path instead of smooth path
     - State machine - mesh changes color when enemy state changes from patrol to chase to shoot to melee
@@ -150,10 +145,6 @@ the editor. Then I could have
 
 #include <SDL.h>
 #include <SDL_mixer.h>
-
-#include <assimp/Importer.hpp>
-#include <assimp/scene.h>
-#include <assimp/postprocess.h>
 
 #define STB_SPRINTF_IMPLEMENTATION
 #include <stb_sprintf.h>
