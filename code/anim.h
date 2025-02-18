@@ -83,13 +83,13 @@ struct keyframe_scale_t
 struct anim_bone_t
 {
     // Extract bone keyframes from aiNodeAnim
-    void Create(const std::string& InName, int InId, const aiNodeAnim *InChannel);
+    void Create(const aiNodeAnim *InChannel);
     void Delete();
 
     // Interpolates b/w positions, rotations, scaling keys based on the current time of 
     // the animation and prepares the local transformation matrix by combining all keys 
     // tranformations */
-    void Update(float AnimationTime);
+    mat4 Update(float AnimationTime);
     
     // Gets the index of key Positions to interpolate from based on 
     // the current animation time
@@ -99,9 +99,15 @@ struct anim_bone_t
 
     // Instead of storing the local transform, each bone can index into its parent,
     // calculate the current pose matrix, and store that
-    mat4 LocalTransform;
-    std::string Name;
-    int Id;
+    // Actually, this should be in the animator. The animation clip and anim_bone data
+    // should be read-only
+    mat4 CurrentPoseTransform; // takes joint space into current pose model space
+
+    mat4 InverseBindPose;
+    // std::string Name;
+    int PaletteIndex;
+    u8 ParentId; // array index not palette index
+    u8 SelfId;
 
 private:
     // Get normalized [0, 1] value for Lerp & Slerp
@@ -118,14 +124,14 @@ private:
     dynamic_array<keyframe_scale_t>    Scales;
 };
 
-struct assimp_node_data_t
-{
-    mat4 Transformation;
-    std::string Name;
-    int ChildrenCount;
-    //dynamic_array<assimp_node_data_t> Children;
-    std::vector<assimp_node_data_t> Children;
-};
+// struct assimp_node_data_t
+// {
+//     mat4 Transformation;
+//     std::string Name;
+//     int ChildrenCount;
+//     //dynamic_array<assimp_node_data_t> Children;
+//     std::vector<assimp_node_data_t> Children;
+// };
 
 // Holds a hierarchical record of anim bones read from aiAnimation
 struct animation_t
@@ -133,15 +139,16 @@ struct animation_t
     float DurationInTicks;
     float TicksPerSecond;
     std::vector<anim_bone_t> Bones;
-    assimp_node_data_t RootNode;
-    std::map<std::string, bone_info_t> m_BoneInfoMap;
+    mat4 RootTransform;
+    // assimp_node_data_t RootNode;
+    // std::map<std::string, bone_info_t> m_BoneInfoMap;
 
-    anim_bone_t* FindBone(const std::string& name)
+    anim_bone_t *FindBone(const int PaletteIndex)
     {
         auto iter = std::find_if(Bones.begin(), Bones.end(),
             [&](const anim_bone_t& Bone)
             {
-                return Bone.Name == name;
+                return Bone.PaletteIndex == PaletteIndex;
             }
         );
         if (iter == Bones.end()) return nullptr;
@@ -150,11 +157,8 @@ struct animation_t
 
     void Destroy();
 
-    void ReadHierarchyData(const aiNode *InRoot) { ReadHierarchyData(RootNode, InRoot); }
+    void ReadHierarchyData(const aiNode *Src, anim_model_t *Model);
     void ReadBones(const aiAnimation* AssimpAnim, anim_model_t *Model);
-private:
-    void ReadHierarchyData(assimp_node_data_t& Dest, const aiNode* Src);
-
 };
 
 struct skeletal_animator_t
@@ -190,38 +194,60 @@ struct skeletal_animator_t
         {
             m_CurrentTime += m_CurrentAnimation->TicksPerSecond * dt;
             m_CurrentTime = fmod(m_CurrentTime, m_CurrentAnimation->DurationInTicks);
-            CalculateBoneTransform(&m_CurrentAnimation->RootNode, mat4());
+
+            auto& Bones = m_CurrentAnimation->Bones;
+            for (size_t i = 0; i < Bones.size(); ++i)
+            {
+                anim_bone_t& AnimBone = Bones[i];
+                mat4 LocalTransformCurrentPose = AnimBone.Update(m_CurrentTime);
+                mat4 ParentCurrentPoseTransform = mat4();
+                if (AnimBone.ParentId < 0xFF)
+                {
+                    ASSERT(AnimBone.ParentId < i);
+                    ParentCurrentPoseTransform = Bones[AnimBone.ParentId].CurrentPoseTransform;
+                }
+                else
+                {
+                    ParentCurrentPoseTransform = m_CurrentAnimation->RootTransform;
+                }
+
+                AnimBone.CurrentPoseTransform = ParentCurrentPoseTransform * LocalTransformCurrentPose;
+                
+                FinalBonesMatrices[AnimBone.PaletteIndex] = AnimBone.CurrentPoseTransform * AnimBone.InverseBindPose;
+            }
+
+            // CalculateBoneTransform(&m_CurrentAnimation->RootNode, mat4());
         }
     }
     
-    void CalculateBoneTransform(const assimp_node_data_t* node, mat4 ModelSpaceFromParentSpace)
-    {
-        std::string nodeName = node->Name;
-        mat4 ParentJointSpaceFromLocalJointSpace = node->Transformation; // bind pose
+    // void CalculateBoneTransform(const assimp_node_data_t* node, mat4 ModelSpaceFromParentSpace)
+    // {
+    //     std::string nodeName = node->Name;
+    //     mat4 ParentJointSpaceFromLocalJointSpace = node->Transformation; // bind pose
     
-        anim_bone_t* Bone = m_CurrentAnimation->FindBone(nodeName);
+    //     anim_bone_t* Bone = m_CurrentAnimation->FindBone(nodeName);
     
-        if (Bone)
-        {
-            Bone->Update(m_CurrentTime);
-            // The Current Pose Transform
-            ParentJointSpaceFromLocalJointSpace = Bone->LocalTransform; // current pose
-        }
+    //     if (Bone)
+    //     {
+    //         Bone->Update(m_CurrentTime);
+    //         // The Current Pose Transform
+    //         ParentJointSpaceFromLocalJointSpace = Bone->LocalTransform; // current pose
+    //     }
     
-        // The complete Skinning Matrix
-        mat4 GlobalModelFromJoint = ModelSpaceFromParentSpace * ParentJointSpaceFromLocalJointSpace;
+    //     // The complete Skinning Matrix
+    //     mat4 GlobalModelFromJoint = ModelSpaceFromParentSpace * ParentJointSpaceFromLocalJointSpace;
     
-        auto boneInfoMap = m_CurrentAnimation->m_BoneInfoMap;
-        if (boneInfoMap.find(nodeName) != boneInfoMap.end())
-        {
-            int index = boneInfoMap[nodeName].Id;
-            mat4 JointFromModel = boneInfoMap[nodeName].InverseBindPoseTransform;
-            FinalBonesMatrices[index] = GlobalModelFromJoint * JointFromModel;
-        }
+    //     auto boneInfoMap = m_CurrentAnimation->m_BoneInfoMap;
+    //     if (boneInfoMap.find(nodeName) != boneInfoMap.end())
+    //     {
+    //         int index = boneInfoMap[nodeName].Id;
+    //         mat4 JointFromModel = boneInfoMap[nodeName].InverseBindPoseTransform;
+    //         FinalBonesMatrices[index] = GlobalModelFromJoint * JointFromModel;
+    //     }
     
-        for (int i = 0; i < node->ChildrenCount; ++i)
-            CalculateBoneTransform(&node->Children[i], GlobalModelFromJoint);
-    }
+    //     for (int i = 0; i < node->ChildrenCount; ++i)
+    //         CalculateBoneTransform(&node->Children[i], GlobalModelFromJoint);
+    // }
 
 };
 
