@@ -9,7 +9,6 @@ I could port the GL code to Vulkan
 TODO:
 
 - move gmath as subrepo of this repo so i can keep tests updated
-
 - Probably scale down vectors and units before passing into Jolt Physics
 
 - Enemy moves and shoots at player
@@ -105,16 +104,7 @@ the editor. Then I could have
     or enemy animations being janky, but that personal touch is part of the charm of 
     an indie game like this.
 
-    For now, let's tie game and physics simulation to framerate up to a maximum.
-    Let simulation run slower if framerate drops below our allowed maximum of 16ms.
-    Therefore, simulation behaves nicely for frametimes between 0 and 16ms.
-
     port over dropdown console?
-
-    Fun ideas:
-        FOV slider in game up to insane value like 170
-        Allow turning bilinear filtering for light maps off
-
 
 
 */

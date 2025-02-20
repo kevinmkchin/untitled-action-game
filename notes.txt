@@ -1,0 +1,13 @@
+
+Lightmap post processing step to fill in black texels using surrounding texels. Also moving the hemicube sample point if the texel is half occluded.
+
+Incrementally release engine improvements as whole new games but really short and choose your price/free. This way I can improve every aspect of the game little by little until the whole engine and game is awesome.
+
+
+Love Death Robots Secret War vibes nazi Russia occult black magic human sacrifices bring hell demons to Earth. The Ancient Ones, the Old Gods. Fight the ancient one at the end as nazis try to free it. Ending is that you are locked in an eternal battle. Must fight the ancient one for eternity like Diablo 2 Mephisto.
+
+
+
+Fun ideas
+    FOV slider in game up to insane value like 170
+    Allow turning bilinear filtering for light maps off

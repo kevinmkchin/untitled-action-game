@@ -268,13 +268,47 @@ bool LoadSkeleton_GLTF2Bin(const char *InFilePath, skeleton_t *OutSkeleton)
         animation_clip_t AnimationClip = ReadAnimationClip(AssimpAnim, OutSkeleton);
 
         // output Animation Clips
-        TestAnimClip = new animation_clip_t(OutSkeleton);
-        *TestAnimClip = AnimationClip;
+        TestAnimClip0 = new animation_clip_t(OutSkeleton);
+        *TestAnimClip0 = AnimationClip;
     }
 
     return true;
 }
 
+
+void LoadAdditionalAnimationsForSkeleton(const struct skeleton_t *Skeleton, const char *InFilePath)
+{
+    Assimp::Importer Importer;
+    const aiScene *Scene = Importer.ReadFile(InFilePath, aiProcess_Triangulate);
+    if (!Scene || Scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !Scene->mRootNode)
+    {
+        LogError("ASSIMP failed to load file at '%s'.\nErr msg: %s", InFilePath, Importer.GetErrorString());
+        return;
+    }
+
+    ASSERT(Skeleton->Joints.data != NULL);
+    // ensure this file has the same skeleton as the existing one
+    for (u32 meshIndex = 0; meshIndex < Scene->mNumMeshes; ++meshIndex)
+    {
+        aiMesh* MeshNode = Scene->mMeshes[meshIndex];
+        for (u32 BoneIndex = 0; BoneIndex < MeshNode->mNumBones; ++BoneIndex)
+        {
+            std::string BoneName = MeshNode->mBones[BoneIndex]->mName.C_Str();
+            ASSERT(Skeleton->JointNameToIndex.find(BoneName) != Skeleton->JointNameToIndex.end());
+        }
+    }
+
+    // Read animation clip data
+    for (u32 i = 0; i < Scene->mNumAnimations; ++i)
+    {
+        aiAnimation *AssimpAnim = Scene->mAnimations[i];
+        animation_clip_t AnimationClip = ReadAnimationClip(AssimpAnim, Skeleton);
+
+        // output Animation Clips
+        TestAnimClip1 = new animation_clip_t(Skeleton);
+        *TestAnimClip1 = AnimationClip;
+    }
+}
 
 bool LoadSkinnedModel_GLTF2Bin(const char* InFilePath, skinned_model_t *OutSkinnedModel)
 {
