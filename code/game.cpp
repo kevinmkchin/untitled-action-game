@@ -27,10 +27,12 @@ void InitializeGame()
 
     Skeleton_Humanoid = new skeleton_t();
     LoadSkeleton_GLTF2Bin(wd_path("models/Rumba Dancing.dae").c_str(), Skeleton_Humanoid);
+    LoadAdditionalAnimationsForSkeleton(Skeleton_Humanoid, wd_path("models/Boxing.dae").c_str());
     Model_Knight = new skinned_model_t(Skeleton_Humanoid);
     LoadSkinnedModel_GLTF2Bin(wd_path("models/Rumba Dancing.dae").c_str(), Model_Knight);
-    ASSERT(TestAnimClip);
-    Animator.PlayAnimation(TestAnimClip);
+
+    // ASSERT(TestAnimClip1);
+    // Animator.PlayAnimation(TestAnimClip1);
 
     Physics.Initialize();
 
@@ -223,6 +225,10 @@ void DoGameLoop()
     LateNonPhysicsTick();
 
     // Do animation loop
+    if (KeysPressed[SDL_SCANCODE_G])
+        Animator.PlayAnimation(TestAnimClip0);
+    if (KeysPressed[SDL_SCANCODE_H])
+        Animator.PlayAnimation(TestAnimClip1);
     Animator.UpdateGlobalPoses(DeltaTime);
     Animator.GetSkinningMatrixPalette();
 

@@ -1,6 +1,7 @@
 #pragma once
 
-struct animation_clip_t *TestAnimClip;
+struct animation_clip_t *TestAnimClip0;
+struct animation_clip_t *TestAnimClip1;
 
 /*
 
@@ -59,18 +60,20 @@ Currently, it also stores the skinning matrix palette.
 
 TODO
 - Memory clean up code!!!
-- Do I need "AccumulateRootJointTransform" or not?
 - Maybe move SkinningMatrixPalette storage out of animator_t since only one is used at a time
-- Skeleton management system
-- Animation clip management system
+- store anim clips somewhere // Animation clip management system
+- store skeletons somewhere // Skeleton management system
+- Do I need "AccumulateRootJointTransform" or not?
 - Simple linear allocator for all resources
 - Use u8 instead of int for BoneID in skinned_vertex_t (also in shader and attribs)
 - Change keyframe_scale_t to only use uniform-scaling and replace scale vec3 with float
 
 */
 
-bool LoadSkeleton_GLTF2Bin(const char* InFilePath, struct skeleton_t *OutSkeleton);
-bool LoadSkinnedModel_GLTF2Bin(const char* InFilePath, struct skinned_model_t *OutSkinnedModel);
+bool LoadSkeleton_GLTF2Bin(const char *InFilePath, struct skeleton_t *OutSkeleton);
+bool LoadSkinnedModel_GLTF2Bin(const char *InFilePath, struct skinned_model_t *OutSkinnedModel);
+
+void LoadAdditionalAnimationsForSkeleton(const struct skeleton_t *Skeleton, const char *InFilePath);
 
 
 #define MAX_BONES 64
@@ -214,7 +217,7 @@ private:
 
 struct animator_t
 {
-    animation_clip_t* CurrentAnimation;
+    animation_clip_t* CurrentAnimation = NULL;
     float CurrentTime;
 
     mat4 LocalPosesArray[MAX_BONES];
