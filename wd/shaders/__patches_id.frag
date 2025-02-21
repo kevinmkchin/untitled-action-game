@@ -14,7 +14,7 @@ void main()
     // using ColorTexture so OpenGL doesn't discard the uniform
     FragmentColorAndDepth.rgb = vec3(texture(LightMap, uv2).r, texture(ColorTexture, uv1).g, texture(ColorTexture, uv1).b);
 
-    if (gl_FrontFacing)
+    if (gl_FrontFacing) // https://docs.vulkan.org/glsl/latest/chapters/builtins.html
     {
         FragmentColorAndDepth.a = 0.0;
     }

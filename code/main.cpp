@@ -692,7 +692,11 @@ int main(int argc, char* argv[])
     srand(100);
 
     InitializeGame();
-    LoadLevel(wd_path("playground_0.map").c_str());
+
+    // LevelEditor.LoadMap(wd_path("LightTest.emf").c_str());
+    // BuildGameMap(wd_path("buildtest.map").c_str());
+    LoadLevel(wd_path("buildtest.map").c_str());
+    // LoadLevel(wd_path("LightTest.map").c_str());
     // LevelEditor.Open();
 
     while (!ProgramShutdownRequested)

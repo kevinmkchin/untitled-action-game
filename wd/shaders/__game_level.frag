@@ -15,5 +15,5 @@ void main()
     //vec3 FinalColor = vec3(1.0,1.0,1.0) * LinearLight;
     vec3 FinalColor = ColorAlbedo * LinearLight;
     FragColor = vec4(FinalColor, 1.0);
-    FragColor.rgb = pow(FragColor.rgb, vec3(1.0/2.2)); // gamma correction
+    FragColor.rgb = pow(FragColor.rgb, vec3(1.0/2.6)); // gamma correction
 }

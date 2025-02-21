@@ -7,6 +7,7 @@ struct lm_face_t
     vec3  *tangent = NULL;
     // vec3  *patches_id = NULL;
     float *light = NULL;
+    float *light_direct = NULL;
     float *light_indirect = NULL;
     i32 w = -1;
     i32 h = -1;

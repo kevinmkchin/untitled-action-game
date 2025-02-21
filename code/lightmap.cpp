@@ -13,7 +13,7 @@ float *all_light_indirect = NULL;
 
 
 LevelPolygonOctree LightMapOcclusionTree;
-const float LightMapTexelSize = 8.f; // in world units
+const float LightMapTexelSize = 16.f; // in world units
 const int HemicubeFaceW = 100;
 const int HemicubeFaceH = HemicubeFaceW;
 const int HemicubeFaceWHalf = HemicubeFaceW/2;
@@ -235,7 +235,7 @@ void BakeStaticLighting(game_map_build_data_t& BuildData)
         lm.light = arraddnptr(all_light_global, lmsz);
         lm.tangent = arraddnptr(all_lm_tangent, lmsz);
         // lm.patches_id = arraddnptr(all_patches_id, lmsz);
-        float *lm_direct = arraddnptr(all_light_direct, lmsz);
+        lm.light_direct = arraddnptr(all_light_direct, lmsz);
         lm.light_indirect = arraddnptr(all_light_indirect, lmsz);
         for (i32 pi = 0; pi < lmsz; ++pi)
         {
@@ -250,7 +250,7 @@ void BakeStaticLighting(game_map_build_data_t& BuildData)
             lm.tangent[pi] = basisV;
             // lm.patches_id[pi] = HandleIdToRGB(++patchCounter);
             lm.light[pi] = 0.f;
-            lm_direct[pi] = 0.f;
+            lm.light_direct[pi] = 0.f;
             lm.light_indirect[pi] = 0.f;
         }
 
@@ -451,6 +451,9 @@ void BakeStaticLighting(game_map_build_data_t& BuildData)
         MultiplierMapSide[p-HemicubeFaceAreaHalf] /= MultiplierBeforeNormalizeSum;
 
 
+#define LM_BACKFACE_INDICATOR 0.69f
+#define LM_MARK_BAD_TEXEL -0.05f
+
     for (int bounces = 0; bounces < 2; ++bounces)
     {
         // Copy the radiance info thus far to use for first light bounce
@@ -567,7 +570,7 @@ void BakeStaticLighting(game_map_build_data_t& BuildData)
                     float DifferentialFormFactor = MultiplierMapTop[p];
                     RadiositiesAccumulator += DifferentialFormFactor * Radiance;
 
-                    if (HemicubePixel.w == 0.69f)
+                    if (HemicubePixel.w == LM_BACKFACE_INDICATOR)
                         ++BackfacePixelCount;
 
                     // Side faces
@@ -580,7 +583,7 @@ void BakeStaticLighting(game_map_build_data_t& BuildData)
                     DifferentialFormFactor = MultiplierMapSide[p-HemicubeFaceAreaHalf];
                     RadiositiesAccumulator += DifferentialFormFactor * Radiance;
 
-                    if (HemicubePixel.w == 0.69f)
+                    if (HemicubePixel.w == LM_BACKFACE_INDICATOR)
                         ++BackfacePixelCount;
 
                     HemicubePixel = { DownFaceData[p*4], DownFaceData[p*4+1], 
@@ -589,7 +592,7 @@ void BakeStaticLighting(game_map_build_data_t& BuildData)
                     DifferentialFormFactor = MultiplierMapSide[p-HemicubeFaceAreaHalf];
                     RadiositiesAccumulator += DifferentialFormFactor * Radiance;
 
-                    if (HemicubePixel.w == 0.69f)
+                    if (HemicubePixel.w == LM_BACKFACE_INDICATOR)
                         ++BackfacePixelCount;
 
                     HemicubePixel = { LeftFaceData[p*4], LeftFaceData[p*4+1], 
@@ -598,7 +601,7 @@ void BakeStaticLighting(game_map_build_data_t& BuildData)
                     DifferentialFormFactor = MultiplierMapSide[p-HemicubeFaceAreaHalf];
                     RadiositiesAccumulator += DifferentialFormFactor * Radiance;
 
-                    if (HemicubePixel.w == 0.69f)
+                    if (HemicubePixel.w == LM_BACKFACE_INDICATOR)
                         ++BackfacePixelCount;
 
                     HemicubePixel = { RightFaceData[p*4], RightFaceData[p*4+1], 
@@ -607,7 +610,7 @@ void BakeStaticLighting(game_map_build_data_t& BuildData)
                     DifferentialFormFactor = MultiplierMapSide[p-HemicubeFaceAreaHalf];
                     RadiositiesAccumulator += DifferentialFormFactor * Radiance;
                     
-                    if (HemicubePixel.w == 0.69f)
+                    if (HemicubePixel.w == LM_BACKFACE_INDICATOR)
                         ++BackfacePixelCount;
 
                     if (BackfacePixelCount > BackfaceTolerance)
@@ -617,12 +620,60 @@ void BakeStaticLighting(game_map_build_data_t& BuildData)
                 if (BackfacePixelCount > BackfaceTolerance)
                 {
                     // TODO then what do I do about this texel?
-                    RadiositiesAccumulator = 0.f;
+                    RadiositiesAccumulator = LM_MARK_BAD_TEXEL;
                 }
 
                 *(FaceLightMap.light_indirect + FaceTexelIndex) = RadiositiesAccumulator;
 
                 glUnmapBuffer(GL_PIXEL_PACK_BUFFER);
+            }
+
+            // I can weight the samples by distance from the invalid one, non-linearly
+            for (int fy = 0; fy < FaceLightMap.h; ++fy)
+            {
+                for (int fx = 0; fx < FaceLightMap.w; ++fx)
+                {
+                    int i = fy * FaceLightMap.w + fx;
+                    float IndirLight = *(FaceLightMap.light_indirect + i);
+                    if (IndirLight == LM_MARK_BAD_TEXEL)
+                    {
+                        // try to sample from surrounding valid texels
+                        int NumValidNeighbourSamples = 0;
+                        float NeighbourSamplesAccumulator = 0.f;
+                        for (int y = fy - 1; y <= fy + 1; ++y)
+                        {
+                            if (y < 0 || y >= FaceLightMap.h)
+                                continue;
+
+                            for (int x = fx - 1; x <= fx + 1; ++x)
+                            {
+                                if (x < 0 || x >= FaceLightMap.w)
+                                    continue;
+
+                                int j = y * FaceLightMap.w + x;
+                                float NeighbourIndir = *(FaceLightMap.light_indirect + j);
+                                if (NeighbourIndir != LM_MARK_BAD_TEXEL && NeighbourIndir > 0.f)
+                                {
+                                    // sample the direct too
+                                    float NeighbourDir = *(FaceLightMap.light_direct + j);
+                                    NeighbourSamplesAccumulator += NeighbourDir + NeighbourIndir;
+                                    ++NumValidNeighbourSamples;
+                                }
+                            }
+                        }
+
+                        if (NumValidNeighbourSamples > 0)
+                        {
+                            float AverageCombined = NeighbourSamplesAccumulator / (float)NumValidNeighbourSamples;
+                            // store the delta so that when we combine later we result with AverageCombined again
+                            *(FaceLightMap.light_indirect + i) = AverageCombined - *(FaceLightMap.light_direct + i);
+                        }
+                        else
+                        {
+                            *(FaceLightMap.light_indirect + i) = 0.f;
+                        }
+                    }
+                }
             }
 
             // // TODO Irradiance Cache population is complete for this face
