@@ -1,4 +1,10 @@
 
+gamma slider at the start of the game
+
+
+final level is only accessible if you played previous games well. like commando. final level is bonus level to get the true ending.
+
+
 Lightmap post processing step to fill in black texels using surrounding texels. Also moving the hemicube sample point if the texel is half occluded.
 
 Incrementally release engine improvements as whole new games but really short and choose your price/free. This way I can improve every aspect of the game little by little until the whole engine and game is awesome.
