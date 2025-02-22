@@ -653,6 +653,7 @@ void lightmapper_t::BakeStaticLighting(game_map_build_data_t& BuildData)
     DeleteGPUTexture(&SceneLightingModel.LightMapTexture);
     DeleteFaceBatch(&SceneLightingModel);
 
+    i32 TotalUsedTexelsInLightmapAtlas = 0;
     // Final blit to light map atlas
     for (size_t i = 0; i < LightMapRectsCount; ++i)
     {
@@ -662,6 +663,8 @@ void lightmapper_t::BakeStaticLighting(game_map_build_data_t& BuildData)
         const lm_face_t& lmface = FaceLightmaps[rect.id];
         BlitRect((u8*)LIGHT_MAP_ATLAS, lightMapAtlasW, lightMapAtlasH, 
             (u8*)lmface.light, lmface.w, lmface.h, rect.x, rect.y, sizeof(float));
+
+        TotalUsedTexelsInLightmapAtlas += lmface.w * lmface.h;
     }
     ByteBufferWrite(&BuildData.Output, i32, lightMapAtlasW);
     ByteBufferWrite(&BuildData.Output, i32, lightMapAtlasH);
@@ -680,6 +683,10 @@ void lightmapper_t::BakeStaticLighting(game_map_build_data_t& BuildData)
     LogMessage("Filled %.1f%% (%zd/%zd) of allocated memory (%zd KB) lightmap baking intermediate data.", 
         float(NumPatches)/float(CapAllPatchData)*100.f, NumPatches, CapAllPatchData,
         TotalAllocMemForPatchData / 1000);
+    LogMessage("Filled %.1f%% (%d/%d) of output lightmap texture (%dx%d).",
+        float(TotalUsedTexelsInLightmapAtlas)/float(lightMapAtlasW*lightMapAtlasH)*100.f,
+        TotalUsedTexelsInLightmapAtlas, lightMapAtlasW*lightMapAtlasH,
+        lightMapAtlasW, lightMapAtlasH);
 
     MapSurfaceColliders.clear();
     LightMapOcclusionTree.TearDown();

@@ -47,8 +47,8 @@ private:
     void ThreadSafe_DoDirectLightingIntoLightMap(u32 patchIndexStart, u32 patchIndexEnd);
 
 private:
-    i32 lightMapAtlasW = 4096;
-    i32 lightMapAtlasH = 4096;
+    i32 lightMapAtlasW = 1024;//4096;
+    i32 lightMapAtlasH = 1024;//4096;
 
 private:
     game_map_build_data_t *BuildDataShared = nullptr;
