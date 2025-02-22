@@ -620,7 +620,8 @@ void BakeStaticLighting(game_map_build_data_t& BuildData)
                 if (BackfacePixelCount > BackfaceTolerance)
                 {
                     // TODO then what do I do about this texel?
-                    RadiositiesAccumulator = LM_MARK_BAD_TEXEL;
+                    RadiositiesAccumulator = 0.f;
+                    // RadiositiesAccumulator = LM_MARK_BAD_TEXEL;
                 }
 
                 *(FaceLightMap.light_indirect + FaceTexelIndex) = RadiositiesAccumulator;
@@ -628,53 +629,7 @@ void BakeStaticLighting(game_map_build_data_t& BuildData)
                 glUnmapBuffer(GL_PIXEL_PACK_BUFFER);
             }
 
-            // I can weight the samples by distance from the invalid one, non-linearly
-            for (int fy = 0; fy < FaceLightMap.h; ++fy)
-            {
-                for (int fx = 0; fx < FaceLightMap.w; ++fx)
-                {
-                    int i = fy * FaceLightMap.w + fx;
-                    float IndirLight = *(FaceLightMap.light_indirect + i);
-                    if (IndirLight == LM_MARK_BAD_TEXEL)
-                    {
-                        // try to sample from surrounding valid texels
-                        int NumValidNeighbourSamples = 0;
-                        float NeighbourSamplesAccumulator = 0.f;
-                        for (int y = fy - 1; y <= fy + 1; ++y)
-                        {
-                            if (y < 0 || y >= FaceLightMap.h)
-                                continue;
-
-                            for (int x = fx - 1; x <= fx + 1; ++x)
-                            {
-                                if (x < 0 || x >= FaceLightMap.w)
-                                    continue;
-
-                                int j = y * FaceLightMap.w + x;
-                                float NeighbourIndir = *(FaceLightMap.light_indirect + j);
-                                if (NeighbourIndir != LM_MARK_BAD_TEXEL && NeighbourIndir > 0.f)
-                                {
-                                    // sample the direct too
-                                    float NeighbourDir = *(FaceLightMap.light_direct + j);
-                                    NeighbourSamplesAccumulator += NeighbourDir + NeighbourIndir;
-                                    ++NumValidNeighbourSamples;
-                                }
-                            }
-                        }
-
-                        if (NumValidNeighbourSamples > 0)
-                        {
-                            float AverageCombined = NeighbourSamplesAccumulator / (float)NumValidNeighbourSamples;
-                            // store the delta so that when we combine later we result with AverageCombined again
-                            *(FaceLightMap.light_indirect + i) = AverageCombined - *(FaceLightMap.light_direct + i);
-                        }
-                        else
-                        {
-                            *(FaceLightMap.light_indirect + i) = 0.f;
-                        }
-                    }
-                }
-            }
+            // some post processing?
 
             // // TODO Irradiance Cache population is complete for this face
             // //      Now go through every texel of this face again and perform interpolation!
@@ -743,3 +698,54 @@ void BakeStaticLighting(game_map_build_data_t& BuildData)
     BuildDataShared = nullptr;
 }
 
+
+// void delete_PostProcess_NeighbourSampling()
+// {
+//     // I can weight the samples by distance from the invalid one, non-linearly
+//     for (int fy = 0; fy < FaceLightMap.h; ++fy)
+//     {
+//         for (int fx = 0; fx < FaceLightMap.w; ++fx)
+//         {
+//             int i = fy * FaceLightMap.w + fx;
+//             float IndirLight = *(FaceLightMap.light_indirect + i);
+//             if (IndirLight == LM_MARK_BAD_TEXEL)
+//             {
+//                 // try to sample from surrounding valid texels
+//                 int NumValidNeighbourSamples = 0;
+//                 float NeighbourSamplesAccumulator = 0.f;
+//                 for (int y = fy - 1; y <= fy + 1; ++y)
+//                 {
+//                     if (y < 0 || y >= FaceLightMap.h)
+//                         continue;
+
+//                     for (int x = fx - 1; x <= fx + 1; ++x)
+//                     {
+//                         if (x < 0 || x >= FaceLightMap.w)
+//                             continue;
+
+//                         int j = y * FaceLightMap.w + x;
+//                         float NeighbourIndir = *(FaceLightMap.light_indirect + j);
+//                         if (NeighbourIndir != LM_MARK_BAD_TEXEL && NeighbourIndir > 0.f)
+//                         {
+//                             // sample the direct too
+//                             float NeighbourDir = *(FaceLightMap.light_direct + j);
+//                             NeighbourSamplesAccumulator += NeighbourDir + NeighbourIndir;
+//                             ++NumValidNeighbourSamples;
+//                         }
+//                     }
+//                 }
+
+//                 if (NumValidNeighbourSamples > 0)
+//                 {
+//                     float AverageCombined = NeighbourSamplesAccumulator / (float)NumValidNeighbourSamples;
+//                     // store the delta so that when we combine later we result with AverageCombined again
+//                     *(FaceLightMap.light_indirect + i) = AverageCombined - *(FaceLightMap.light_direct + i);
+//                 }
+//                 else
+//                 {
+//                     *(FaceLightMap.light_indirect + i) = 0.f;
+//                 }
+//             }
+//         }
+//     }
+// }
