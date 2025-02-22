@@ -8,13 +8,24 @@ I could port the GL code to Vulkan
 
 TODO:
 
-- move gmath as subrepo of this repo so i can keep tests updated
-- Probably scale down vectors and units before passing into Jolt Physics
+- try simple irradiance caching?
+
+= I can start making and importing proper character models and animations
+= I can start making proper textures
 
 - Enemy moves and shoots at player
     - Try using straight path instead of smooth path
     - State machine - mesh changes color when enemy state changes from patrol to chase to shoot to melee
-    - sound
+    - sound (audio system)
+
+- Player has a gun and shoots at enemy
+
+
+
+- move gmath as subrepo of this repo so i can keep tests updated
+- Probably scale down vectors and units before passing into Jolt Physics
+- Port over dropdown console?
+
 
 - list all point entities in the scene
 - entity placement window with dropdown
@@ -24,7 +35,6 @@ TODO:
 - show lines visualizing total translation when moving things. up and down axis as well
 - srgb gamma correction bull shit for editor texture that are not lit
 
-- Player has a gun and shoots at enemy
 - save/load texture database
 - Anisotropic filtering https://www.khronos.org/opengl/wiki/Sampler_Object#Anisotropic_filtering
 
@@ -42,11 +52,11 @@ World - I want a crispy fucking visually nice to look at world being created and
     DONE Refactor FaceBatch rendering and lighting code 
 
     Refine Hemicube GI
-    - larger hemicube atlas for download
-    - interpolate (w/o irrad caching) for patches that clip backface to reduce artifacts
+    - try simple irradiance caching - interpolate w/o irrad caching doesn't work well for large patch sizes.
+    - larger hemicube atlas for download (meh, one by one is good for modifications for now)
     - Texels too far from face polygon should be marked as ignore for hemicube. worst case distance: magnitude(1.5*texelsize, 0.5*texelsize)
 
-    Face creation and manipulation by default over cuboid voluesm in level editor
+    Face creation and manipulation by default over cuboid volumes in level editor
     - volume is wasteful; source 2 defaults to faces; best workflow is extrude faces and extrude edges
 
 Physics - I want a crispy bug-free physics simulation with the world
@@ -103,8 +113,6 @@ the editor. Then I could have
     Ultimately, the game will very much have my identity. From some UI looking crusty,
     or enemy animations being janky, but that personal touch is part of the charm of 
     an indie game like this.
-
-    port over dropdown console?
 
 
 */
@@ -245,8 +253,8 @@ inline std::string data_path(const std::string& name) { return wd_path() + "data
 #include "physics.h"
 #include "physics_debug.h"
 #include "primitives.h"
-#include "lightmap.h"
 #include "winged.h"
+#include "lightmap.h"
 #include "levelentities.h"
 #include "leveleditor.h"
 #include "saveloadlevel.h"
@@ -693,10 +701,11 @@ int main(int argc, char* argv[])
 
     InitializeGame();
 
-    // LevelEditor.LoadMap(wd_path("LightTest.emf").c_str());
-    // BuildGameMap(wd_path("buildtest.map").c_str());
+    LevelEditor.LoadMap(wd_path("LightTest.emf").c_str());
+    BuildGameMap(wd_path("buildtest.map").c_str());
     LoadLevel(wd_path("buildtest.map").c_str());
-    // LoadLevel(wd_path("LightTest.map").c_str());
+
+    // LoadLevel(wd_path("playground_0.map").c_str());
     // LevelEditor.Open();
 
     while (!ProgramShutdownRequested)

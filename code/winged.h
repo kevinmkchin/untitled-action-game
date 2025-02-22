@@ -84,11 +84,10 @@ namespace MapEdit
         u32 elemId = 0;
 
         // == level editor data ==
-        GPUMesh facemesh; // For map editor rendering. Each face is its own mesh. Don't optimize until my PC chugs while map editing.
-        db_tex_t texture;
-        lm_face_t lightmap;
-        // bool receivelight; mark whether to generate light map
-        // bool hascollision; mark whether to generate collider
+        // Each face is its own mesh. Don't optimize until my PC chugs while map editing.
+        GPUMesh facemesh; // For map editor rendering.
+        db_tex_t texture; // For map editor rendering.
+        // FLAGS flags mark whether to generate lightmap, collider, navmesh, etc.
         i32 storageIndex = -1;
         bool hovered = false;
         // =====================
