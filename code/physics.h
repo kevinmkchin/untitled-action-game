@@ -241,6 +241,7 @@ public:
     JPH::TempAllocatorImpl *TempAllocator;
 };
 
+// when converting units, differentiate position (convert units) and direction (stay normalized)
 JPH::RVec3 ToJoltVec3(vec3 GMathVec3);
 vec3 FromJoltVec3(JPH::RVec3 JoltVec3);
 JPH::Quat ToJoltQuat(quat GMathQuat);
