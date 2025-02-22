@@ -254,6 +254,8 @@ struct LevelPolygonOctree
         , maxObjectsPerNode(maxObjectsPerNode) 
     {}
 
+    void TearDown();
+
     void Insert(FlatPolygonCollider *obj) 
     {
         Insert(root.get(), obj, 0);
@@ -274,6 +276,11 @@ struct LevelPolygonOctree
     void RedistributeObjects(LevelPolygonOctreeNode *node);
     bool QueryNode(LevelPolygonOctreeNode *node, LineCollider& queryRay);
 };
+
+void LevelPolygonOctree::TearDown()
+{
+    // todo
+}
 
 void LevelPolygonOctree::Insert(LevelPolygonOctreeNode *node, FlatPolygonCollider *obj, int depth) 
 {

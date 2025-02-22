@@ -77,7 +77,7 @@ bool BuildGameMap(const char *path)
     ByteBufferWrite(&BuildData.Output, vec3, BuildData.PlayerStartPosition);
     ByteBufferWrite(&BuildData.Output, vec3, BuildData.PlayerStartRotation);
 
-    BakeStaticLighting(BuildData);
+    Lightmapper.BakeStaticLighting(BuildData);
 
     // colliders
     size_t numColliderPoints = ColliderWorldPoints.size();

@@ -2,26 +2,14 @@
 
 #include "lm_oct.cpp" // only needed by lightmap.cpp
 
-vec3 *all_lm_pos = NULL;
-vec3 *all_lm_norm = NULL;
-vec3 *all_lm_tangent = NULL;
 // vec3 *all_patches_id = NULL;
-float *all_light_global = NULL;
-float *all_light_direct = NULL;
-float *all_light_indirect = NULL;
 
-
+lightmapper_t Lightmapper;
 
 LevelPolygonOctree LightMapOcclusionTree;
-const float LightMapTexelSize = 16.f; // in world units
-const int HemicubeFaceW = 100;
-const int HemicubeFaceH = HemicubeFaceW;
-const int HemicubeFaceWHalf = HemicubeFaceW/2;
-const int HemicubeFaceHHalf = HemicubeFaceH/2;
+std::vector<FlatPolygonCollider> MapSurfaceColliders;
 
-game_map_build_data_t *BuildDataShared = nullptr;
-
-void ThreadSafe_DoDirectLightingIntoLightMap(u32 patchIndexStart, u32 patchIndexEnd)
+void lightmapper_t::ThreadSafe_DoDirectLightingIntoLightMap(u32 patchIndexStart, u32 patchIndexEnd)
 {
     // calculate direct lighting for patchIndexStart upto and including patchIndexEnd-1
 
@@ -126,22 +114,14 @@ void ThreadSafe_DoDirectLightingIntoLightMap(u32 patchIndexStart, u32 patchIndex
     }
 }
 
-
-void BakeStaticLighting(game_map_build_data_t& BuildData)
+void lightmapper_t::GenerateLightmapOcclusionTestTree()
 {
-    BuildDataShared = &BuildData;
+    std::vector<vec3>& ColliderWorldPoints = BuildDataShared->ColliderWorldPoints;
+    std::vector<u32>& ColliderSpans = BuildDataShared->ColliderSpans;
 
-    const int totalfacecount = BuildData.TotalFaceCount;
-    std::unordered_map<u32, std::vector<float>>& VertexBuffers = BuildData.VertexBuffers;
-    std::vector<vec3>& ColliderWorldPoints = BuildData.ColliderWorldPoints;
-    std::vector<u32>& ColliderSpans = BuildData.ColliderSpans;
-
-    // === LIGHT MAP BAKING ===
-    // As level gets bigger, I need to find a way to reduce patch count. Otherwise
-    // time to bake will continue increasing linearly.
     Bounds MapBounds = Bounds(vec3(-0.17f, -0.17f, -0.17f), vec3(8000, 8000, 8000));
     LightMapOcclusionTree = LevelPolygonOctree(MapBounds, 100, 24);
-    std::vector<FlatPolygonCollider> MapSurfaceColliders(ColliderSpans.size());
+    MapSurfaceColliders.resize(ColliderSpans.size());
     int iter = 0;
     // later, when only some surfaces have colliders, can't use ColliderSpan, need to traverse all faces again
     for (u32 i = 0; i < ColliderSpans.size(); ++i)
@@ -153,30 +133,18 @@ void BakeStaticLighting(game_map_build_data_t& BuildData)
         iter += span;
         LightMapOcclusionTree.Insert(&surface);
     }
-    // LightMapOcclusionTree is complete
+}
 
-    // Single bounce radiosity
-    // Start with emitting patches, of which there are N.
-    // Each emitting patch goes every other patch, of which there are M. O(NM)
-    // Then, each patch (M) goes to every other patch (M) and transfers energy exactly once. O(NMM) 
+void lightmapper_t::PrepareFaceLightmapsAndTexelStorage()
+{
+    ASSERT(!FaceLightmaps.data);
+    FaceLightmaps.setcap(BuildDataShared->TotalFaceCount);
 
-    stbrp_rect *lm_rects = NULL;
-    // calculate bounds, and divide into patches
-    arrsetcap(all_lm_pos, 625000); // patch num cap should be 256^3-1 so about 16 million patches
-    arrsetcap(all_lm_norm, 625000);
-    arrsetcap(all_light_global, 625000);
-    arrsetcap(all_lm_tangent, 625000);
-    // arrsetcap(all_patches_id, 625000);
-    arrsetcap(all_light_direct, 625000);
-    arrsetcap(all_light_indirect, 625000);
-    // u32 patchCounter = 0;
-    for (int i = 0; i < totalfacecount; ++i)
+    for (int i = 0; i < BuildDataShared->TotalFaceCount; ++i)
     {
+        // calculate bounds, and divide into patches/texels
         MapEdit::Face *face = MapEdit::LevelEditorFaces.At(i);
-        
-        lm_face_t lm;
-        // project 3D verts unto 2D plane using basis vectors U and V
-        // find min uv and max uv
+
         vec3 v0 = face->loopbase->v->pos;
         vec3 v1 = face->loopbase->loopNext->v->pos;
         vec3 v2 = face->loopbase->loopNext->loopNext->v->pos;
@@ -191,6 +159,8 @@ void BakeStaticLighting(game_map_build_data_t& BuildData)
         for (MapEdit::Loop *loop : loopcycle)
         {
             vec3 p = loop->v->pos;
+            // Project 3D verts unto 2D plane using basis vectors U and V.
+            // Relative to v0.
             float u = Dot(p-v0, basisU);
             float v = Dot(p-v0, basisV);
             minuv.x = fminf(minuv.x, u);
@@ -202,12 +172,6 @@ void BakeStaticLighting(game_map_build_data_t& BuildData)
         }
         
         // Adding padding texel around light map for bilinear filtering. 
-        // Resizing the light map dimensions to be 2 units wider and taller (by moving minuv and maxuv)
-        // is the best way to add padding for bilinear filtering. No padding means filtering samples light
-        // maps not belonging to this surface (since everything gets packed into an atlas) and having the
-        // padding copy the corresponding adjacent light map value will create unnatural seams where
-        // surfaces are supposed to connect. By simply making the light maps larger than needed and having
-        // these virtual patches be sampled too creates the most natural bilinear filtering results.
         minuv -= vec2(LightMapTexelSize, LightMapTexelSize);
         maxuv += vec2(LightMapTexelSize, LightMapTexelSize);
         vec2 dim = maxuv - minuv;
@@ -224,9 +188,12 @@ void BakeStaticLighting(game_map_build_data_t& BuildData)
             loop->lmuvcache.y /= dim.y;
             ASSERT(0.f <= loop->lmuvcache.x && loop->lmuvcache.x <= 1.f);
             ASSERT(0.f <= loop->lmuvcache.y && loop->lmuvcache.y <= 1.f);
+            // at this point, lmuvcache stores the local uv
         }
 
         // lm data
+        lm_face_t lm;
+        lm.faceRef = face;
         lm.w = (i32)(dim.x / LightMapTexelSize);
         lm.h = (i32)(dim.y / LightMapTexelSize);
         i32 lmsz = lm.w*lm.h;
@@ -234,7 +201,6 @@ void BakeStaticLighting(game_map_build_data_t& BuildData)
         lm.norm = arraddnptr(all_lm_norm, lmsz);
         lm.light = arraddnptr(all_light_global, lmsz);
         lm.tangent = arraddnptr(all_lm_tangent, lmsz);
-        // lm.patches_id = arraddnptr(all_patches_id, lmsz);
         lm.light_direct = arraddnptr(all_light_direct, lmsz);
         lm.light_indirect = arraddnptr(all_light_indirect, lmsz);
         for (i32 pi = 0; pi < lmsz; ++pi)
@@ -248,30 +214,49 @@ void BakeStaticLighting(game_map_build_data_t& BuildData)
             lm.pos[pi] = p;
             lm.norm[pi] = fn;
             lm.tangent[pi] = basisV;
-            // lm.patches_id[pi] = HandleIdToRGB(++patchCounter);
             lm.light[pi] = 0.f;
             lm.light_direct[pi] = 0.f;
             lm.light_indirect[pi] = 0.f;
         }
 
-        face->lightmap = lm;
-        stbrp_rect rect;
-        rect.id = face->storageIndex;
-        rect.w = lm.w;
-        rect.h = lm.h;
-        arrput(lm_rects, rect);
+        FaceLightmaps.put(lm);
     }
+}
+
+void lightmapper_t::BakeStaticLighting(game_map_build_data_t& BuildData)
+{
+    BuildDataShared = &BuildData;
+
+    std::unordered_map<u32, std::vector<float>>& VertexBuffers = BuildData.VertexBuffers;
+
+    GenerateLightmapOcclusionTestTree();
+
+    arrsetcap(all_lm_pos, MaxNumTexels);
+    arrsetcap(all_lm_norm, MaxNumTexels);
+    arrsetcap(all_light_global, MaxNumTexels);
+    arrsetcap(all_lm_tangent, MaxNumTexels);
+    arrsetcap(all_light_direct, MaxNumTexels);
+    arrsetcap(all_light_indirect, MaxNumTexels);
+
+    PrepareFaceLightmapsAndTexelStorage();
 
     // Pack light maps
-    i32 lightMapAtlasW = 4096;
-    i32 lightMapAtlasH = 4096;
+    dynamic_array<stbrp_rect> lm_rects;
+    for (size_t i = 0; i < FaceLightmaps.lenu(); ++i)
+    {
+        stbrp_rect rect;
+        rect.id = (int)i;
+        rect.w = FaceLightmaps[i].w;
+        rect.h = FaceLightmaps[i].h;
+        lm_rects.put(rect);
+    }
     stbrp_node *LMPackerNodes = NULL;
     arrsetlen(LMPackerNodes, lightMapAtlasW);
     stbrp_context LightMapPacker;
     stbrp_init_target(&LightMapPacker, lightMapAtlasW, lightMapAtlasH, LMPackerNodes, (int)arrlenu(LMPackerNodes));
-    stbrp_pack_rects(&LightMapPacker, lm_rects, (int)arrlenu(lm_rects));
+    stbrp_pack_rects(&LightMapPacker, lm_rects.data, (int)lm_rects.lenu());
     arrfree(LMPackerNodes);
-    size_t LightMapRectsCount = arrlenu(lm_rects);
+    size_t LightMapRectsCount = lm_rects.lenu();
     for (size_t i = 0; i < LightMapRectsCount; ++i)
     {
         stbrp_rect rect = lm_rects[i];
@@ -281,21 +266,20 @@ void BakeStaticLighting(game_map_build_data_t& BuildData)
         vec2 minuv = vec2((float)(rect.x) / (float)lightMapAtlasW, (float)(rect.y) / (float)lightMapAtlasH);
         vec2 maxuv = vec2((float)(rect.x + rect.w) / (float)lightMapAtlasW, (float)(rect.y + rect.h) / (float)lightMapAtlasH);
 
-        int editorFaceIndex = rect.id;
-        MapEdit::Face *face = MapEdit::LevelEditorFaces.At(editorFaceIndex);
+        MapEdit::Face *face = FaceLightmaps[rect.id].faceRef;
         std::vector<MapEdit::Loop*> loopcycle = face->GetLoopCycle();
         for (MapEdit::Loop *loop : loopcycle)
         {
-            // map lm uv from local to global in light map atlas
+            // Map lm uv from local to global in light map atlas
             loop->lmuvcache.x = Lerp(minuv.x, maxuv.x, loop->lmuvcache.x); 
             loop->lmuvcache.y = Lerp(minuv.y, maxuv.y, loop->lmuvcache.y); 
         }
     }
 
     // Sort faces by their textures and generate vertex buffers
-    for (int i = 0; i < totalfacecount; ++i)
+    for (size_t i = 0; i < FaceLightmaps.lenu(); ++i)
     {
-        MapEdit::Face *face = MapEdit::LevelEditorFaces.At(i);
+        MapEdit::Face *face = FaceLightmaps[i].faceRef;
         db_tex_t tex = face->texture;
         if (VertexBuffers.find(tex.persistId) == VertexBuffers.end())
         {
@@ -321,16 +305,16 @@ void BakeStaticLighting(game_map_build_data_t& BuildData)
     u32 progress80 = u32((float)numpatches * 0.8f);
     u32 progress90 = u32((float)numpatches * 0.9f);
 
-    std::thread t0 = std::thread(ThreadSafe_DoDirectLightingIntoLightMap, 0, progress10);
-    std::thread t1 = std::thread(ThreadSafe_DoDirectLightingIntoLightMap, progress10, progress20);
-    std::thread t2 = std::thread(ThreadSafe_DoDirectLightingIntoLightMap, progress20, progress30);
-    std::thread t3 = std::thread(ThreadSafe_DoDirectLightingIntoLightMap, progress30, progress40);
-    std::thread t4 = std::thread(ThreadSafe_DoDirectLightingIntoLightMap, progress40, progress50);
-    std::thread t5 = std::thread(ThreadSafe_DoDirectLightingIntoLightMap, progress50, progress60);
-    std::thread t6 = std::thread(ThreadSafe_DoDirectLightingIntoLightMap, progress60, progress70);
-    std::thread t7 = std::thread(ThreadSafe_DoDirectLightingIntoLightMap, progress70, progress80);
-    std::thread t8 = std::thread(ThreadSafe_DoDirectLightingIntoLightMap, progress80, progress90);
-    std::thread t9 = std::thread(ThreadSafe_DoDirectLightingIntoLightMap, progress90, numpatches);
+    std::thread t0 = std::thread(&lightmapper_t::ThreadSafe_DoDirectLightingIntoLightMap, this, 0, progress10);
+    std::thread t1 = std::thread(&lightmapper_t::ThreadSafe_DoDirectLightingIntoLightMap, this, progress10, progress20);
+    std::thread t2 = std::thread(&lightmapper_t::ThreadSafe_DoDirectLightingIntoLightMap, this, progress20, progress30);
+    std::thread t3 = std::thread(&lightmapper_t::ThreadSafe_DoDirectLightingIntoLightMap, this, progress30, progress40);
+    std::thread t4 = std::thread(&lightmapper_t::ThreadSafe_DoDirectLightingIntoLightMap, this, progress40, progress50);
+    std::thread t5 = std::thread(&lightmapper_t::ThreadSafe_DoDirectLightingIntoLightMap, this, progress50, progress60);
+    std::thread t6 = std::thread(&lightmapper_t::ThreadSafe_DoDirectLightingIntoLightMap, this, progress60, progress70);
+    std::thread t7 = std::thread(&lightmapper_t::ThreadSafe_DoDirectLightingIntoLightMap, this, progress70, progress80);
+    std::thread t8 = std::thread(&lightmapper_t::ThreadSafe_DoDirectLightingIntoLightMap, this, progress80, progress90);
+    std::thread t9 = std::thread(&lightmapper_t::ThreadSafe_DoDirectLightingIntoLightMap, this, progress90, numpatches);
     t0.join();
     t1.join();
     t2.join();
@@ -396,8 +380,8 @@ void BakeStaticLighting(game_map_build_data_t& BuildData)
     glReadBuffer(GL_COLOR_ATTACHMENT0); // Asynchronously read pixel data into the PBO
     glBindBuffer(GL_PIXEL_PACK_BUFFER, HemicubePBO);
 
-    static float MultiplierMapTop[HemicubeFaceW*HemicubeFaceH];
-    static float MultiplierMapSide[HemicubeFaceW*HemicubeFaceHHalf];
+    float MultiplierMapTop[HemicubeFaceW*HemicubeFaceH];
+    float MultiplierMapSide[HemicubeFaceW*HemicubeFaceHHalf];
     float MultiplierBeforeNormalizeSum = 0.f;
     for (int p = 0; p < HemicubeFaceArea; ++p)
     {
@@ -464,8 +448,7 @@ void BakeStaticLighting(game_map_build_data_t& BuildData)
             stbrp_rect rect = lm_rects[i];
             if (rect.was_packed == 0) continue;
             ASSERT(rect.was_packed != 0);
-            MapEdit::Face *face = MapEdit::LevelEditorFaces.At(rect.id);
-            lm_face_t lmface = face->lightmap;
+            const lm_face_t& lmface = FaceLightmaps[rect.id];
             BlitRect((u8*)LIGHT_MAP_ATLAS, lightMapAtlasW, lightMapAtlasH, 
                 (u8*)lmface.light, lmface.w, lmface.h, rect.x, rect.y, sizeof(float));
         }
@@ -474,10 +457,9 @@ void BakeStaticLighting(game_map_build_data_t& BuildData)
             lightMapAtlasW, lightMapAtlasH);
 
 
-        for (int FaceIndex = 0; FaceIndex < MapEdit::LevelEditorFaces.count; ++FaceIndex)
+        for (int FaceIndex = 0; FaceIndex < (int)LightMapRectsCount; ++FaceIndex)
         {
-            MapEdit::Face *Face = MapEdit::LevelEditorFaces.At(FaceIndex);
-            lm_face_t& FaceLightMap = Face->lightmap;
+            const lm_face_t& FaceLightMap = FaceLightmaps[FaceIndex];
 
             // TODO reset "cache" - just an array for now
 
@@ -677,8 +659,7 @@ void BakeStaticLighting(game_map_build_data_t& BuildData)
         stbrp_rect rect = lm_rects[i];
         if (rect.was_packed == 0) continue;
         ASSERT(rect.was_packed != 0);
-        MapEdit::Face *face = MapEdit::LevelEditorFaces.At(rect.id);
-        lm_face_t lmface = face->lightmap;
+        const lm_face_t& lmface = FaceLightmaps[rect.id];
         BlitRect((u8*)LIGHT_MAP_ATLAS, lightMapAtlasW, lightMapAtlasH, 
             (u8*)lmface.light, lmface.w, lmface.h, rect.x, rect.y, sizeof(float));
     }
@@ -687,11 +668,27 @@ void BakeStaticLighting(game_map_build_data_t& BuildData)
     ByteBufferWriteBulk(&BuildData.Output, LIGHT_MAP_ATLAS, lightMapAtlasW*lightMapAtlasH*sizeof(float));
     arrfree(LIGHT_MAP_ATLAS);
 
-    arrfree(lm_rects);
+    size_t NumPatches = arrlenu(all_lm_pos);
+    size_t CapAllPatchData = arrcap(all_lm_pos);
+    size_t TotalAllocMemForPatchData
+        = sizeof(vec3)*arrcap(all_lm_pos)
+        + sizeof(vec3)*arrcap(all_lm_norm)
+        + sizeof(vec3)*arrcap(all_lm_tangent)
+        + sizeof(float)*arrcap(all_light_global)
+        + sizeof(float)*arrcap(all_light_direct)
+        + sizeof(float)*arrcap(all_light_indirect);
+    LogMessage("Filled %.1f%% (%zd/%zd) of allocated memory (%zd KB) lightmap baking intermediate data.", 
+        float(NumPatches)/float(CapAllPatchData)*100.f, NumPatches, CapAllPatchData,
+        TotalAllocMemForPatchData / 1000);
+
+    MapSurfaceColliders.clear();
+    LightMapOcclusionTree.TearDown();
+
+    lm_rects.free();
     arrfree(all_lm_pos);
     arrfree(all_lm_norm);
+    arrfree(all_lm_tangent);
     arrfree(all_light_global);
-    // arrfree(all_patches_id);
     arrfree(all_light_direct);
     arrfree(all_light_indirect);
 
