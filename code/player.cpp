@@ -134,7 +134,22 @@ void player_t::DoMovement(vec3 MovementDirection, bool inJump, bool inSwitchStan
             new_velocity += JumpSpeed * CharacterController->GetUp();
     }
     else
+    {
         new_velocity = current_vertical_velocity;
+        if (!moving_towards_ground)
+        {
+            const JPH::CharacterVirtual::ContactList& ContactResults = CharacterController->GetActiveContacts();
+            for (const JPH::CharacterVirtual::Contact& Result : ContactResults)
+            {
+                if (Result.mBodyB == LevelColliderBodyId
+                    && Result.mContactNormal.Dot(JPH::Vec3(0.f,-1.f,0.f)) > 0.9f)
+                {
+                    new_velocity = JPH::Vec3(0.f,0.f,0.f);
+                    break;
+                }
+            }
+        }
+    }
 
     // Gravity
     new_velocity += (character_up_rotation * mPhysicsSystem->GetGravity()) * FixedDeltaTime;
