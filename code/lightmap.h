@@ -37,6 +37,15 @@ struct game_map_build_data_t
     vec3 DirectionToSun = vec3();
 };
 
+constexpr float LightMapTexelSize = 16.f; // in world units
+constexpr int MaxNumTexels = 1000000; // size to alloc per intermediate data array
+constexpr int HemicubeFaceW = 100;
+constexpr int HemicubeFaceH = HemicubeFaceW;
+constexpr int HemicubeFaceWHalf = HemicubeFaceW/2;
+constexpr int HemicubeFaceHHalf = HemicubeFaceH/2;
+constexpr int HemicubeFaceArea = HemicubeFaceW*HemicubeFaceH;
+constexpr int HemicubeFaceAreaHalf = HemicubeFaceW*HemicubeFaceHHalf;
+
 struct lightmapper_t
 {
     void BakeStaticLighting(game_map_build_data_t& BuildData);
@@ -44,6 +53,8 @@ struct lightmapper_t
 private:
     void GenerateLightmapOcclusionTestTree();
     void PrepareFaceLightmapsAndTexelStorage();
+    void PackLightmapsAndMapLocalUVToGlobalUV();
+    void CreateMultiplierMap();
     void ThreadSafe_DoDirectLightingIntoLightMap(u32 patchIndexStart, u32 patchIndexEnd);
 
 private:
@@ -54,20 +65,18 @@ private:
     game_map_build_data_t *BuildDataShared = nullptr;
 
     dynamic_array<lm_face_t> FaceLightmaps;
+    dynamic_array<stbrp_rect> PackedLMRects;
     vec3 *all_lm_pos = NULL;
     vec3 *all_lm_norm = NULL;
     vec3 *all_lm_tangent = NULL;
     float *all_light_global = NULL;
     float *all_light_direct = NULL;
     float *all_light_indirect = NULL;
+
+private: // const
+    float MultiplierMapTop[HemicubeFaceArea];
+    float MultiplierMapSide[HemicubeFaceAreaHalf];
 };
 
 extern lightmapper_t Lightmapper;
-
-constexpr float LightMapTexelSize = 16.f; // in world units
-constexpr int MaxNumTexels = 1000000; // size to alloc per intermediate data array
-constexpr int HemicubeFaceW = 100;
-constexpr int HemicubeFaceH = HemicubeFaceW;
-constexpr int HemicubeFaceWHalf = HemicubeFaceW/2;
-constexpr int HemicubeFaceHHalf = HemicubeFaceH/2;
 

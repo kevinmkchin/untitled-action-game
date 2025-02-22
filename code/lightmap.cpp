@@ -9,225 +9,10 @@ lightmapper_t Lightmapper;
 LevelPolygonOctree LightMapOcclusionTree;
 std::vector<FlatPolygonCollider> MapSurfaceColliders;
 
-void lightmapper_t::ThreadSafe_DoDirectLightingIntoLightMap(u32 patchIndexStart, u32 patchIndexEnd)
-{
-    // calculate direct lighting for patchIndexStart upto and including patchIndexEnd-1
-
-    // 4x multisampling with sparse regular grid distribution
-    //  ____ 
-    // | *  |
-    // |   *|
-    // |*   |
-    // |  * |
-    //  ----
-
-    bool SunExists = BuildDataShared->DirectionToSun != vec3();
-    vec3 DLightIncidenceRay = Normalize(BuildDataShared->DirectionToSun);
-
-    for (u32 i = patchIndexStart; i < patchIndexEnd; ++i)
-    {
-        vec3 patch_position = all_lm_pos[i];
-        vec3 patch_normal = all_lm_norm[i];
-        vec3 patch_basisV = all_lm_tangent[i];
-        vec3 patch_basisU = Normalize(Cross(patch_basisV, patch_normal));
-
-        const float HalfLightMapPatchSz = LightMapTexelSize * 0.5f;
-        vec3 SamplePositions[4];
-        SamplePositions[0] = patch_position
-            + patch_basisU * 0.75f * HalfLightMapPatchSz + patch_basisV * 0.25f * HalfLightMapPatchSz;
-        SamplePositions[1] = patch_position
-            + patch_basisU * -0.25f * HalfLightMapPatchSz + patch_basisV * 0.75f * HalfLightMapPatchSz;
-        SamplePositions[2] = patch_position
-            + patch_basisU * -0.75f * HalfLightMapPatchSz + patch_basisV * -0.25f * HalfLightMapPatchSz;
-        SamplePositions[3] = patch_position
-            + patch_basisU * 0.25f * HalfLightMapPatchSz + patch_basisV * -0.75f * HalfLightMapPatchSz;
-
-        float SampleIntensityAccumulator = 0.f;
-
-        for (u32 sample = 0; sample < 4; ++sample)
-        {
-            if (SunExists)
-            {
-                float costheta = Dot(DLightIncidenceRay, patch_normal);
-                if (costheta > 0.f)
-                {
-                    // occlusion test
-                    LineCollider ray_collider;
-                    ray_collider.a = patch_position + DLightIncidenceRay * 32000.0f;
-                    ray_collider.b = patch_position + DLightIncidenceRay * 0.2f;
-                    bool occluded = false;
-
-                    if (LightMapOcclusionTree.Query(ray_collider))
-                    {
-                        occluded = true;
-                    }
-
-                    if (!occluded)
-                    {
-                        float intensity = costheta;
-                        intensity = GM_min(intensity, 1.0f);
-                        SampleIntensityAccumulator += intensity;
-                    }
-                }
-            }
-
-            for (size_t i = 0; i < BuildDataShared->PointLights.lenu(); ++i)
-            {
-                static_point_light_t PointLight = BuildDataShared->PointLights[i];
-
-                vec3 incidence_ray = PointLight.Pos - SamplePositions[sample];
-                float costheta = Dot(Normalize(incidence_ray), patch_normal);
-                if (costheta > 0.f)
-                {
-                    float dist = Magnitude(incidence_ray);
-
-                    // occlusion test
-                    LineCollider ray_collider;
-                    ray_collider.a = PointLight.Pos;
-                    ray_collider.b = PointLight.Pos - incidence_ray * 0.98f;
-                    bool occluded = false;
-
-                    if (LightMapOcclusionTree.Query(ray_collider))
-                    {
-                        occluded = true;
-                    }
-
-                    if (!occluded)
-                    {
-                        // point light attenuation
-                        // doing quadratic component is too dark when there is no gamma correction
-                        float atten_lin = 0.02f;
-                        float atten_quad = 0.00019f;
-                        float attenuation = 1.f / 
-                            (1.f + atten_lin * dist + atten_quad * dist * dist);
-                        float intensity = costheta * attenuation;
-                        intensity = GM_min(intensity, 1.0f);
-                        SampleIntensityAccumulator += intensity;
-                    }
-                }
-            }
-        }
-
-        all_light_direct[i] = SampleIntensityAccumulator * 0.25f;
-        // Copy direct light values into global to prep for first light bounce
-        all_light_global[i] = all_light_direct[i];
-    }
-}
-
-void lightmapper_t::GenerateLightmapOcclusionTestTree()
-{
-    std::vector<vec3>& ColliderWorldPoints = BuildDataShared->ColliderWorldPoints;
-    std::vector<u32>& ColliderSpans = BuildDataShared->ColliderSpans;
-
-    Bounds MapBounds = Bounds(vec3(-0.17f, -0.17f, -0.17f), vec3(8000, 8000, 8000));
-    LightMapOcclusionTree = LevelPolygonOctree(MapBounds, 100, 24);
-    MapSurfaceColliders.resize(ColliderSpans.size());
-    int iter = 0;
-    // later, when only some surfaces have colliders, can't use ColliderSpan, need to traverse all faces again
-    for (u32 i = 0; i < ColliderSpans.size(); ++i)
-    {
-        u32 span = ColliderSpans[i];
-        FlatPolygonCollider& surface = MapSurfaceColliders[i];
-        surface.pointCloudPtr = &ColliderWorldPoints[iter];
-        surface.pointCount = span;
-        iter += span;
-        LightMapOcclusionTree.Insert(&surface);
-    }
-}
-
-void lightmapper_t::PrepareFaceLightmapsAndTexelStorage()
-{
-    ASSERT(!FaceLightmaps.data);
-    FaceLightmaps.setcap(BuildDataShared->TotalFaceCount);
-
-    for (int i = 0; i < BuildDataShared->TotalFaceCount; ++i)
-    {
-        // calculate bounds, and divide into patches/texels
-        MapEdit::Face *face = MapEdit::LevelEditorFaces.At(i);
-
-        vec3 v0 = face->loopbase->v->pos;
-        vec3 v1 = face->loopbase->loopNext->v->pos;
-        vec3 v2 = face->loopbase->loopNext->loopNext->v->pos;
-        vec3 fn = Normalize(Cross(v1-v0, v2-v0));
-        vec3 basisU = Normalize(v1-v0);
-        vec3 basisV = Normalize(Cross(fn, basisU));
-
-        vec2 minuv = vec2(FLT_MAX, FLT_MAX);
-        vec2 maxuv = vec2(-FLT_MAX, -FLT_MAX);
-        std::vector<MapEdit::Loop*> loopcycle = face->GetLoopCycle();
-
-        for (MapEdit::Loop *loop : loopcycle)
-        {
-            vec3 p = loop->v->pos;
-            // Project 3D verts unto 2D plane using basis vectors U and V.
-            // Relative to v0.
-            float u = Dot(p-v0, basisU);
-            float v = Dot(p-v0, basisV);
-            minuv.x = fminf(minuv.x, u);
-            minuv.y = fminf(minuv.y, v);
-            maxuv.x = fmaxf(maxuv.x, u);
-            maxuv.y = fmaxf(maxuv.y, v);
-            vec2 basisUV = vec2(u,v);
-            loop->lmuvcache = basisUV; // store basisUV for processing
-        }
-        
-        // Adding padding texel around light map for bilinear filtering. 
-        minuv -= vec2(LightMapTexelSize, LightMapTexelSize);
-        maxuv += vec2(LightMapTexelSize, LightMapTexelSize);
-        vec2 dim = maxuv - minuv;
-        dim.x = ceilf(dim.x / LightMapTexelSize) * LightMapTexelSize;
-        dim.y = ceilf(dim.y / LightMapTexelSize) * LightMapTexelSize;
-
-        // lm uv
-        for (MapEdit::Loop *loop : loopcycle)
-        {
-            // map lm uv to a local [0,1] value
-            // after packing lm rects into larger light map atlas, these will be remapped
-            loop->lmuvcache -= minuv;
-            loop->lmuvcache.x /= dim.x;
-            loop->lmuvcache.y /= dim.y;
-            ASSERT(0.f <= loop->lmuvcache.x && loop->lmuvcache.x <= 1.f);
-            ASSERT(0.f <= loop->lmuvcache.y && loop->lmuvcache.y <= 1.f);
-            // at this point, lmuvcache stores the local uv
-        }
-
-        // lm data
-        lm_face_t lm;
-        lm.faceRef = face;
-        lm.w = (i32)(dim.x / LightMapTexelSize);
-        lm.h = (i32)(dim.y / LightMapTexelSize);
-        i32 lmsz = lm.w*lm.h;
-        lm.pos = arraddnptr(all_lm_pos, lmsz);
-        lm.norm = arraddnptr(all_lm_norm, lmsz);
-        lm.light = arraddnptr(all_light_global, lmsz);
-        lm.tangent = arraddnptr(all_lm_tangent, lmsz);
-        lm.light_direct = arraddnptr(all_light_direct, lmsz);
-        lm.light_indirect = arraddnptr(all_light_indirect, lmsz);
-        for (i32 pi = 0; pi < lmsz; ++pi)
-        {
-            i32 x = pi % lm.w;
-            i32 y = pi / lm.w;
-            float uSampleCenter = minuv.x + LightMapTexelSize*x + LightMapTexelSize*0.5f;
-            float vSampleCenter = minuv.y + LightMapTexelSize*y + LightMapTexelSize*0.5f;
-            // reverse the projection
-            vec3 p = v0 + uSampleCenter * basisU + vSampleCenter * basisV;
-            lm.pos[pi] = p;
-            lm.norm[pi] = fn;
-            lm.tangent[pi] = basisV;
-            lm.light[pi] = 0.f;
-            lm.light_direct[pi] = 0.f;
-            lm.light_indirect[pi] = 0.f;
-        }
-
-        FaceLightmaps.put(lm);
-    }
-}
 
 void lightmapper_t::BakeStaticLighting(game_map_build_data_t& BuildData)
 {
     BuildDataShared = &BuildData;
-
-    std::unordered_map<u32, std::vector<float>>& VertexBuffers = BuildData.VertexBuffers;
 
     GenerateLightmapOcclusionTestTree();
 
@@ -240,56 +25,7 @@ void lightmapper_t::BakeStaticLighting(game_map_build_data_t& BuildData)
 
     PrepareFaceLightmapsAndTexelStorage();
 
-    // Pack light maps
-    dynamic_array<stbrp_rect> lm_rects;
-    for (size_t i = 0; i < FaceLightmaps.lenu(); ++i)
-    {
-        stbrp_rect rect;
-        rect.id = (int)i;
-        rect.w = FaceLightmaps[i].w;
-        rect.h = FaceLightmaps[i].h;
-        lm_rects.put(rect);
-    }
-    stbrp_node *LMPackerNodes = NULL;
-    arrsetlen(LMPackerNodes, lightMapAtlasW);
-    stbrp_context LightMapPacker;
-    stbrp_init_target(&LightMapPacker, lightMapAtlasW, lightMapAtlasH, LMPackerNodes, (int)arrlenu(LMPackerNodes));
-    stbrp_pack_rects(&LightMapPacker, lm_rects.data, (int)lm_rects.lenu());
-    arrfree(LMPackerNodes);
-    size_t LightMapRectsCount = lm_rects.lenu();
-    for (size_t i = 0; i < LightMapRectsCount; ++i)
-    {
-        stbrp_rect rect = lm_rects[i];
-        if (rect.was_packed == 0) continue;
-        ASSERT(rect.was_packed != 0); // TODO(Kevin): additional light map atlases if couldn't fit into one
-
-        vec2 minuv = vec2((float)(rect.x) / (float)lightMapAtlasW, (float)(rect.y) / (float)lightMapAtlasH);
-        vec2 maxuv = vec2((float)(rect.x + rect.w) / (float)lightMapAtlasW, (float)(rect.y + rect.h) / (float)lightMapAtlasH);
-
-        MapEdit::Face *face = FaceLightmaps[rect.id].faceRef;
-        std::vector<MapEdit::Loop*> loopcycle = face->GetLoopCycle();
-        for (MapEdit::Loop *loop : loopcycle)
-        {
-            // Map lm uv from local to global in light map atlas
-            loop->lmuvcache.x = Lerp(minuv.x, maxuv.x, loop->lmuvcache.x); 
-            loop->lmuvcache.y = Lerp(minuv.y, maxuv.y, loop->lmuvcache.y); 
-        }
-    }
-
-    // Sort faces by their textures and generate vertex buffers
-    for (size_t i = 0; i < FaceLightmaps.lenu(); ++i)
-    {
-        MapEdit::Face *face = FaceLightmaps[i].faceRef;
-        db_tex_t tex = face->texture;
-        if (VertexBuffers.find(tex.persistId) == VertexBuffers.end())
-        {
-            VertexBuffers.emplace(tex.persistId, std::vector<float>());
-        }
-
-        std::vector<float>& vb = VertexBuffers.at(tex.persistId);
-        TriangulateFace_ForFaceBatch_QuickDumb(*face, &vb);
-    }
-
+    PackLightmapsAndMapLocalUVToGlobalUV();
 
     // direct lighting from emissive points and patches
     u32 numpatches = (u32)arrlenu(all_lm_norm);
@@ -315,20 +51,25 @@ void lightmapper_t::BakeStaticLighting(game_map_build_data_t& BuildData)
     std::thread t7 = std::thread(&lightmapper_t::ThreadSafe_DoDirectLightingIntoLightMap, this, progress70, progress80);
     std::thread t8 = std::thread(&lightmapper_t::ThreadSafe_DoDirectLightingIntoLightMap, this, progress80, progress90);
     std::thread t9 = std::thread(&lightmapper_t::ThreadSafe_DoDirectLightingIntoLightMap, this, progress90, numpatches);
-    t0.join();
-    t1.join();
-    t2.join();
-    t3.join();
-    t4.join();
-    t5.join();
-    t6.join();
-    t7.join();
-    t8.join();
-    t9.join();
 
     // indirect lighting
 
     face_batch_t SceneLightingModel;
+
+    // Sort faces by their textures and generate vertex buffers
+    std::unordered_map<u32, std::vector<float>>& VertexBuffers = BuildData.VertexBuffers;
+    for (size_t i = 0; i < FaceLightmaps.lenu(); ++i)
+    {
+        MapEdit::Face *face = FaceLightmaps[i].faceRef;
+        db_tex_t tex = face->texture;
+        if (VertexBuffers.find(tex.persistId) == VertexBuffers.end())
+        {
+            VertexBuffers.emplace(tex.persistId, std::vector<float>());
+        }
+
+        std::vector<float>& vb = VertexBuffers.at(tex.persistId);
+        TriangulateFace_ForFaceBatch_QuickDumb(*face, &vb);
+    }
 
     float *patches_vb = NULL; 
     for (auto& vbpair : VertexBuffers)
@@ -349,9 +90,6 @@ void lightmapper_t::BakeStaticLighting(game_map_build_data_t& BuildData)
         lightMapAtlasW, lightMapAtlasH, GL_R32F, GL_RED, GL_LINEAR, GL_LINEAR, GL_FLOAT);
 
 
-    const int HemicubeFaceArea = HemicubeFaceW * HemicubeFaceH;
-    const int HemicubeFaceAreaHalf = HemicubeFaceW * HemicubeFaceHHalf;
-    const float PixelAreaInSolidAngle = GM_PI / float(2 * HemicubeFaceW * HemicubeFaceH);
     GPUFrameBuffer HemicubeFBO; // the cube faces are laid out horizontally
     HemicubeFBO.width = HemicubeFaceW*5;
     HemicubeFBO.height = HemicubeFaceH;
@@ -380,60 +118,18 @@ void lightmapper_t::BakeStaticLighting(game_map_build_data_t& BuildData)
     glReadBuffer(GL_COLOR_ATTACHMENT0); // Asynchronously read pixel data into the PBO
     glBindBuffer(GL_PIXEL_PACK_BUFFER, HemicubePBO);
 
-    float MultiplierMapTop[HemicubeFaceW*HemicubeFaceH];
-    float MultiplierMapSide[HemicubeFaceW*HemicubeFaceHHalf];
-    float MultiplierBeforeNormalizeSum = 0.f;
-    for (int p = 0; p < HemicubeFaceArea; ++p)
-    {
-        // +0.5f for center of pixel
-        float XNorm = (float(p / HemicubeFaceW) + 0.5f) / float(HemicubeFaceHHalf) - 1.f;
-        float ZNorm = (float(p % HemicubeFaceW) + 0.5f) / float(HemicubeFaceWHalf) - 1.f;
-        float RSquared = XNorm*XNorm + ZNorm*ZNorm + 1.f;
+    CreateMultiplierMap();
 
-        // Since X and Z are normalized to [-1,1], distance in Y from patch to face is 1
-        vec3 PatchToPixelDir = Normalize(vec3(XNorm, 1.f, ZNorm));
-        vec3 CameraDirection = vec3(0.f, 1.f, 0.f);
-        float CosTheta = Dot(PatchToPixelDir, CameraDirection);
-
-        // For Top face, the surface normal is equal to CameraDirection. 
-        // Therefore, Lambert's Cosine Law gives the same result as CosTheta 
-        // I can just do CosTheta * CosTheta
-
-        // NOTE(Kevin): Ignacio Castano does SolidAngleOfPixel * CosTheta(for Lambert's law)
-        // That's the multiplier for the incoming radiance at that pixel
-        // See https://www.ludicon.com/castano/blog/articles/irradiance-caching-part-1/
-
-        float SolidAngleSubtendedByPixel = CosTheta/RSquared;
-        // NOTE(Kevin): CosTheta=1/r, so can simplify to SolidAngle = CosTheta^3
-        float MultiplierBeforeNormalize = SolidAngleSubtendedByPixel * CosTheta;
-        MultiplierBeforeNormalizeSum += MultiplierBeforeNormalize;
-
-        MultiplierMapTop[p] = MultiplierBeforeNormalize;
-    }
-    for (int p = HemicubeFaceAreaHalf; p < HemicubeFaceArea; ++p)
-    {
-        float YNorm = (float(p / HemicubeFaceW) + 0.5f) / float(HemicubeFaceHHalf) - 1.f;
-        float ZNorm = (float(p % HemicubeFaceW) + 0.5f) / float(HemicubeFaceWHalf) - 1.f;
-        float RSquared = YNorm*YNorm + ZNorm*ZNorm + 1.f;
-
-        vec3 PatchToPixelDir = Normalize(vec3(1.f, YNorm, ZNorm));
-        vec3 CameraDirection = vec3(1.f, 0.f, 0.f);
-        float CosTheta = Dot(PatchToPixelDir, CameraDirection);
-        vec3 SurfaceNormal = vec3(0.f, 1.f, 0.f);
-        float LambertsCosineLaw = Dot(SurfaceNormal, PatchToPixelDir);
-
-        float SolidAngleSubtendedByPixel = CosTheta/RSquared;
-        float MultiplierBeforeNormalize = SolidAngleSubtendedByPixel * LambertsCosineLaw;
-        MultiplierBeforeNormalizeSum += MultiplierBeforeNormalize * 4.f; // x4 cuz 4 side faces
-
-        MultiplierMapSide[p-HemicubeFaceAreaHalf] = MultiplierBeforeNormalize;
-    }
-    // Normalize MultiplierMap such that the sum of all pixels add up to 1
-    for (int p = 0; p < HemicubeFaceArea; ++p)
-        MultiplierMapTop[p] /= MultiplierBeforeNormalizeSum;
-    for (int p = HemicubeFaceAreaHalf; p < HemicubeFaceArea; ++p)
-        MultiplierMapSide[p-HemicubeFaceAreaHalf] /= MultiplierBeforeNormalizeSum;
-
+    t0.join();
+    t1.join();
+    t2.join();
+    t3.join();
+    t4.join();
+    t5.join();
+    t6.join();
+    t7.join();
+    t8.join();
+    t9.join();
 
 #define LM_BACKFACE_INDICATOR 0.69f
 #define LM_MARK_BAD_TEXEL -0.05f
@@ -443,9 +139,9 @@ void lightmapper_t::BakeStaticLighting(game_map_build_data_t& BuildData)
         // Copy the radiance info thus far to use for first light bounce
         // Would be just direct lighting for first bounce, but future bounces
         // would be direct light + accumulated indirect light.
-        for (size_t i = 0; i < LightMapRectsCount; ++i)
+        for (size_t i = 0; i < PackedLMRects.lenu(); ++i)
         {
-            stbrp_rect rect = lm_rects[i];
+            stbrp_rect rect = PackedLMRects[i];
             if (rect.was_packed == 0) continue;
             ASSERT(rect.was_packed != 0);
             const lm_face_t& lmface = FaceLightmaps[rect.id];
@@ -457,7 +153,7 @@ void lightmapper_t::BakeStaticLighting(game_map_build_data_t& BuildData)
             lightMapAtlasW, lightMapAtlasH);
 
 
-        for (int FaceIndex = 0; FaceIndex < (int)LightMapRectsCount; ++FaceIndex)
+        for (int FaceIndex = 0; FaceIndex < (int)PackedLMRects.lenu(); ++FaceIndex)
         {
             const lm_face_t& FaceLightMap = FaceLightmaps[FaceIndex];
 
@@ -655,9 +351,9 @@ void lightmapper_t::BakeStaticLighting(game_map_build_data_t& BuildData)
 
     i32 TotalUsedTexelsInLightmapAtlas = 0;
     // Final blit to light map atlas
-    for (size_t i = 0; i < LightMapRectsCount; ++i)
+    for (size_t i = 0; i < PackedLMRects.lenu(); ++i)
     {
-        stbrp_rect rect = lm_rects[i];
+        stbrp_rect rect = PackedLMRects[i];
         if (rect.was_packed == 0) continue;
         ASSERT(rect.was_packed != 0);
         const lm_face_t& lmface = FaceLightmaps[rect.id];
@@ -691,7 +387,8 @@ void lightmapper_t::BakeStaticLighting(game_map_build_data_t& BuildData)
     MapSurfaceColliders.clear();
     LightMapOcclusionTree.TearDown();
 
-    lm_rects.free();
+    FaceLightmaps.free();
+    PackedLMRects.free();
     arrfree(all_lm_pos);
     arrfree(all_lm_norm);
     arrfree(all_lm_tangent);
@@ -700,6 +397,316 @@ void lightmapper_t::BakeStaticLighting(game_map_build_data_t& BuildData)
     arrfree(all_light_indirect);
 
     BuildDataShared = nullptr;
+}
+
+void lightmapper_t::GenerateLightmapOcclusionTestTree()
+{
+    std::vector<vec3>& ColliderWorldPoints = BuildDataShared->ColliderWorldPoints;
+    std::vector<u32>& ColliderSpans = BuildDataShared->ColliderSpans;
+
+    Bounds MapBounds = Bounds(vec3(-0.17f, -0.17f, -0.17f), vec3(8000, 8000, 8000));
+    LightMapOcclusionTree = LevelPolygonOctree(MapBounds, 100, 24);
+    MapSurfaceColliders.resize(ColliderSpans.size());
+    int iter = 0;
+    // later, when only some surfaces have colliders, can't use ColliderSpan, need to traverse all faces again
+    for (u32 i = 0; i < ColliderSpans.size(); ++i)
+    {
+        u32 span = ColliderSpans[i];
+        FlatPolygonCollider& surface = MapSurfaceColliders[i];
+        surface.pointCloudPtr = &ColliderWorldPoints[iter];
+        surface.pointCount = span;
+        iter += span;
+        LightMapOcclusionTree.Insert(&surface);
+    }
+}
+
+void lightmapper_t::PrepareFaceLightmapsAndTexelStorage()
+{
+    ASSERT(!FaceLightmaps.data);
+    FaceLightmaps.setcap(BuildDataShared->TotalFaceCount);
+
+    for (int i = 0; i < BuildDataShared->TotalFaceCount; ++i)
+    {
+        // calculate bounds, and divide into patches/texels
+        MapEdit::Face *face = MapEdit::LevelEditorFaces.At(i);
+
+        vec3 v0 = face->loopbase->v->pos;
+        vec3 v1 = face->loopbase->loopNext->v->pos;
+        vec3 v2 = face->loopbase->loopNext->loopNext->v->pos;
+        vec3 fn = Normalize(Cross(v1-v0, v2-v0));
+        vec3 basisU = Normalize(v1-v0);
+        vec3 basisV = Normalize(Cross(fn, basisU));
+
+        vec2 minuv = vec2(FLT_MAX, FLT_MAX);
+        vec2 maxuv = vec2(-FLT_MAX, -FLT_MAX);
+        std::vector<MapEdit::Loop*> loopcycle = face->GetLoopCycle();
+
+        for (MapEdit::Loop *loop : loopcycle)
+        {
+            vec3 p = loop->v->pos;
+            // Project 3D verts unto 2D plane using basis vectors U and V.
+            // Relative to v0.
+            float u = Dot(p-v0, basisU);
+            float v = Dot(p-v0, basisV);
+            minuv.x = fminf(minuv.x, u);
+            minuv.y = fminf(minuv.y, v);
+            maxuv.x = fmaxf(maxuv.x, u);
+            maxuv.y = fmaxf(maxuv.y, v);
+            vec2 basisUV = vec2(u,v);
+            loop->lmuvcache = basisUV; // store basisUV for processing
+        }
+        
+        // Adding padding texel around light map for bilinear filtering. 
+        minuv -= vec2(LightMapTexelSize, LightMapTexelSize);
+        maxuv += vec2(LightMapTexelSize, LightMapTexelSize);
+        vec2 dim = maxuv - minuv;
+        dim.x = ceilf(dim.x / LightMapTexelSize) * LightMapTexelSize;
+        dim.y = ceilf(dim.y / LightMapTexelSize) * LightMapTexelSize;
+
+        // lm uv
+        for (MapEdit::Loop *loop : loopcycle)
+        {
+            // map lm uv to a local [0,1] value
+            // after packing lm rects into larger light map atlas, these will be remapped
+            loop->lmuvcache -= minuv;
+            loop->lmuvcache.x /= dim.x;
+            loop->lmuvcache.y /= dim.y;
+            ASSERT(0.f <= loop->lmuvcache.x && loop->lmuvcache.x <= 1.f);
+            ASSERT(0.f <= loop->lmuvcache.y && loop->lmuvcache.y <= 1.f);
+            // at this point, lmuvcache stores the local uv
+        }
+
+        // lm data
+        lm_face_t lm;
+        lm.faceRef = face;
+        lm.w = (i32)(dim.x / LightMapTexelSize);
+        lm.h = (i32)(dim.y / LightMapTexelSize);
+        i32 lmsz = lm.w*lm.h;
+        lm.pos = arraddnptr(all_lm_pos, lmsz);
+        lm.norm = arraddnptr(all_lm_norm, lmsz);
+        lm.light = arraddnptr(all_light_global, lmsz);
+        lm.tangent = arraddnptr(all_lm_tangent, lmsz);
+        lm.light_direct = arraddnptr(all_light_direct, lmsz);
+        lm.light_indirect = arraddnptr(all_light_indirect, lmsz);
+        for (i32 pi = 0; pi < lmsz; ++pi)
+        {
+            i32 x = pi % lm.w;
+            i32 y = pi / lm.w;
+            float uSampleCenter = minuv.x + LightMapTexelSize*x + LightMapTexelSize*0.5f;
+            float vSampleCenter = minuv.y + LightMapTexelSize*y + LightMapTexelSize*0.5f;
+            // reverse the projection
+            vec3 p = v0 + uSampleCenter * basisU + vSampleCenter * basisV;
+            lm.pos[pi] = p;
+            lm.norm[pi] = fn;
+            lm.tangent[pi] = basisV;
+            lm.light[pi] = 0.f;
+            lm.light_direct[pi] = 0.f;
+            lm.light_indirect[pi] = 0.f;
+        }
+
+        FaceLightmaps.put(lm);
+    }
+}
+
+void lightmapper_t::PackLightmapsAndMapLocalUVToGlobalUV()
+{
+    ASSERT(!PackedLMRects.data);
+
+    // Pack light maps
+    for (size_t i = 0; i < FaceLightmaps.lenu(); ++i)
+    {
+        stbrp_rect rect;
+        rect.id = (int)i;
+        rect.w = FaceLightmaps[i].w;
+        rect.h = FaceLightmaps[i].h;
+        PackedLMRects.put(rect);
+    }
+    stbrp_node *LMPackerNodes = NULL;
+    arrsetlen(LMPackerNodes, lightMapAtlasW);
+    stbrp_context LightMapPacker;
+    stbrp_init_target(&LightMapPacker, lightMapAtlasW, lightMapAtlasH, LMPackerNodes, (int)arrlenu(LMPackerNodes));
+    stbrp_pack_rects(&LightMapPacker, PackedLMRects.data, (int)PackedLMRects.lenu());
+    arrfree(LMPackerNodes);
+    for (size_t i = 0; i < PackedLMRects.lenu(); ++i)
+    {
+        stbrp_rect rect = PackedLMRects[i];
+        if (rect.was_packed == 0) continue;
+        ASSERT(rect.was_packed != 0); // TODO(Kevin): additional light map atlases if couldn't fit into one
+
+        vec2 minuv = vec2((float)(rect.x) / (float)lightMapAtlasW, (float)(rect.y) / (float)lightMapAtlasH);
+        vec2 maxuv = vec2((float)(rect.x + rect.w) / (float)lightMapAtlasW, (float)(rect.y + rect.h) / (float)lightMapAtlasH);
+
+        MapEdit::Face *face = FaceLightmaps[rect.id].faceRef;
+        std::vector<MapEdit::Loop*> loopcycle = face->GetLoopCycle();
+        for (MapEdit::Loop *loop : loopcycle)
+        {
+            // Map lm uv from local to global in light map atlas
+            loop->lmuvcache.x = Lerp(minuv.x, maxuv.x, loop->lmuvcache.x); 
+            loop->lmuvcache.y = Lerp(minuv.y, maxuv.y, loop->lmuvcache.y); 
+        }
+    }
+}
+
+void lightmapper_t::CreateMultiplierMap()
+{
+    // this hemicube texels multiplier map only needs to be created once
+
+    float MultiplierBeforeNormalizeSum = 0.f;
+    for (int p = 0; p < HemicubeFaceArea; ++p)
+    {
+        // +0.5f for center of pixel
+        float XNorm = (float(p / HemicubeFaceW) + 0.5f) / float(HemicubeFaceHHalf) - 1.f;
+        float ZNorm = (float(p % HemicubeFaceW) + 0.5f) / float(HemicubeFaceWHalf) - 1.f;
+        float RSquared = XNorm*XNorm + ZNorm*ZNorm + 1.f;
+
+        // Since X and Z are normalized to [-1,1], distance in Y from patch to face is 1
+        vec3 PatchToPixelDir = Normalize(vec3(XNorm, 1.f, ZNorm));
+        vec3 CameraDirection = vec3(0.f, 1.f, 0.f);
+        float CosTheta = Dot(PatchToPixelDir, CameraDirection);
+
+        // For Top face, the surface normal is equal to CameraDirection. 
+        // Therefore, Lambert's Cosine Law gives the same result as CosTheta 
+        // I can just do CosTheta * CosTheta
+
+        // NOTE(Kevin): Ignacio Castano does SolidAngleOfPixel * CosTheta(for Lambert's law)
+        // That's the multiplier for the incoming radiance at that pixel
+        // See https://www.ludicon.com/castano/blog/articles/irradiance-caching-part-1/
+
+        float SolidAngleSubtendedByPixel = CosTheta/RSquared;
+        // NOTE(Kevin): CosTheta=1/r, so can simplify to SolidAngle = CosTheta^3
+        float MultiplierBeforeNormalize = SolidAngleSubtendedByPixel * CosTheta;
+        MultiplierBeforeNormalizeSum += MultiplierBeforeNormalize;
+
+        MultiplierMapTop[p] = MultiplierBeforeNormalize;
+    }
+    for (int p = HemicubeFaceAreaHalf; p < HemicubeFaceArea; ++p)
+    {
+        float YNorm = (float(p / HemicubeFaceW) + 0.5f) / float(HemicubeFaceHHalf) - 1.f;
+        float ZNorm = (float(p % HemicubeFaceW) + 0.5f) / float(HemicubeFaceWHalf) - 1.f;
+        float RSquared = YNorm*YNorm + ZNorm*ZNorm + 1.f;
+
+        vec3 PatchToPixelDir = Normalize(vec3(1.f, YNorm, ZNorm));
+        vec3 CameraDirection = vec3(1.f, 0.f, 0.f);
+        float CosTheta = Dot(PatchToPixelDir, CameraDirection);
+        vec3 SurfaceNormal = vec3(0.f, 1.f, 0.f);
+        float LambertsCosineLaw = Dot(SurfaceNormal, PatchToPixelDir);
+
+        float SolidAngleSubtendedByPixel = CosTheta/RSquared;
+        float MultiplierBeforeNormalize = SolidAngleSubtendedByPixel * LambertsCosineLaw;
+        MultiplierBeforeNormalizeSum += MultiplierBeforeNormalize * 4.f; // x4 cuz 4 side faces
+
+        MultiplierMapSide[p-HemicubeFaceAreaHalf] = MultiplierBeforeNormalize;
+    }
+    // Normalize MultiplierMap such that the sum of all pixels add up to 1
+    for (int p = 0; p < HemicubeFaceArea; ++p)
+        MultiplierMapTop[p] /= MultiplierBeforeNormalizeSum;
+    for (int p = HemicubeFaceAreaHalf; p < HemicubeFaceArea; ++p)
+        MultiplierMapSide[p-HemicubeFaceAreaHalf] /= MultiplierBeforeNormalizeSum;
+}
+
+void lightmapper_t::ThreadSafe_DoDirectLightingIntoLightMap(u32 patchIndexStart, u32 patchIndexEnd)
+{
+    // calculate direct lighting for patchIndexStart upto and including patchIndexEnd-1
+
+    // 4x multisampling with sparse regular grid distribution
+    //  ____ 
+    // | *  |
+    // |   *|
+    // |*   |
+    // |  * |
+    //  ----
+
+    bool SunExists = BuildDataShared->DirectionToSun != vec3();
+    vec3 DLightIncidenceRay = Normalize(BuildDataShared->DirectionToSun);
+
+    for (u32 i = patchIndexStart; i < patchIndexEnd; ++i)
+    {
+        vec3 patch_position = all_lm_pos[i];
+        vec3 patch_normal = all_lm_norm[i];
+        vec3 patch_basisV = all_lm_tangent[i];
+        vec3 patch_basisU = Normalize(Cross(patch_basisV, patch_normal));
+
+        const float HalfLightMapPatchSz = LightMapTexelSize * 0.5f;
+        vec3 SamplePositions[4];
+        SamplePositions[0] = patch_position
+            + patch_basisU * 0.75f * HalfLightMapPatchSz + patch_basisV * 0.25f * HalfLightMapPatchSz;
+        SamplePositions[1] = patch_position
+            + patch_basisU * -0.25f * HalfLightMapPatchSz + patch_basisV * 0.75f * HalfLightMapPatchSz;
+        SamplePositions[2] = patch_position
+            + patch_basisU * -0.75f * HalfLightMapPatchSz + patch_basisV * -0.25f * HalfLightMapPatchSz;
+        SamplePositions[3] = patch_position
+            + patch_basisU * 0.25f * HalfLightMapPatchSz + patch_basisV * -0.75f * HalfLightMapPatchSz;
+
+        float SampleIntensityAccumulator = 0.f;
+
+        for (u32 sample = 0; sample < 4; ++sample)
+        {
+            if (SunExists)
+            {
+                float costheta = Dot(DLightIncidenceRay, patch_normal);
+                if (costheta > 0.f)
+                {
+                    // occlusion test
+                    LineCollider ray_collider;
+                    ray_collider.a = patch_position + DLightIncidenceRay * 32000.0f;
+                    ray_collider.b = patch_position + DLightIncidenceRay * 0.2f;
+                    bool occluded = false;
+
+                    if (LightMapOcclusionTree.Query(ray_collider))
+                    {
+                        occluded = true;
+                    }
+
+                    if (!occluded)
+                    {
+                        float intensity = costheta;
+                        intensity = GM_min(intensity, 1.0f);
+                        SampleIntensityAccumulator += intensity;
+                    }
+                }
+            }
+
+            for (size_t i = 0; i < BuildDataShared->PointLights.lenu(); ++i)
+            {
+                static_point_light_t PointLight = BuildDataShared->PointLights[i];
+
+                vec3 incidence_ray = PointLight.Pos - SamplePositions[sample];
+                float costheta = Dot(Normalize(incidence_ray), patch_normal);
+                if (costheta > 0.f)
+                {
+                    float dist = Magnitude(incidence_ray);
+
+                    // occlusion test
+                    LineCollider ray_collider;
+                    ray_collider.a = PointLight.Pos;
+                    ray_collider.b = PointLight.Pos - incidence_ray * 0.98f;
+                    bool occluded = false;
+
+                    if (LightMapOcclusionTree.Query(ray_collider))
+                    {
+                        occluded = true;
+                    }
+
+                    if (!occluded)
+                    {
+                        // point light attenuation
+                        // doing quadratic component is too dark when there is no gamma correction
+                        float atten_lin = 0.02f;
+                        float atten_quad = 0.00019f;
+                        float attenuation = 1.f / 
+                            (1.f + atten_lin * dist + atten_quad * dist * dist);
+                        float intensity = costheta * attenuation;
+                        intensity = GM_min(intensity, 1.0f);
+                        SampleIntensityAccumulator += intensity;
+                    }
+                }
+            }
+        }
+
+        all_light_direct[i] = SampleIntensityAccumulator * 0.25f;
+        // Copy direct light values into global to prep for first light bounce
+        all_light_global[i] = all_light_direct[i];
+    }
 }
 
 
