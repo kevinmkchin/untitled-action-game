@@ -122,6 +122,21 @@ void lightmapper_t::BakeStaticLighting(game_map_build_data_t& BuildData)
 
     for (int bounces = 0; bounces < 2; ++bounces)
     {
+        // Copy the radiance info thus far
+        // Would be just direct lighting for first bounce, but future bounces
+        // would be direct light + accumulated indirect light.
+        for (size_t i = 0; i < PackedLMRects.lenu(); ++i)
+        {
+            stbrp_rect rect = PackedLMRects[i];
+            if (rect.was_packed == 0) continue;
+            ASSERT(rect.was_packed != 0);
+            const lm_face_t& lmface = FaceLightmaps[rect.id];
+            BlitRect((u8*)LIGHT_MAP_ATLAS, lightMapAtlasW, lightMapAtlasH, 
+                (u8*)lmface.light, lmface.w, lmface.h, rect.x, rect.y, sizeof(float));
+        }
+        // Update SceneLightingModel to use the updated radiance information
+        UpdateGPUTextureFromBitmap(&SceneLightingModel.LightMapTexture, (u8*)LIGHT_MAP_ATLAS,
+            lightMapAtlasW, lightMapAtlasH);
 
 
         for (int FaceIndex = 0; FaceIndex < (int)PackedLMRects.lenu(); ++FaceIndex)
