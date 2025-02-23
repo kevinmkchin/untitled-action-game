@@ -9,6 +9,8 @@ I could port the GL code to Vulkan
 TODO:
 
 - try simple irradiance caching?
+    - try without gradients to first see how much performance improves
+      and see if it motivates calculating proper translation gradients
 
 = I can start making and importing proper character models and animations
 = I can start making proper textures
@@ -701,13 +703,13 @@ int main(int argc, char* argv[])
 
     InitializeGame();
 
-    LevelEditor.LoadMap(wd_path("LightTest.emf").c_str());
-    BuildGameMap(wd_path("buildtest.map").c_str());
-    LoadLevel(wd_path("buildtest.map").c_str());
+    // LevelEditor.LoadMap(wd_path("LightTest.emf").c_str());
+    // BuildGameMap(wd_path("buildtest.map").c_str());
+    // LoadLevel(wd_path("buildtest.map").c_str());
 
-    // LevelEditor.LoadMap(wd_path("House.emf").c_str());
-    // BuildGameMap(wd_path("buildtest2.map").c_str());
-    // LoadLevel(wd_path("buildtest2.map").c_str());
+    LevelEditor.LoadMap(wd_path("House.emf").c_str());
+    BuildGameMap(wd_path("buildtest2.map").c_str());
+    LoadLevel(wd_path("buildtest2.map").c_str());
 
     // LoadLevel(wd_path("House.map").c_str());
 

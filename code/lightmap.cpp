@@ -120,6 +120,9 @@ void lightmapper_t::BakeStaticLighting(game_map_build_data_t& BuildData)
 #define LM_BACKFACE_INDICATOR 0.69f
 #define LM_MARK_BAD_TEXEL -0.05f
 
+    dynamic_array<irradiance_record_placement_t> RecordPlacements;
+    dynamic_array<irradiance_record_data_t>      RecordData;
+
     for (int bounces = 0; bounces < 2; ++bounces)
     {
         // Copy the radiance info thus far
@@ -141,35 +144,97 @@ void lightmapper_t::BakeStaticLighting(game_map_build_data_t& BuildData)
 
         for (int FaceIndex = 0; FaceIndex < (int)PackedLMRects.lenu(); ++FaceIndex)
         {
-            // TODO reset "cache" - just an array for now
+            RecordPlacements.setlen(0);
+            RecordData.setlen(0);
 
             const lm_face_t& FaceLightmap = FaceLightmaps[FaceIndex];
             u32 NumTexelsOnFace = FaceLightmap.w * FaceLightmap.h;
             for (u32 TexelOffset = 0; TexelOffset < NumTexelsOnFace; ++TexelOffset)
             {
-                CalcBounceLightForTexel(FaceLightmap, TexelOffset, NumFloatsPerHemicubeFace);
+
+                bool CoveredByCache = false;
+                for (size_t i = 0; i < RecordPlacements.lenu(); ++i)
+                {
+                    const irradiance_record_placement_t& Entry = RecordPlacements[i];
+                    float Dist = Magnitude(Entry.Position - FaceLightmap.pos[TexelOffset]);
+                    if (Dist < Entry.Radius)
+                    {
+                        CoveredByCache = true;
+                        break;
+                    }
+                }
+                if (CoveredByCache) 
+                    continue;
+
+                bool IsValid = CalcBounceLightForTexel(FaceLightmap, TexelOffset, NumFloatsPerHemicubeFace);
+
+                if (IsValid)
+                {
+                    // add irradiance sample record
+                    irradiance_record_placement_t PlacementEntry;
+                    PlacementEntry.Position = FaceLightmap.pos[TexelOffset];
+                    PlacementEntry.Radius = DepthHarmonicMean * 0.3f;
+                    irradiance_record_data_t DataEntry;
+                    DataEntry.Irradiance = FaceLightmap.light_indirect[TexelOffset];
+                    // DataEntry.Gradient = IrradianceGradient;
+                    // DataEntry.Normal = patch_i_normal;
+                    RecordPlacements.put(PlacementEntry);
+                    RecordData.put(DataEntry);
+                }
             }
 
-            // some post processing?
+            for (u32 TexelOffset = 0; TexelOffset < NumTexelsOnFace; ++TexelOffset)
+            {
+                // if (ignore) 
+                //     continue;
 
-            // // TODO Irradiance Cache population is complete for this face
-            // //      Now go through every texel of this face again and perform interpolation!
-            // //      Unless the texel was a hemicube sampled texel (exact irradiance known)
-            // //      need to communicate that somehow
-            // // set just the all_light_indirect buffer
-            // for (u32 i = 0; i < NumTexelsOnFace; ++i)
-            // {
-            //     // TODO check if texel should be sampled or ignored
-            //     // if (ignore) 
-            //     //     continue;
+                // if should be sampled, then it must be covered by at least one cache entry
+                // if it is not covered, then something went wrong!!!
 
-            //     // if should be sampled, then it must be covered by at least one cache entry
-            //     // if it is not covered, then something went wrong!!!
+                vec3 TexelPos = FaceLightmap.pos[TexelOffset];
+                float TexelIrradiance = 0.f;
+                float ValidCacheEntryWeightSum = 0.f;
 
-            //     float IrradianceAtTexel = 0.f;
-            //     FaceLightmap.light_indirect[i] = IrradianceAtTexel;
-            // }
-            // // At this point, all_light_indirect for the texels we care about have been updated
+                u32 CacheSize = (u32)RecordPlacements.lenu();
+                for (u32 j = 0; j < CacheSize; ++j)
+                {
+                    const irradiance_record_placement_t& CacheEntry = RecordPlacements[j];
+
+                    vec3 TranslationDelta = TexelPos - CacheEntry.Position;
+                    float LenDelta = Magnitude(TranslationDelta);
+                    if (LenDelta <= 0.001f)
+                    {
+                        const irradiance_record_data_t& DataEntry = RecordData[j];
+                        TexelIrradiance = DataEntry.Irradiance;
+                        ValidCacheEntryWeightSum = 1.f;
+                        break;
+                    }
+                    else if (LenDelta <= CacheEntry.Radius)
+                    {
+                        const irradiance_record_data_t& DataEntry = RecordData[j];
+                        // float w = Dot(TranslationDelta, CacheEntry.Eigenvector) / CacheEntry.Radius;
+                        // float t = sqrtf(2.f * powf(w, 2));
+                        // float Weight = 1.f - t;
+                        // float Weight = 1.f - (LenDelta / CacheEntry.Radius);
+                        float Weight = 1.f / ((LenDelta / CacheEntry.Radius) + sqrtf(2.f));
+                        ValidCacheEntryWeightSum += Weight;
+                        TexelIrradiance += Weight * DataEntry.Irradiance;
+                        // TexelIrradiance += Weight * (CacheEntry.Irradiance 
+                        //    + Dot(CacheEntry.Gradient, TranslationDelta));
+                    }
+                }
+
+                if (ValidCacheEntryWeightSum != 0.f)
+                {
+                    TexelIrradiance /= ValidCacheEntryWeightSum;
+                    FaceLightmap.light_indirect[TexelOffset] = TexelIrradiance;
+                }
+                else
+                {
+                    // no record entries cover this texel somehow
+                    FaceLightmap.light_indirect[TexelOffset] = 0.f;
+                }
+            }
         }
 
         // Update global illumination buffer
@@ -463,7 +528,7 @@ void lightmapper_t::CreateMultiplierMap()
         MultiplierMapSide[p-HemicubeFaceAreaHalf] /= MultiplierBeforeNormalizeSum;
 }
 
-void lightmapper_t::CalcBounceLightForTexel(const lm_face_t& FaceLightmap, 
+bool lightmapper_t::CalcBounceLightForTexel(const lm_face_t& FaceLightmap, 
     u32 TexelOffset, const GLsizeiptr NumFloatsPerHemicubeFace)
 {
     // if (FaceIndex == 1 && TexelOffset >= 50 && TexelOffset < 52)
@@ -489,7 +554,7 @@ void lightmapper_t::CalcBounceLightForTexel(const lm_face_t& FaceLightmap,
     // patch_i_basisV = RotateVector(patch_i_basisV, quat((float)rand()/GM_TWOPI, patch_i_normal));
     vec3 patch_i_basisU = Normalize(Cross(patch_i_basisV, patch_i_normal));
 
-    glClearColor(0.f,0.f,0.f,1.f);
+    glClearColor(0.f,32000.f,0.f,1.f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     glViewport(0, 0, HemicubeFaceW, HemicubeFaceH);
@@ -542,6 +607,7 @@ void lightmapper_t::CalcBounceLightForTexel(const lm_face_t& FaceLightmap,
     const int BackfaceTolerance = (HemicubeFaceArea + HemicubeFaceAreaHalf * 4) / 10;
     float RadiositiesAccumulator = 0.f;
 
+    float depth_inv_sum = 0;
     for (int p = 0; p < HemicubeFaceArea; ++p)
     {
         vec4 HemicubePixel = { FrontFaceData[p*4], FrontFaceData[p*4+1], 
@@ -550,6 +616,10 @@ void lightmapper_t::CalcBounceLightForTexel(const lm_face_t& FaceLightmap,
         float Radiance = HemicubePixel.x;
         float DifferentialFormFactor = MultiplierMapTop[p];
         RadiositiesAccumulator += DifferentialFormFactor * Radiance;
+        // Depth min and harmonic mean:
+        float Depth = HemicubePixel.y;
+        float abs_depth = GM_max(1.f, min(32000.0f, fabsf(Depth)));
+        depth_inv_sum += 1.0f / abs_depth; // to compute harmonic mean
 
         if (HemicubePixel.w == LM_BACKFACE_INDICATOR)
             ++BackfacePixelCount;
@@ -563,6 +633,10 @@ void lightmapper_t::CalcBounceLightForTexel(const lm_face_t& FaceLightmap,
         Radiance = HemicubePixel.x;
         DifferentialFormFactor = MultiplierMapSide[p-HemicubeFaceAreaHalf];
         RadiositiesAccumulator += DifferentialFormFactor * Radiance;
+        // Depth min and harmonic mean:
+        Depth = HemicubePixel.y;
+        abs_depth = GM_max(1.f, min(32000.0f, fabsf(Depth)));
+        depth_inv_sum += 1.0f / abs_depth;
 
         if (HemicubePixel.w == LM_BACKFACE_INDICATOR)
             ++BackfacePixelCount;
@@ -572,6 +646,10 @@ void lightmapper_t::CalcBounceLightForTexel(const lm_face_t& FaceLightmap,
         Radiance = HemicubePixel.x;
         DifferentialFormFactor = MultiplierMapSide[p-HemicubeFaceAreaHalf];
         RadiositiesAccumulator += DifferentialFormFactor * Radiance;
+        // Depth min and harmonic mean:
+        Depth = HemicubePixel.y;
+        abs_depth = GM_max(1.f, min(32000.0f, fabsf(Depth)));
+        depth_inv_sum += 1.0f / abs_depth;
 
         if (HemicubePixel.w == LM_BACKFACE_INDICATOR)
             ++BackfacePixelCount;
@@ -581,6 +659,10 @@ void lightmapper_t::CalcBounceLightForTexel(const lm_face_t& FaceLightmap,
         Radiance = HemicubePixel.x;
         DifferentialFormFactor = MultiplierMapSide[p-HemicubeFaceAreaHalf];
         RadiositiesAccumulator += DifferentialFormFactor * Radiance;
+        // Depth min and harmonic mean:
+        Depth = HemicubePixel.y;
+        abs_depth = GM_max(1.f, min(32000.0f, fabsf(Depth)));
+        depth_inv_sum += 1.0f / abs_depth;
 
         if (HemicubePixel.w == LM_BACKFACE_INDICATOR)
             ++BackfacePixelCount;
@@ -590,6 +672,10 @@ void lightmapper_t::CalcBounceLightForTexel(const lm_face_t& FaceLightmap,
         Radiance = HemicubePixel.x;
         DifferentialFormFactor = MultiplierMapSide[p-HemicubeFaceAreaHalf];
         RadiositiesAccumulator += DifferentialFormFactor * Radiance;
+        // Depth min and harmonic mean:
+        Depth = HemicubePixel.y;
+        abs_depth = GM_max(1.f, min(32000.0f, fabsf(Depth)));
+        depth_inv_sum += 1.0f / abs_depth;
         
         if (HemicubePixel.w == LM_BACKFACE_INDICATOR)
             ++BackfacePixelCount;
@@ -598,16 +684,20 @@ void lightmapper_t::CalcBounceLightForTexel(const lm_face_t& FaceLightmap,
             break;
     }
 
-    if (BackfacePixelCount > BackfaceTolerance)
-    {
-        // TODO then what do I do about this texel?
-        RadiositiesAccumulator = 0.f;
-        // RadiositiesAccumulator = LM_MARK_BAD_TEXEL;
-    }
-
-    *(FaceLightmap.light_indirect + TexelOffset) = RadiositiesAccumulator;
+    DepthHarmonicMean = HemicubeFaceArea * 3 / depth_inv_sum;
 
     glUnmapBuffer(GL_PIXEL_PACK_BUFFER);
+
+    if (BackfacePixelCount > BackfaceTolerance)
+    {
+        *(FaceLightmap.light_indirect + TexelOffset) = 0.f;
+        return false;
+    }
+    else
+    {
+        *(FaceLightmap.light_indirect + TexelOffset) = RadiositiesAccumulator;
+        return true;
+    }
 }
 
 void lightmapper_t::ThreadSafe_DoDirectLightingIntoLightMap(u32 patchIndexStart, u32 patchIndexEnd)

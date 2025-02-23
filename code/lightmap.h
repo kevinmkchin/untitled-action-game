@@ -1,19 +1,5 @@
 #pragma once
 
-struct lm_face_t
-{
-    // texel data
-    vec3  *pos = NULL;
-    vec3  *norm = NULL;
-    vec3  *tangent = NULL;
-    float *light = NULL;
-    float *light_direct = NULL;
-    float *light_indirect = NULL;
-    // dimensions
-    i32 w = -1;
-    i32 h = -1;
-    MapEdit::Face *faceRef;
-};
 
 struct static_point_light_t
 {
@@ -37,7 +23,35 @@ struct game_map_build_data_t
     vec3 DirectionToSun = vec3();
 };
 
-constexpr float LightMapTexelSize = 8.f; // in world units
+struct lm_face_t
+{
+    // texel data
+    vec3  *pos = NULL;
+    vec3  *norm = NULL;
+    vec3  *tangent = NULL;
+    float *light = NULL;
+    float *light_direct = NULL;
+    float *light_indirect = NULL;
+    // dimensions
+    i32 w = -1;
+    i32 h = -1;
+    MapEdit::Face *faceRef;
+};
+
+struct irradiance_record_placement_t
+{
+    vec3  Position;
+    float Radius;
+};
+
+struct irradiance_record_data_t
+{
+    // vec3  Normal;
+    float Irradiance;
+    // vec3  Gradient;
+};
+
+constexpr float LightMapTexelSize = 4.f; // in world units
 constexpr int MaxNumTexels = 1000000; // size to alloc per intermediate data array
 constexpr int HemicubeFaceW = 100;
 constexpr int HemicubeFaceH = HemicubeFaceW;
@@ -56,7 +70,7 @@ private:
     void PackLightmapsAndMapLocalUVToGlobalUV();
     void GenerateLevelVertices();
     void CreateMultiplierMap();
-    void CalcBounceLightForTexel(const lm_face_t& FaceLightmap, 
+    bool CalcBounceLightForTexel(const lm_face_t& FaceLightmap, 
         u32 TexelOffset, const GLsizeiptr NumFloatsPerFace);
 
     void ThreadSafe_DoDirectLightingIntoLightMap(u32 patchIndexStart, u32 patchIndexEnd);
@@ -80,6 +94,8 @@ private:
     face_batch_t SceneLightingModel;
     float MultiplierMapTop[HemicubeFaceArea];
     float MultiplierMapSide[HemicubeFaceAreaHalf];
+
+    float DepthHarmonicMean;
 };
 
 extern lightmapper_t Lightmapper;
