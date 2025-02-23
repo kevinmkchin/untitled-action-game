@@ -8,8 +8,6 @@ I could port the GL code to Vulkan
 
 TODO:
 
-- try simple irradiance caching?
-
 = I can start making and importing proper character models and animations
 = I can start making proper textures
 
@@ -44,36 +42,14 @@ TODO:
 - Finish Winged brep editing atomics
 - Edge select
 - Edge loop
+- larger hemicube atlas for download (meh, one by one is good for modifications for now)
 
 
 EPICS:
-World - I want a crispy fucking visually nice to look at world being created and loaded in game
 
-    DONE Refactor FaceBatch rendering and lighting code 
-
-    Refine Hemicube GI
-    - try simple irradiance caching - interpolate w/o irrad caching doesn't work well for large patch sizes.
-    - larger hemicube atlas for download (meh, one by one is good for modifications for now)
-    - Texels too far from face polygon should be marked as ignore for hemicube. worst case distance: magnitude(1.5*texelsize, 0.5*texelsize)
-
-    Face creation and manipulation by default over cuboid volumes in level editor
-    - volume is wasteful; source 2 defaults to faces; best workflow is extrude faces and extrude edges
-
-Physics - I want a crispy bug-free physics simulation with the world
-
-    DONE Hook player controller into Jolt. Move around world simulated via Jolt.
-
-THEN, we have a fucking engine. A fucking starting point for the game.
+Use NVIDIA OptiX for ray tracing lightmap samples
 
 View-space projected blood decals
-
-Get some things to shoot on the screen (navmesh/pathfinding, skeletal animations)
-- Enemy billboards two behaviour:
-    - walk towards player
-    - stop and shoot after split second to shoot projectile at player, projectile hurts player health
-- Player holds 3D gun model, shoot hitscan at enemies, hitscan hurts enemy health
-    - Swap to a second 3D gun model, shoot shotgun hitscan at enemies
-    - Swap to a third 3D gun model, shoot hitscan with different stats at enemies
 
 Particle effects
 

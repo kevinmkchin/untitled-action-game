@@ -1,4 +1,16 @@
 
+
+
+- perhaps, we can use RTX on ray tracing supported GPU to bake the lighting data
+  instead of using hemicube sampling
+  https://developer.nvidia.com/rtx/raytracing/vkray
+  https://developer.nvidia.com/rtx/ray-tracing/optix
+  https://github.com/nvpro-samples/optix_advanced_samples/blob/master/src/optixIntroduction/README.md
+
+- to learn NVIDIA OptiX, try using it to calculate direct lighting which should be simple.
+  I'm already doing a version of this on the CPU. 
+
+
 gamma slider at the start of the game
 
 
