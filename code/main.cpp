@@ -705,6 +705,12 @@ int main(int argc, char* argv[])
     BuildGameMap(wd_path("buildtest.map").c_str());
     LoadLevel(wd_path("buildtest.map").c_str());
 
+    // LevelEditor.LoadMap(wd_path("House.emf").c_str());
+    // BuildGameMap(wd_path("buildtest2.map").c_str());
+    // LoadLevel(wd_path("buildtest2.map").c_str());
+
+    // LoadLevel(wd_path("House.map").c_str());
+
     // LoadLevel(wd_path("playground_0.map").c_str());
     // LevelEditor.Open();
 

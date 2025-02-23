@@ -37,7 +37,7 @@ struct game_map_build_data_t
     vec3 DirectionToSun = vec3();
 };
 
-constexpr float LightMapTexelSize = 16.f; // in world units
+constexpr float LightMapTexelSize = 8.f; // in world units
 constexpr int MaxNumTexels = 1000000; // size to alloc per intermediate data array
 constexpr int HemicubeFaceW = 100;
 constexpr int HemicubeFaceH = HemicubeFaceW;
@@ -54,7 +54,11 @@ private:
     void GenerateLightmapOcclusionTestTree();
     void PrepareFaceLightmapsAndTexelStorage();
     void PackLightmapsAndMapLocalUVToGlobalUV();
+    void GenerateLevelVertices();
     void CreateMultiplierMap();
+    void CalcBounceLightForTexel(const lm_face_t& FaceLightmap, 
+        u32 TexelOffset, const GLsizeiptr NumFloatsPerFace);
+
     void ThreadSafe_DoDirectLightingIntoLightMap(u32 patchIndexStart, u32 patchIndexEnd);
 
 private:
@@ -73,7 +77,7 @@ private:
     float *all_light_direct = NULL;
     float *all_light_indirect = NULL;
 
-private: // const
+    face_batch_t SceneLightingModel;
     float MultiplierMapTop[HemicubeFaceArea];
     float MultiplierMapSide[HemicubeFaceAreaHalf];
 };

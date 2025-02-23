@@ -40,7 +40,6 @@ void lightmapper_t::BakeStaticLighting(game_map_build_data_t& BuildData)
     u32 progress70 = u32((float)numpatches * 0.7f);
     u32 progress80 = u32((float)numpatches * 0.8f);
     u32 progress90 = u32((float)numpatches * 0.9f);
-
     std::thread t0 = std::thread(&lightmapper_t::ThreadSafe_DoDirectLightingIntoLightMap, this, 0, progress10);
     std::thread t1 = std::thread(&lightmapper_t::ThreadSafe_DoDirectLightingIntoLightMap, this, progress10, progress20);
     std::thread t2 = std::thread(&lightmapper_t::ThreadSafe_DoDirectLightingIntoLightMap, this, progress20, progress30);
@@ -52,25 +51,12 @@ void lightmapper_t::BakeStaticLighting(game_map_build_data_t& BuildData)
     std::thread t8 = std::thread(&lightmapper_t::ThreadSafe_DoDirectLightingIntoLightMap, this, progress80, progress90);
     std::thread t9 = std::thread(&lightmapper_t::ThreadSafe_DoDirectLightingIntoLightMap, this, progress90, numpatches);
 
+    // lmuvcaches must contain the global lightmap uvs before generating vertices
+    GenerateLevelVertices();
+
     // indirect lighting
 
-    face_batch_t SceneLightingModel;
-
-    // Sort faces by their textures and generate vertex buffers
-    std::unordered_map<u32, std::vector<float>>& VertexBuffers = BuildData.VertexBuffers;
-    for (size_t i = 0; i < FaceLightmaps.lenu(); ++i)
-    {
-        MapEdit::Face *face = FaceLightmaps[i].faceRef;
-        db_tex_t tex = face->texture;
-        if (VertexBuffers.find(tex.persistId) == VertexBuffers.end())
-        {
-            VertexBuffers.emplace(tex.persistId, std::vector<float>());
-        }
-
-        std::vector<float>& vb = VertexBuffers.at(tex.persistId);
-        TriangulateFace_ForFaceBatch_QuickDumb(*face, &vb);
-    }
-
+    std::unordered_map<u32, std::vector<float>>& VertexBuffers = BuildDataShared->VertexBuffers;
     float *patches_vb = NULL; 
     for (auto& vbpair : VertexBuffers)
     {
@@ -97,8 +83,8 @@ void lightmapper_t::BakeStaticLighting(game_map_build_data_t& BuildData)
     u32 HemicubePBO;
     glGenBuffers(1, &HemicubePBO);
     glBindBuffer(GL_PIXEL_PACK_BUFFER, HemicubePBO);
-    const GLsizeiptr PBOSz = HemicubeFaceW * HemicubeFaceH * 4;
-    glBufferData(GL_PIXEL_PACK_BUFFER, 5*PBOSz*sizeof(float), NULL, GL_STREAM_READ);
+    const GLsizeiptr NumFloatsPerHemicubeFace = HemicubeFaceW * HemicubeFaceH * 4;
+    glBufferData(GL_PIXEL_PACK_BUFFER, 5*NumFloatsPerHemicubeFace*sizeof(float), NULL, GL_STREAM_READ);
     glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
 
     glEnable(GL_DEPTH_TEST);
@@ -136,175 +122,17 @@ void lightmapper_t::BakeStaticLighting(game_map_build_data_t& BuildData)
 
     for (int bounces = 0; bounces < 2; ++bounces)
     {
-        // Copy the radiance info thus far to use for first light bounce
-        // Would be just direct lighting for first bounce, but future bounces
-        // would be direct light + accumulated indirect light.
-        for (size_t i = 0; i < PackedLMRects.lenu(); ++i)
-        {
-            stbrp_rect rect = PackedLMRects[i];
-            if (rect.was_packed == 0) continue;
-            ASSERT(rect.was_packed != 0);
-            const lm_face_t& lmface = FaceLightmaps[rect.id];
-            BlitRect((u8*)LIGHT_MAP_ATLAS, lightMapAtlasW, lightMapAtlasH, 
-                (u8*)lmface.light, lmface.w, lmface.h, rect.x, rect.y, sizeof(float));
-        }
-        // Update SceneLightingModel to use the updated radiance information
-        UpdateGPUTextureFromBitmap(&SceneLightingModel.LightMapTexture, (u8*)LIGHT_MAP_ATLAS,
-            lightMapAtlasW, lightMapAtlasH);
 
 
         for (int FaceIndex = 0; FaceIndex < (int)PackedLMRects.lenu(); ++FaceIndex)
         {
-            const lm_face_t& FaceLightMap = FaceLightmaps[FaceIndex];
-
             // TODO reset "cache" - just an array for now
 
-            u32 NumTexelsOnFace = FaceLightMap.w * FaceLightMap.h;
-            for (u32 FaceTexelIndex = 0; FaceTexelIndex < NumTexelsOnFace; ++FaceTexelIndex)
+            const lm_face_t& FaceLightmap = FaceLightmaps[FaceIndex];
+            u32 NumTexelsOnFace = FaceLightmap.w * FaceLightmap.h;
+            for (u32 TexelOffset = 0; TexelOffset < NumTexelsOnFace; ++TexelOffset)
             {
-                // if (FaceIndex == 1 && FaceTexelIndex >= 50 && FaceTexelIndex < 52)
-                // {
-                //     if (RDOCAPI) RDOCAPI->StartFrameCapture(NULL, NULL);
-                // }
-                
-                vec3 patch_i_pos = *(FaceLightMap.pos + FaceTexelIndex); // rename to texel
-                vec3 patch_i_normal = *(FaceLightMap.norm + FaceTexelIndex);
-                vec3 patch_i_basisV = *(FaceLightMap.tangent + FaceTexelIndex);
-
-                // TODO check if texel should be sampled - this should be computed at texel-creation
-                //      time by checking distance from polygon and coverage. This is an optimization step. 
-                //      if yes, keep going
-                //      if no, continue to next texel
-
-
-                // TODO check if texel position is covered by any existing irradiance cache entries
-                //      if yes, continue to next texel
-                //      if no, continue to hemicube sampling
-
-                // Random rotation of hemicube trades banding artifacts for noise
-                // banding artifacts is hard to get rid of with just increased hemicube resolution
-                // patch_i_basisV = RotateVector(patch_i_basisV, quat((float)rand()/GM_TWOPI, patch_i_normal));
-                vec3 patch_i_basisU = Normalize(Cross(patch_i_basisV, patch_i_normal));
-
-                glClearColor(0.f,0.f,0.f,1.f);
-                glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-                glViewport(0, 0, HemicubeFaceW, HemicubeFaceH);
-                mat4 HemicubeViewMatrix = ViewMatrixLookAt(patch_i_pos, patch_i_pos + patch_i_normal, patch_i_basisV);
-                GLBindMatrix4fv(PatchesIDShader, "viewMatrix", 1, HemicubeViewMatrix.ptr());
-                RenderFaceBatch(&PatchesIDShader, &SceneLightingModel);
-
-                // if top face is "front", then 
-                // up face
-                glViewport(HemicubeFaceW*1, 0, HemicubeFaceW, HemicubeFaceH);
-                HemicubeViewMatrix = ViewMatrixLookAt(patch_i_pos, patch_i_pos + patch_i_basisV, patch_i_normal);
-                GLBindMatrix4fv(PatchesIDShader, "viewMatrix", 1, HemicubeViewMatrix.ptr());
-                RenderFaceBatch(&PatchesIDShader, &SceneLightingModel);
-                // down face
-                glViewport(HemicubeFaceW*2, 0, HemicubeFaceW, HemicubeFaceH);
-                HemicubeViewMatrix = ViewMatrixLookAt(patch_i_pos, patch_i_pos - patch_i_basisV, patch_i_normal);
-                GLBindMatrix4fv(PatchesIDShader, "viewMatrix", 1, HemicubeViewMatrix.ptr());
-                RenderFaceBatch(&PatchesIDShader, &SceneLightingModel);
-                // left face
-                glViewport(HemicubeFaceW*3, 0, HemicubeFaceW, HemicubeFaceH);
-                HemicubeViewMatrix = ViewMatrixLookAt(patch_i_pos, patch_i_pos + patch_i_basisU, patch_i_normal);
-                GLBindMatrix4fv(PatchesIDShader, "viewMatrix", 1, HemicubeViewMatrix.ptr());
-                RenderFaceBatch(&PatchesIDShader, &SceneLightingModel);
-                // right face
-                glViewport(HemicubeFaceW*4, 0, HemicubeFaceW, HemicubeFaceH);
-                HemicubeViewMatrix = ViewMatrixLookAt(patch_i_pos, patch_i_pos - patch_i_basisU, patch_i_normal);
-                GLBindMatrix4fv(PatchesIDShader, "viewMatrix", 1, HemicubeViewMatrix.ptr());
-                RenderFaceBatch(&PatchesIDShader, &SceneLightingModel);
-
-                // if (RDOCAPI) RDOCAPI->EndFrameCapture(NULL, NULL);
-
-                // Putting the glReadPixels together at the end of the draw calls is somehow appreciably faster
-                glReadPixels(0, 0, HemicubeFaceW, HemicubeFaceH, GL_RGBA, GL_FLOAT, 0);
-                glReadPixels(HemicubeFaceW*1, 0, HemicubeFaceW, HemicubeFaceH, GL_RGBA, GL_FLOAT, (void*)(PBOSz*sizeof(float)*1));
-                glReadPixels(HemicubeFaceW*2, 0, HemicubeFaceW, HemicubeFaceH, GL_RGBA, GL_FLOAT, (void*)(PBOSz*sizeof(float)*2));
-                glReadPixels(HemicubeFaceW*3, 0, HemicubeFaceW, HemicubeFaceH, GL_RGBA, GL_FLOAT, (void*)(PBOSz*sizeof(float)*3));
-                glReadPixels(HemicubeFaceW*4, 0, HemicubeFaceW, HemicubeFaceH, GL_RGBA, GL_FLOAT, (void*)(PBOSz*sizeof(float)*4));
-
-
-                // Map the PBO to access pixel data in system memory
-                float *FrontFaceData = (float*)glMapBuffer(GL_PIXEL_PACK_BUFFER, GL_READ_ONLY); 
-                ASSERT(FrontFaceData);
-                float *UpFaceData = FrontFaceData + PBOSz;
-                float *DownFaceData = FrontFaceData + PBOSz*2;
-                float *LeftFaceData = FrontFaceData + PBOSz*3;
-                float *RightFaceData = FrontFaceData + PBOSz*4;
-
-
-                int BackfacePixelCount = 0;
-                const int BackfaceTolerance = (HemicubeFaceArea + HemicubeFaceAreaHalf * 4) / 10;
-                float RadiositiesAccumulator = 0.f;
-
-                for (int p = 0; p < HemicubeFaceArea; ++p)
-                {
-                    vec4 HemicubePixel = { FrontFaceData[p*4], FrontFaceData[p*4+1], 
-                        FrontFaceData[p*4+2], FrontFaceData[p*4+3] };
-                    // NOTE(Kevin): radiance is white light only for now (single channel)
-                    float Radiance = HemicubePixel.x;
-                    float DifferentialFormFactor = MultiplierMapTop[p];
-                    RadiositiesAccumulator += DifferentialFormFactor * Radiance;
-
-                    if (HemicubePixel.w == LM_BACKFACE_INDICATOR)
-                        ++BackfacePixelCount;
-
-                    // Side faces
-                    if (p < HemicubeFaceAreaHalf)
-                        continue;
-
-                    HemicubePixel = { UpFaceData[p*4], UpFaceData[p*4+1], 
-                        UpFaceData[p*4+2], UpFaceData[p*4+3] };
-                    Radiance = HemicubePixel.x;
-                    DifferentialFormFactor = MultiplierMapSide[p-HemicubeFaceAreaHalf];
-                    RadiositiesAccumulator += DifferentialFormFactor * Radiance;
-
-                    if (HemicubePixel.w == LM_BACKFACE_INDICATOR)
-                        ++BackfacePixelCount;
-
-                    HemicubePixel = { DownFaceData[p*4], DownFaceData[p*4+1], 
-                        DownFaceData[p*4+2], DownFaceData[p*4+3] };
-                    Radiance = HemicubePixel.x;
-                    DifferentialFormFactor = MultiplierMapSide[p-HemicubeFaceAreaHalf];
-                    RadiositiesAccumulator += DifferentialFormFactor * Radiance;
-
-                    if (HemicubePixel.w == LM_BACKFACE_INDICATOR)
-                        ++BackfacePixelCount;
-
-                    HemicubePixel = { LeftFaceData[p*4], LeftFaceData[p*4+1], 
-                        LeftFaceData[p*4+2], LeftFaceData[p*4+3] };
-                    Radiance = HemicubePixel.x;
-                    DifferentialFormFactor = MultiplierMapSide[p-HemicubeFaceAreaHalf];
-                    RadiositiesAccumulator += DifferentialFormFactor * Radiance;
-
-                    if (HemicubePixel.w == LM_BACKFACE_INDICATOR)
-                        ++BackfacePixelCount;
-
-                    HemicubePixel = { RightFaceData[p*4], RightFaceData[p*4+1], 
-                        RightFaceData[p*4+2], RightFaceData[p*4+3] };
-                    Radiance = HemicubePixel.x;
-                    DifferentialFormFactor = MultiplierMapSide[p-HemicubeFaceAreaHalf];
-                    RadiositiesAccumulator += DifferentialFormFactor * Radiance;
-                    
-                    if (HemicubePixel.w == LM_BACKFACE_INDICATOR)
-                        ++BackfacePixelCount;
-
-                    if (BackfacePixelCount > BackfaceTolerance)
-                        break;
-                }
-
-                if (BackfacePixelCount > BackfaceTolerance)
-                {
-                    // TODO then what do I do about this texel?
-                    RadiositiesAccumulator = 0.f;
-                    // RadiositiesAccumulator = LM_MARK_BAD_TEXEL;
-                }
-
-                *(FaceLightMap.light_indirect + FaceTexelIndex) = RadiositiesAccumulator;
-
-                glUnmapBuffer(GL_PIXEL_PACK_BUFFER);
+                CalcBounceLightForTexel(FaceLightmap, TexelOffset, NumFloatsPerHemicubeFace);
             }
 
             // some post processing?
@@ -324,7 +152,7 @@ void lightmapper_t::BakeStaticLighting(game_map_build_data_t& BuildData)
             //     // if it is not covered, then something went wrong!!!
 
             //     float IrradianceAtTexel = 0.f;
-            //     FaceLightMap.light_indirect[i] = IrradianceAtTexel;
+            //     FaceLightmap.light_indirect[i] = IrradianceAtTexel;
             // }
             // // At this point, all_light_indirect for the texels we care about have been updated
         }
@@ -341,7 +169,6 @@ void lightmapper_t::BakeStaticLighting(game_map_build_data_t& BuildData)
     }
     // At this point, global illumination computation is complete
 
-
     glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glDeleteBuffers(1, &HemicubePBO);
@@ -349,8 +176,8 @@ void lightmapper_t::BakeStaticLighting(game_map_build_data_t& BuildData)
     DeleteGPUTexture(&SceneLightingModel.LightMapTexture);
     DeleteFaceBatch(&SceneLightingModel);
 
-    i32 TotalUsedTexelsInLightmapAtlas = 0;
     // Final blit to light map atlas
+    i32 TotalUsedTexelsInLightmapAtlas = 0;
     for (size_t i = 0; i < PackedLMRects.lenu(); ++i)
     {
         stbrp_rect rect = PackedLMRects[i];
@@ -359,7 +186,6 @@ void lightmapper_t::BakeStaticLighting(game_map_build_data_t& BuildData)
         const lm_face_t& lmface = FaceLightmaps[rect.id];
         BlitRect((u8*)LIGHT_MAP_ATLAS, lightMapAtlasW, lightMapAtlasH, 
             (u8*)lmface.light, lmface.w, lmface.h, rect.x, rect.y, sizeof(float));
-
         TotalUsedTexelsInLightmapAtlas += lmface.w * lmface.h;
     }
     ByteBufferWrite(&BuildData.Output, i32, lightMapAtlasW);
@@ -547,6 +373,24 @@ void lightmapper_t::PackLightmapsAndMapLocalUVToGlobalUV()
     }
 }
 
+void lightmapper_t::GenerateLevelVertices()
+{
+    // Sort faces by their textures and generate vertex buffers
+    std::unordered_map<u32, std::vector<float>>& VertexBuffers = BuildDataShared->VertexBuffers;
+    for (size_t i = 0; i < FaceLightmaps.lenu(); ++i)
+    {
+        MapEdit::Face *face = FaceLightmaps[i].faceRef;
+        db_tex_t tex = face->texture;
+        if (VertexBuffers.find(tex.persistId) == VertexBuffers.end())
+        {
+            VertexBuffers.emplace(tex.persistId, std::vector<float>());
+        }
+
+        std::vector<float>& vb = VertexBuffers.at(tex.persistId);
+        TriangulateFace_ForFaceBatch_QuickDumb(*face, &vb);
+    }
+}
+
 void lightmapper_t::CreateMultiplierMap()
 {
     // this hemicube texels multiplier map only needs to be created once
@@ -602,6 +446,153 @@ void lightmapper_t::CreateMultiplierMap()
         MultiplierMapTop[p] /= MultiplierBeforeNormalizeSum;
     for (int p = HemicubeFaceAreaHalf; p < HemicubeFaceArea; ++p)
         MultiplierMapSide[p-HemicubeFaceAreaHalf] /= MultiplierBeforeNormalizeSum;
+}
+
+void lightmapper_t::CalcBounceLightForTexel(const lm_face_t& FaceLightmap, 
+    u32 TexelOffset, const GLsizeiptr NumFloatsPerHemicubeFace)
+{
+    // if (FaceIndex == 1 && TexelOffset >= 50 && TexelOffset < 52)
+    // {
+    //     if (RDOCAPI) RDOCAPI->StartFrameCapture(NULL, NULL);
+    // }
+    
+    vec3 patch_i_pos = *(FaceLightmap.pos + TexelOffset); // rename to texel
+    vec3 patch_i_normal = *(FaceLightmap.norm + TexelOffset);
+    vec3 patch_i_basisV = *(FaceLightmap.tangent + TexelOffset);
+
+    // TODO check if texel should be sampled - this should be computed at texel-creation
+    //      time by checking distance from polygon and coverage. This is an optimization step. 
+    //      if yes, keep going
+    //      if no, continue to next texel
+
+    // TODO check if texel position is covered by any existing irradiance cache entries
+    //      if yes, continue to next texel
+    //      if no, continue to hemicube sampling
+
+    // Random rotation of hemicube trades banding artifacts for noise
+    // banding artifacts is hard to get rid of with just increased hemicube resolution
+    // patch_i_basisV = RotateVector(patch_i_basisV, quat((float)rand()/GM_TWOPI, patch_i_normal));
+    vec3 patch_i_basisU = Normalize(Cross(patch_i_basisV, patch_i_normal));
+
+    glClearColor(0.f,0.f,0.f,1.f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    glViewport(0, 0, HemicubeFaceW, HemicubeFaceH);
+    mat4 HemicubeViewMatrix = ViewMatrixLookAt(patch_i_pos, patch_i_pos + patch_i_normal, patch_i_basisV);
+    GLBindMatrix4fv(PatchesIDShader, "viewMatrix", 1, HemicubeViewMatrix.ptr());
+    RenderFaceBatch(&PatchesIDShader, &SceneLightingModel);
+
+    // if top face is "front", then 
+    // up face
+    glViewport(HemicubeFaceW*1, 0, HemicubeFaceW, HemicubeFaceH);
+    HemicubeViewMatrix = ViewMatrixLookAt(patch_i_pos, patch_i_pos + patch_i_basisV, patch_i_normal);
+    GLBindMatrix4fv(PatchesIDShader, "viewMatrix", 1, HemicubeViewMatrix.ptr());
+    RenderFaceBatch(&PatchesIDShader, &SceneLightingModel);
+    // down face
+    glViewport(HemicubeFaceW*2, 0, HemicubeFaceW, HemicubeFaceH);
+    HemicubeViewMatrix = ViewMatrixLookAt(patch_i_pos, patch_i_pos - patch_i_basisV, patch_i_normal);
+    GLBindMatrix4fv(PatchesIDShader, "viewMatrix", 1, HemicubeViewMatrix.ptr());
+    RenderFaceBatch(&PatchesIDShader, &SceneLightingModel);
+    // left face
+    glViewport(HemicubeFaceW*3, 0, HemicubeFaceW, HemicubeFaceH);
+    HemicubeViewMatrix = ViewMatrixLookAt(patch_i_pos, patch_i_pos + patch_i_basisU, patch_i_normal);
+    GLBindMatrix4fv(PatchesIDShader, "viewMatrix", 1, HemicubeViewMatrix.ptr());
+    RenderFaceBatch(&PatchesIDShader, &SceneLightingModel);
+    // right face
+    glViewport(HemicubeFaceW*4, 0, HemicubeFaceW, HemicubeFaceH);
+    HemicubeViewMatrix = ViewMatrixLookAt(patch_i_pos, patch_i_pos - patch_i_basisU, patch_i_normal);
+    GLBindMatrix4fv(PatchesIDShader, "viewMatrix", 1, HemicubeViewMatrix.ptr());
+    RenderFaceBatch(&PatchesIDShader, &SceneLightingModel);
+
+    // if (RDOCAPI) RDOCAPI->EndFrameCapture(NULL, NULL);
+
+    // Putting the glReadPixels together at the end of the draw calls is somehow appreciably faster
+    glReadPixels(0, 0, HemicubeFaceW, HemicubeFaceH, GL_RGBA, GL_FLOAT, 0);
+    glReadPixels(HemicubeFaceW*1, 0, HemicubeFaceW, HemicubeFaceH, GL_RGBA, GL_FLOAT, (void*)(NumFloatsPerHemicubeFace*sizeof(float)*1));
+    glReadPixels(HemicubeFaceW*2, 0, HemicubeFaceW, HemicubeFaceH, GL_RGBA, GL_FLOAT, (void*)(NumFloatsPerHemicubeFace*sizeof(float)*2));
+    glReadPixels(HemicubeFaceW*3, 0, HemicubeFaceW, HemicubeFaceH, GL_RGBA, GL_FLOAT, (void*)(NumFloatsPerHemicubeFace*sizeof(float)*3));
+    glReadPixels(HemicubeFaceW*4, 0, HemicubeFaceW, HemicubeFaceH, GL_RGBA, GL_FLOAT, (void*)(NumFloatsPerHemicubeFace*sizeof(float)*4));
+
+
+    // Map the PBO to access pixel data in system memory
+    float *FrontFaceData = (float*)glMapBuffer(GL_PIXEL_PACK_BUFFER, GL_READ_ONLY); 
+    ASSERT(FrontFaceData);
+    float *UpFaceData = FrontFaceData + NumFloatsPerHemicubeFace;
+    float *DownFaceData = FrontFaceData + NumFloatsPerHemicubeFace*2;
+    float *LeftFaceData = FrontFaceData + NumFloatsPerHemicubeFace*3;
+    float *RightFaceData = FrontFaceData + NumFloatsPerHemicubeFace*4;
+
+
+    int BackfacePixelCount = 0;
+    const int BackfaceTolerance = (HemicubeFaceArea + HemicubeFaceAreaHalf * 4) / 10;
+    float RadiositiesAccumulator = 0.f;
+
+    for (int p = 0; p < HemicubeFaceArea; ++p)
+    {
+        vec4 HemicubePixel = { FrontFaceData[p*4], FrontFaceData[p*4+1], 
+            FrontFaceData[p*4+2], FrontFaceData[p*4+3] };
+        // NOTE(Kevin): radiance is white light only for now (single channel)
+        float Radiance = HemicubePixel.x;
+        float DifferentialFormFactor = MultiplierMapTop[p];
+        RadiositiesAccumulator += DifferentialFormFactor * Radiance;
+
+        if (HemicubePixel.w == LM_BACKFACE_INDICATOR)
+            ++BackfacePixelCount;
+
+        // Side faces
+        if (p < HemicubeFaceAreaHalf)
+            continue;
+
+        HemicubePixel = { UpFaceData[p*4], UpFaceData[p*4+1], 
+            UpFaceData[p*4+2], UpFaceData[p*4+3] };
+        Radiance = HemicubePixel.x;
+        DifferentialFormFactor = MultiplierMapSide[p-HemicubeFaceAreaHalf];
+        RadiositiesAccumulator += DifferentialFormFactor * Radiance;
+
+        if (HemicubePixel.w == LM_BACKFACE_INDICATOR)
+            ++BackfacePixelCount;
+
+        HemicubePixel = { DownFaceData[p*4], DownFaceData[p*4+1], 
+            DownFaceData[p*4+2], DownFaceData[p*4+3] };
+        Radiance = HemicubePixel.x;
+        DifferentialFormFactor = MultiplierMapSide[p-HemicubeFaceAreaHalf];
+        RadiositiesAccumulator += DifferentialFormFactor * Radiance;
+
+        if (HemicubePixel.w == LM_BACKFACE_INDICATOR)
+            ++BackfacePixelCount;
+
+        HemicubePixel = { LeftFaceData[p*4], LeftFaceData[p*4+1], 
+            LeftFaceData[p*4+2], LeftFaceData[p*4+3] };
+        Radiance = HemicubePixel.x;
+        DifferentialFormFactor = MultiplierMapSide[p-HemicubeFaceAreaHalf];
+        RadiositiesAccumulator += DifferentialFormFactor * Radiance;
+
+        if (HemicubePixel.w == LM_BACKFACE_INDICATOR)
+            ++BackfacePixelCount;
+
+        HemicubePixel = { RightFaceData[p*4], RightFaceData[p*4+1], 
+            RightFaceData[p*4+2], RightFaceData[p*4+3] };
+        Radiance = HemicubePixel.x;
+        DifferentialFormFactor = MultiplierMapSide[p-HemicubeFaceAreaHalf];
+        RadiositiesAccumulator += DifferentialFormFactor * Radiance;
+        
+        if (HemicubePixel.w == LM_BACKFACE_INDICATOR)
+            ++BackfacePixelCount;
+
+        if (BackfacePixelCount > BackfaceTolerance)
+            break;
+    }
+
+    if (BackfacePixelCount > BackfaceTolerance)
+    {
+        // TODO then what do I do about this texel?
+        RadiositiesAccumulator = 0.f;
+        // RadiositiesAccumulator = LM_MARK_BAD_TEXEL;
+    }
+
+    *(FaceLightmap.light_indirect + TexelOffset) = RadiositiesAccumulator;
+
+    glUnmapBuffer(GL_PIXEL_PACK_BUFFER);
 }
 
 void lightmapper_t::ThreadSafe_DoDirectLightingIntoLightMap(u32 patchIndexStart, u32 patchIndexEnd)
@@ -713,12 +704,12 @@ void lightmapper_t::ThreadSafe_DoDirectLightingIntoLightMap(u32 patchIndexStart,
 // void delete_PostProcess_NeighbourSampling()
 // {
 //     // I can weight the samples by distance from the invalid one, non-linearly
-//     for (int fy = 0; fy < FaceLightMap.h; ++fy)
+//     for (int fy = 0; fy < FaceLightmap.h; ++fy)
 //     {
-//         for (int fx = 0; fx < FaceLightMap.w; ++fx)
+//         for (int fx = 0; fx < FaceLightmap.w; ++fx)
 //         {
-//             int i = fy * FaceLightMap.w + fx;
-//             float IndirLight = *(FaceLightMap.light_indirect + i);
+//             int i = fy * FaceLightmap.w + fx;
+//             float IndirLight = *(FaceLightmap.light_indirect + i);
 //             if (IndirLight == LM_MARK_BAD_TEXEL)
 //             {
 //                 // try to sample from surrounding valid texels
@@ -726,20 +717,20 @@ void lightmapper_t::ThreadSafe_DoDirectLightingIntoLightMap(u32 patchIndexStart,
 //                 float NeighbourSamplesAccumulator = 0.f;
 //                 for (int y = fy - 1; y <= fy + 1; ++y)
 //                 {
-//                     if (y < 0 || y >= FaceLightMap.h)
+//                     if (y < 0 || y >= FaceLightmap.h)
 //                         continue;
 
 //                     for (int x = fx - 1; x <= fx + 1; ++x)
 //                     {
-//                         if (x < 0 || x >= FaceLightMap.w)
+//                         if (x < 0 || x >= FaceLightmap.w)
 //                             continue;
 
-//                         int j = y * FaceLightMap.w + x;
-//                         float NeighbourIndir = *(FaceLightMap.light_indirect + j);
+//                         int j = y * FaceLightmap.w + x;
+//                         float NeighbourIndir = *(FaceLightmap.light_indirect + j);
 //                         if (NeighbourIndir != LM_MARK_BAD_TEXEL && NeighbourIndir > 0.f)
 //                         {
 //                             // sample the direct too
-//                             float NeighbourDir = *(FaceLightMap.light_direct + j);
+//                             float NeighbourDir = *(FaceLightmap.light_direct + j);
 //                             NeighbourSamplesAccumulator += NeighbourDir + NeighbourIndir;
 //                             ++NumValidNeighbourSamples;
 //                         }
@@ -750,11 +741,11 @@ void lightmapper_t::ThreadSafe_DoDirectLightingIntoLightMap(u32 patchIndexStart,
 //                 {
 //                     float AverageCombined = NeighbourSamplesAccumulator / (float)NumValidNeighbourSamples;
 //                     // store the delta so that when we combine later we result with AverageCombined again
-//                     *(FaceLightMap.light_indirect + i) = AverageCombined - *(FaceLightMap.light_direct + i);
+//                     *(FaceLightmap.light_indirect + i) = AverageCombined - *(FaceLightmap.light_direct + i);
 //                 }
 //                 else
 //                 {
-//                     *(FaceLightMap.light_indirect + i) = 0.f;
+//                     *(FaceLightmap.light_indirect + i) = 0.f;
 //                 }
 //             }
 //         }
