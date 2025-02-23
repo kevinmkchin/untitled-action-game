@@ -50,12 +50,12 @@ bool BuildGameMap(const char *path)
     std::vector<vec3>& ColliderWorldPoints = BuildData.ColliderWorldPoints;
     std::vector<u32>& ColliderSpans = BuildData.ColliderSpans;
 
-
     // need to save a bunch of FaceBatches (which are basically just meshes)
-    // sort by texture, etc. every face using same texture goes into same FaceBatch
+    // organize by texture, etc. every face using same texture goes into same FaceBatch
     // collider data -> just save the point clouds for mesh colliders and add to Octree while loading into game
     // need to do something smarter for texture data (want to use database so that textures are just enums)
 
+    // Polygon colliders data
     for (int i = 0; i < totalfacecount; ++i)
     {
         MapEdit::Face *face = MapEdit::LevelEditorFaces.At(i);
@@ -72,6 +72,7 @@ bool BuildGameMap(const char *path)
         ColliderSpans.push_back(ColliderSpan);
     }
 
+    // Process entities into BuildData
     BuildOutLevelEntities(&BuildData);
 
     ByteBufferWrite(&BuildData.Output, vec3, BuildData.PlayerStartPosition);
