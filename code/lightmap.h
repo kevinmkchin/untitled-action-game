@@ -51,15 +51,14 @@ struct lightmapper_t
     void BakeStaticLighting(game_map_build_data_t& BuildData);
 
 private:
-    void GenerateLightmapOcclusionTestTree();
     void PrepareFaceLightmapsAndTexelStorage();
     void PackLightmapsAndMapLocalUVToGlobalUV();
     void GenerateLevelVertices();
+    void GenerateLightmapOcclusionTestTree();
+    void ThreadSafe_DoDirectLightingIntoLightMap(u32 patchIndexStart, u32 patchIndexEnd);
     void CreateMultiplierMap();
     void CalcBounceLightForTexel(const lm_face_t& FaceLightmap, 
         u32 TexelOffset, const GLsizeiptr NumFloatsPerFace);
-
-    void ThreadSafe_DoDirectLightingIntoLightMap(u32 patchIndexStart, u32 patchIndexEnd);
 
 private:
     i32 lightMapAtlasW = 1024;//4096;

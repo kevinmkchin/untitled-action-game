@@ -14,8 +14,6 @@ void lightmapper_t::BakeStaticLighting(game_map_build_data_t& BuildData)
 {
     BuildDataShared = &BuildData;
 
-    GenerateLightmapOcclusionTestTree();
-
     arrsetcap(all_lm_pos, MaxNumTexels);
     arrsetcap(all_lm_norm, MaxNumTexels);
     arrsetcap(all_light_global, MaxNumTexels);
@@ -27,7 +25,13 @@ void lightmapper_t::BakeStaticLighting(game_map_build_data_t& BuildData)
 
     PackLightmapsAndMapLocalUVToGlobalUV();
 
-    // direct lighting from emissive points and patches
+    // lmuvcaches must contain the global lightmap uvs before generating vertices
+    GenerateLevelVertices();
+
+
+    // direct lighting
+    GenerateLightmapOcclusionTestTree();
+
     u32 numpatches = (u32)arrlenu(all_lm_norm);
     ASSERT(numpatches == (u32)arrlenu(all_lm_pos));
     ASSERT(numpatches == (u32)arrlenu(all_light_global));
@@ -50,9 +54,6 @@ void lightmapper_t::BakeStaticLighting(game_map_build_data_t& BuildData)
     std::thread t7 = std::thread(&lightmapper_t::ThreadSafe_DoDirectLightingIntoLightMap, this, progress70, progress80);
     std::thread t8 = std::thread(&lightmapper_t::ThreadSafe_DoDirectLightingIntoLightMap, this, progress80, progress90);
     std::thread t9 = std::thread(&lightmapper_t::ThreadSafe_DoDirectLightingIntoLightMap, this, progress90, numpatches);
-
-    // lmuvcaches must contain the global lightmap uvs before generating vertices
-    GenerateLevelVertices();
 
     // indirect lighting
 
@@ -118,7 +119,7 @@ void lightmapper_t::BakeStaticLighting(game_map_build_data_t& BuildData)
     t9.join();
 
 #define LM_BACKFACE_INDICATOR 0.69f
-#define LM_MARK_BAD_TEXEL -0.05f
+// #define LM_MARK_BAD_TEXEL -0.05f
 
     for (int bounces = 0; bounces < 2; ++bounces)
     {
