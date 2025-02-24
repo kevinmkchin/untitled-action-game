@@ -99,10 +99,12 @@ the editor. Then I could have
 #include <string>
 #include <chrono>
 #include <iterator>
+#include <algorithm>
 
 #include "BUILDINFO.H"
 
 #if MESA_WINDOWS
+#define NOMINMAX
 #include <windows.h>
 #include <dwmapi.h>
 #include <direct.h>
@@ -139,6 +141,12 @@ the editor. Then I could have
 #if INTERNAL_BUILD
 #include <renderdoc_app.h>
 #endif
+
+#include <optix.h>
+#include <optix_function_table_definition.h>
+#include <optix_stack_size.h>
+#include <optix_stubs.h>
+#include <cuda_runtime.h>
 
 #include <map>
 #include <unordered_map>

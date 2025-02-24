@@ -33,6 +33,7 @@ Jolt - physics https://github.com/jrouwe/JoltPhysics
      - otherwise, mostly default configs in their CMakeLists were used
 Recast - navigation mesh https://github.com/recastnavigation/recastnavigation
        - built with their default configs without any conflicts
+NVIDIA OptiX - RTX ray tracing support for lightmapping
 gmath.h - math
 stb_ds.h - dynamic arrays
 
