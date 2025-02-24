@@ -34,6 +34,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
         ${CMAKE_SOURCE_DIR}/ext/assimp/include
         ${CMAKE_SOURCE_DIR}/ext/jolt
         ${CMAKE_SOURCE_DIR}/ext/recast/Includes
+        ${CMAKE_SOURCE_DIR}/radiant/include
 )
 
 set(MSVC_COMPILE_OPTIONS -nologo /std:c++17 /EHsc /W3 /we4239 /wd4996 /MP)
@@ -68,4 +69,18 @@ add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
         ${DLL_FILES}
         $<TARGET_FILE_DIR:${PROJECT_NAME}>
     COMMENT "Copying DLLs to output directory"
+)
+
+
+# CUDA dependency for NVIDIA OptiX
+
+find_package(CUDAToolkit 5.0 REQUIRED)
+target_include_directories(
+        ${PROJECT_NAME} PUBLIC
+        ${CUDAToolkit_INCLUDE_DIRS}
+)
+message(${CUDAToolkit_LIBRARY_DIR})
+target_link_libraries(
+        ${PROJECT_NAME} PUBLIC
+        CUDA::cudart
 )
