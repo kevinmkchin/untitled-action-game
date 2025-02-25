@@ -9,6 +9,11 @@ LevelPolygonOctree LightMapOcclusionTree;
 std::vector<FlatPolygonCollider> MapSurfaceColliders;
 
 
+// TODO
+// 1. load my world geometry into the acceleration structure and draw with camera
+// 2. send my per pixel data (patch pos, norm, etc.) to the cuda module
+
+
 #include "../radiant/trace_radiance.h"
 #include "../radiant/vec_math.h"
 
@@ -145,25 +150,12 @@ namespace sutil {
 
 namespace sutil
 {
-
-    enum class CUDAOutputBufferType
-    {
-        CUDA_DEVICE = 0, // not preferred, typically slower than ZERO_COPY
-        GL_INTEROP = 1, // single device only, preferred for single device
-        ZERO_COPY = 2, // general case, preferred for multi-gpu if not fully nvlink connected
-        CUDA_P2P = 3  // fully connected only, preferred for fully nvlink connected
-    };
-
-
     template <typename PIXEL_FORMAT>
     class CUDAOutputBuffer
     {
     public:
-        CUDAOutputBuffer(CUDAOutputBufferType type, int32_t width, int32_t height);
+        CUDAOutputBuffer(int32_t width, int32_t height);
         ~CUDAOutputBuffer();
-
-        void setDevice(int32_t device_idx) { m_device_idx = device_idx; }
-        void setStream(CUstream stream) { m_stream = stream; }
 
         void resize(int32_t width, int32_t height);
 
@@ -174,23 +166,15 @@ namespace sutil
         int32_t        width() const { return m_width; }
         int32_t        height() const { return m_height; }
 
-        // Get output buffer
-        GLuint         getPBO();
-        void           deletePBO();
-        PIXEL_FORMAT *getHostPointer();
+        PIXEL_FORMAT   *getHostPointer();
 
     private:
         void makeCurrent() { CUDA_CHECK(cudaSetDevice(m_device_idx)); }
 
-        CUDAOutputBufferType       m_type;
-
         int32_t                    m_width = 0u;
         int32_t                    m_height = 0u;
 
-        cudaGraphicsResource *m_cuda_gfx_resource = nullptr;
-        GLuint                     m_pbo = 0u;
         PIXEL_FORMAT *m_device_pixels = nullptr;
-        PIXEL_FORMAT *m_host_zcopy_pixels = nullptr;
         std::vector<PIXEL_FORMAT>  m_host_pixels;
 
         CUstream                   m_stream = 0u;
@@ -199,72 +183,24 @@ namespace sutil
 
 
     template <typename PIXEL_FORMAT>
-    CUDAOutputBuffer<PIXEL_FORMAT>::CUDAOutputBuffer(CUDAOutputBufferType type, int32_t width, int32_t height)
-        : m_type(type)
+    CUDAOutputBuffer<PIXEL_FORMAT>::CUDAOutputBuffer(int32_t width, int32_t height)
     {
         // Output dimensions must be at least 1 in both x and y to avoid an error
         // with cudaMalloc.
-#if 0
-        if (width < 1 || height < 1)
-        {
-            throw sutil::Exception("CUDAOutputBuffer dimensions must be at least 1 in both x and y.");
-        }
-#else
+
         if (width <= 0)
             width = 1;
         if (height <= 0)
             height = 1;
-#endif
 
-        // If using GL Interop, expect that the active device is also the display device.
-        if (type == CUDAOutputBufferType::GL_INTEROP)
-        {
-            int current_device, is_display_device;
-            CUDA_CHECK(cudaGetDevice(&current_device));
-            CUDA_CHECK(cudaDeviceGetAttribute(&is_display_device, cudaDevAttrKernelExecTimeout, current_device));
-            if (!is_display_device)
-            {
-                //throw (
-                //    "GL interop is only available on display device, please use display device for optimal "
-                //    "performance.  Alternatively you can disable GL interop with --no-gl-interop and run with "
-                //    "degraded performance."
-                //);
-                ASSERT(0);
-            }
-        }
         resize(width, height);
     }
-
 
     template <typename PIXEL_FORMAT>
     CUDAOutputBuffer<PIXEL_FORMAT>::~CUDAOutputBuffer()
     {
-        try
-        {
-            makeCurrent();
-            if (m_type == CUDAOutputBufferType::CUDA_DEVICE || m_type == CUDAOutputBufferType::CUDA_P2P)
-            {
-                CUDA_CHECK(cudaFree(reinterpret_cast<void *>(m_device_pixels)));
-            }
-            else if (m_type == CUDAOutputBufferType::ZERO_COPY)
-            {
-                CUDA_CHECK(cudaFreeHost(reinterpret_cast<void *>(m_host_zcopy_pixels)));
-            }
-            else if (m_type == CUDAOutputBufferType::GL_INTEROP || m_type == CUDAOutputBufferType::CUDA_P2P)
-            {
-                CUDA_CHECK(cudaGraphicsUnregisterResource(m_cuda_gfx_resource));
-            }
-
-            //if (m_pbo != 0u)
-            //{
-            //    GL_CHECK(glBindBuffer(GL_ARRAY_BUFFER, 0));
-            //    GL_CHECK(glDeleteBuffers(1, &m_pbo));
-            //}
-        }
-        catch (std::exception &e)
-        {
-            std::cerr << "CUDAOutputBuffer destructor caught exception: " << e.what() << std::endl;
-        }
+        makeCurrent();
+        CUDA_CHECK(cudaFree(reinterpret_cast<void *>(m_device_pixels)));
     }
 
 
@@ -286,204 +222,49 @@ namespace sutil
 
         makeCurrent();
 
-        if (m_type == CUDAOutputBufferType::CUDA_DEVICE || m_type == CUDAOutputBufferType::CUDA_P2P)
-        {
-            CUDA_CHECK(cudaFree(reinterpret_cast<void *>(m_device_pixels)));
-            CUDA_CHECK(cudaMalloc(
-                reinterpret_cast<void **>(&m_device_pixels),
-                m_width * m_height * sizeof(PIXEL_FORMAT)
-            ));
-
-        }
-
-        //if (m_type == CUDAOutputBufferType::GL_INTEROP || m_type == CUDAOutputBufferType::CUDA_P2P)
-        //{
-        //    // GL buffer gets resized below
-        //    //GL_CHECK(glGenBuffers(1, &m_pbo));
-        //    //GL_CHECK(glBindBuffer(GL_ARRAY_BUFFER, m_pbo));
-        //    //GL_CHECK(glBufferData(GL_ARRAY_BUFFER, sizeof(PIXEL_FORMAT) * m_width * m_height, nullptr, GL_STREAM_DRAW));
-        //    //GL_CHECK(glBindBuffer(GL_ARRAY_BUFFER, 0u));
-
-        //    CUDA_CHECK(cudaGraphicsGLRegisterBuffer(
-        //        &m_cuda_gfx_resource,
-        //        m_pbo,
-        //        cudaGraphicsMapFlagsWriteDiscard
-        //    ));
-        //}
-
-        if (m_type == CUDAOutputBufferType::ZERO_COPY)
-        {
-            CUDA_CHECK(cudaFreeHost(reinterpret_cast<void *>(m_host_zcopy_pixels)));
-            CUDA_CHECK(cudaHostAlloc(
-                reinterpret_cast<void **>(&m_host_zcopy_pixels),
-                m_width * m_height * sizeof(PIXEL_FORMAT),
-                cudaHostAllocPortable | cudaHostAllocMapped
-            ));
-            CUDA_CHECK(cudaHostGetDevicePointer(
-                reinterpret_cast<void **>(&m_device_pixels),
-                reinterpret_cast<void *>(m_host_zcopy_pixels),
-                0 /*flags*/
-            ));
-        }
-
-        if (m_type != CUDAOutputBufferType::GL_INTEROP && m_type != CUDAOutputBufferType::CUDA_P2P && m_pbo != 0u)
-        {
-            //GL_CHECK(glBindBuffer(GL_ARRAY_BUFFER, m_pbo));
-            //GL_CHECK(glBufferData(GL_ARRAY_BUFFER, sizeof(PIXEL_FORMAT) * m_width * m_height, nullptr, GL_STREAM_DRAW));
-            //GL_CHECK(glBindBuffer(GL_ARRAY_BUFFER, 0u));
-        }
+        CUDA_CHECK(cudaFree(reinterpret_cast<void *>(m_device_pixels)));
+        CUDA_CHECK(cudaMalloc(
+            reinterpret_cast<void **>(&m_device_pixels),
+            m_width * m_height * sizeof(PIXEL_FORMAT)
+        ));
 
         if (!m_host_pixels.empty())
             m_host_pixels.resize(m_width * m_height);
     }
 
-
     template <typename PIXEL_FORMAT>
     PIXEL_FORMAT *CUDAOutputBuffer<PIXEL_FORMAT>::map()
     {
-        if (m_type == CUDAOutputBufferType::CUDA_DEVICE || m_type == CUDAOutputBufferType::CUDA_P2P)
-        {
-            // nothing needed
-        }
-        else if (m_type == CUDAOutputBufferType::GL_INTEROP)
-        {
-            makeCurrent();
-
-            size_t buffer_size = 0u;
-            CUDA_CHECK(cudaGraphicsMapResources(1, &m_cuda_gfx_resource, m_stream));
-            CUDA_CHECK(cudaGraphicsResourceGetMappedPointer(
-                reinterpret_cast<void **>(&m_device_pixels),
-                &buffer_size,
-                m_cuda_gfx_resource
-            ));
-        }
-        else // m_type == CUDAOutputBufferType::ZERO_COPY
-        {
-            // nothing needed
-        }
-
         return m_device_pixels;
     }
-
 
     template <typename PIXEL_FORMAT>
     void CUDAOutputBuffer<PIXEL_FORMAT>::unmap()
     {
         makeCurrent();
-
-        if (m_type == CUDAOutputBufferType::CUDA_DEVICE || m_type == CUDAOutputBufferType::CUDA_P2P)
-        {
-            CUDA_CHECK(cudaStreamSynchronize(m_stream));
-        }
-        else if (m_type == CUDAOutputBufferType::GL_INTEROP)
-        {
-            CUDA_CHECK(cudaGraphicsUnmapResources(1, &m_cuda_gfx_resource, m_stream));
-        }
-        else // m_type == CUDAOutputBufferType::ZERO_COPY
-        {
-            CUDA_CHECK(cudaStreamSynchronize(m_stream));
-        }
-    }
-
-
-    template <typename PIXEL_FORMAT>
-    GLuint CUDAOutputBuffer<PIXEL_FORMAT>::getPBO()
-    {
-        if (m_pbo == 0u)
-            GL_CHECK(glGenBuffers(1, &m_pbo));
-
-        const size_t buffer_size = m_width * m_height * sizeof(PIXEL_FORMAT);
-
-        if (m_type == CUDAOutputBufferType::CUDA_DEVICE)
-        {
-            // We need a host buffer to act as a way-station
-            if (m_host_pixels.empty())
-                m_host_pixels.resize(m_width * m_height);
-
-            makeCurrent();
-            CUDA_CHECK(cudaMemcpy(
-                static_cast<void *>(m_host_pixels.data()),
-                m_device_pixels,
-                buffer_size,
-                cudaMemcpyDeviceToHost
-            ));
-
-            GL_CHECK(glBindBuffer(GL_ARRAY_BUFFER, m_pbo));
-            GL_CHECK(glBufferData(
-                GL_ARRAY_BUFFER,
-                buffer_size,
-                static_cast<void *>(m_host_pixels.data()),
-                GL_STREAM_DRAW
-            ));
-            GL_CHECK(glBindBuffer(GL_ARRAY_BUFFER, 0));
-        }
-        else if (m_type == CUDAOutputBufferType::GL_INTEROP)
-        {
-            // Nothing needed
-        }
-        else if (m_type == CUDAOutputBufferType::CUDA_P2P)
-        {
-            makeCurrent();
-            void *pbo_buff = nullptr;
-            size_t dummy_size = 0;
-
-            CUDA_CHECK(cudaGraphicsMapResources(1, &m_cuda_gfx_resource, m_stream));
-            CUDA_CHECK(cudaGraphicsResourceGetMappedPointer(&pbo_buff, &dummy_size, m_cuda_gfx_resource));
-            CUDA_CHECK(cudaMemcpy(pbo_buff, m_device_pixels, buffer_size, cudaMemcpyDeviceToDevice));
-            CUDA_CHECK(cudaGraphicsUnmapResources(1, &m_cuda_gfx_resource, m_stream));
-        }
-        else // m_type == CUDAOutputBufferType::ZERO_COPY
-        {
-            GL_CHECK(glBindBuffer(GL_ARRAY_BUFFER, m_pbo));
-            GL_CHECK(glBufferData(
-                GL_ARRAY_BUFFER,
-                buffer_size,
-                static_cast<void *>(m_host_zcopy_pixels),
-                GL_STREAM_DRAW
-            ));
-            GL_CHECK(glBindBuffer(GL_ARRAY_BUFFER, 0));
-        }
-
-        return m_pbo;
-    }
-
-    template <typename PIXEL_FORMAT>
-    void CUDAOutputBuffer<PIXEL_FORMAT>::deletePBO()
-    {
-        GL_CHECK(glBindBuffer(GL_ARRAY_BUFFER, 0));
-        GL_CHECK(glDeleteBuffers(1, &m_pbo));
-        m_pbo = 0;
+        CUDA_CHECK(cudaStreamSynchronize(m_stream));
     }
 
     template <typename PIXEL_FORMAT>
     PIXEL_FORMAT *CUDAOutputBuffer<PIXEL_FORMAT>::getHostPointer()
     {
-        if (m_type == CUDAOutputBufferType::CUDA_DEVICE ||
-            m_type == CUDAOutputBufferType::CUDA_P2P ||
-            m_type == CUDAOutputBufferType::GL_INTEROP)
-        {
-            m_host_pixels.resize(m_width * m_height);
+        m_host_pixels.resize(m_width * m_height);
 
-            makeCurrent();
-            CUDA_CHECK(cudaMemcpy(
-                static_cast<void *>(m_host_pixels.data()),
-                map(),
-                m_width * m_height * sizeof(PIXEL_FORMAT),
-                cudaMemcpyDeviceToHost
-            ));
-            unmap();
+        makeCurrent();
+        CUDA_CHECK(cudaMemcpy(
+            static_cast<void *>(m_host_pixels.data()),
+            map(),
+            m_width * m_height * sizeof(PIXEL_FORMAT),
+            cudaMemcpyDeviceToHost
+        ));
+        unmap();
 
-            return m_host_pixels.data();
-        }
-        else // m_type == CUDAOutputBufferType::ZERO_COPY
-        {
-            return m_host_zcopy_pixels;
-        }
+        return m_host_pixels.data();
     }
 
 } // end namespace sutil
 
-void StartOptix()
+void lightmapper_t::TraceRaysToCalculateStaticLighting(dynamic_array<vec3> WorldGeometryVertices)
 {
     //
     // Initialize CUDA and create OptiX context
@@ -521,19 +302,19 @@ void StartOptix()
         accel_options.operation = OPTIX_BUILD_OPERATION_BUILD;
 
         // Triangle build input: simple list of three vertices
-        const std::array<float3, 3> vertices =
-        { {
-              { -0.5f, -0.5f, 0.0f },
-              {  0.5f, -0.5f, 0.0f },
-              {  0.0f,  0.5f, 0.0f }
-        } };
+        // const std::array<float3, 3> vertices =
+        // { {
+        //       { -0.5f, -0.5f, 0.0f },
+        //       {  0.5f, -0.5f, 0.0f },
+        //       {  0.0f,  0.5f, 0.0f }
+        // } };
 
-        const size_t vertices_size = sizeof(float3) * vertices.size();
+        const size_t vertices_size = sizeof(vec3) * WorldGeometryVertices.lenu();
         CUdeviceptr d_vertices = 0;
         CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_vertices), vertices_size));
         CUDA_CHECK(cudaMemcpy(
             reinterpret_cast<void *>(d_vertices),
-            vertices.data(),
+            WorldGeometryVertices.data,
             vertices_size,
             cudaMemcpyHostToDevice
         ));
@@ -543,7 +324,7 @@ void StartOptix()
         OptixBuildInput triangle_input = {};
         triangle_input.type = OPTIX_BUILD_INPUT_TYPE_TRIANGLES;
         triangle_input.triangleArray.vertexFormat = OPTIX_VERTEX_FORMAT_FLOAT3;
-        triangle_input.triangleArray.numVertices = static_cast<uint32_t>(vertices.size());
+        triangle_input.triangleArray.numVertices = static_cast<uint32_t>(WorldGeometryVertices.lenu());
         triangle_input.triangleArray.vertexBuffers = &d_vertices;
         triangle_input.triangleArray.flags = triangle_input_flags;
         triangle_input.triangleArray.numSbtRecords = 1;
@@ -765,9 +546,19 @@ void StartOptix()
     }
 
 
-    int width = 1024;
-    int height = 768;
-    sutil::CUDAOutputBuffer<uchar4> output_buffer(sutil::CUDAOutputBufferType::CUDA_DEVICE, width, height);
+    // int width = 1024;
+    // int height = 768;
+    // sutil::CUDAOutputBuffer<uchar4> output_buffer(width, height);
+    sutil::CUDAOutputBuffer<float> output_buffer(UsedLightmapTexelCount, 1);
+    // all_lm_pos;
+    // all_lm_norm;
+    CUdeviceptr *d_world_positions;
+    CUDA_CHECK(cudaMalloc(&d_world_positions, UsedLightmapTexelCount * sizeof(float3))); // Allocate memory on the device
+    CUDA_CHECK(cudaMemcpy(d_world_positions, all_lm_pos, UsedLightmapTexelCount * sizeof(float3), cudaMemcpyHostToDevice));
+    CUdeviceptr *d_world_normals;
+    CUDA_CHECK(cudaMalloc(&d_world_normals, UsedLightmapTexelCount * sizeof(float3))); // Allocate memory on the device
+    CUDA_CHECK(cudaMemcpy(d_world_normals, all_lm_norm, UsedLightmapTexelCount * sizeof(float3), cudaMemcpyHostToDevice));
+
 
     //
     // launch
@@ -776,20 +567,13 @@ void StartOptix()
         CUstream stream;
         CUDA_CHECK(cudaStreamCreate(&stream));
 
-        sutil::Camera cam;
-        cam.setEye({ 0.0f, 0.0f, 2.0f });
-        cam.setLookat({ 0.0f, 0.0f, 0.0f });
-        cam.setUp({ 0.0f, 1.0f, 3.0f });
-        cam.setFovY(45.0f);
-        cam.setAspectRatio((float)width / (float)height);
-
         Params params;
-        params.image = output_buffer.map();
-        params.image_width = width;
-        params.image_height = height;
+        params.OutputLightmap = output_buffer.map();
+        // params.DirectionToSun = *((float3*)&vec3(-0.738f, 0.664f, -0.118f));
+        params.DirectionToSun = *((float3*)&Normalize(vec3(-1.0f, 0.9f, -0.16f)));
+        params.TexelWorldPositions = (float3*)d_world_positions;
+        params.TexelWorldNormals = (float3*)d_world_normals;
         params.handle = gas_handle;
-        params.cam_eye = cam.eye();
-        cam.UVWFrame(params.cam_u, params.cam_v, params.cam_w);
 
         CUdeviceptr d_param;
         CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_param), sizeof(Params)));
@@ -799,17 +583,20 @@ void StartOptix()
             cudaMemcpyHostToDevice
         ));
 
-        OPTIX_CHECK(optixLaunch(pipeline, stream, d_param, sizeof(Params), &sbt, width, height, /*depth=*/1));
+        OPTIX_CHECK(optixLaunch(pipeline, stream, d_param, sizeof(Params), &sbt, UsedLightmapTexelCount, 1, /*depth=*/1));
         CUDA_SYNC_CHECK();
 
         output_buffer.unmap();
         CUDA_CHECK(cudaFree(reinterpret_cast<void *>(d_param)));
     }
+    CUDA_CHECK(cudaFree(reinterpret_cast<void *>(d_world_positions)));
 
-    CreateGPUTextureFromBitmap(&DisplayOptixResult,
-        (void*)output_buffer.getHostPointer(), 
-        output_buffer.width(), output_buffer.height(),
-        GL_RGBA, GL_RGBA);
+    memcpy(all_light_global, output_buffer.getHostPointer(), UsedLightmapTexelCount*sizeof(float));
+
+    // CreateGPUTextureFromBitmap(&DisplayOptixResult,
+    //     (void*)output_buffer.getHostPointer(), 
+    //     width, height,
+    //     GL_RGBA, GL_RGBA);
 
     //
     // Cleanup
@@ -849,7 +636,25 @@ void lightmapper_t::BakeStaticLighting(game_map_build_data_t& BuildData)
     // lmuvcaches must contain the global lightmap uvs before generating vertices
     GenerateLevelVertices();
 
+    // The Big Lightmap Atlas
+    float *LIGHT_MAP_ATLAS = NULL;
+    arrsetcap(LIGHT_MAP_ATLAS, lightMapAtlasW*lightMapAtlasH);
 
+    // World geometry in triangles world positions only
+    dynamic_array<vec3> WorldGeometryVertices;
+    for (auto& vbpair : BuildDataShared->VertexBuffers)
+    {
+        const std::vector<float>& vb = vbpair.second;
+        ASSERT(vb.size() % 10 == 0);
+        for (size_t i = 0; i < vb.size(); i += 10)
+        {
+            WorldGeometryVertices.put(vec3(vb[i+0], vb[i+1], vb[i+2]));
+        }
+    }
+
+    TraceRaysToCalculateStaticLighting(WorldGeometryVertices);
+
+#if 0
     // direct lighting
     GenerateLightmapOcclusionTestTree();
 
@@ -891,9 +696,11 @@ void lightmapper_t::BakeStaticLighting(game_map_build_data_t& BuildData)
     arrfree(patches_vb);
     SceneLightingModel.ColorTexture = Assets.DefaultMissingTexture;
 
+
     // DECLARE LIGHT MAP ATLAS
     float *LIGHT_MAP_ATLAS = NULL;
     arrsetcap(LIGHT_MAP_ATLAS, lightMapAtlasW*lightMapAtlasH);
+
     CreateGPUTextureFromBitmap(&SceneLightingModel.LightMapTexture, (void*)LIGHT_MAP_ATLAS, 
         lightMapAtlasW, lightMapAtlasH, GL_R32F, GL_RED, GL_LINEAR, GL_LINEAR, GL_FLOAT);
 
@@ -1012,6 +819,7 @@ void lightmapper_t::BakeStaticLighting(game_map_build_data_t& BuildData)
     DeleteGPUFrameBuffer(&HemicubeFBO);
     DeleteGPUTexture(&SceneLightingModel.LightMapTexture);
     DeleteFaceBatch(&SceneLightingModel);
+#endif
 
     // Final blit to light map atlas
     i32 TotalUsedTexelsInLightmapAtlas = 0;
@@ -1047,8 +855,8 @@ void lightmapper_t::BakeStaticLighting(game_map_build_data_t& BuildData)
         TotalUsedTexelsInLightmapAtlas, lightMapAtlasW*lightMapAtlasH,
         lightMapAtlasW, lightMapAtlasH);
 
-    MapSurfaceColliders.clear();
-    LightMapOcclusionTree.TearDown();
+    // MapSurfaceColliders.clear();
+    // LightMapOcclusionTree.TearDown();
 
     FaceLightmaps.free();
     PackedLMRects.free();
@@ -1088,6 +896,7 @@ void lightmapper_t::PrepareFaceLightmapsAndTexelStorage()
     ASSERT(!FaceLightmaps.data);
     FaceLightmaps.setcap(BuildDataShared->TotalFaceCount);
 
+    UsedLightmapTexelCount = 0;
     for (int i = 0; i < BuildDataShared->TotalFaceCount; ++i)
     {
         // calculate bounds, and divide into patches/texels
@@ -1145,6 +954,7 @@ void lightmapper_t::PrepareFaceLightmapsAndTexelStorage()
         lm.w = (i32)(dim.x / LightMapTexelSize);
         lm.h = (i32)(dim.y / LightMapTexelSize);
         i32 lmsz = lm.w*lm.h;
+        UsedLightmapTexelCount += lmsz;
         lm.pos = arraddnptr(all_lm_pos, lmsz);
         lm.norm = arraddnptr(all_lm_norm, lmsz);
         lm.light = arraddnptr(all_light_global, lmsz);
@@ -1285,6 +1095,7 @@ void lightmapper_t::CreateMultiplierMap()
         MultiplierMapSide[p-HemicubeFaceAreaHalf] /= MultiplierBeforeNormalizeSum;
 }
 
+#if 0
 void lightmapper_t::CalcBounceLightForTexel(const lm_face_t& FaceLightmap, 
     u32 TexelOffset, const GLsizeiptr NumFloatsPerHemicubeFace)
 {
@@ -1431,6 +1242,7 @@ void lightmapper_t::CalcBounceLightForTexel(const lm_face_t& FaceLightmap,
 
     glUnmapBuffer(GL_PIXEL_PACK_BUFFER);
 }
+#endif
 
 void lightmapper_t::ThreadSafe_DoDirectLightingIntoLightMap(u32 patchIndexStart, u32 patchIndexEnd)
 {
