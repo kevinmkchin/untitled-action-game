@@ -7,6 +7,13 @@ enum RayType
     RAY_TYPE_COUNT
 };
 
+struct cu_pointlight_t
+{
+    float3 Position;
+    float AttenuationLinear;
+    float AttenuationQuadratic;
+};
+
 struct Params
 {
     float *OutputLightmap;
@@ -15,7 +22,7 @@ struct Params
     float3 DirectionToSun;
 
     int CountOfPointLights;
-    float3 *PointLights;
+    cu_pointlight_t *PointLights;
 
     float3 *TexelWorldPositions;
     float3 *TexelWorldNormals;
