@@ -2,7 +2,7 @@
 
 enum RayType
 {
-    RAY_TYPE_RADIANCE = 0,
+    RAY_TYPE_DIRECTIONAL_LIGHT = 0,
     RAY_TYPE_COUNT
 };
 
@@ -10,16 +10,11 @@ struct Params
 {
     float *OutputLightmap;
 
+    int DoDirectionalLight;
     float3 DirectionToSun;
 
     float3 *TexelWorldPositions;
     float3 *TexelWorldNormals;
-
-    // unsigned int           image_width;
-    // unsigned int           image_height;
-
-    // float3                 cam_eye;
-    // float3                 cam_u, cam_v, cam_w;
 
     OptixTraversableHandle handle;
 };

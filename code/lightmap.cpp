@@ -430,7 +430,7 @@ void lightmapper_t::TraceRaysToCalculateStaticLighting(dynamic_array<vec3> World
         OptixProgramGroupDesc miss_prog_group_desc = {};
         miss_prog_group_desc.kind = OPTIX_PROGRAM_GROUP_KIND_MISS;
         miss_prog_group_desc.miss.module = module;
-        miss_prog_group_desc.miss.entryFunctionName = "__miss__ms";
+        miss_prog_group_desc.miss.entryFunctionName = "__miss__DirectionalLight";
         OPTIX_CHECK_LOG(optixProgramGroupCreate(
             context,
             &miss_prog_group_desc,
@@ -443,7 +443,7 @@ void lightmapper_t::TraceRaysToCalculateStaticLighting(dynamic_array<vec3> World
         OptixProgramGroupDesc hitgroup_prog_group_desc = {};
         hitgroup_prog_group_desc.kind = OPTIX_PROGRAM_GROUP_KIND_HITGROUP;
         hitgroup_prog_group_desc.hitgroup.moduleCH = module;
-        hitgroup_prog_group_desc.hitgroup.entryFunctionNameCH = "__closesthit__ch";
+        hitgroup_prog_group_desc.hitgroup.entryFunctionNameCH = "__closesthit__DirectionalLight";
         OPTIX_CHECK_LOG(optixProgramGroupCreate(
             context,
             &hitgroup_prog_group_desc,
@@ -569,7 +569,7 @@ void lightmapper_t::TraceRaysToCalculateStaticLighting(dynamic_array<vec3> World
 
         Params params;
         params.OutputLightmap = output_buffer.map();
-        // params.DirectionToSun = *((float3*)&vec3(-0.738f, 0.664f, -0.118f));
+        params.DoDirectionalLight = 1;
         params.DirectionToSun = *((float3*)&Normalize(vec3(-1.0f, 0.9f, -0.16f)));
         params.TexelWorldPositions = (float3*)d_world_positions;
         params.TexelWorldNormals = (float3*)d_world_normals;
