@@ -896,6 +896,8 @@ void lightmapper_t::BakeStaticLighting(game_map_build_data_t& BuildData)
             (u8*)lmface.light, lmface.w, lmface.h, rect.x, rect.y, sizeof(float));
         TotalUsedTexelsInLightmapAtlas += lmface.w * lmface.h;
     }
+    // Why tf is the lighting data in float not u8? I remember specifically changing it but why...
+    // I think I did it so that lighting value can exceed 1.0? 11c6bf455d6e43af48df397945a87fc54baf3759
     ByteBufferWrite(&BuildData.Output, i32, lightMapAtlasW);
     ByteBufferWrite(&BuildData.Output, i32, lightMapAtlasH);
     ByteBufferWriteBulk(&BuildData.Output, LIGHT_MAP_ATLAS, lightMapAtlasW*lightMapAtlasH*sizeof(float));

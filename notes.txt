@@ -11,6 +11,8 @@
   I'm already doing a version of this on the CPU. 
 - then monte carlo sampling with lots of samples per iteration
   output radiance = direct lighting + average from monte carlo samples attenuated
+- For indirect lighting via monte carlo sampling, try calculating just the first bounce. as in no
+  additional monte carlo sampling rays are cast recursively, but just use the direct lighting sample at that hit point.
 
 - OptiX 8.1 SDK requires CUDA Toolkit to build
 - I should make my lightmapper a separate program so I only have to build with CUDA once.

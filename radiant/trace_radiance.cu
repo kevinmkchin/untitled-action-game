@@ -18,22 +18,17 @@ __constant__ Params params;
 //    optixSetPayload_2( __float_as_uint( p.z ) );
 //}
 
+// Calculating surface normal of hit point:
+// https://forums.developer.nvidia.com/t/built-in-triangles-normal-with-optix-7-2/215360
 
-extern "C" __global__ void __raygen__rg()
+
+static __forceinline__ __device__ float CalculateDirectionalLight(float3 Position, float3 SurfaceNormal)
 {
-    // Lookup our location within the launch grid
-    const uint3 idx = optixGetLaunchIndex();
-    const uint3 dim = optixGetLaunchDimensions();
-
-    float3 ray_origin = params.TexelWorldPositions[idx.x];
-
     float LightValue = 0.f;
-
-    float3 TexelNormal = params.TexelWorldNormals[idx.x];
 
     if (params.DoDirectionalLight)
     {
-        float CosTheta = dot(TexelNormal, params.DirectionToSun);
+        float CosTheta = dot(SurfaceNormal, params.DirectionToSun);
         if (CosTheta > 0.f)
         {
             // Send
@@ -42,29 +37,29 @@ extern "C" __global__ void __raygen__rg()
             // p0: float light contribution
             unsigned int p0;
             optixTrace( // Trace the ray against our scene hierarchy
-                    params.handle,
-                    ray_origin,
-                    params.DirectionToSun,
-                    0.01f,    // Min intersection distance
-                    100000.f, // Max intersection distance
-                    0.0f,     // rayTime -- used for motion blur
-                    OptixVisibilityMask( 255 ), // Specify always visible
-                    OPTIX_RAY_FLAG_NONE,
-                    RAY_TYPE_DIRECTIONAL_LIGHT, // SBT offset   -- See SBT discussion
-                    RAY_TYPE_COUNT,             // SBT stride   -- See SBT discussion
-                    RAY_TYPE_DIRECTIONAL_LIGHT, // missSBTIndex -- See SBT discussion
-                    p0);
-            float result = __uint_as_float( p0 );
+                params.handle,
+                Position,
+                params.DirectionToSun,
+                0.01f,    // Min intersection distance
+                100000.f, // Max intersection distance
+                0.0f,     // rayTime -- used for motion blur
+                OptixVisibilityMask(255), // Specify always visible
+                OPTIX_RAY_FLAG_NONE,
+                RAY_TYPE_DIRECTIONAL_LIGHT, // SBT offset   -- See SBT discussion
+                RAY_TYPE_COUNT,             // SBT stride   -- See SBT discussion
+                RAY_TYPE_DIRECTIONAL_LIGHT, // missSBTIndex -- See SBT discussion
+                p0);
+            float result = __uint_as_float(p0);
             LightValue += result;
         }
     }
-    
+
     int CountOfPointLights = params.CountOfPointLights;
     for (unsigned int i = 0; i < CountOfPointLights; ++i)
     {
         float3 PointLightWorldPos = params.PointLights[i].Position;
-        float3 DirectionToPointLight = normalize(PointLightWorldPos - ray_origin);
-        float CosTheta = dot(TexelNormal, DirectionToPointLight);
+        float3 DirectionToPointLight = normalize(PointLightWorldPos - Position);
+        float CosTheta = dot(SurfaceNormal, DirectionToPointLight);
         if (CosTheta > 0.f)
         {
             // Send
@@ -73,24 +68,48 @@ extern "C" __global__ void __raygen__rg()
             // p0: float light contribution
             unsigned int p0 = i;
             optixTrace(
-                    params.handle,
-                    ray_origin,
-                    DirectionToPointLight,
-                    0.01f,    // Min intersection distance
-                    100000.f, // Max intersection distance
-                    0.0f,     // rayTime -- used for motion blur
-                    OptixVisibilityMask(255),
-                    OPTIX_RAY_FLAG_NONE,
-                    RAY_TYPE_POINT_LIGHT,
-                    RAY_TYPE_COUNT,
-                    RAY_TYPE_POINT_LIGHT,
-                    p0);
+                params.handle,
+                Position,
+                DirectionToPointLight,
+                0.01f,    // Min intersection distance
+                100000.f, // Max intersection distance
+                0.0f,     // rayTime -- used for motion blur
+                OptixVisibilityMask(255),
+                OPTIX_RAY_FLAG_NONE,
+                RAY_TYPE_POINT_LIGHT,
+                RAY_TYPE_COUNT,
+                RAY_TYPE_POINT_LIGHT,
+                p0);
             float LightContribution = __uint_as_float(p0);
             LightValue += LightContribution;
         }
     }
 
-    params.OutputLightmap[idx.x] = LightValue;
+    return LightValue;
+}
+
+extern "C" __global__ void __raygen__rg()
+{
+    // Lookup our location within the launch grid
+    const uint3 idx = optixGetLaunchIndex();
+    const uint3 dim = optixGetLaunchDimensions();
+
+    float3 TexelPosition = params.TexelWorldPositions[idx.x];
+    float3 TexelNormal = params.TexelWorldNormals[idx.x];
+
+    float DirectLightValue = CalculateDirectionalLight(TexelPosition, TexelNormal);
+
+    // TODO Indirect light values
+    // Do Monte Carlo sampling from this texel to gather bounce lighting
+    // Hmmm, instead of recursively casting rays, maybe it would be faster if
+    // all the texels did monte carlo sampling once, update the light buffer
+    // then do the subsequent bounces? by doing monte carlo sampling again.
+    // we would need a way to look up or sample the lightmap upon a hit.
+    // well, the lightmap is a flat array, so I can find the texel index
+    // from the UV by doing V * ActualHeight * ActualWidth + U * ActualWidth
+    // or maybe, 
+
+    params.OutputLightmap[idx.x] = DirectLightValue;
 }
 
 extern "C" __global__ void __miss__PointLight()
