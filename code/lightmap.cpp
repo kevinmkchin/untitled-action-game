@@ -598,17 +598,24 @@ void lightmapper_t::TraceRaysToCalculateStaticLighting(dynamic_array<vec3> World
     CUDA_CHECK(cudaMemcpy(d_world_normals, all_lm_norm, UsedLightmapTexelCount * sizeof(float3), cudaMemcpyHostToDevice));
 
     int PointLightsCount = (int)BuildDataShared->PointLights.lenu();
-    dynamic_array<vec3> PointLightPositions;
+    dynamic_array<cu_pointlight_t> PointLightInfos;
     for (int i = 0; i < PointLightsCount; ++i)
     {
         static_point_light_t PLight = BuildDataShared->PointLights[i];
-        PointLightPositions.put(PLight.Pos);
+
+        cu_pointlight_t PointLightInfo;
+        PointLightInfo.Position = *((float3*)&PLight.Pos);
+        PointLightInfo.AttenuationLinear = 0.02f; // I like lower values here tbh...
+        PointLightInfo.AttenuationQuadratic = 0.00019f;
+
+        PointLightInfos.put(PointLightInfo);
     }
     CUdeviceptr *d_point_light_srcs;
-    CUDA_CHECK(cudaMalloc(&d_point_light_srcs, PointLightsCount * sizeof(float3)));
+    CUDA_CHECK(cudaMalloc(&d_point_light_srcs, PointLightsCount * sizeof(cu_pointlight_t)));
     if (PointLightsCount > 0)
     {
-        CUDA_CHECK(cudaMemcpy(d_point_light_srcs, PointLightPositions.data, PointLightsCount * sizeof(float3), cudaMemcpyHostToDevice));
+        CUDA_CHECK(cudaMemcpy(d_point_light_srcs, PointLightInfos.data, PointLightsCount * sizeof(cu_pointlight_t), cudaMemcpyHostToDevice));
+        PointLightInfos.free();
     }
 
     bool SunExists = BuildDataShared->DirectionToSun != vec3();
@@ -626,7 +633,7 @@ void lightmapper_t::TraceRaysToCalculateStaticLighting(dynamic_array<vec3> World
         params.DoDirectionalLight = int(SunExists);
         params.DirectionToSun = *((float3*)&DirectionToSun);
         params.CountOfPointLights = PointLightsCount;
-        params.PointLights = (float3*)d_point_light_srcs;
+        params.PointLights = (cu_pointlight_t*)d_point_light_srcs;
         params.TexelWorldPositions = (float3*)d_world_positions;
         params.TexelWorldNormals = (float3*)d_world_normals;
         params.handle = gas_handle;
@@ -649,7 +656,6 @@ void lightmapper_t::TraceRaysToCalculateStaticLighting(dynamic_array<vec3> World
     CUDA_CHECK(cudaFree(reinterpret_cast<void *>(d_world_positions)));
     CUDA_CHECK(cudaFree(reinterpret_cast<void *>(d_world_normals)));
     CUDA_CHECK(cudaFree(reinterpret_cast<void *>(d_point_light_srcs)));
-    if (PointLightPositions.data) PointLightPositions.free();
 
     memcpy(all_light_global, output_buffer.getHostPointer(), UsedLightmapTexelCount*sizeof(float));
 

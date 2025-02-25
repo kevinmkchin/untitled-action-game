@@ -62,7 +62,7 @@ extern "C" __global__ void __raygen__rg()
     int CountOfPointLights = params.CountOfPointLights;
     for (unsigned int i = 0; i < CountOfPointLights; ++i)
     {
-        float3 PointLightWorldPos = params.PointLights[i];
+        float3 PointLightWorldPos = params.PointLights[i].Position;
         float3 DirectionToPointLight = normalize(PointLightWorldPos - ray_origin);
         float CosTheta = dot(TexelNormal, DirectionToPointLight);
         if (CosTheta > 0.f)
@@ -99,9 +99,17 @@ extern "C" __global__ void __miss__PointLight()
     const uint3 idx = optixGetLaunchIndex();
     float3 TexelNormal = params.TexelWorldNormals[idx.x];
     unsigned int PointLightIdx = optixGetPayload_0();
-    float3 PointLightWorldPos = params.PointLights[PointLightIdx];
-    float3 DirectionToPointLight = normalize(PointLightWorldPos - optixGetWorldRayOrigin());
-    float DirectIntensity = dot(TexelNormal, DirectionToPointLight);
+    cu_pointlight_t PointLight = params.PointLights[PointLightIdx];
+    float3 ToLight = PointLight.Position - optixGetWorldRayOrigin();
+    float DistToLight = length(ToLight);
+
+    float CosTheta = dot(TexelNormal, normalize(ToLight));
+    float AttenLin = PointLight.AttenuationLinear;
+    float AttenQuad = PointLight.AttenuationQuadratic;
+    float Attenuation = 1.f / 
+        (1.f + AttenLin * DistToLight + AttenQuad * DistToLight * DistToLight);
+    float DirectIntensity = CosTheta * Attenuation;
+
     optixSetPayload_0(__float_as_uint(DirectIntensity));
 }
 
@@ -111,7 +119,8 @@ extern "C" __global__ void __closesthit__PointLight()
     const uint3 idx = optixGetLaunchIndex();
     float3 TexelNormal = params.TexelWorldNormals[idx.x];
     unsigned int PointLightIdx = optixGetPayload_0();
-    float3 PointLightWorldPos = params.PointLights[PointLightIdx];
+    cu_pointlight_t PointLight = params.PointLights[PointLightIdx];
+    float3 PointLightWorldPos = PointLight.Position;
 
     float3 RayOrigin = optixGetWorldRayOrigin();
     float3 RayDirection = optixGetWorldRayDirection();
@@ -124,7 +133,13 @@ extern "C" __global__ void __closesthit__PointLight()
 
     if (DistToLight < DistToHit)
     {
-        float DirectIntensity = dot(TexelNormal, normalize(ToLight));
+        float CosTheta = dot(TexelNormal, normalize(ToLight));
+        float AttenLin = PointLight.AttenuationLinear;
+        float AttenQuad = PointLight.AttenuationQuadratic;
+        float Attenuation = 1.f / 
+            (1.f + AttenLin * DistToLight + AttenQuad * DistToLight * DistToLight);
+        float DirectIntensity = CosTheta * Attenuation;
+
         optixSetPayload_0(__float_as_uint(DirectIntensity));
     }
     else
