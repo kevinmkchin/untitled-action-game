@@ -294,7 +294,6 @@ GPUMeshIndexed FinalRenderOutputQuad;
 float GAMEPROJECTION_NEARCLIP = 4.f; // even 2 works fine to remove z fighting
 float GAMEPROJECTION_FARCLIP = 32000.f;
 
-GPUTexture DisplayOptixResult;
 
 
 // MIXER
@@ -620,8 +619,6 @@ static void ApplicationBuildLevelAndPlay()
 
 static void ApplicationLoop()
 {
-    GUI::PrimitivePanel(GUI::UIRect(0,0,512,384), DisplayOptixResult.id);
-
     // TODO actually I want option to let the game keep running while
     // debug menu is open
     static bool ShowDebugMenu = false;
@@ -688,15 +685,13 @@ int main(int argc, char* argv[])
 
     InitializeGame();
 
-    StartOptix();
-
     // LevelEditor.LoadMap(wd_path("LightTest.emf").c_str());
     // BuildGameMap(wd_path("buildtest.map").c_str());
-    LoadLevel(wd_path("buildtest.map").c_str());
+    // LoadLevel(wd_path("buildtest.map").c_str());
 
-    // LevelEditor.LoadMap(wd_path("House.emf").c_str());
-    // BuildGameMap(wd_path("buildtest2.map").c_str());
-    // LoadLevel(wd_path("buildtest2.map").c_str());
+    LevelEditor.LoadMap(wd_path("House.emf").c_str());
+    BuildGameMap(wd_path("buildtest2.map").c_str());
+    LoadLevel(wd_path("buildtest2.map").c_str());
 
     // LoadLevel(wd_path("House.map").c_str());
 

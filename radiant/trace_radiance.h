@@ -8,11 +8,19 @@ enum RayType
 
 struct Params
 {
-    uchar4 *image;
-    unsigned int           image_width;
-    unsigned int           image_height;
-    float3                 cam_eye;
-    float3                 cam_u, cam_v, cam_w;
+    float *OutputLightmap;
+
+    float3 DirectionToSun;
+
+    float3 *TexelWorldPositions;
+    float3 *TexelWorldNormals;
+
+    // unsigned int           image_width;
+    // unsigned int           image_height;
+
+    // float3                 cam_eye;
+    // float3                 cam_u, cam_v, cam_w;
+
     OptixTraversableHandle handle;
 };
 
