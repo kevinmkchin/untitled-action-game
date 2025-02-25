@@ -26,24 +26,28 @@ extern "C" __global__ void __raygen__rg()
     const uint3 dim = optixGetLaunchDimensions();
 
     float3 ray_origin = params.TexelWorldPositions[idx.x];
-    float3 ray_direction = params.DirectionToSun;
 
     float LightValue = 0.f;
 
+    float3 TexelNormal = params.TexelWorldNormals[idx.x];
+
     if (params.DoDirectionalLight)
     {
-        float3 TexelNormal = params.TexelWorldNormals[idx.x];
         float CosTheta = dot(TexelNormal, params.DirectionToSun);
         if (CosTheta > 0.f)
         {
+            // Send
+            // p0: nothing
+            // Receive
+            // p0: float light contribution
             unsigned int p0;
             optixTrace( // Trace the ray against our scene hierarchy
                     params.handle,
                     ray_origin,
-                    ray_direction,
-                    0.01f,                // Min intersection distance
-                    1e16f,               // Max intersection distance
-                    0.0f,                // rayTime -- used for motion blur
+                    params.DirectionToSun,
+                    0.01f,    // Min intersection distance
+                    100000.f, // Max intersection distance
+                    0.0f,     // rayTime -- used for motion blur
                     OptixVisibilityMask( 255 ), // Specify always visible
                     OPTIX_RAY_FLAG_NONE,
                     RAY_TYPE_DIRECTIONAL_LIGHT, // SBT offset   -- See SBT discussion
@@ -55,9 +59,79 @@ extern "C" __global__ void __raygen__rg()
         }
     }
     
+    int CountOfPointLights = params.CountOfPointLights;
+    for (unsigned int i = 0; i < CountOfPointLights; ++i)
+    {
+        float3 PointLightWorldPos = params.PointLights[i];
+        float3 DirectionToPointLight = normalize(PointLightWorldPos - ray_origin);
+        float CosTheta = dot(TexelNormal, DirectionToPointLight);
+        if (CosTheta > 0.f)
+        {
+            // Send
+            // p0: unsigned int point light index
+            // Receive
+            // p0: float light contribution
+            unsigned int p0 = i;
+            optixTrace(
+                    params.handle,
+                    ray_origin,
+                    DirectionToPointLight,
+                    0.01f,    // Min intersection distance
+                    100000.f, // Max intersection distance
+                    0.0f,     // rayTime -- used for motion blur
+                    OptixVisibilityMask(255),
+                    OPTIX_RAY_FLAG_NONE,
+                    RAY_TYPE_POINT_LIGHT,
+                    RAY_TYPE_COUNT,
+                    RAY_TYPE_POINT_LIGHT,
+                    p0);
+            float LightContribution = __uint_as_float(p0);
+            LightValue += LightContribution;
+        }
+    }
+
     params.OutputLightmap[idx.x] = LightValue;
 }
 
+extern "C" __global__ void __miss__PointLight()
+{
+    // If ray misses and goes off into space, then nothing in between the texel and the point light
+    const uint3 idx = optixGetLaunchIndex();
+    float3 TexelNormal = params.TexelWorldNormals[idx.x];
+    unsigned int PointLightIdx = optixGetPayload_0();
+    float3 PointLightWorldPos = params.PointLights[PointLightIdx];
+    float3 DirectionToPointLight = normalize(PointLightWorldPos - optixGetWorldRayOrigin());
+    float DirectIntensity = dot(TexelNormal, DirectionToPointLight);
+    optixSetPayload_0(__float_as_uint(DirectIntensity));
+}
+
+extern "C" __global__ void __closesthit__PointLight()
+{
+    // If ray hits an object, then check if point light is before or after this object
+    const uint3 idx = optixGetLaunchIndex();
+    float3 TexelNormal = params.TexelWorldNormals[idx.x];
+    unsigned int PointLightIdx = optixGetPayload_0();
+    float3 PointLightWorldPos = params.PointLights[PointLightIdx];
+
+    float3 RayOrigin = optixGetWorldRayOrigin();
+    float3 RayDirection = optixGetWorldRayDirection();
+    float HitT = optixGetRayTmax(); // Get the distance to the 
+    float3 HitPosition = RayOrigin + HitT * RayDirection; // Compute the world-space hit position
+
+    float3 ToLight = PointLightWorldPos - RayOrigin;
+    float DistToLight = length(ToLight);
+    float DistToHit = length(HitPosition - RayOrigin);
+
+    if (DistToLight < DistToHit)
+    {
+        float DirectIntensity = dot(TexelNormal, normalize(ToLight));
+        optixSetPayload_0(__float_as_uint(DirectIntensity));
+    }
+    else
+    {
+        optixSetPayload_0(__float_as_uint(0.f));
+    }
+}
 
 extern "C" __global__ void __miss__DirectionalLight()
 {
@@ -67,9 +141,7 @@ extern "C" __global__ void __miss__DirectionalLight()
     optixSetPayload_0(__float_as_uint(DirectIntensity));
 }
 
-
 extern "C" __global__ void __closesthit__DirectionalLight()
 {
     optixSetPayload_0(__float_as_uint(0.f));
-    // setPayload( make_float3(1.f, 1.f, 1.f) );
 }

@@ -20,7 +20,7 @@ static void BuildOutLevelEntities(game_map_build_data_t *BuildData)
             } break;
             case DIRECTIONAL_LIGHT_PROPERTIES: {
                 // If DirectionToSun is 0,0,0 then no sun in the level
-                BuildData->DirectionToSun = Ent.Rotation;
+                BuildData->DirectionToSun = Normalize(Ent.Rotation);
             } break;
         }
     }

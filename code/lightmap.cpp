@@ -408,9 +408,11 @@ void lightmapper_t::TraceRaysToCalculateStaticLighting(dynamic_array<vec3> World
     //
     // Create program groups
     //
-    OptixProgramGroup raygen_prog_group = nullptr;
-    OptixProgramGroup miss_prog_group = nullptr;
-    OptixProgramGroup hitgroup_prog_group = nullptr;
+    OptixProgramGroup raygen_prog_group           = 0;
+    OptixProgramGroup directionallight_miss_group = 0;
+    OptixProgramGroup pointlight_miss_group       = 0;
+    OptixProgramGroup directionallight_hit_group  = 0;
+    OptixProgramGroup pointlight_hit_group        = 0;
     {
         OptixProgramGroupOptions program_group_options = {}; // Initialize to zeros
 
@@ -437,7 +439,20 @@ void lightmapper_t::TraceRaysToCalculateStaticLighting(dynamic_array<vec3> World
             1,   // num program groups
             &program_group_options,
             LOG, &LOG_SIZE,
-            &miss_prog_group
+            &directionallight_miss_group
+        ));
+
+        memset(&miss_prog_group_desc, 0, sizeof(OptixProgramGroupDesc));
+        miss_prog_group_desc.kind = OPTIX_PROGRAM_GROUP_KIND_MISS;
+        miss_prog_group_desc.miss.module = module;
+        miss_prog_group_desc.miss.entryFunctionName = "__miss__PointLight";
+        OPTIX_CHECK_LOG(optixProgramGroupCreate(
+            context,
+            &miss_prog_group_desc,
+            1,   // num program groups
+            &program_group_options,
+            LOG, &LOG_SIZE,
+            &pointlight_miss_group
         ));
 
         OptixProgramGroupDesc hitgroup_prog_group_desc = {};
@@ -450,7 +465,20 @@ void lightmapper_t::TraceRaysToCalculateStaticLighting(dynamic_array<vec3> World
             1,   // num program groups
             &program_group_options,
             LOG, &LOG_SIZE,
-            &hitgroup_prog_group
+            &directionallight_hit_group
+        ));
+
+        memset(&hitgroup_prog_group_desc, 0, sizeof(OptixProgramGroupDesc));
+        hitgroup_prog_group_desc.kind = OPTIX_PROGRAM_GROUP_KIND_HITGROUP;
+        hitgroup_prog_group_desc.hitgroup.moduleCH = module;
+        hitgroup_prog_group_desc.hitgroup.entryFunctionNameCH = "__closesthit__PointLight";
+        OPTIX_CHECK_LOG(optixProgramGroupCreate(
+            context,
+            &hitgroup_prog_group_desc,
+            1,   // num program groups
+            &program_group_options,
+            LOG, &LOG_SIZE,
+            &pointlight_hit_group
         ));
     }
 
@@ -460,7 +488,13 @@ void lightmapper_t::TraceRaysToCalculateStaticLighting(dynamic_array<vec3> World
     OptixPipeline pipeline = nullptr;
     {
         const uint32_t    max_trace_depth = 3;
-        OptixProgramGroup program_groups[] = { raygen_prog_group, miss_prog_group, hitgroup_prog_group };
+        OptixProgramGroup program_groups[] = { 
+            raygen_prog_group, 
+            directionallight_miss_group,
+            pointlight_miss_group,
+            directionallight_hit_group,
+            pointlight_hit_group
+        };
 
         OptixPipelineLinkOptions pipeline_link_options = {};
         pipeline_link_options.maxTraceDepth = max_trace_depth;
@@ -511,12 +545,15 @@ void lightmapper_t::TraceRaysToCalculateStaticLighting(dynamic_array<vec3> World
             cudaMemcpyHostToDevice
         ));
 
+
         CUdeviceptr miss_record;
-        size_t      miss_record_size = sizeof(MissSbtRecord);
+        size_t      miss_record_size = sizeof(MissSbtRecord) * RAY_TYPE_COUNT;
         CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&miss_record), miss_record_size));
-        MissSbtRecord ms_sbt;
-        ms_sbt.data = { 0.3f, 0.1f, 0.2f };
-        OPTIX_CHECK(optixSbtRecordPackHeader(miss_prog_group, &ms_sbt));
+
+        MissSbtRecord ms_sbt[RAY_TYPE_COUNT];
+        OPTIX_CHECK(optixSbtRecordPackHeader(directionallight_miss_group, &ms_sbt[RAY_TYPE_DIRECTIONAL_LIGHT]));
+        OPTIX_CHECK(optixSbtRecordPackHeader(pointlight_miss_group, &ms_sbt[RAY_TYPE_POINT_LIGHT]));
+
         CUDA_CHECK(cudaMemcpy(
             reinterpret_cast<void *>(miss_record),
             &ms_sbt,
@@ -524,11 +561,15 @@ void lightmapper_t::TraceRaysToCalculateStaticLighting(dynamic_array<vec3> World
             cudaMemcpyHostToDevice
         ));
 
+
         CUdeviceptr hitgroup_record;
-        size_t      hitgroup_record_size = sizeof(HitGroupSbtRecord);
+        size_t      hitgroup_record_size = sizeof(HitGroupSbtRecord) * RAY_TYPE_COUNT;
         CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&hitgroup_record), hitgroup_record_size));
-        HitGroupSbtRecord hg_sbt;
-        OPTIX_CHECK(optixSbtRecordPackHeader(hitgroup_prog_group, &hg_sbt));
+
+        HitGroupSbtRecord hg_sbt[RAY_TYPE_COUNT];
+        OPTIX_CHECK(optixSbtRecordPackHeader(directionallight_hit_group, &hg_sbt[RAY_TYPE_DIRECTIONAL_LIGHT]));
+        OPTIX_CHECK(optixSbtRecordPackHeader(pointlight_hit_group, &hg_sbt[RAY_TYPE_POINT_LIGHT]));
+
         CUDA_CHECK(cudaMemcpy(
             reinterpret_cast<void *>(hitgroup_record),
             &hg_sbt,
@@ -536,29 +577,42 @@ void lightmapper_t::TraceRaysToCalculateStaticLighting(dynamic_array<vec3> World
             cudaMemcpyHostToDevice
         ));
 
+
         sbt.raygenRecord = raygen_record;
         sbt.missRecordBase = miss_record;
         sbt.missRecordStrideInBytes = sizeof(MissSbtRecord);
-        sbt.missRecordCount = 1;
+        sbt.missRecordCount = RAY_TYPE_COUNT;
         sbt.hitgroupRecordBase = hitgroup_record;
         sbt.hitgroupRecordStrideInBytes = sizeof(HitGroupSbtRecord);
-        sbt.hitgroupRecordCount = 1;
+        sbt.hitgroupRecordCount = RAY_TYPE_COUNT;
     }
 
 
-    // int width = 1024;
-    // int height = 768;
-    // sutil::CUDAOutputBuffer<uchar4> output_buffer(width, height);
     sutil::CUDAOutputBuffer<float> output_buffer(UsedLightmapTexelCount, 1);
-    // all_lm_pos;
-    // all_lm_norm;
+
     CUdeviceptr *d_world_positions;
     CUDA_CHECK(cudaMalloc(&d_world_positions, UsedLightmapTexelCount * sizeof(float3))); // Allocate memory on the device
     CUDA_CHECK(cudaMemcpy(d_world_positions, all_lm_pos, UsedLightmapTexelCount * sizeof(float3), cudaMemcpyHostToDevice));
     CUdeviceptr *d_world_normals;
-    CUDA_CHECK(cudaMalloc(&d_world_normals, UsedLightmapTexelCount * sizeof(float3))); // Allocate memory on the device
+    CUDA_CHECK(cudaMalloc(&d_world_normals, UsedLightmapTexelCount * sizeof(float3)));
     CUDA_CHECK(cudaMemcpy(d_world_normals, all_lm_norm, UsedLightmapTexelCount * sizeof(float3), cudaMemcpyHostToDevice));
 
+    int PointLightsCount = (int)BuildDataShared->PointLights.lenu();
+    dynamic_array<vec3> PointLightPositions;
+    for (int i = 0; i < PointLightsCount; ++i)
+    {
+        static_point_light_t PLight = BuildDataShared->PointLights[i];
+        PointLightPositions.put(PLight.Pos);
+    }
+    CUdeviceptr *d_point_light_srcs;
+    CUDA_CHECK(cudaMalloc(&d_point_light_srcs, PointLightsCount * sizeof(float3)));
+    if (PointLightsCount > 0)
+    {
+        CUDA_CHECK(cudaMemcpy(d_point_light_srcs, PointLightPositions.data, PointLightsCount * sizeof(float3), cudaMemcpyHostToDevice));
+    }
+
+    bool SunExists = BuildDataShared->DirectionToSun != vec3();
+    vec3 DirectionToSun = Normalize(BuildDataShared->DirectionToSun);
 
     //
     // launch
@@ -569,8 +623,10 @@ void lightmapper_t::TraceRaysToCalculateStaticLighting(dynamic_array<vec3> World
 
         Params params;
         params.OutputLightmap = output_buffer.map();
-        params.DoDirectionalLight = 1;
-        params.DirectionToSun = *((float3*)&Normalize(vec3(-1.0f, 0.9f, -0.16f)));
+        params.DoDirectionalLight = int(SunExists);
+        params.DirectionToSun = *((float3*)&DirectionToSun);
+        params.CountOfPointLights = PointLightsCount;
+        params.PointLights = (float3*)d_point_light_srcs;
         params.TexelWorldPositions = (float3*)d_world_positions;
         params.TexelWorldNormals = (float3*)d_world_normals;
         params.handle = gas_handle;
@@ -589,14 +645,13 @@ void lightmapper_t::TraceRaysToCalculateStaticLighting(dynamic_array<vec3> World
         output_buffer.unmap();
         CUDA_CHECK(cudaFree(reinterpret_cast<void *>(d_param)));
     }
+
     CUDA_CHECK(cudaFree(reinterpret_cast<void *>(d_world_positions)));
+    CUDA_CHECK(cudaFree(reinterpret_cast<void *>(d_world_normals)));
+    CUDA_CHECK(cudaFree(reinterpret_cast<void *>(d_point_light_srcs)));
+    if (PointLightPositions.data) PointLightPositions.free();
 
     memcpy(all_light_global, output_buffer.getHostPointer(), UsedLightmapTexelCount*sizeof(float));
-
-    // CreateGPUTextureFromBitmap(&DisplayOptixResult,
-    //     (void*)output_buffer.getHostPointer(), 
-    //     width, height,
-    //     GL_RGBA, GL_RGBA);
 
     //
     // Cleanup
@@ -608,8 +663,10 @@ void lightmapper_t::TraceRaysToCalculateStaticLighting(dynamic_array<vec3> World
         CUDA_CHECK(cudaFree(reinterpret_cast<void *>(d_gas_output_buffer)));
 
         OPTIX_CHECK(optixPipelineDestroy(pipeline));
-        OPTIX_CHECK(optixProgramGroupDestroy(hitgroup_prog_group));
-        OPTIX_CHECK(optixProgramGroupDestroy(miss_prog_group));
+        OPTIX_CHECK(optixProgramGroupDestroy(directionallight_hit_group));
+        OPTIX_CHECK(optixProgramGroupDestroy(directionallight_miss_group));
+        OPTIX_CHECK(optixProgramGroupDestroy(pointlight_hit_group));
+        OPTIX_CHECK(optixProgramGroupDestroy(pointlight_miss_group));
         OPTIX_CHECK(optixProgramGroupDestroy(raygen_prog_group));
         OPTIX_CHECK(optixModuleDestroy(module));
 
