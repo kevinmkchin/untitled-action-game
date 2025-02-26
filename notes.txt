@@ -36,3 +36,29 @@ Love Death Robots Secret War vibes nazi Russia occult black magic human sacrific
 Fun ideas
     FOV slider in game up to insane value like 170
     Allow turning bilinear filtering for light maps off
+
+
+
+
+
+
+
+        // Albedo is the fraction of light reflected by the surface.
+        // Simplistically, the color of the surface since RGB represents
+        // how much of each color component is "reflected".
+        float3 Albedo = make_float3(1.f);//AlbedoOfThisSurface;
+        // Bidirectional Scattering Distribution Function describes 
+        // how light is reflected (or transmitted) by a surface.
+        float BSDF = Albedo / 3.1415926535f;
+        // Cosine Weighting (Lambert’s Cosine Law)
+        float CosTheta = dot(ray_direction, N);
+        // The probability density function(pdf) describes how likely it is to sample a particular value(or direction)
+        // when you're using a non-uniform sampling method. In the context of Monte Carlo integration for rendering, 
+        // the pdf tells you the probability per unit area (or per unit solid angle) that a given sample was chosen.
+        // When performing importance sampling, we don't pick directions uniformly; we sample directions proportional
+        // to how much they contribute to the final lighting. If we sample uniformly over the hemisphere, every direction 
+        // has an equal probability of being chosen. If we use cosine-weighted sampling, directions closer to the surface 
+        // normal are more likely to be sampled. With uniform sampling, most samples contribute little to the final result
+        // and thus leads to high variance and noise. Importance sampling reduces variance and noise.
+        float PDF = CosTheta / 3.1415926535f;
+        float3 Attenuation = /* accumulated attenuation from previous bounces * */ BSDF * CosTheta / PDF;

@@ -298,7 +298,7 @@ void lightmapper_t::TraceRaysToCalculateStaticLighting(dynamic_array<vec3> World
         // Use default options for simplicity.  In a real use case we would want to
         // enable compaction, etc
         OptixAccelBuildOptions accel_options = {};
-        accel_options.buildFlags = OPTIX_BUILD_FLAG_NONE;
+        accel_options.buildFlags = OPTIX_BUILD_FLAG_ALLOW_RANDOM_VERTEX_ACCESS;
         accel_options.operation = OPTIX_BUILD_OPERATION_BUILD;
 
         // Triangle build input: simple list of three vertices
@@ -375,21 +375,25 @@ void lightmapper_t::TraceRaysToCalculateStaticLighting(dynamic_array<vec3> World
     OptixPipelineCompileOptions pipeline_compile_options = {};
     {
         OptixModuleCompileOptions module_compile_options = {};
-#if INTERNAL_BUILD
-        module_compile_options.optLevel = OPTIX_COMPILE_OPTIMIZATION_LEVEL_0;
-        module_compile_options.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_FULL;
-#endif
+//#if INTERNAL_BUILD
+//        module_compile_options.optLevel = OPTIX_COMPILE_OPTIMIZATION_LEVEL_0;
+//        module_compile_options.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_FULL;
+//#endif
+        // NOTE(Kevin): holy fuck compiling the optixir in Release mode and setting
+        // optLevel to all optimizations and debug level to minimal (the defaults) 
+        // makes it so fast. 634375 texels (at texel size 2) with 4096 sample rays per
+        // texel is like 1.5 seconds... 
 
         pipeline_compile_options.usesMotionBlur = false;
         pipeline_compile_options.traversableGraphFlags = OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_GAS;
-        pipeline_compile_options.numPayloadValues = 3;
+        pipeline_compile_options.numPayloadValues = 4; // TRICKY!
         pipeline_compile_options.numAttributeValues = 3;
         pipeline_compile_options.exceptionFlags = OPTIX_EXCEPTION_FLAG_NONE;
         pipeline_compile_options.pipelineLaunchParamsVariableName = "params";
         pipeline_compile_options.usesPrimitiveTypeFlags = OPTIX_PRIMITIVE_TYPE_FLAGS_TRIANGLE;
 
         BinaryFileHandle input;
-        ReadFileBinary(input, wd_path("../radiant/trace_radiance.optixir").c_str());
+        ReadFileBinary(input, wd_path("../radiant/trace_radiance_release.optixir").c_str());
         ASSERT(input.memory);
 
         OPTIX_CHECK_LOG(optixModuleCreate(
@@ -411,8 +415,10 @@ void lightmapper_t::TraceRaysToCalculateStaticLighting(dynamic_array<vec3> World
     OptixProgramGroup raygen_prog_group           = 0;
     OptixProgramGroup directionallight_miss_group = 0;
     OptixProgramGroup pointlight_miss_group       = 0;
+    OptixProgramGroup HemisphereSample_miss_group = 0;
     OptixProgramGroup directionallight_hit_group  = 0;
     OptixProgramGroup pointlight_hit_group        = 0;
+    OptixProgramGroup HemisphereSample_hit_group  = 0;
     {
         OptixProgramGroupOptions program_group_options = {}; // Initialize to zeros
 
@@ -455,6 +461,19 @@ void lightmapper_t::TraceRaysToCalculateStaticLighting(dynamic_array<vec3> World
             &pointlight_miss_group
         ));
 
+        memset(&miss_prog_group_desc, 0, sizeof(OptixProgramGroupDesc));
+        miss_prog_group_desc.kind = OPTIX_PROGRAM_GROUP_KIND_MISS;
+        miss_prog_group_desc.miss.module = module;
+        miss_prog_group_desc.miss.entryFunctionName = "__miss__HemisphereSample";
+        OPTIX_CHECK_LOG(optixProgramGroupCreate(
+            context,
+            &miss_prog_group_desc,
+            1,   // num program groups
+            &program_group_options,
+            LOG, &LOG_SIZE,
+            &HemisphereSample_miss_group
+        ));
+
         OptixProgramGroupDesc hitgroup_prog_group_desc = {};
         hitgroup_prog_group_desc.kind = OPTIX_PROGRAM_GROUP_KIND_HITGROUP;
         hitgroup_prog_group_desc.hitgroup.moduleCH = module;
@@ -480,6 +499,19 @@ void lightmapper_t::TraceRaysToCalculateStaticLighting(dynamic_array<vec3> World
             LOG, &LOG_SIZE,
             &pointlight_hit_group
         ));
+
+        memset(&hitgroup_prog_group_desc, 0, sizeof(OptixProgramGroupDesc));
+        hitgroup_prog_group_desc.kind = OPTIX_PROGRAM_GROUP_KIND_HITGROUP;
+        hitgroup_prog_group_desc.hitgroup.moduleCH = module;
+        hitgroup_prog_group_desc.hitgroup.entryFunctionNameCH = "__closesthit__HemisphereSample";
+        OPTIX_CHECK_LOG(optixProgramGroupCreate(
+            context,
+            &hitgroup_prog_group_desc,
+            1,   // num program groups
+            &program_group_options,
+            LOG, &LOG_SIZE,
+            &HemisphereSample_hit_group
+        ));
     }
 
     //
@@ -492,8 +524,10 @@ void lightmapper_t::TraceRaysToCalculateStaticLighting(dynamic_array<vec3> World
             raygen_prog_group, 
             directionallight_miss_group,
             pointlight_miss_group,
+            HemisphereSample_miss_group,
             directionallight_hit_group,
-            pointlight_hit_group
+            pointlight_hit_group,
+            HemisphereSample_hit_group
         };
 
         OptixPipelineLinkOptions pipeline_link_options = {};
@@ -553,6 +587,7 @@ void lightmapper_t::TraceRaysToCalculateStaticLighting(dynamic_array<vec3> World
         MissSbtRecord ms_sbt[RAY_TYPE_COUNT];
         OPTIX_CHECK(optixSbtRecordPackHeader(directionallight_miss_group, &ms_sbt[RAY_TYPE_DIRECTIONAL_LIGHT]));
         OPTIX_CHECK(optixSbtRecordPackHeader(pointlight_miss_group, &ms_sbt[RAY_TYPE_POINT_LIGHT]));
+        OPTIX_CHECK(optixSbtRecordPackHeader(HemisphereSample_miss_group, &ms_sbt[RAY_TYPE_HEMISPHERE_SAMPLE]));
 
         CUDA_CHECK(cudaMemcpy(
             reinterpret_cast<void *>(miss_record),
@@ -569,6 +604,7 @@ void lightmapper_t::TraceRaysToCalculateStaticLighting(dynamic_array<vec3> World
         HitGroupSbtRecord hg_sbt[RAY_TYPE_COUNT];
         OPTIX_CHECK(optixSbtRecordPackHeader(directionallight_hit_group, &hg_sbt[RAY_TYPE_DIRECTIONAL_LIGHT]));
         OPTIX_CHECK(optixSbtRecordPackHeader(pointlight_hit_group, &hg_sbt[RAY_TYPE_POINT_LIGHT]));
+        OPTIX_CHECK(optixSbtRecordPackHeader(HemisphereSample_hit_group, &hg_sbt[RAY_TYPE_HEMISPHERE_SAMPLE]));
 
         CUDA_CHECK(cudaMemcpy(
             reinterpret_cast<void *>(hitgroup_record),
