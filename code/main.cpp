@@ -145,12 +145,6 @@ the editor. Then I could have
 #include <renderdoc_app.h>
 #endif
 
-#include <optix.h>
-#include <optix_function_table_definition.h>
-#include <optix_stack_size.h>
-#include <optix_stubs.h>
-#include <cuda_runtime.h>
-
 #include <map>
 #include <unordered_map>
 #include <unordered_set>

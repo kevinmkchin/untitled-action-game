@@ -258,6 +258,7 @@ extern "C" __global__ void __raygen__rg()
 
     Params.OutputLightmap[idx.x] = DirectLightValue + IrradianceAtThisPoint;
     // Params.OutputLightmap[idx.x] = IrradianceAtThisPoint;
+    //Params.OutputLightmap[idx.x] = TexelPosition.z;
 
 }
 

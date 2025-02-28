@@ -28,7 +28,7 @@ endif()
 # Add paths to our CMake code to the module path, so they can be found automatically by
 # CMake.
 set(CMAKE_MODULE_PATH
-  "${CMAKE_SOURCE_DIR}/CMake"
+  "${CMAKE_CURRENT_SOURCE_DIR}/CMake"
   ${CMAKE_MODULE_PATH}
   )
 
@@ -265,16 +265,17 @@ if( APPLE )
 endif()
 
 # Locate the NVRT distribution.  Search the SDK first, then look in the system.
-set(OptiX_INSTALL_DIR "${CMAKE_SOURCE_DIR}/../" CACHE PATH "Path to OptiX installed location.")
+set(OptiX_INSTALL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../" CACHE PATH "Path to OptiX installed location.")
 
-# Search for the OptiX libraries and include files.
-find_package(OptiX REQUIRED)
+# # Search for the OptiX libraries and include files.
+# find_package(OptiX REQUIRED)
 
 # Add the path to the OptiX headers to our include paths.
 include_directories(
-  "${OptiX_INCLUDE}"
+  # "${OptiX_INCLUDE}"
   "${CMAKE_CURRENT_SOURCE_DIR}/cuda"
   "${CMAKE_CURRENT_SOURCE_DIR}"
+  "${CMAKE_CURRENT_SOURCE_DIR}/include"
   )
 
 # my shit
@@ -333,3 +334,16 @@ add_executable(${target_name}
 target_link_libraries( ${target_name}
   ${CUDA_LIBRARIES}
 )
+
+find_package(Python3 REQUIRED)
+
+add_custom_command(
+    TARGET ${target_name}
+    POST_BUILD
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/bin_to_cpp.py ${generated_files} ${CMAKE_SOURCE_DIR}/../optixir_binary.h
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    COMMENT "Running Python script after building MakeOptixIRProgram"
+)
+
+
+

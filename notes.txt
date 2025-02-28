@@ -1,23 +1,6 @@
 
 
 
-- perhaps, we can use RTX on ray tracing supported GPU to bake the lighting data
-  instead of using hemicube sampling
-  https://developer.nvidia.com/rtx/raytracing/vkray
-  https://developer.nvidia.com/rtx/ray-tracing/optix
-  https://github.com/nvpro-samples/optix_advanced_samples/blob/master/src/optixIntroduction/README.md
-
-- to learn NVIDIA OptiX, try using it to calculate direct lighting which should be simple.
-  I'm already doing a version of this on the CPU. 
-- then monte carlo sampling with lots of samples per iteration
-  output radiance = direct lighting + average from monte carlo samples attenuated
-- For indirect lighting via monte carlo sampling, try calculating just the first bounce. as in no
-  additional monte carlo sampling rays are cast recursively, but just use the direct lighting sample at that hit point.
-
-- OptiX 8.1 SDK requires CUDA Toolkit to build
-- I should make my lightmapper a separate program so I only have to build with CUDA once.
-- Then, the lightmapper just needs to be linked with my stuff
-
 gamma slider at the start of the game
 
 
@@ -37,28 +20,3 @@ Fun ideas
     FOV slider in game up to insane value like 170
     Allow turning bilinear filtering for light maps off
 
-
-
-
-
-
-
-        // Albedo is the fraction of light reflected by the surface.
-        // Simplistically, the color of the surface since RGB represents
-        // how much of each color component is "reflected".
-        float3 Albedo = make_float3(1.f);//AlbedoOfThisSurface;
-        // Bidirectional Scattering Distribution Function describes 
-        // how light is reflected (or transmitted) by a surface.
-        float BSDF = Albedo / 3.1415926535f;
-        // Cosine Weighting (Lambert’s Cosine Law)
-        float CosTheta = dot(ray_direction, N);
-        // The probability density function(pdf) describes how likely it is to sample a particular value(or direction)
-        // when you're using a non-uniform sampling method. In the context of Monte Carlo integration for rendering, 
-        // the pdf tells you the probability per unit area (or per unit solid angle) that a given sample was chosen.
-        // When performing importance sampling, we don't pick directions uniformly; we sample directions proportional
-        // to how much they contribute to the final lighting. If we sample uniformly over the hemisphere, every direction 
-        // has an equal probability of being chosen. If we use cosine-weighted sampling, directions closer to the surface 
-        // normal are more likely to be sampled. With uniform sampling, most samples contribute little to the final result
-        // and thus leads to high variance and noise. Importance sampling reduces variance and noise.
-        float PDF = CosTheta / 3.1415926535f;
-        float3 Attenuation = /* accumulated attenuation from previous bounces * */ BSDF * CosTheta / PDF;

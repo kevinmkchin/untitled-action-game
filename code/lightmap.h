@@ -1,28 +1,6 @@
 #pragma once
 
 
-/*
-It should work like this
-
-I'm compiling the level
-
-Make lightmaps and the uvs
-    - PrepareFaceLightmapsAndTexelStorage
-    - PackLightmapsAnMapLocalUVToGlobalUV
-    - GenerateLevelVertices
-
-At this point, the level vertices have the proper global UVs of the lightmap atlas
-All that remains, is to fill the lightmap atlas with the proper values!
-
-And for that, I can take the per texel lightmap data, the world geometry data as triangles,
-and send it off to OptiX.
-
-
-
-
-*/
-
-
 struct lm_face_t
 {
     // texel data
@@ -82,8 +60,6 @@ private:
     void CreateMultiplierMap();
     // void CalcBounceLightForTexel(const lm_face_t& FaceLightmap, 
     //     u32 TexelOffset, const GLsizeiptr NumFloatsPerFace);
-
-    void TraceRaysToCalculateStaticLighting(dynamic_array<vec3> WorldGeometryVertices);
 
 private:
     i32 lightMapAtlasW = 1024;//4096;
