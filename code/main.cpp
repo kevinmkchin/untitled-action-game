@@ -18,6 +18,10 @@ TODO:
 
 - Player has a gun and shoots at enemy
 
+- Bicubic lightmap filtering 
+    https://docs.unity3d.com/6000.1/Documentation/Manual/urp/lighting/lightmapping-improve-visual-fidelity.html
+    https://developer.valvesoftware.com/wiki/Lightmap#Bicubic_lightmaps
+
 
 
 - move gmath as subrepo of this repo so i can keep tests updated
@@ -34,7 +38,7 @@ TODO:
 - srgb gamma correction bull shit for editor texture that are not lit
 
 - save/load texture database
-- Anisotropic filtering https://www.khronos.org/opengl/wiki/Sampler_Object#Anisotropic_filtering
+- Anisotropic filtering https://registry.khronos.org/vulkan/specs/latest/man/html/VkSamplerCreateInfo.html
 
 - move volume mode/tool (don't need whole tool...maybe make brush tool part of this mode? like trenchbroom)
 - multi select vertices need to be fixed
@@ -42,7 +46,6 @@ TODO:
 - Finish Winged brep editing atomics
 - Edge select
 - Edge loop
-- larger hemicube atlas for download (meh, one by one is good for modifications for now)
 
 
 EPICS:

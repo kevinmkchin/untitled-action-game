@@ -60,7 +60,7 @@ struct game_map_build_data_t
     vec3 DirectionToSun = vec3();
 };
 
-constexpr float LightMapTexelSize = 2.f; // in world units
+constexpr float LightMapTexelSize = 4.f; // in world units
 constexpr int MaxNumTexels = 1000000; // size to alloc per intermediate data array
 constexpr int HemicubeFaceW = 100;
 constexpr int HemicubeFaceH = HemicubeFaceW;
