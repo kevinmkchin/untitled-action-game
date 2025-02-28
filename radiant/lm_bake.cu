@@ -1,10 +1,9 @@
 
 #include <optix.h>
+#include <cuda_helpers.h>
+#include <vec_math.h>
 
-#include "trace_radiance.h"
-
-#include "cuda_helpers.h"
-#include "vec_math.h"
+#include "lm_bake.h"
 
 extern "C" 
 {
