@@ -34,7 +34,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
         ${CMAKE_SOURCE_DIR}/ext/assimp/include
         ${CMAKE_SOURCE_DIR}/ext/jolt
         ${CMAKE_SOURCE_DIR}/ext/recast/Includes
-        ${CMAKE_SOURCE_DIR}/radiant/include
+        ${CMAKE_SOURCE_DIR}/radiant/optix/include
 )
 
 set(MSVC_COMPILE_OPTIONS -nologo /std:c++17 /EHsc /W3 /we4239 /wd4996 /MP)

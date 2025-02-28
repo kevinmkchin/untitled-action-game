@@ -9,9 +9,8 @@ LevelPolygonOctree LightMapOcclusionTree;
 std::vector<FlatPolygonCollider> MapSurfaceColliders;
 
 
-
-#include "../radiant/trace_radiance.h"
-#include "../radiant/vec_math.h"
+#include "../radiant/lm_bake.h"
+#include "../radiant/optix/vec_math.h"
 
 // Simple error checking macros for CUDA and OptiX calls.
 #define CUDA_CHECK(call)                                                   \
@@ -389,7 +388,7 @@ void lightmapper_t::TraceRaysToCalculateStaticLighting(dynamic_array<vec3> World
         pipeline_compile_options.usesPrimitiveTypeFlags = OPTIX_PRIMITIVE_TYPE_FLAGS_TRIANGLE;
 
         BinaryFileHandle input;
-        ReadFileBinary(input, wd_path("../radiant/trace_radiance_release.optixir").c_str());
+        ReadFileBinary(input, wd_path("../radiant/lm_bake_release.optixir").c_str());
         ASSERT(input.memory);
 
         OPTIX_CHECK_LOG(optixModuleCreate(
