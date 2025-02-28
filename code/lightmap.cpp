@@ -9,10 +9,6 @@ LevelPolygonOctree LightMapOcclusionTree;
 std::vector<FlatPolygonCollider> MapSurfaceColliders;
 
 
-// TODO
-// 1. load my world geometry into the acceleration structure and draw with camera
-// 2. send my per pixel data (patch pos, norm, etc.) to the cuda module
-
 
 #include "../radiant/trace_radiance.h"
 #include "../radiant/vec_math.h"
@@ -386,10 +382,10 @@ void lightmapper_t::TraceRaysToCalculateStaticLighting(dynamic_array<vec3> World
 
         pipeline_compile_options.usesMotionBlur = false;
         pipeline_compile_options.traversableGraphFlags = OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_GAS;
-        pipeline_compile_options.numPayloadValues = 4; // TRICKY!
+        pipeline_compile_options.numPayloadValues = 14; // TRICKY!
         pipeline_compile_options.numAttributeValues = 3;
         pipeline_compile_options.exceptionFlags = OPTIX_EXCEPTION_FLAG_NONE;
-        pipeline_compile_options.pipelineLaunchParamsVariableName = "params";
+        pipeline_compile_options.pipelineLaunchParamsVariableName = "Params";
         pipeline_compile_options.usesPrimitiveTypeFlags = OPTIX_PRIMITIVE_TYPE_FLAGS_TRIANGLE;
 
         BinaryFileHandle input;
@@ -664,25 +660,27 @@ void lightmapper_t::TraceRaysToCalculateStaticLighting(dynamic_array<vec3> World
         CUstream stream;
         CUDA_CHECK(cudaStreamCreate(&stream));
 
-        Params params;
-        params.OutputLightmap = output_buffer.map();
-        params.DoDirectionalLight = int(SunExists);
-        params.DirectionToSun = *((float3*)&DirectionToSun);
-        params.CountOfPointLights = PointLightsCount;
-        params.PointLights = (cu_pointlight_t*)d_point_light_srcs;
-        params.TexelWorldPositions = (float3*)d_world_positions;
-        params.TexelWorldNormals = (float3*)d_world_normals;
-        params.handle = gas_handle;
+        bake_lm_params_t BakeParams;
+        BakeParams.OutputLightmap = output_buffer.map();
+        BakeParams.DoDirectionalLight = int(SunExists);
+        BakeParams.DirectionToSun = *((float3*)&DirectionToSun);
+        BakeParams.CountOfPointLights = PointLightsCount;
+        BakeParams.PointLights = (cu_pointlight_t*)d_point_light_srcs;
+        BakeParams.TexelWorldPositions = (float3*)d_world_positions;
+        BakeParams.TexelWorldNormals = (float3*)d_world_normals;
+        BakeParams.GASHandle = gas_handle;
+        BakeParams.NumberOfSampleRaysPerTexel = 4096;
+        BakeParams.NumberOfBounces = 3;
 
         CUdeviceptr d_param;
-        CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_param), sizeof(Params)));
+        CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_param), sizeof(bake_lm_params_t)));
         CUDA_CHECK(cudaMemcpy(
             reinterpret_cast<void *>(d_param),
-            &params, sizeof(params),
+            &BakeParams, sizeof(BakeParams),
             cudaMemcpyHostToDevice
         ));
 
-        OPTIX_CHECK(optixLaunch(pipeline, stream, d_param, sizeof(Params), &sbt, UsedLightmapTexelCount, 1, /*depth=*/1));
+        OPTIX_CHECK(optixLaunch(pipeline, stream, d_param, sizeof(bake_lm_params_t), &sbt, UsedLightmapTexelCount, 1, /*depth=*/1));
         CUDA_SYNC_CHECK();
 
         output_buffer.unmap();
@@ -1200,6 +1198,8 @@ void lightmapper_t::CreateMultiplierMap()
 void lightmapper_t::CalcBounceLightForTexel(const lm_face_t& FaceLightmap, 
     u32 TexelOffset, const GLsizeiptr NumFloatsPerHemicubeFace)
 {
+    // TODO larger hemicube atlas for download rather than one hemicube by one 
+
     // if (FaceIndex == 1 && TexelOffset >= 50 && TexelOffset < 52)
     // {
     //     if (RDOCAPI) RDOCAPI->StartFrameCapture(NULL, NULL);

@@ -15,7 +15,7 @@ struct cu_pointlight_t
     float AttenuationQuadratic;
 };
 
-struct Params
+struct bake_lm_params_t
 {
     float *OutputLightmap;
 
@@ -28,7 +28,11 @@ struct Params
     float3 *TexelWorldPositions;
     float3 *TexelWorldNormals;
 
-    OptixTraversableHandle handle;
+    // Traversable handle to the geometry acceleration structure
+    OptixTraversableHandle GASHandle;
+
+    int NumberOfSampleRaysPerTexel;
+    int NumberOfBounces;
 };
 
 
@@ -37,12 +41,10 @@ struct RayGenData
     // No data needed
 };
 
-
 struct MissData
 {
-    //float3 bg_color;
+    // No data needed
 };
-
 
 struct HitGroupData
 {
