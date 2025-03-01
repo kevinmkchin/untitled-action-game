@@ -11,9 +11,6 @@ LevelPolygonOctree LightMapOcclusionTree;
 std::vector<FlatPolygonCollider> MapSurfaceColliders;
 
 
-
-typedef void (*RadiantBakeFunc)(radiant_bake_info_t);
-
 void lightmapper_t::BakeStaticLighting(game_map_build_data_t& BuildData)
 {
     BuildDataShared = &BuildData;
@@ -45,23 +42,6 @@ void lightmapper_t::BakeStaticLighting(game_map_build_data_t& BuildData)
         for (size_t i = 0; i < vb.size(); i += 10)
         {
             WorldGeometryVertices.put(vec3(vb[i+0], vb[i+1], vb[i+2]));
-        }
-    }
-
-    static RadiantBakeFunc RadiantBake = nullptr;
-    if (!RadiantBake)
-    {
-        LoadLibrary("radiant.dll");
-        HMODULE mod = GetModuleHandleA("radiant.dll");
-        if (mod)
-        {
-            RadiantBake = (RadiantBakeFunc)GetProcAddress(mod, "RadiantBake");
-            LogMessage("Loaded radiant.dll");
-        }
-        else
-        {
-            LogWarning("Failed to load radiant.dll");
-            // TODO return
         }
     }
 

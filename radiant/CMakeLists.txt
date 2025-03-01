@@ -4,8 +4,15 @@ project(Radiant)
 
 add_library(Radiant SHARED radiant.cpp radiant.h)
 
-set_target_properties(Radiant PROPERTIES OUTPUT_NAME "radiant")
+set_target_properties(Radiant PROPERTIES 
+    OUTPUT_NAME "radiant"
+    ARCHIVE_OUTPUT_DIRECTORY_DEBUG "${CMAKE_SOURCE_DIR}/Debug"
+    ARCHIVE_OUTPUT_DIRECTORY_RELEASE "${CMAKE_SOURCE_DIR}/Release"
+    RUNTIME_OUTPUT_DIRECTORY_DEBUG "${CMAKE_SOURCE_DIR}/Debug"
+    RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_SOURCE_DIR}/Release"
+)
 target_include_directories(Radiant PUBLIC ${CMAKE_SOURCE_DIR}/optix/include)
+target_compile_definitions(Radiant PRIVATE RADIANT_EXPORTS)
 
 # CUDA dependency for NVIDIA OptiX
 

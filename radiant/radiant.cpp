@@ -265,7 +265,7 @@ namespace sutil
 
 } // end namespace sutil
 
-extern "C" __declspec(dllexport) void __cdecl RadiantBake(radiant_bake_info_t BakeInfo)
+extern "C" RADIANT_API void __cdecl RadiantBake(radiant_bake_info_t BakeInfo)
 {
     //
     // Initialize CUDA and create OptiX context
