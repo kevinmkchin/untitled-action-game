@@ -47,13 +47,17 @@ set(MSVC_LINKER_OPTIONS
         /incremental:no /opt:ref /subsystem:console shell32.lib opengl32.lib dwmapi.lib ole32.lib
         /LIBPATH:"${CMAKE_SOURCE_DIR}/ext/sdl/lib/x64" SDL2.lib SDL2main.lib
         /LIBPATH:"${CMAKE_SOURCE_DIR}/ext/sdl2_mixer/lib/x64" SDL2_mixer.lib
-        /LIBPATH:"${CMAKE_SOURCE_DIR}/ext/assimp/lib" assimp-vc142-mt.lib)
+        /LIBPATH:"${CMAKE_SOURCE_DIR}/ext/assimp/lib" assimp-vc142-mt.lib
+        /LIBPATH:"${CMAKE_SOURCE_DIR}/radiant/Release" radiant.lib
+)
 set(MSVC_LINKER_DEBUG_OPTIONS ${MSVC_LINKER_OPTIONS}
         /LIBPATH:"${CMAKE_SOURCE_DIR}/ext/jolt/Debug" jolt.lib
-        /LIBPATH:"${CMAKE_SOURCE_DIR}/ext/recast/Debug" Recast-d.lib Detour-d.lib DebugUtils-d.lib)
+        /LIBPATH:"${CMAKE_SOURCE_DIR}/ext/recast/Debug" Recast-d.lib Detour-d.lib DebugUtils-d.lib
+)
 set(MSVC_LINKER_RELEASE_OPTIONS ${MSVC_LINKER_OPTIONS}
         /LIBPATH:"${CMAKE_SOURCE_DIR}/ext/jolt/Release" /LTCG jolt.lib
-        /LIBPATH:"${CMAKE_SOURCE_DIR}/ext/recast/Release" Recast.lib Detour.lib DebugUtils.lib)
+        /LIBPATH:"${CMAKE_SOURCE_DIR}/ext/recast/Release" Recast.lib Detour.lib DebugUtils.lib
+)
 target_link_options(${PROJECT_NAME} PRIVATE $<$<CONFIG:Debug>:${MSVC_LINKER_DEBUG_OPTIONS}>)
 target_link_options(${PROJECT_NAME} PRIVATE $<$<CONFIG:Release>:${MSVC_LINKER_RELEASE_OPTIONS}>)
 
@@ -63,7 +67,7 @@ set(DLL_FILES
         ${CMAKE_SOURCE_DIR}/ext/sdl2_mixer/lib/x64/SDL2_mixer.dll
         ${CMAKE_SOURCE_DIR}/ext/assimp/lib/assimp-vc142-mt.dll
         ${CMAKE_SOURCE_DIR}/ext/renderdoc.dll
-        ${CMAKE_SOURCE_DIR}/radiant/build/Release/radiant.dll
+        ${CMAKE_SOURCE_DIR}/radiant/Release/radiant.dll
 )
 add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different

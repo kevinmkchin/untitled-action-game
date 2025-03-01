@@ -36,7 +36,7 @@ echo #define INTERNAL_BUILD %IsInternalBuild%           >> code\BUILDINFO.H
 
 :: MSVC FLAGS ::
 set CommonCompilerFlags=-nologo /std:c++17 /EHsc /W3 /we4239 /wd4996 /MP /I"..\ext" /I"..\ext\gl3w" /I"..\ext\sdl\include" /I"..\ext\sdl2_mixer\include" /I"..\ext\assimp\include" /I"..\ext\jolt" /I"..\ext\recast\Includes" /I"..\radiant"
-set CommonLinkerFlags=/incremental:no /opt:ref /subsystem:console shell32.lib opengl32.lib dwmapi.lib ole32.lib /LIBPATH:"..\ext\sdl\lib\x64" SDL2.lib SDL2main.lib /LIBPATH:"..\ext\sdl2_mixer\lib\x64" SDL2_mixer.lib /LIBPATH:"..\ext\assimp\lib" assimp-vc142-mt.lib
+set CommonLinkerFlags=/incremental:no /opt:ref /subsystem:console shell32.lib opengl32.lib dwmapi.lib ole32.lib /LIBPATH:"..\ext\sdl\lib\x64" SDL2.lib SDL2main.lib /LIBPATH:"..\ext\sdl2_mixer\lib\x64" SDL2_mixer.lib /LIBPATH:"..\ext\assimp\lib" assimp-vc142-mt.lib /LIBPATH:"..\radiant\Release" radiant.lib
 
 :: Debug or Release ::
 set OutputExecutable=GAME.exe
@@ -59,7 +59,7 @@ if not exist build\%OutputFolder%\SDL2.dll copy ext\sdl\lib\x64\SDL2.dll build\%
 if not exist build\%OutputFolder%\SDL2_mixer.dll copy ext\sdl2_mixer\lib\x64\SDL2_mixer.dll build\%OutputFolder%\SDL2_mixer.dll >nul
 if not exist build\%OutputFolder%\assimp-vc142-mt.dll copy ext\assimp\lib\assimp-vc142-mt.dll build\%OutputFolder%\assimp-vc142-mt.dll >nul
 if not exist build\%OutputFolder%\renderdoc.dll copy ext\renderdoc.dll build\%OutputFolder%\renderdoc.dll >nul
-copy radiant\build\Release\radiant.dll build\%OutputFolder%\radiant.dll >nul
+copy radiant\Release\radiant.dll build\%OutputFolder%\radiant.dll >nul
 
 :: cl.exe ::
 if %ShowMSVCOptions%==1 (

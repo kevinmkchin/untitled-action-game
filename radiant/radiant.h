@@ -35,5 +35,10 @@ struct radiant_bake_info_t
     int NumberOfLightBounces;
 };
 
+#ifdef RADIANT_EXPORTS
+    #define RADIANT_API __declspec(dllexport)
+#else
+    #define RADIANT_API __declspec(dllimport)
+#endif
 
-extern "C" __declspec(dllexport) void __cdecl RadiantBake(radiant_bake_info_t BakeInfo);
+extern "C" RADIANT_API void __cdecl RadiantBake(radiant_bake_info_t BakeInfo);

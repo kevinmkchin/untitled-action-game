@@ -1,5 +1,5 @@
 
-Radiant is a ray tracing lightmapping program. It leverages NVIDIA OptiX and RTX hardware to model global illumination and bake lightmaps incredibly fast.
+Radiant is a ray tracing lightmapper program. It leverages NVIDIA OptiX and RTX hardware to model global illumination and bake lightmaps incredibly fast.
 
 The optix/ directory contains the CMakeLists project to compile the OptiX shader into the OptiX Intermediate Representation. It also contains a python script to generate a C++ byte array from the optixir binary so that it can be embedded into the program instead of loading at runtime.
 
@@ -7,10 +7,13 @@ Requires CUDA Toolkit
 
 I'm not sure if OptiX SDK needs to be installed or if I've copied all the required dependencies to this folder.  
 
+Radiant should be compiled as a shared library so that any client code does not also require the same CUDA and OptiX dependencies.
+
 == How to use ==
 
 cmake -S . -B build
 cmake --build build --config Release
 
 Include radiant.h in your project
-Load the output dll in your project
+Link with the .lib dll import library
+Place the .dll next to your executable
