@@ -636,19 +636,16 @@ extern "C" RADIANT_API void __cdecl RadiantBake(radiant_bake_info_t BakeInfo)
     {
         radiant_pointlight_t PLight = BakeInfo.PointLights[i];
 
-        cu_pointlight_t PointLightInfo;
-        PointLightInfo.Position = *((float3*)&PLight.Position);
-        PointLightInfo.AttenuationLinear = PLight.AttenuationLinear;
-        PointLightInfo.AttenuationQuadratic = PLight.AttenuationQuadratic;
-
-        PointLightInfos[i] = PointLightInfo;
+        PointLightInfos[i].Position = *((float3*)&PLight.Position);
+        PointLightInfos[i].AttenuationLinear = PLight.AttenuationLinear;
+        PointLightInfos[i].AttenuationQuadratic = PLight.AttenuationQuadratic;
     }
 
     CUdeviceptr *d_point_light_srcs;
     CUDA_CHECK(cudaMalloc(&d_point_light_srcs, PointLightsCount * sizeof(cu_pointlight_t)));
     if (PointLightsCount > 0)
     {
-        CUDA_CHECK(cudaMemcpy(d_point_light_srcs, PointLightInfos, 1 * sizeof(cu_pointlight_t), cudaMemcpyHostToDevice));
+        CUDA_CHECK(cudaMemcpy(d_point_light_srcs, PointLightInfos, PointLightsCount * sizeof(cu_pointlight_t), cudaMemcpyHostToDevice));
     }
     free(PointLightInfos);
 

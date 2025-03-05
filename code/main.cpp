@@ -682,11 +682,11 @@ int main(int argc, char* argv[])
 
     InitializeGame();
 
-    LevelEditor.LoadMap(wd_path("LightTest.emf").c_str());
+    LevelEditor.LoadMap(wd_path("lailo.emf").c_str());
     BuildGameMap(wd_path("buildtest.map").c_str());
     LoadLevel(wd_path("buildtest.map").c_str());
 
-    // LevelEditor.LoadMap(wd_path("House.emf").c_str());
+    // LevelEditor.LoadMap(wd_path("playground_0.emf").c_str());
     // BuildGameMap(wd_path("buildtest2.map").c_str());
     // LoadLevel(wd_path("buildtest2.map").c_str());
 
