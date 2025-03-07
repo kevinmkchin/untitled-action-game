@@ -20,3 +20,22 @@ Fun ideas
     FOV slider in game up to insane value like 170
     Allow turning bilinear filtering for light maps off
 
+
+
+fight 
+- neo nazi cults 
+- demon possessed nazis
+- hotline miami? neo-nazi miami
+
+
+enemy types
+- guy running at you fast with a knife
+- guy who does burst hit-scan fire at you
+
+
+juice
+- show character movement speed m/s on screen but out of the way lol why not (goblinAmerica)
+- HEADSHOT! text popping up in world space when you get a headshot? (forgive me father)
+- screen going black and white upon gun shot (post void)
+- https://www.reddit.com/r/howdidtheycodeit/comments/1b7hdtk/3d_models_to_2d_sprites_on_runtime_prodeus/
+
