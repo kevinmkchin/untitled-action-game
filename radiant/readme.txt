@@ -17,3 +17,8 @@ cmake --build build --config Release
 Include radiant.h in your project
 Link with the .lib dll import library
 Place the .dll next to your executable
+
+If CUDA Toolkit is not installed on the target machine, the executable will probably need cudart64_12.dll as well. The NVIDIA driver also needs to support the OptiX version (8.1) that this library was built with, so update.
+
+
+
