@@ -1,9 +1,9 @@
 
 Mix_Chunk *sfx_Jump;
 
-// skeleton_t *Skeleton_Humanoid;
-// skinned_model_t *Model_Knight;
-// animator_t Animator;
+skeleton_t *Skeleton_Humanoid;
+skinned_model_t *Model_Attacker;
+animator_t Animator;
 
 // extern
 std::vector<face_batch_t> GameLevelFaceBatches;
@@ -23,16 +23,15 @@ jph_debug_draw_gl3_t *JoltDebugDraw;
 void InitializeGame()
 {
     // testing stuff here
-    sfx_Jump = Mixer_LoadChunk(wd_path("gunshot-37055.ogg").c_str());
+    sfx_Jump = Mixer_LoadChunk(sfx_path("gunshot-37055.ogg").c_str());
 
-    // Skeleton_Humanoid = new skeleton_t();
-    // LoadSkeleton_GLTF2Bin(wd_path("models/Rumba Dancing.dae").c_str(), Skeleton_Humanoid);
-    // LoadAdditionalAnimationsForSkeleton(Skeleton_Humanoid, wd_path("models/Boxing.dae").c_str());
-    // Model_Knight = new skinned_model_t(Skeleton_Humanoid);
-    // LoadSkinnedModel_GLTF2Bin(wd_path("models/Rumba Dancing.dae").c_str(), Model_Knight);
+    Skeleton_Humanoid = new skeleton_t();
+    LoadSkeleton_GLTF2Bin(model_path("attacker.glb").c_str(), Skeleton_Humanoid);
+    Model_Attacker = new skinned_model_t(Skeleton_Humanoid);
+    LoadSkinnedModel_GLTF2Bin(model_path("attacker.glb").c_str(), Model_Attacker);
 
-    // ASSERT(TestAnimClip1);
-    // Animator.PlayAnimation(TestAnimClip1);
+    ASSERT(TestAnimClip0);
+    Animator.PlayAnimation(TestAnimClip0);
 
     Physics.Initialize();
 
@@ -86,21 +85,21 @@ void LoadLevel(const char *MapPath)
     // TODO Apply rotation to camera rotation instead
     // Player.mCharacter->SetRotation(ToJoltQuat(EulerToQuat(MapLoadResult.PlayerStartRotation)));
 
-    // enemy_t Enemy0;
+    enemy_t Enemy0;
     // enemy_t Enemy1;
     // enemy_t Enemy2;
 
     // Enemy0.Position = vec3(0, 0, 30);
     // Enemy1.Position = vec3(0, 0, -30);
-    // GetRandomPointOnNavMesh((float*)&Enemy0.Position);
+    GetRandomPointOnNavMesh((float*)&Enemy0.Position);
     // GetRandomPointOnNavMesh((float*)&Enemy1.Position);
     // GetRandomPointOnNavMesh((float*)&Enemy2.Position);
 
-    // Enemy0.Init();
+    Enemy0.Init();
     // Enemy1.Init();
     // Enemy2.Init();
 
-    // Enemies.put(Enemy0);
+    Enemies.put(Enemy0);
     // Enemies.put(Enemy1);
     // Enemies.put(Enemy2);
 
@@ -115,7 +114,7 @@ void UnloadPreviousLevel()
         Physics.BodyInterface->DestroyBody(LevelColliderBodyId);
     }
 
-    // Enemies.free();
+    Enemies.free();
     DestroyRecastNavMesh();
 
     LevelLoaded = false;
@@ -163,14 +162,14 @@ void NonPhysicsTick()
 
 void PrePhysicsTick()
 {
-    // PrePhysicsTickAllEnemies();
+    PrePhysicsTickAllEnemies();
 
     Player.PrePhysicsUpdate();
 }
 
 void PostPhysicsTick()
 {
-    // PostPhysicsTickAllEnemies();
+    PostPhysicsTickAllEnemies();
 
     Player.PostPhysicsUpdate();
 }
@@ -229,8 +228,8 @@ void DoGameLoop()
     //     Animator.PlayAnimation(TestAnimClip0);
     // if (KeysPressed[SDL_SCANCODE_H])
     //     Animator.PlayAnimation(TestAnimClip1);
-    // Animator.UpdateGlobalPoses(DeltaTime);
-    // Animator.GetSkinningMatrixPalette();
+    Animator.UpdateGlobalPoses(DeltaTime);
+    Animator.GetSkinningMatrixPalette();
 
     // Do render loop
     RenderGameLayer();
@@ -297,33 +296,34 @@ void RenderGameLayer()
     JoltDebugDraw->Flush(ViewProjectionMatrix.ptr());
 #endif // JPH_DEBUG_RENDERER
 
-    // UseShader(GameAnimatedCharacterShader);
-    // glEnable(GL_DEPTH_TEST);
-    // GLBindMatrix4fv(GameAnimatedCharacterShader, "Projection", 1, perspectiveMatrix.ptr());
-    // GLBindMatrix4fv(GameAnimatedCharacterShader, "View", 1, viewMatrix.ptr());
+    UseShader(GameAnimatedCharacterShader);
+    glEnable(GL_DEPTH_TEST);
+    GLBindMatrix4fv(GameAnimatedCharacterShader, "Projection", 1, perspectiveMatrix.ptr());
+    GLBindMatrix4fv(GameAnimatedCharacterShader, "View", 1, viewMatrix.ptr());
 
-    // mat4 ModelMatrix = TranslationMatrix(Enemies[0].Position) * RotationMatrix(Enemies[0].Orientation);
+    mat4 ModelMatrix = TranslationMatrix(Enemies[0].Position) * 
+        RotationMatrix(Enemies[0].Orientation) * ScaleMatrix(32.f,32.f,32.f);
 
-    // GLBindMatrix4fv(GameAnimatedCharacterShader, "Model", 1, ModelMatrix.ptr());
+    GLBindMatrix4fv(GameAnimatedCharacterShader, "Model", 1, ModelMatrix.ptr());
 
-    // GLBindMatrix4fv(GameAnimatedCharacterShader, "FinalBonesMatrices[0]", MAX_BONES, 
-    //     Animator.SkinningMatrixPalette[0].ptr());
+    GLBindMatrix4fv(GameAnimatedCharacterShader, "FinalBonesMatrices[0]", MAX_BONES, 
+        Animator.SkinningMatrixPalette[0].ptr());
 
-    // for (size_t i = 0; i < arrlenu(Model_Knight->Meshes); ++i)
-    // {
-    //     skinned_mesh_t m = Model_Knight->Meshes[i];
-    //     GPUTexture t = Model_Knight->Textures[i];
+    for (size_t i = 0; i < arrlenu(Model_Attacker->Meshes); ++i)
+    {
+        skinned_mesh_t m = Model_Attacker->Meshes[i];
+        GPUTexture t = Model_Attacker->Textures[i];
 
-    //     glActiveTexture(GL_TEXTURE0);
-    //     //glBindTexture(GL_TEXTURE_2D, t.id);
-    //     glBindTexture(GL_TEXTURE_2D, Assets.DefaultEditorTexture.gputex.id);
+        glActiveTexture(GL_TEXTURE0);
+        //glBindTexture(GL_TEXTURE_2D, t.id);
+        glBindTexture(GL_TEXTURE_2D, Assets.DefaultEditorTexture.gputex.id);
 
-    //     glBindVertexArray(m.VAO);
-    //     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m.IBO);
-    //     glDrawElements(GL_TRIANGLES, m.IndicesCount, GL_UNSIGNED_INT, nullptr);
-    //     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-    //     glBindVertexArray(0);
-    // }
+        glBindVertexArray(m.VAO);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m.IBO);
+        glDrawElements(GL_TRIANGLES, m.IndicesCount, GL_UNSIGNED_INT, nullptr);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+        glBindVertexArray(0);
+    }
 
     // RenderModelGLTF(Model_Knight);
     // ModelMatrix = TranslationMatrix(Enemies[1].Position) * RotationMatrix(Enemies[1].Orientation);

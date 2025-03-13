@@ -8,6 +8,8 @@ I could port the GL code to Vulkan
 
 TODO:
 
+- Probably scale down vectors and units before passing into Jolt Physics
+
 = I can start making and importing proper character models and animations
 = I can start making proper textures
 
@@ -25,7 +27,6 @@ TODO:
 
 
 - move gmath as subrepo of this repo so i can keep tests updated
-- Probably scale down vectors and units before passing into Jolt Physics
 - Port over dropdown console?
 
 
@@ -192,8 +193,10 @@ inline std::string model_path() { return wd_path() + "models/"; }
 inline std::string model_path(const std::string& name) { return wd_path() + "models/" + name; }
 inline std::string texture_path() { return wd_path() + "textures/"; }
 inline std::string texture_path(const std::string& name) { return wd_path() + "textures/" + name; }
-inline std::string data_path() { return wd_path() + "data/"; }
-inline std::string data_path(const std::string& name) { return wd_path() + "data/" + name; }
+inline std::string sfx_path() { return wd_path() + "sfx/"; }
+inline std::string sfx_path(const std::string& name) { return wd_path() + "sfx/" + name; }
+inline std::string entity_icons_path() { return wd_path() + "entity_icons/"; }
+inline std::string entity_icons_path(const std::string& name) { return wd_path() + "entity_icons/" + name; }
 
 #define ARRAY_COUNT(a) (sizeof(a) / (sizeof(a[0])))
 
@@ -682,9 +685,9 @@ int main(int argc, char* argv[])
 
     InitializeGame();
 
-    LevelEditor.LoadMap(wd_path("lailo.emf").c_str());
-    BuildGameMap(wd_path("buildtest.map").c_str());
-    LoadLevel(wd_path("buildtest.map").c_str());
+    // LevelEditor.LoadMap(wd_path("lailo.emf").c_str());
+    // BuildGameMap(wd_path("buildtest.map").c_str());
+    // LoadLevel(wd_path("buildtest.map").c_str());
 
     // LevelEditor.LoadMap(wd_path("playground_0.emf").c_str());
     // BuildGameMap(wd_path("buildtest2.map").c_str());
@@ -692,7 +695,7 @@ int main(int argc, char* argv[])
 
     // LoadLevel(wd_path("House.map").c_str());
 
-    // LoadLevel(wd_path("playground_0.map").c_str());
+    LoadLevel(wd_path("playground_0.map").c_str());
     // LevelEditor.Open();
 
     while (!ProgramShutdownRequested)

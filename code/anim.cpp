@@ -193,7 +193,7 @@ static void ReadSkeletonJoints(const aiNode *Node,
 
 static animation_clip_t ReadAnimationClip(const aiAnimation *AssimpAnim, const skeleton_t *Skeleton)
 {
-    const bool TEMPFLAG_IsGLB = false;
+    const bool TEMPFLAG_IsGLB = true;
     // GLTF2.0 exports animation clip durations in MILLISECONDS!
     // Therefore Animation TicksPerSeconds must be set to 1000.
     animation_clip_t Clip = animation_clip_t(Skeleton);
