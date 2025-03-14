@@ -636,7 +636,18 @@ namespace GUI
         }
     }
 
-
+    void PrimitiveCheckbox(ui_id id, UIRect rect, int inset, bool *value, vec4 background, vec4 foreground)
+    {
+        if (*value)
+        {
+            *value = !PrimitiveButton(id, rect, background, background, background);
+            PrimitivePanel(UIRect(rect.x+inset,rect.y+inset,rect.w-inset*2,rect.h-inset*2), foreground);
+        }
+        else
+        {
+            *value = PrimitiveButton(id, rect, background, background, background);
+        }
+    }
 
     bool PrimitiveLabelledButton(UIRect rect, const char* label, Align textAlignment)
     {
@@ -874,6 +885,33 @@ namespace GUI
 
         // TODO stage width
         Window_StageLastElementDimension(0, style_paddingTop + h + style_paddingBottom);
+    }
+
+    void EditorCheckbox(const char *label, bool *value)
+    {
+        Window_CommitLastElementDimension();
+        int x, y;
+        Window_GetCurrentOffsets(&x, &y);
+        int w, h;
+        w = style_paddingLeft;
+        h = style_paddingTop;
+
+        // Element 0: checkbox
+        PrimitiveCheckbox(FreshID(), UIRect(x+w,y+h,12,12), 2, 
+            value, vec4(0.9f,0.9f,0.9f,1), vec4(0,0,0,1));
+        w += 12 + style_paddingRight;
+        h += 12 + style_paddingBottom;
+
+        // Element 1: text
+        w += style_paddingLeft;
+        int sz = GetFontSize();
+        PrimitiveText(x+w, y+h-style_paddingBottom, sz, Align::LEFT, label);
+        float textW;
+        float textH;
+        vtxt_get_text_bounding_box_info(&textW, &textH, label, style_textFont.ptr, sz);
+        w += int(textW) + style_paddingRight;
+
+        Window_StageLastElementDimension(w, h);
     }
 
     bool EditorSelectableRect(vec4 colorRGBA, bool *selected, int id)

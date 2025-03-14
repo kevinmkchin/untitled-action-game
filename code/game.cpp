@@ -123,14 +123,17 @@ void UnloadPreviousLevel()
 void NonPhysicsTick()
 {
     // CALCULATE PLAYER FACING DIRECTION
-    float camYawDelta = MouseDelta.x * 0.085f;
-    float camPitchDelta = MouseDelta.y * 0.085f;
-    Player.CameraRotation.y -= camYawDelta;
-    Player.CameraRotation.z -= camPitchDelta;
-    if (Player.CameraRotation.z > 89.f)
-        Player.CameraRotation.z = 89.f;
-    if (Player.CameraRotation.z < -89.f)
-        Player.CameraRotation.z = -89.f;
+    if (SDL_GetRelativeMouseMode())
+    {
+        float camYawDelta = MouseDelta.x * 0.085f;
+        float camPitchDelta = MouseDelta.y * 0.085f;
+        Player.CameraRotation.y -= camYawDelta;
+        Player.CameraRotation.z -= camPitchDelta;
+        if (Player.CameraRotation.z > 89.f)
+            Player.CameraRotation.z = 89.f;
+        if (Player.CameraRotation.z < -89.f)
+            Player.CameraRotation.z = -89.f;
+    }
     Player.CameraDirection = Normalize(OrientationToDirection(EulerToQuat(Player.CameraRotation * GM_DEG2RAD)));
     Player.CameraRight = Normalize(Cross(Player.CameraDirection, GM_UP_VECTOR));
     Player.CameraUp = Normalize(Cross(Player.CameraRight, Player.CameraDirection));

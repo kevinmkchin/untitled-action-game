@@ -247,7 +247,7 @@ inline std::string entity_icons_path(const std::string& name) { return wd_path()
 #include "game.h"
 #include "enemy.h"
 #include "nav.h"
-
+#include "debugmenu.h"
 
 
 SDL_Window *SDLMainWindow;
@@ -276,9 +276,6 @@ char CurrentWorkingDirectory[128];
 #if INTERNAL_BUILD
 RENDERDOC_API_1_6_0 *RDOCAPI = NULL;
 #endif
-
-
-level_editor_t LevelEditor;
 
 
 GPUShader GameLevelShader;
@@ -325,6 +322,7 @@ Mix_Chunk *Mixer_LoadChunk(const char *filepath)
 #include "enemy.cpp"
 #include "nav.cpp"
 #include "player.cpp"
+#include "debugmenu.cpp"
 
 
 static void RenderGUILayer()
@@ -580,88 +578,18 @@ static void ProcessSDLEvents()
     }
 }
 
-static void ApplicationSwitchToLevelEditor()
-{
-    // todo clean up game memory
-    // todo close game
-
-    GameLoopCanRun = false;
-
-    LevelEditor.Open();
-}
-
-static void ApplicationBuildLevelAndPlay()
-{
-    if (!LevelEditor.IsActive)
-    {
-        LogWarning("ApplicationBuildLevelAndPlay called when level editor is not active.");
-        return;
-    }
-
-    std::string path = SaveGameMapDialog();
-    if (path.empty())
-        return;
-
-    if (BuildGameMap(path.c_str()) == false)
-    {
-        LogError("Failed to build to %s", path.c_str());
-        return;
-    }
-
-    LevelEditor.Close();
-
-    // todo open game
-
-    LoadLevel(path.c_str());
-
-    // todo set game to be active
-
-    GameLoopCanRun = true;
-}
-
 static void ApplicationLoop()
 {
-    // TODO actually I want option to let the game keep running while
-    // debug menu is open
-    static bool ShowDebugMenu = false;
     if (KeysPressed[SDL_SCANCODE_GRAVE]) 
     {
-        ShowDebugMenu = !ShowDebugMenu;
-        if (ShowDebugMenu)
-        {
-            GameLoopCanRun = false;
+        DebugMenuActive = !DebugMenuActive;
+        if (DebugMenuActive)
             SDL_SetRelativeMouseMode(SDL_FALSE);
-        }
         else
-        {
-            GameLoopCanRun = true;
             SDL_SetRelativeMouseMode(SDL_TRUE);
-        }
     }
-    if (ShowDebugMenu)
-    {
-        GUI::BeginWindow(GUI::UIRect(32, 32, 200, 300));
-        GUI::EditorText("== Menu ==");
-        GUI::EditorSpacer(0, 10);
-        if (GUI::EditorLabelledButton("OPEN LEVEL EDITOR"))
-        {
-            ApplicationSwitchToLevelEditor();
-            ShowDebugMenu = false;
-        }
-        GUI::EditorSpacer(0, 10);
-        if (GUI::EditorLabelledButton("BUILD LEVEL AND PLAY"))
-        {
-            ApplicationBuildLevelAndPlay();
-            ShowDebugMenu = false;
-        }
-        GUI::EditorSpacer(0, 10);
-        GUI::EditorLabelledButton("PLAY playground1.map");
-        GUI::EditorLabelledButton("PLAY playground2.map");
-        GUI::EditorLabelledButton("PLAY house.map");
-        GUI::EndWindow();
 
-        GUI::PrimitiveText(RenderTargetGUI.width/2-13, RenderTargetGUI.height/2, GUI::GetFontSize(), GUI::LEFT, "PAUSED");
-    }
+    DisplayDebugMenu();
 }
 
 static void ApplicationEnd()
@@ -687,15 +615,9 @@ int main(int argc, char* argv[])
 
     InitializeGame();
 
-    // LevelEditor.LoadMap(wd_path("lailo.emf").c_str());
-    // BuildGameMap(wd_path("buildtest.map").c_str());
-    // LoadLevel(wd_path("buildtest.map").c_str());
-
     // LevelEditor.LoadMap(wd_path("playground_0.emf").c_str());
     // BuildGameMap(wd_path("buildtest2.map").c_str());
     // LoadLevel(wd_path("buildtest2.map").c_str());
-
-    // LoadLevel(wd_path("House.map").c_str());
 
     LoadLevel(wd_path("playground_0.map").c_str());
     // LevelEditor.Open();

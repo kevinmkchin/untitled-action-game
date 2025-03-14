@@ -1,4 +1,5 @@
 
+level_editor_t LevelEditor; // extern
 
 std::vector<float> MY_VERTEX_BUFFER;
 
@@ -12,6 +13,7 @@ void level_editor_t::Close()
 {
     IsActive = false;
 
+    // NOTE(Kevin): Should I reset state? or keep data around?
 }
 
 
