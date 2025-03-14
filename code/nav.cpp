@@ -882,7 +882,7 @@ void TOOLMODE_PATHFIND_FOLLOW()
         m_navQuery->closestPointOnPoly(m_startRef, m_spos, iterPos, 0);
         m_navQuery->closestPointOnPoly(polys[npolys-1], m_epos, targetPos, 0);
         
-        const float STEP_SIZE = 16.f;
+        const float STEP_SIZE = 64.f;
         const float SLOP = 2.f;
         
         m_nsmoothPath = 0;
