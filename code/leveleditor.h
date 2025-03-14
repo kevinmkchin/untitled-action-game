@@ -92,3 +92,4 @@ private: // move all the editor session specific data here
     entity_types_t EntityTypeToPlace;
 };
 
+extern level_editor_t LevelEditor;

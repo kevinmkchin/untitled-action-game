@@ -91,7 +91,7 @@ namespace GUI
     void PrimitiveTextMasked(int x, int y, int size, Align alignment, const char* text, UIRect mask, int maskCornerRadius);
     void PrimitiveIntegerInputField(ui_id id, UIRect rect, int* v);
     void PrimitiveFloatInputField(ui_id id, UIRect rect, float* v);
-    //void PrimitiveCheckbox(const char* label, );
+    void PrimitiveCheckbox(ui_id id, UIRect rect, int inset, bool *value, vec4 background, vec4 foreground);
     bool PrimitiveLabelledButton(UIRect rect, const char* label, Align textAlignment);
 
 
@@ -123,6 +123,7 @@ namespace GUI
     bool EditorLabelledButton(const char *label, int minwidth = 50);
     void EditorIncrementableIntegerField(const char *label, int *v, int increment = 1);
     void EditorIncrementableFloatField(const char *label, float *v, float increment = 0.1f);
+    void EditorCheckbox(const char *label, bool *value);
 
     // EditorSelectable returns true once when it gets selected
     bool EditorSelectable(const char *label, bool *selected);

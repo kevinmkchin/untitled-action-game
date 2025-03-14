@@ -82,7 +82,7 @@ void PrePhysicsTickAllEnemies()
                 vec3 GroundNormal = FromJoltVectorNoConvert(Enemy.RigidBody->GetGroundNormal());
                 vec3 RightDir = Cross(DirToSteerPoint, GroundNormal);
                 vec3 ForwardDir = Cross(GroundNormal, RightDir);
-                Enemy.RigidBody->SetLinearVelocity(ToJoltVector(ForwardDir * 240.f));
+                Enemy.RigidBody->SetLinearVelocity(ToJoltVector(ForwardDir * 170.f));
             }
 
             Enemy.Orientation = DirectionToOrientation(FlatDir);
