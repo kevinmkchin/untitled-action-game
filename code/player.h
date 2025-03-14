@@ -21,8 +21,8 @@ struct player_t
     vec3 CameraRight;
     vec3 CameraUp;
 
-    float MoveSpeed = 192.f;
-    float JumpSpeed = 128.f;
+    float MoveSpeed = 6.f;
+    float JumpSpeed = 4.f;
 
     JPH::CharacterVirtual *CharacterController;
 
@@ -30,10 +30,10 @@ private:
     void AddToPhysicsSystem();
     void DoMovement(vec3 MovementDirection, bool DoJump, bool DoSwitchStance);
 
-    static constexpr float CharacterHeightStanding = 48.f;
-    static constexpr float CharacterRadiusStanding = 8.f;
-    static constexpr float CharacterHeightCrouching = 30.f;
-    static constexpr float CharacterRadiusCrouching = 8.f;
+    static constexpr float CharacterHeightStanding = 1.5f;
+    static constexpr float CharacterRadiusStanding = 0.25f;
+    static constexpr float CharacterHeightCrouching = 0.9f;
+    static constexpr float CharacterRadiusCrouching = 0.25f;
     JPH::RefConst<JPH::Shape> StandingShape;
     JPH::RefConst<JPH::Shape> CrouchingShape;
     JPH::Vec3 DesiredVelocity = JPH::Vec3::sZero(); // Smoothed value of the player input

@@ -20,9 +20,10 @@ void enemy_t::Destroy()
 
 void enemy_t::AddToPhysicsSystem()
 {
-    static constexpr float CharacterHeightStanding = 48.f;
-    static constexpr float CharacterRadiusStanding = 8.f;
-    
+    // In SI units
+    static constexpr float CharacterHeightStanding = 1.5f;
+    static constexpr float CharacterRadiusStanding = 0.25f;
+
     JPH::RefConst<JPH::Shape> StandingShape = JPH::RotatedTranslatedShapeSettings(
         JPH::Vec3(0, 0.5f * CharacterHeightStanding + CharacterRadiusStanding, 0), 
         JPH::Quat::sIdentity(), 
@@ -35,7 +36,7 @@ void enemy_t::AddToPhysicsSystem()
     Settings->mFriction = 0.5f;
     Settings->mSupportingVolume = JPH::Plane(JPH::Vec3::sAxisY(), -CharacterRadiusStanding); // Accept contacts that touch the lower sphere of the capsule
     
-    RigidBody = new JPH::Character(Settings, ToJoltVec3(Position), 
+    RigidBody = new JPH::Character(Settings, ToJoltVector(Position), 
         ToJoltQuat(Orientation), 0, Physics.PhysicsSystem);
 
     RigidBody->AddToPhysicsSystem(JPH::EActivation::Activate);
@@ -78,10 +79,10 @@ void PrePhysicsTickAllEnemies()
 
             if (Enemy.RigidBody->IsSupported())
             {
-                vec3 GroundNormal = FromJoltVec3(Enemy.RigidBody->GetGroundNormal());
+                vec3 GroundNormal = FromJoltVectorNoConvert(Enemy.RigidBody->GetGroundNormal());
                 vec3 RightDir = Cross(DirToSteerPoint, GroundNormal);
                 vec3 ForwardDir = Cross(GroundNormal, RightDir);
-                Enemy.RigidBody->SetLinearVelocity(ToJoltVec3(ForwardDir * 40.f));
+                Enemy.RigidBody->SetLinearVelocity(ToJoltVector(ForwardDir * 240.f));
             }
 
             Enemy.Orientation = DirectionToOrientation(FlatDir);
@@ -97,7 +98,7 @@ void PostPhysicsTickAllEnemies()
         
         static const float MaxSeparationDistance = 0.05f;
         Enemy.RigidBody->PostSimulation(MaxSeparationDistance);
-        Enemy.Position = FromJoltVec3(Enemy.RigidBody->GetPosition());
+        Enemy.Position = FromJoltVector(Enemy.RigidBody->GetPosition());
     }
 }
 

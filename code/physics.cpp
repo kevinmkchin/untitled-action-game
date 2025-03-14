@@ -117,7 +117,7 @@ void physics_t::Initialize()
     PhysicsSystem->Init(cMaxBodies, cNumBodyMutexes, cMaxBodyPairs, cMaxContactConstraints, 
         BroadPhaseLayerInterface, ObjectVsBroadphaseFilter, ObjectVsObjectFilter);
 
-    PhysicsSystem->SetGravity(PhysicsSystem->GetGravity() * 32.f);
+    PhysicsSystem->SetGravity(JPH::Vec3(0, -9.81f, 0));
 
     // The main way to interact with the bodies in the physics system is through 
     // the body interface. There is a locking and a non-locking variant of this. 
@@ -219,22 +219,42 @@ void game_char_vs_char_handler_t::CastCharacter(const JPH::CharacterVirtual *inC
     // ioCollector.SetUserData(0);
 }
 
-JPH::RVec3 ToJoltVec3(vec3 GMathVec3)
+inline float ToJoltUnit(float GameUnit)
+{
+    return GameUnit * GAME_UNIT_TO_SI_UNITS;
+}
+
+inline float FromJoltUnit(float JoltUnit)
+{
+    return JoltUnit * SI_UNITS_TO_GAME_UNITS;
+}
+
+inline JPH::RVec3 ToJoltVector(vec3 GMathVec3)
+{
+    return JPH::RVec3(ToJoltUnit(GMathVec3.x), ToJoltUnit(GMathVec3.y), ToJoltUnit(GMathVec3.z));
+}
+
+inline vec3 FromJoltVector(JPH::RVec3 JoltVec3)
+{
+    return vec3(FromJoltUnit(JoltVec3.GetX()), FromJoltUnit(JoltVec3.GetY()), FromJoltUnit(JoltVec3.GetZ()));
+}
+
+inline JPH::RVec3 ToJoltVectorNoConvert(vec3 GMathVec3)
 {
     return JPH::RVec3(GMathVec3.x, GMathVec3.y, GMathVec3.z);
 }
 
-vec3 FromJoltVec3(JPH::RVec3 JoltVec3)
+inline vec3 FromJoltVectorNoConvert(JPH::RVec3 JoltVec3)
 {
     return vec3(JoltVec3.GetX(), JoltVec3.GetY(), JoltVec3.GetZ());
 }
 
-JPH::Quat ToJoltQuat(quat GMathQuat)
+inline JPH::Quat ToJoltQuat(quat GMathQuat)
 {
     return JPH::Quat(GMathQuat.x, GMathQuat.y, GMathQuat.z, GMathQuat.w);
 }
 
-quat FromJoltQuat(JPH::Quat JoltQuat)
+inline quat FromJoltQuat(JPH::Quat JoltQuat)
 {
     return quat(JoltQuat.GetW(), JoltQuat.GetX(), JoltQuat.GetY(), JoltQuat.GetZ());
 }

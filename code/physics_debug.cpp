@@ -108,17 +108,17 @@ void jph_debug_draw_gl3_t::Flush(float *ViewProjectionMatrix)
 void jph_debug_draw_gl3_t::DrawLine(JPH::RVec3Arg inFrom, JPH::RVec3Arg inTo, JPH::ColorArg inColor)
 {
     JPH::Vec4 Colorf = inColor.ToVec4();
-    LinesVertices.put(inFrom.GetX());
-    LinesVertices.put(inFrom.GetY());
-    LinesVertices.put(inFrom.GetZ());
+    LinesVertices.put(FromJoltUnit(inFrom.GetX()));
+    LinesVertices.put(FromJoltUnit(inFrom.GetY()));
+    LinesVertices.put(FromJoltUnit(inFrom.GetZ()));
     LinesVertices.put(Colorf.GetX());
     LinesVertices.put(Colorf.GetY());
     LinesVertices.put(Colorf.GetZ());
     LinesVertices.put(Colorf.GetW());
 
-    LinesVertices.put(inTo.GetX());
-    LinesVertices.put(inTo.GetY());
-    LinesVertices.put(inTo.GetZ());
+    LinesVertices.put(FromJoltUnit(inTo.GetX()));
+    LinesVertices.put(FromJoltUnit(inTo.GetY()));
+    LinesVertices.put(FromJoltUnit(inTo.GetZ()));
     LinesVertices.put(Colorf.GetX());
     LinesVertices.put(Colorf.GetY());
     LinesVertices.put(Colorf.GetZ());
@@ -128,25 +128,25 @@ void jph_debug_draw_gl3_t::DrawLine(JPH::RVec3Arg inFrom, JPH::RVec3Arg inTo, JP
 void jph_debug_draw_gl3_t::DrawTriangle(JPH::RVec3Arg inV1, JPH::RVec3Arg inV2, JPH::RVec3Arg inV3, JPH::ColorArg inColor, ECastShadow inCastShadow)
 {
     JPH::Vec4 Colorf = inColor.ToVec4();
-    TrisVertices.put(inV1.GetX());
-    TrisVertices.put(inV1.GetY());
-    TrisVertices.put(inV1.GetZ());
+    TrisVertices.put(FromJoltUnit(inV1.GetX()));
+    TrisVertices.put(FromJoltUnit(inV1.GetY()));
+    TrisVertices.put(FromJoltUnit(inV1.GetZ()));
     TrisVertices.put(Colorf.GetX());
     TrisVertices.put(Colorf.GetY());
     TrisVertices.put(Colorf.GetZ());
     TrisVertices.put(Colorf.GetW());
 
-    TrisVertices.put(inV2.GetX());
-    TrisVertices.put(inV2.GetY());
-    TrisVertices.put(inV2.GetZ());
+    TrisVertices.put(FromJoltUnit(inV2.GetX()));
+    TrisVertices.put(FromJoltUnit(inV2.GetY()));
+    TrisVertices.put(FromJoltUnit(inV2.GetZ()));
     TrisVertices.put(Colorf.GetX());
     TrisVertices.put(Colorf.GetY());
     TrisVertices.put(Colorf.GetZ());
     TrisVertices.put(Colorf.GetW());
 
-    TrisVertices.put(inV3.GetX());
-    TrisVertices.put(inV3.GetY());
-    TrisVertices.put(inV3.GetZ());
+    TrisVertices.put(FromJoltUnit(inV3.GetX()));
+    TrisVertices.put(FromJoltUnit(inV3.GetY()));
+    TrisVertices.put(FromJoltUnit(inV3.GetZ()));
     TrisVertices.put(Colorf.GetX());
     TrisVertices.put(Colorf.GetY());
     TrisVertices.put(Colorf.GetZ());

@@ -8,7 +8,8 @@ I could port the GL code to Vulkan
 
 TODO:
 
-- Probably scale down vectors and units before passing into Jolt Physics
+- "draw physics debug" toggle in debug menu with enemy collider and level collider visualized
+- also nav mesh and enemy path debug
 
 = I can start making and importing proper character models and animations
 = I can start making proper textures
@@ -223,6 +224,8 @@ inline std::string entity_icons_path(const std::string& name) { return wd_path()
 
 // let 1 unit = 1 inch, this approximates 32 units to 0.82 metres
 #define STANDARD_LENGTH_IN_GAME_UNITS 32
+#define GAME_UNIT_TO_SI_UNITS 0.0254f // 0.8128m / 32 units
+#define SI_UNITS_TO_GAME_UNITS 39.37f // 1 / 0.0254
 // sqrt(32^2 + 32^2) = 45.254833996 ~= 45
 #define STANDARD_LENGTH_DIAGONAL 45
 #define THIRTYTWO STANDARD_LENGTH_IN_GAME_UNITS
