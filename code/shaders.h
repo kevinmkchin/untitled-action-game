@@ -12,7 +12,7 @@ void GLLoadShaderProgramFromFile(GPUShader& shader, const char* vertexPath, cons
 void GLLoadShaderProgramFromFile(GPUShader& shader, const char* vertexPath, const char* geometryPath, const char* fragmentPath);
 void GLCreateShaderProgram(GPUShader& shader, const char* vertexShaderStr, const char* fragmentShaderStr);
 void GLCreateShaderProgram(GPUShader& shader, const char* vertexShaderStr, const char* geometryShaderStr, const char* fragmentShaderStr);
-#if GL_VERSION_4_3
+#ifdef GL_VERSION_4_3_OR_HIGHER
 void GLLoadComputeShaderProgramFromFile(GPUShader& shader, const char* computePath);
 void GLCreateComputeShaderProgram(GPUShader& shader, const char* computeShaderStr);
 #endif

@@ -72,7 +72,7 @@ void PrePhysicsTickAllEnemies()
             vec3 DirToSteerPoint = Normalize(SteerPoint - Enemy.Position);
             vec3 FlatDir = Normalize(vec3(DirToSteerPoint.x, 0.f, DirToSteerPoint.z));
             float DistToSteerPoint = Magnitude(SteerPoint - Enemy.Position);
-            if (DistToSteerPoint < 1.f)
+            if (DistToSteerPoint < 16.f)
             {
                 ++Enemy.SmoothPathIter;
             }

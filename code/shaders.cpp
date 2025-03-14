@@ -350,7 +350,7 @@ void GLCreateShaderProgram(GPUShader& shader, const char* vertexShaderStr, const
     cacheUniformLocations(shader);
 }
 
-#if GL_VERSION_4_3
+#ifdef GL_VERSION_4_3_OR_HIGHER
 void GLCreateComputeShaderProgram(GPUShader& shader, const char* computeShaderStr)
 {
     shader.idShaderProgram = glCreateProgram();

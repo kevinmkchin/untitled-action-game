@@ -251,6 +251,7 @@ void lightmapper_t::BakeStaticLighting(game_map_build_data_t& BuildData)
     }
     // Why tf is the lighting data in float not u8? I remember specifically changing it but why...
     // I think I did it so that lighting value can exceed 1.0? 11c6bf455d6e43af48df397945a87fc54baf3759
+    // NOTE(Kevin) 2025-03-14: HDR (brightness not clamped to 1.0), apparently reduced color banding
     ByteBufferWrite(&BuildData.Output, i32, lightMapAtlasW);
     ByteBufferWrite(&BuildData.Output, i32, lightMapAtlasH);
     ByteBufferWriteBulk(&BuildData.Output, LIGHT_MAP_ATLAS, lightMapAtlasW*lightMapAtlasH*sizeof(float));

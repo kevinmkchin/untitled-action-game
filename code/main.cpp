@@ -18,6 +18,7 @@ TODO:
     - Try using straight path instead of smooth path
     - State machine - mesh changes color when enemy state changes from patrol to chase to shoot to melee
     - sound (audio system)
+    - death animation on dead
 
 - Player has a gun and shoots at enemy
 
@@ -115,14 +116,10 @@ the editor. Then I could have
 #include <direct.h>
 #endif
 
-#if MESA_WINDOWS
-    #define GL3W_IMPLEMENTATION
-    #include <gl3w.h>
-    #define MESA_USING_GL3W
-#elif MESA_MACOSX
-    #define GL_SILENCE_DEPRECATION
-    #include <OpenGL/gl3.h>
-#endif
+#define GL3W_IMPLEMENTATION
+#include <gl3w.h>
+#define MESA_USING_GL3W
+#define GL_VERSION_4_3_OR_HIGHER
 
 #include <SDL.h>
 #include <SDL_mixer.h>
@@ -467,8 +464,9 @@ static bool InitializeApplication()
 
     if (SDL_Init(SDL_INIT_EVERYTHING) < 0) return false;
 
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
+    // OpenGL 4.6
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 6);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG);
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
@@ -490,10 +488,11 @@ static bool InitializeApplication()
         fprintf(stderr, "Failed to initialize OpenGL\n");
         return false;
     }
+    LogMessage("GL_VERSION %s", glGetString(GL_VERSION));
 #endif
 
     SDL_SetWindowMinimumSize(SDLMainWindow, 200, 100);
-    SDL_GL_SetSwapInterval(0);
+    SDL_GL_SetSwapInterval(1);
     // if (SDL_GL_SetSwapInterval(-1) == -1)
     // {
     //     LogWarning("Hardware does not support adaptive vsync.");
