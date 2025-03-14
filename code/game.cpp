@@ -81,7 +81,7 @@ void LoadLevel(const char *MapPath)
     CreateAndRegisterLevelCollider();
     ASSERT(CreateRecastNavMesh());
 
-    Player.CharacterController->SetPosition(ToJoltVec3(MapLoadResult.PlayerStartPosition));
+    Player.CharacterController->SetPosition(ToJoltVector(MapLoadResult.PlayerStartPosition));
     // TODO Apply rotation to camera rotation instead
     // Player.mCharacter->SetRotation(ToJoltQuat(EulerToQuat(MapLoadResult.PlayerStartRotation)));
 
@@ -156,7 +156,7 @@ void NonPhysicsTick()
 
     // Physics.BodyInterface->GetShape(LevelColliderBodyId)->Draw(JoltDebugDraw,
     //     Physics.BodyInterface->GetCenterOfMassTransform(LevelColliderBodyId),
-    //     JPH::Vec3::sReplicate(1.0f), JPH::Color(0,255,0,70), true, false);
+    //     JPH::Vec3::sReplicate(1.0f), JPH::Color(0,255,0,60), true, false);
 #endif // JPH_DEBUG_RENDERER
 }
 
@@ -350,9 +350,9 @@ void CreateAndRegisterLevelCollider()
             vec3 Second = PointCloudPtr[i-1];
             vec3 Third = PointCloudPtr[i];
 
-            JPH::Float3 jph_first(First.x, First.y, First.z);
-            JPH::Float3 jph_second(Second.x, Second.y, Second.z);
-            JPH::Float3 jph_third(Third.x, Third.y, Third.z);
+            JPH::Float3 jph_first(ToJoltUnit(First.x), ToJoltUnit(First.y), ToJoltUnit(First.z));
+            JPH::Float3 jph_second(ToJoltUnit(Second.x), ToJoltUnit(Second.y), ToJoltUnit(Second.z));
+            JPH::Float3 jph_third(ToJoltUnit(Third.x), ToJoltUnit(Third.y), ToJoltUnit(Third.z));
 
             LevelColliderTriangles.push_back(JPH::Triangle(jph_first, jph_second, jph_third));
         }

@@ -241,8 +241,12 @@ public:
     JPH::TempAllocatorImpl *TempAllocator;
 };
 
-// when converting units, differentiate position (convert units) and direction (stay normalized)
-JPH::RVec3 ToJoltVec3(vec3 GMathVec3);
-vec3 FromJoltVec3(JPH::RVec3 JoltVec3);
-JPH::Quat ToJoltQuat(quat GMathQuat);
-quat FromJoltQuat(JPH::Quat JoltQuat);
+// Converts engine units to and from SI units
+inline float ToJoltUnit(float GameUnit);
+inline float FromJoltUnit(float JoltUnit);
+inline JPH::RVec3 ToJoltVector(vec3 GMathVec3);
+inline vec3 FromJoltVector(JPH::RVec3 JoltVec3);
+inline JPH::RVec3 ToJoltVectorNoConvert(vec3 GMathVec3); // Directions should stay normalized
+inline vec3 FromJoltVectorNoConvert(JPH::RVec3 JoltVec3);
+inline JPH::Quat ToJoltQuat(quat GMathQuat);
+inline quat FromJoltQuat(JPH::Quat JoltQuat);

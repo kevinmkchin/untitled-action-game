@@ -78,12 +78,12 @@ void player_t::PrePhysicsUpdate()
 
 void player_t::PostPhysicsUpdate()
 {
-    Player.Root = FromJoltVec3(Player.CharacterController->GetPosition());
+    Player.Root = FromJoltVector(Player.CharacterController->GetPosition());
 }
 
 void player_t::DoMovement(vec3 MovementDirection, bool inJump, bool inSwitchStance)
 {
-    JPH::Vec3Arg inMovementDirection = ToJoltVec3(MovementDirection);
+    JPH::Vec3Arg inMovementDirection = ToJoltVectorNoConvert(MovementDirection);
     JPH::PhysicsSystem *mPhysicsSystem = Physics.PhysicsSystem;
 
     const bool sEnableCharacterInertia = true;
@@ -191,7 +191,7 @@ void player_t::AddToPhysicsSystem()
     Settings->mBackFaceMode = JPH::EBackFaceMode::CollideWithBackFaces;
     Settings->mCharacterPadding = 0.02f;
     Settings->mPenetrationRecoverySpeed = 1.0f;
-    Settings->mPredictiveContactDistance = 3.f;
+    Settings->mPredictiveContactDistance = 0.1f;
     Settings->mSupportingVolume = JPH::Plane(JPH::Vec3::sAxisY(), -CharacterRadiusStanding); // Accept contacts that touch the lower sphere of the capsule
     Settings->mEnhancedInternalEdgeRemoval = false;
     Settings->mInnerBodyShape = nullptr;
