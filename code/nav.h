@@ -11,9 +11,9 @@ bool FindSmoothPathTo(vec3 Origin, vec3 Target, float *SmoothPath, int *SmoothPa
 void GetRandomPointOnNavMesh(float *Point);
 
 #if INTERNAL_BUILD
-// void DetourTesting();
 
-void DoDebugDrawRecast(float *ProjMatrix, float *ViewMatrix, enum recast_debug_drawmode DrawMode);
+// Call recast_debug_draw_gl3_t::Ready before calling these
+void DebugDrawRecast(enum recast_debug_drawmode DrawMode);
 void DebugDrawFollowPath();
 
 enum recast_debug_drawmode

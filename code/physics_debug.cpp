@@ -1,6 +1,8 @@
 
 #ifdef JPH_DEBUG_RENDERER
 
+jph_debug_draw_gl3_t *JoltDebugDrawer;
+
 void JoltDebugDrawCharacterState(jph_debug_draw_gl3_t *mDebugRenderer, const JPH::CharacterBase *inCharacter, 
     JPH::RMat44Arg inCharacterTransform, JPH::Vec3Arg inCharacterVelocity)
 {

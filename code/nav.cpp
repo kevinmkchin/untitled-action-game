@@ -1116,10 +1116,8 @@ void GetRandomPointOnNavMesh(float *Point)
 //     }
 // }
 
-void DoDebugDrawRecast(float *ProjMatrix, float *ViewMatrix, recast_debug_drawmode DrawMode)
+void DebugDrawRecast(recast_debug_drawmode DrawMode)
 {
-    RecastDebugDrawer.Ready(ProjMatrix, ViewMatrix);
-
     if (m_navMesh && m_navQuery &&
         (DrawMode == DRAWMODE_NAVMESH ||
         DrawMode == DRAWMODE_NAVMESH_TRANS ||
@@ -1228,41 +1226,58 @@ void DebugDrawFollowPath()
 {
     duDebugDraw& dd = RecastDebugDrawer;
 
-    const unsigned int startCol = duRGBA(128,25,0,192);
-    const unsigned int endCol = duRGBA(51,102,0,129);
-    const unsigned int pathCol = duRGBA(0,0,0,64);
+    // const unsigned int startCol = duRGBA(128,25,0,192);
+    // const unsigned int endCol = duRGBA(51,102,0,129);
+    // const unsigned int pathCol = duRGBA(0,0,0,64);
     
-    const float agentHeight = 64.0f;
-    const float agentRadius = 8.0f;
-    const float agentClimb = 5.f;
+    // NOTE(Kevin) 2025-03-15: I don't wanna see the agent or the start end nav mesh poly debug drawn
+    // const float agentHeight = 8.0f;
+    // const float agentRadius = 8.0f;
+    // const float agentClimb = 5.f;
+    // dd.depthMask(false);
+    // DebugDrawAgent(m_spos, agentRadius, agentHeight, agentClimb, startCol);
+    // DebugDrawAgent(m_epos, agentRadius, agentHeight, agentClimb, endCol);
+    // dd.depthMask(true);
 
-    dd.depthMask(false);
-    DebugDrawAgent(m_spos, agentRadius, agentHeight, agentClimb, startCol);
-    DebugDrawAgent(m_epos, agentRadius, agentHeight, agentClimb, endCol);
-    dd.depthMask(true);
-
-    duDebugDrawNavMeshPoly(&dd, *m_navMesh, m_startRef, startCol);
-    duDebugDrawNavMeshPoly(&dd, *m_navMesh, m_endRef, endCol);
+    // duDebugDrawNavMeshPoly(&dd, *m_navMesh, m_startRef, startCol);
+    // duDebugDrawNavMeshPoly(&dd, *m_navMesh, m_endRef, endCol);
     
-    if (m_npolys)
-    {
-        for (int i = 0; i < m_npolys; ++i)
-        {
-            if (m_polys[i] == m_startRef || m_polys[i] == m_endRef)
-                continue;
-            duDebugDrawNavMeshPoly(&dd, *m_navMesh, m_polys[i], pathCol);
-        }
-    }
-            
+    // if (m_npolys)
+    // {
+    //     for (int i = 0; i < m_npolys; ++i)
+    //     {
+    //         if (m_polys[i] == m_startRef || m_polys[i] == m_endRef)
+    //             continue;
+    //         duDebugDrawNavMeshPoly(&dd, *m_navMesh, m_polys[i], pathCol);
+    //     }
+    // }
+
+    // if (m_nsmoothPath)
+    // {
+    //     dd.depthMask(false);
+    //     const unsigned int spathCol = duRGBA(0,0,0,220);
+    //     dd.begin(DU_DRAW_LINES, 3.0f);
+    //     for (int i = 0; i < m_nsmoothPath; ++i)
+    //         dd.vertex(m_smoothPath[i*3], m_smoothPath[i*3+1]+0.1f, m_smoothPath[i*3+2], spathCol);
+    //     dd.end();
+    //     dd.depthMask(true);
+    // }
+
+    // Just using support renderer primitives
     if (m_nsmoothPath)
     {
-        dd.depthMask(false);
-        const unsigned int spathCol = duRGBA(0,0,0,220);
-        dd.begin(DU_DRAW_LINES, 3.0f);
-        for (int i = 0; i < m_nsmoothPath; ++i)
-            dd.vertex(m_smoothPath[i*3], m_smoothPath[i*3+1]+0.1f, m_smoothPath[i*3+2], spathCol);
-        dd.end();
-        dd.depthMask(true);
+        for (int i = 1; i < m_nsmoothPath; ++i)
+        {
+            int a = i-1;
+            int b = i;
+            float ax = m_smoothPath[a*3];
+            float ay = m_smoothPath[a*3+1]+0.1f;
+            float az = m_smoothPath[a*3+2];
+            float bx = m_smoothPath[b*3];
+            float by = m_smoothPath[b*3+1]+0.1f;
+            float bz = m_smoothPath[b*3+2];
+            SupportRenderer.DrawLine(vec3(ax,ay,az), vec3(bx,by,bz), vec4(0,0,0,0.85f), 2.f);
+        }
     }
 }
 

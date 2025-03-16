@@ -619,7 +619,7 @@ int main(int argc, char* argv[])
     // BuildGameMap(wd_path("buildtest2.map").c_str());
     // LoadLevel(wd_path("buildtest2.map").c_str());
 
-    LoadLevel(wd_path("playground_0.map").c_str());
+    LoadLevel(wd_path("playground_1.map").c_str());
     // LevelEditor.Open();
 
     while (!ProgramShutdownRequested)

@@ -6,9 +6,9 @@ struct player_t
     void Init();
     void Destroy();
 
-    void LateNonPhysicsTick();
     void PrePhysicsUpdate();
     void PostPhysicsUpdate();
+    void LateNonPhysicsTick();
 
     vec3 Root;
     vec3 DesiredMoveDirection;

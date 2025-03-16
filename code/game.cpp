@@ -14,11 +14,8 @@ bool LevelLoaded = false;
 physics_t Physics;
 player_t Player;
 mat4 GameViewMatrix;
-JPH::BodyID LevelColliderBodyId; 
+JPH::BodyID LevelColliderBodyId;
 
-#ifdef JPH_DEBUG_RENDERER
-jph_debug_draw_gl3_t *JoltDebugDraw;
-#endif // JPH_DEBUG_RENDERER
 
 void InitializeGame()
 {
@@ -43,8 +40,8 @@ void InitializeGame()
     RecastDebugDrawer.Init();
 #endif // INTERNAL_BUILD
 #ifdef JPH_DEBUG_RENDERER
-    JoltDebugDraw = new jph_debug_draw_gl3_t();
-    JoltDebugDraw->Init();
+    JoltDebugDrawer = new jph_debug_draw_gl3_t();
+    JoltDebugDrawer->Init();
 #endif // JPH_DEBUG_RENDERER
 }
 
@@ -57,8 +54,8 @@ void DestroyGame()
     RecastDebugDrawer.Destroy();
 #endif // INTERNAL_BUILD
 #ifdef JPH_DEBUG_RENDERER
-    JoltDebugDraw->Destroy();
-    delete JoltDebugDraw;
+    JoltDebugDrawer->Destroy();
+    delete JoltDebugDrawer;
 #endif // JPH_DEBUG_RENDERER
 }
 
@@ -153,14 +150,6 @@ void NonPhysicsTick()
 
     if (KeysPressed[SDL_SCANCODE_SPACE])
         Player.JumpRequested = true;
-
-#ifdef JPH_DEBUG_RENDERER
-    JoltDebugDraw->Ready();
-
-    // Physics.BodyInterface->GetShape(LevelColliderBodyId)->Draw(JoltDebugDraw,
-    //     Physics.BodyInterface->GetCenterOfMassTransform(LevelColliderBodyId),
-    //     JPH::Vec3::sReplicate(1.0f), JPH::Color(0,255,0,60), true, false);
-#endif // JPH_DEBUG_RENDERER
 }
 
 void PrePhysicsTick()
@@ -179,6 +168,20 @@ void PostPhysicsTick()
 
 void LateNonPhysicsTick()
 {
+#ifdef JPH_DEBUG_RENDERER
+    JoltDebugDrawer->Ready();
+
+    if (DebugDrawLevelColliderFlag)
+    {        
+        Physics.BodyInterface->GetShape(LevelColliderBodyId)->Draw(JoltDebugDrawer,
+            Physics.BodyInterface->GetCenterOfMassTransform(LevelColliderBodyId),
+            JPH::Vec3::sReplicate(1.0f), JPH::Color(0,255,0,60), true, false);
+    }
+
+    if (DebugDrawEnemyCollidersFlag)
+        DebugDrawEnemyColliders();
+#endif // JPH_DEBUG_RENDERER
+
     Player.LateNonPhysicsTick();
 
     vec3 CameraPosOffsetFromRoot = vec3(0,40,0);
@@ -285,18 +288,24 @@ void RenderGameLayer()
     else
         glDisable(GL_DEPTH_TEST);
     glDisable(GL_CULL_FACE);
-    SupportRenderer.FlushPrimitives(&perspectiveMatrix, &viewMatrix, RenderTargetGame.depthTexId, vec2((float)RenderTargetGame.width, (float)RenderTargetGame.height));
+    SupportRenderer.FlushPrimitives(&perspectiveMatrix, &viewMatrix, RenderTargetGame.depthTexId, 
+        vec2((float)RenderTargetGame.width, (float)RenderTargetGame.height));
 
 #if INTERNAL_BUILD
-    if (KeysCurrent[SDL_SCANCODE_B])
+    if (DebugDrawNavMeshFlag || DebugDrawEnemyPathingFlag)
+        RecastDebugDrawer.Ready(perspectiveMatrix.ptr(), viewMatrix.ptr());
+    if (DebugDrawNavMeshFlag)
+        DebugDrawRecast(DRAWMODE_NAVMESH);
+    if (DebugDrawEnemyPathingFlag)
     {
-        DoDebugDrawRecast(perspectiveMatrix.ptr(), viewMatrix.ptr(), DRAWMODE_NAVMESH);
         DebugDrawFollowPath();
+        SupportRenderer.FlushPrimitives(&perspectiveMatrix, &viewMatrix, RenderTargetGame.depthTexId, 
+            vec2((float)RenderTargetGame.width, (float)RenderTargetGame.height));
     }
 #endif // INTERNAL_BUILD
 #ifdef JPH_DEBUG_RENDERER
     mat4 ViewProjectionMatrix = perspectiveMatrix * viewMatrix;
-    JoltDebugDraw->Flush(ViewProjectionMatrix.ptr());
+    JoltDebugDrawer->Flush(ViewProjectionMatrix.ptr());
 #endif // JPH_DEBUG_RENDERER
 
     UseShader(GameAnimatedCharacterShader);
