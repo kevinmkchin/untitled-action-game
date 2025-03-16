@@ -1,6 +1,12 @@
 #include "debugmenu.h"
 #include "game.h"
 
+bool DebugMenuActive = false;
+bool DebugDrawLevelColliderFlag = false;
+bool DebugDrawEnemyCollidersFlag = false;
+bool DebugDrawNavMeshFlag = false;
+bool DebugDrawEnemyPathingFlag = false;
+
 static void DebugMenu_SwitchToLevelEditor()
 {
     // todo clean up game memory
@@ -43,7 +49,6 @@ static void DebugMenu_BuildLevelAndPlay()
     DebugMenuActive = false;
 }
 
-bool DebugMenuActive = false;
 void DisplayDebugMenu()
 {
     if (DebugMenuActive)
@@ -60,6 +65,10 @@ void DisplayDebugMenu()
             bool DebugPausedFlag = !GameLoopCanRun;
             GUI::EditorCheckbox("Paused", &DebugPausedFlag);
             GameLoopCanRun = !DebugPausedFlag;
+            GUI::EditorCheckbox("Draw level collider", &DebugDrawLevelColliderFlag);
+            GUI::EditorCheckbox("Draw enemy colliders", &DebugDrawEnemyCollidersFlag);
+            GUI::EditorCheckbox("Show nav mesh", &DebugDrawNavMeshFlag);
+            GUI::EditorCheckbox("Show enemy pathing", &DebugDrawEnemyPathingFlag);
             if (GUI::EditorLabelledButton("Open level editor"))
                 DebugMenu_SwitchToLevelEditor();
             GUI::EditorSpacer(0, 10);

@@ -18,28 +18,6 @@ void player_t::Destroy()
     delete CharacterController;
 }
 
-void player_t::LateNonPhysicsTick()
-{
-#ifdef JPH_DEBUG_RENDERER
-    // JPH::RMat44 COM = mCharacter->GetCenterOfMassTransform();
-    // JPH::RMat44 WorldTransform = mCharacter->GetWorldTransform();
-
-    // if (mCharacter->GetShape() == mStandingShape)
-    //     JoltDebugDraw->DrawCapsule(COM, 0.5f * cCharacterHeightStanding, cCharacterRadiusStanding + mCharacter->GetCharacterPadding(), JPH::Color::sGreen, JPH::DebugRenderer::ECastShadow::Off, JPH::DebugRenderer::EDrawMode::Wireframe);
-    // else
-    //     JoltDebugDraw->DrawCapsule(COM, 0.5f * cCharacterHeightCrouching, cCharacterRadiusCrouching + mCharacter->GetCharacterPadding(), JPH::Color::sGreen, JPH::DebugRenderer::ECastShadow::Off, JPH::DebugRenderer::EDrawMode::Wireframe);
-
-    // // Doesn't really work
-    // // static JPH::RVec3 OldPosition = mCharacter->GetPosition();
-    // // JPH::RVec3 NewPosition = mCharacter->GetPosition();
-    // // JPH::Vec3 EffectiveVelocity = JPH::Vec3(NewPosition - OldPosition) / DeltaTime;
-    // // OldPosition = NewPosition;
-
-    // JoltDebugDrawCharacterState(JoltDebugDraw, mCharacter,   
-    //     WorldTransform, mCharacter->GetLinearVelocity());
-#endif
-}
-
 void player_t::PrePhysicsUpdate()
 {
     Player.DoMovement(DesiredMoveDirection, JumpRequested, false);
@@ -52,8 +30,8 @@ void player_t::PrePhysicsUpdate()
     const bool sEnableWalkStairs = true;
 
     // TODO get rid of these after we scale down units for physics
-    UpdateSettings.mStickToFloorStepDown.SetY(-16.f);
-    UpdateSettings.mWalkStairsStepUp.SetY(6.f);
+    UpdateSettings.mStickToFloorStepDown.SetY(-12.f*GAME_UNIT_TO_SI_UNITS);
+    UpdateSettings.mWalkStairsStepUp.SetY(6.f*GAME_UNIT_TO_SI_UNITS);
 
     if (!sEnableStickToFloor)
         UpdateSettings.mStickToFloorStepDown = JPH::Vec3::sZero();
@@ -203,4 +181,9 @@ void player_t::AddToPhysicsSystem()
     // // Install contact listener for all characters
     // for (CharacterVirtual *character : mCharacterVsCharacterCollision.mCharacters)
     //     character->SetListener(this);
+}
+
+void player_t::LateNonPhysicsTick()
+{
+
 }

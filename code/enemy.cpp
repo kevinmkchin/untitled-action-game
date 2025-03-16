@@ -1,6 +1,12 @@
 
 dynamic_array<enemy_t> Enemies;
 
+// In SI units
+static constexpr float AttackerHeightStanding = 1.44f;
+static constexpr float AttackerCapsuleRadiusStanding = 0.25f;
+static constexpr float AttackerCapsuleHalfHeightStanding = (AttackerHeightStanding 
+    - AttackerCapsuleRadiusStanding * 2.f) * 0.5f;
+
 void enemy_t::Init()
 {
     SmoothPath.setlen(MAX_SMOOTH);
@@ -20,21 +26,17 @@ void enemy_t::Destroy()
 
 void enemy_t::AddToPhysicsSystem()
 {
-    // In SI units
-    static constexpr float CharacterHeightStanding = 1.5f;
-    static constexpr float CharacterRadiusStanding = 0.25f;
-
     JPH::RefConst<JPH::Shape> StandingShape = JPH::RotatedTranslatedShapeSettings(
-        JPH::Vec3(0, 0.5f * CharacterHeightStanding + CharacterRadiusStanding, 0), 
+        JPH::Vec3(0, AttackerCapsuleHalfHeightStanding + AttackerCapsuleRadiusStanding, 0), 
         JPH::Quat::sIdentity(), 
-        new JPH::CapsuleShape(0.5f * CharacterHeightStanding, CharacterRadiusStanding)).Create().Get();
+        new JPH::CapsuleShape(AttackerCapsuleHalfHeightStanding, AttackerCapsuleRadiusStanding)).Create().Get();
 
     JPH::Ref<JPH::CharacterSettings> Settings = new JPH::CharacterSettings();
     Settings->mMaxSlopeAngle = JPH::DegreesToRadians(45.0f);
     Settings->mLayer = Layers::MOVING;
     Settings->mShape = StandingShape;
     Settings->mFriction = 0.5f;
-    Settings->mSupportingVolume = JPH::Plane(JPH::Vec3::sAxisY(), -CharacterRadiusStanding); // Accept contacts that touch the lower sphere of the capsule
+    Settings->mSupportingVolume = JPH::Plane(JPH::Vec3::sAxisY(), -AttackerCapsuleRadiusStanding); // Accept contacts that touch the lower sphere of the capsule
     
     RigidBody = new JPH::Character(Settings, ToJoltVector(Position), 
         ToJoltQuat(Orientation), 0, Physics.PhysicsSystem);
@@ -102,3 +104,32 @@ void PostPhysicsTickAllEnemies()
     }
 }
 
+void DebugDrawEnemyColliders()
+{
+#ifdef JPH_DEBUG_RENDERER
+    if (!JoltDebugDrawer)
+    {
+        LogWarning("Called DebugDrawEnemyColliders but JoltDebugDrawer is null.");
+        return;
+    }
+
+    for (size_t i = 0; i < Enemies.lenu(); ++i)
+    {
+        enemy_t& Enemy = Enemies[i];
+
+        JPH::RMat44 COM = Physics.BodyInterface->GetCenterOfMassTransform(Enemy.RigidBody->GetBodyID());
+        const JPH::Shape *EnemyBodyShape = Enemy.RigidBody->GetShape();
+
+        EnemyBodyShape->Draw(JoltDebugDrawer, COM, JPH::Vec3::sReplicate(1.0f), JPH::Color::sGrey, false, true);
+
+        // JoltDebugDrawer->DrawCapsule(COM, 
+        //     0.5f*0.8128f,//CapsuleShape->GetHalfHeightOfCylinder(), 
+        //     AttackerCapsuleRadiusStanding,
+        //     JPH::Color::sGrey, JPH::DebugRenderer::ECastShadow::Off, 
+        //     JPH::DebugRenderer::EDrawMode::Wireframe);
+
+        // JoltDebugDrawCharacterState(JoltDebugDraw, mCharacter,   
+        //     WorldTransform, mCharacter->GetLinearVelocity());
+    }
+#endif // JPH_DEBUG_RENDERER
+}

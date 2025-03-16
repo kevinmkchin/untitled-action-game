@@ -22,6 +22,7 @@ private:
 
 void PrePhysicsTickAllEnemies();
 void PostPhysicsTickAllEnemies();
+void DebugDrawEnemyColliders();
 
 extern dynamic_array<enemy_t> Enemies;
 
