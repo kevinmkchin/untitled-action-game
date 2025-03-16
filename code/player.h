@@ -30,7 +30,7 @@ private:
     void AddToPhysicsSystem();
     void DoMovement(vec3 MovementDirection, bool DoJump, bool DoSwitchStance);
 
-    static constexpr float PlayerHeightStanding = 1.5f;
+    static constexpr float PlayerHeightStanding = 1.7f;
     static constexpr float PlayerCapsuleRadiusStanding = 0.25f;
     static constexpr float PlayerCapsuleHalfHeightStanding
         = (PlayerHeightStanding - PlayerCapsuleRadiusStanding * 2.f) * 0.5f;
