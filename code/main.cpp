@@ -12,8 +12,8 @@ TODO:
 = I can start making proper textures
 
 - Enemy moves and shoots at player
-    - Try using straight path instead of smooth path
-    - State machine - mesh changes color when enemy state changes from patrol to chase to shoot to melee
+    - Try using straight path instead of smooth path (?)
+    - State machine - patrol to chase to shoot/melee
     - sound (audio system)
     - death animation on dead
 
@@ -214,6 +214,7 @@ inline std::string entity_icons_path(const std::string& name) { return wd_path()
     } while (false)
 
 
+// HMMM TODO i should just do 32 units = 1 metre. 
 // let 1 unit = 1 inch, this approximates 32 units to 0.82 metres
 #define STANDARD_LENGTH_IN_GAME_UNITS 32
 #define GAME_UNIT_TO_SI_UNITS 0.0254f // 0.8128m / 32 units
@@ -614,7 +615,7 @@ int main(int argc, char* argv[])
     // BuildGameMap(wd_path("buildtest2.map").c_str());
     // LoadLevel(wd_path("buildtest2.map").c_str());
 
-    LoadLevel(wd_path("playground_1.map").c_str());
+    LoadLevel(wd_path("playground_0.map").c_str());
     // LevelEditor.Open();
 
     while (!ProgramShutdownRequested)

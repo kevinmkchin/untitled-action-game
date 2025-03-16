@@ -184,7 +184,7 @@ void LateNonPhysicsTick()
 
     Player.LateNonPhysicsTick();
 
-    vec3 CameraPosOffsetFromRoot = vec3(0,40,0);
+    vec3 CameraPosOffsetFromRoot = vec3(0,64,0);
     vec3 CameraPosition = Player.Root + CameraPosOffsetFromRoot;
     // LogMessage("pos %f, %f, %f", playerControllerRoot.x, playerControllerRoot.y, playerControllerRoot.z);
     // LogMessage("dir y %f, z %f\n", cameraRotation.y, cameraRotation.z);
@@ -314,7 +314,7 @@ void RenderGameLayer()
     GLBindMatrix4fv(GameAnimatedCharacterShader, "View", 1, viewMatrix.ptr());
 
     mat4 ModelMatrix = TranslationMatrix(Enemies[0].Position) * 
-        RotationMatrix(Enemies[0].Orientation) * ScaleMatrix(32.f,32.f,32.f);
+        RotationMatrix(Enemies[0].Orientation) * ScaleMatrix(SI_UNITS_TO_GAME_UNITS,SI_UNITS_TO_GAME_UNITS,SI_UNITS_TO_GAME_UNITS);
 
     GLBindMatrix4fv(GameAnimatedCharacterShader, "Model", 1, ModelMatrix.ptr());
 

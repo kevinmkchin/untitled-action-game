@@ -2,8 +2,8 @@
 dynamic_array<enemy_t> Enemies;
 
 // In SI units
-static constexpr float AttackerHeightStanding = 1.44f;
-static constexpr float AttackerCapsuleRadiusStanding = 0.25f;
+static constexpr float AttackerHeightStanding = 1.7f;
+static constexpr float AttackerCapsuleRadiusStanding = 0.3f;
 static constexpr float AttackerCapsuleHalfHeightStanding = (AttackerHeightStanding 
     - AttackerCapsuleRadiusStanding * 2.f) * 0.5f;
 
