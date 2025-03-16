@@ -30,10 +30,14 @@ private:
     void AddToPhysicsSystem();
     void DoMovement(vec3 MovementDirection, bool DoJump, bool DoSwitchStance);
 
-    static constexpr float CharacterHeightStanding = 1.5f;
-    static constexpr float CharacterRadiusStanding = 0.25f;
-    static constexpr float CharacterHeightCrouching = 0.9f;
-    static constexpr float CharacterRadiusCrouching = 0.25f;
+    static constexpr float PlayerHeightStanding = 1.5f;
+    static constexpr float PlayerCapsuleRadiusStanding = 0.25f;
+    static constexpr float PlayerCapsuleHalfHeightStanding
+        = (PlayerHeightStanding - PlayerCapsuleRadiusStanding * 2.f) * 0.5f;
+    static constexpr float PlayerHeightCrouching = 0.9f;
+    static constexpr float PlayerCapsuleRadiusCrouching = 0.25f;
+    static constexpr float PlayerCapsuleHalfHeightCrouching
+        = (PlayerHeightCrouching - PlayerCapsuleRadiusCrouching * 2.f) * 0.5f;
     JPH::RefConst<JPH::Shape> StandingShape;
     JPH::RefConst<JPH::Shape> CrouchingShape;
     JPH::Vec3 DesiredVelocity = JPH::Vec3::sZero(); // Smoothed value of the player input

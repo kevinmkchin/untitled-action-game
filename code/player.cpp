@@ -2,13 +2,13 @@
 void player_t::Init()
 {
     StandingShape = JPH::RotatedTranslatedShapeSettings(
-        JPH::Vec3(0, 0.5f * CharacterHeightStanding + CharacterRadiusStanding, 0),
+        JPH::Vec3(0, PlayerCapsuleHalfHeightStanding + PlayerCapsuleRadiusStanding, 0),
         JPH::Quat::sIdentity(), 
-        new JPH::CapsuleShape(0.5f * CharacterHeightStanding, CharacterRadiusStanding)).Create().Get();
+        new JPH::CapsuleShape(PlayerCapsuleHalfHeightStanding, PlayerCapsuleRadiusStanding)).Create().Get();
     CrouchingShape = JPH::RotatedTranslatedShapeSettings(
-        JPH::Vec3(0, 0.5f * CharacterHeightCrouching + CharacterRadiusCrouching, 0),
+        JPH::Vec3(0, PlayerCapsuleHalfHeightCrouching + PlayerCapsuleRadiusCrouching, 0),
         JPH::Quat::sIdentity(), 
-        new JPH::CapsuleShape(0.5f * CharacterHeightCrouching, CharacterRadiusCrouching)).Create().Get();
+        new JPH::CapsuleShape(PlayerCapsuleHalfHeightCrouching, PlayerCapsuleRadiusCrouching)).Create().Get();
 
     AddToPhysicsSystem();
 }
@@ -170,7 +170,7 @@ void player_t::AddToPhysicsSystem()
     Settings->mCharacterPadding = 0.02f;
     Settings->mPenetrationRecoverySpeed = 1.0f;
     Settings->mPredictiveContactDistance = 0.1f;
-    Settings->mSupportingVolume = JPH::Plane(JPH::Vec3::sAxisY(), -CharacterRadiusStanding); // Accept contacts that touch the lower sphere of the capsule
+    Settings->mSupportingVolume = JPH::Plane(JPH::Vec3::sAxisY(), -PlayerCapsuleRadiusStanding); // Accept contacts that touch the lower sphere of the capsule
     Settings->mEnhancedInternalEdgeRemoval = false;
     Settings->mInnerBodyShape = nullptr;
     Settings->mInnerBodyLayer = Layers::MOVING;
