@@ -8,9 +8,6 @@ I could port the GL code to Vulkan
 
 TODO:
 
-- "draw physics debug" toggle in debug menu with enemy collider and level collider visualized
-- also nav mesh and enemy path debug
-
 = I can start making and importing proper character models and animations
 = I can start making proper textures
 
@@ -52,8 +49,6 @@ TODO:
 
 
 EPICS:
-
-Use NVIDIA OptiX for ray tracing lightmap samples
 
 View-space projected blood decals
 
@@ -490,7 +485,7 @@ static bool InitializeApplication()
 #endif
 
     SDL_SetWindowMinimumSize(SDLMainWindow, 200, 100);
-    SDL_GL_SetSwapInterval(1);
+    SDL_GL_SetSwapInterval(0);
     // if (SDL_GL_SetSwapInterval(-1) == -1)
     // {
     //     LogWarning("Hardware does not support adaptive vsync.");

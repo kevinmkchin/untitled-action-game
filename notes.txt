@@ -42,3 +42,24 @@ juice
     https://x.com/Acerola__t/status/1847821440592335069 i will be that guy
 
 
+
+
+== The fucking stuttering issue (CPU GPU SYNC ISSUES) ==
+
+having glFinish after SDL_GL_SwapWindow introduced a lot of random stutter (with vsync on)...i feel like i'm still getting some stutter from time to time but never as bad as it was with glFinish...also renderdoc.dll??? i'm not sure
+
+Okay, putting 10ms sleep before tick time with vsnc off makes strafing always stutter nvm wtf sometimes it does sometimes it doesnt....uhhh maybe its cuz then CPU takes much longer than GPU, so GPU ends up finishing 
+```
+    while (!ProgramShutdownRequested)
+    {
+        Sleep(10);
+        TickTime();
+        GUI::NewFrame();
+        ProcessSDLEvents();
+```
+OKAY SO BASICALLY CPU-GPU SYNCHRONIZATION IS VERY IMPORTANT BOTH NEED TO BE BALANCED
+IF ONE OR OTHER TAKES MUCH LONGER THAN CAN CAUSE ISSUES LIKE FRAME TIME FLUCTUATION / JITTER
+OR STUTTER AND INPUT LAG
+
+I NEED TO BALANCE CPU AND GPU WORKLOADS AND MANAGE FRAME PACING AND SYNCHRONIZATION.
+I'm gonna need to switch to Vulkan eventually. It provides explicit control over frame pacing and outperforms opengl.
