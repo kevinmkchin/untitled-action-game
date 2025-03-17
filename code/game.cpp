@@ -1,5 +1,4 @@
 
-Mix_Chunk *sfx_Jump;
 
 skeleton_t *Skeleton_Humanoid;
 skinned_model_t *Model_Attacker;
@@ -19,9 +18,6 @@ JPH::BodyID LevelColliderBodyId;
 
 void InitializeGame()
 {
-    // testing stuff here
-    sfx_Jump = Mixer_LoadChunk(sfx_path("gunshot-37055.ogg").c_str());
-
     Skeleton_Humanoid = new skeleton_t();
     LoadSkeleton_GLTF2Bin(model_path("attacker.glb").c_str(), Skeleton_Humanoid);
     Model_Attacker = new skinned_model_t(Skeleton_Humanoid);
@@ -119,37 +115,7 @@ void UnloadPreviousLevel()
 
 void NonPhysicsTick()
 {
-    // CALCULATE PLAYER FACING DIRECTION
-    if (SDL_GetRelativeMouseMode())
-    {
-        float camYawDelta = MouseDelta.x * 0.085f;
-        float camPitchDelta = MouseDelta.y * 0.085f;
-        Player.CameraRotation.y -= camYawDelta;
-        Player.CameraRotation.z -= camPitchDelta;
-        if (Player.CameraRotation.z > 89.f)
-            Player.CameraRotation.z = 89.f;
-        if (Player.CameraRotation.z < -89.f)
-            Player.CameraRotation.z = -89.f;
-    }
-    Player.CameraDirection = Normalize(OrientationToDirection(EulerToQuat(Player.CameraRotation * GM_DEG2RAD)));
-    Player.CameraRight = Normalize(Cross(Player.CameraDirection, GM_UP_VECTOR));
-    Player.CameraUp = Normalize(Cross(Player.CameraRight, Player.CameraDirection));
-    Player.WalkDirectionRight = Player.CameraRight;
-    Player.WalkDirectionForward = Normalize(Cross(GM_UP_VECTOR, Player.WalkDirectionRight));
-
-    // PLAYER MOVE
-    Player.DesiredMoveDirection = vec3();
-    if (KeysCurrent[SDL_SCANCODE_W])
-        Player.DesiredMoveDirection += Player.WalkDirectionForward;
-    if (KeysCurrent[SDL_SCANCODE_A])
-        Player.DesiredMoveDirection += -Player.WalkDirectionRight;
-    if (KeysCurrent[SDL_SCANCODE_S])
-        Player.DesiredMoveDirection += -Player.WalkDirectionForward;
-    if (KeysCurrent[SDL_SCANCODE_D])
-        Player.DesiredMoveDirection += Player.WalkDirectionRight;
-
-    if (KeysPressed[SDL_SCANCODE_SPACE])
-        Player.JumpRequested = true;
+    Player.HandleInput();
 }
 
 void PrePhysicsTick()
@@ -314,7 +280,7 @@ void RenderGameLayer()
     GLBindMatrix4fv(GameAnimatedCharacterShader, "View", 1, viewMatrix.ptr());
 
     mat4 ModelMatrix = TranslationMatrix(Enemies[0].Position) * 
-        RotationMatrix(Enemies[0].Orientation) * ScaleMatrix(SI_UNITS_TO_GAME_UNITS,SI_UNITS_TO_GAME_UNITS,SI_UNITS_TO_GAME_UNITS);
+        RotationMatrix(Enemies[0].Orientation) * ScaleMatrix(SI_UNITS_TO_GAME_UNITS);
 
     GLBindMatrix4fv(GameAnimatedCharacterShader, "Model", 1, ModelMatrix.ptr());
 
@@ -344,6 +310,8 @@ void RenderGameLayer()
     // ModelMatrix = TranslationMatrix(Enemies[2].Position) * RotationMatrix(Enemies[2].Orientation);
     // GLBindMatrix4fv(EditorShader_Scene, "modelMatrix", 1, ModelMatrix.ptr());
     // RenderModelGLTF(Model_Knight);
+
+    RenderWeapon(&Player.Weapon, perspectiveMatrix.ptr(), viewMatrix.GetInverse().ptr());
 }
 
 void CreateAndRegisterLevelCollider()

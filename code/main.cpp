@@ -8,6 +8,8 @@ I could port the GL code to Vulkan
 
 TODO:
 
+- Player has a gun and shoots at enemy
+
 = I can start making and importing proper character models and animations
 = I can start making proper textures
 
@@ -17,7 +19,6 @@ TODO:
     - sound (audio system)
     - death animation on dead
 
-- Player has a gun and shoots at enemy
 
 - Bicubic lightmap filtering 
     https://docs.unity3d.com/6000.1/Documentation/Manual/urp/lighting/lightmapping-improve-visual-fidelity.html
@@ -239,6 +240,7 @@ inline std::string entity_icons_path(const std::string& name) { return wd_path()
 #include "leveleditor.h"
 #include "saveloadlevel.h"
 #include "gui.h"
+#include "weapons.h"
 #include "player.h"
 #include "game.h"
 #include "enemy.h"
@@ -276,6 +278,7 @@ RENDERDOC_API_1_6_0 *RDOCAPI = NULL;
 
 GPUShader GameLevelShader;
 GPUShader GameAnimatedCharacterShader;
+GPUShader GunShader;
 GPUShader PatchesIDShader;
 GPUShader EditorShader_Scene;
 GPUShader EditorShader_Wireframe;
@@ -287,16 +290,6 @@ GPUMeshIndexed FinalRenderOutputQuad;
 float GAMEPROJECTION_NEARCLIP = 4.f; // even 2 works fine to remove z fighting
 float GAMEPROJECTION_FARCLIP = 32000.f;
 
-
-
-// MIXER
-Mix_Chunk *Mixer_LoadChunk(const char *filepath)
-{
-    Mix_Chunk *chunk = Mix_LoadWAV(filepath);
-    if (chunk == NULL)
-        printf("Failed to load sound effect! SDL_mixer error: %s\n", Mix_GetError());
-    return chunk;
-}
 
 
 #include "utility.cpp"
@@ -318,6 +311,7 @@ Mix_Chunk *Mixer_LoadChunk(const char *filepath)
 #include "enemy.cpp"
 #include "nav.cpp"
 #include "player.cpp"
+#include "weapons.cpp"
 #include "debugmenu.cpp"
 
 
@@ -388,6 +382,7 @@ static void InitGameRenderer()
 
     GLLoadShaderProgramFromFile(GameLevelShader, shader_path("__game_level.vert").c_str(), shader_path("__game_level.frag").c_str());
     GLLoadShaderProgramFromFile(GameAnimatedCharacterShader, shader_path("game_animated_character.vert").c_str(), shader_path("game_animated_character.frag").c_str());
+    GLLoadShaderProgramFromFile(GunShader, shader_path("guns.vert").c_str(), shader_path("guns.frag").c_str());
     GLLoadShaderProgramFromFile(PatchesIDShader, shader_path("__patches_id.vert").c_str(), shader_path("__patches_id.frag").c_str());
     GLCreateShaderProgram(EditorShader_Scene, __editor_scene_shader_vs, __editor_scene_shader_fs);
     GLCreateShaderProgram(EditorShader_Wireframe, __editor_scene_wireframe_shader_vs, __editor_scene_wireframe_shader_fs);
