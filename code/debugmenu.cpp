@@ -6,6 +6,7 @@ bool DebugDrawLevelColliderFlag = false;
 bool DebugDrawEnemyCollidersFlag = false;
 bool DebugDrawNavMeshFlag = false;
 bool DebugDrawEnemyPathingFlag = false;
+bool FlyCamActive = false;
 
 static void DebugMenu_SwitchToLevelEditor()
 {
@@ -65,6 +66,7 @@ void DisplayDebugMenu()
             bool DebugPausedFlag = !GameLoopCanRun;
             GUI::EditorCheckbox("Paused", &DebugPausedFlag);
             GameLoopCanRun = !DebugPausedFlag;
+            GUI::EditorCheckbox("Noclip", &FlyCamActive);
             GUI::EditorCheckbox("Draw level collider", &DebugDrawLevelColliderFlag);
             GUI::EditorCheckbox("Draw enemy colliders", &DebugDrawEnemyCollidersFlag);
             GUI::EditorCheckbox("Show nav mesh", &DebugDrawNavMeshFlag);

@@ -550,7 +550,7 @@ void support_renderer_t::DoPickableBillboard(u32 Id, vec3 WorldPos, vec3 Normal,
     RightTangent *= ScaleFactor;
     UpTangent *= ScaleFactor;
 
-    float HowFarAlongCameraDirection = Dot(WorldPos, Normalize(LevelEditor.CameraDirection));
+    float HowFarAlongCameraDirection = Dot(WorldPos, Normalize(LevelEditor.EditorCam.Direction));
 
     BillboardsRequested.push_back({ idrgb, WorldPos, RightTangent, UpTangent, 
         BillboardId, HowFarAlongCameraDirection });

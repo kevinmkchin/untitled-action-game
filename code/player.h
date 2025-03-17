@@ -17,15 +17,14 @@ struct player_t
 
     vec3 WalkDirectionForward;
     vec3 WalkDirectionRight;
-    vec3 CameraRotation;
-    vec3 CameraDirection;
-    vec3 CameraRight;
-    vec3 CameraUp;
 
     float MoveSpeed = 9.f;
     float JumpSpeed = 5.f;
 
     JPH::CharacterVirtual *CharacterController;
+
+    camera_t PlayerCam;
+    vec3 CamOffsetFromRoot = vec3(0,64,0);
 
     weapon_state_t Weapon;
 

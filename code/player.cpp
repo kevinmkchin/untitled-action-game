@@ -21,33 +21,21 @@ void player_t::Destroy()
 void player_t::HandleInput()
 {
     // CALCULATE PLAYER FACING DIRECTION
-    if (SDL_GetRelativeMouseMode())
-    {
-        float camYawDelta = MouseDelta.x * 0.085f;
-        float camPitchDelta = MouseDelta.y * 0.085f;
-        CameraRotation.y -= camYawDelta;
-        CameraRotation.z -= camPitchDelta;
-        if (CameraRotation.z > 89.f)
-            CameraRotation.z = 89.f;
-        if (CameraRotation.z < -89.f)
-            CameraRotation.z = -89.f;
-    }
-    CameraDirection = Normalize(OrientationToDirection(EulerToQuat(Player.CameraRotation * GM_DEG2RAD)));
-    CameraRight = Normalize(Cross(Player.CameraDirection, GM_UP_VECTOR));
-    CameraUp = Normalize(Cross(Player.CameraRight, Player.CameraDirection));
-    WalkDirectionRight = Player.CameraRight;
-    WalkDirectionForward = Normalize(Cross(GM_UP_VECTOR, Player.WalkDirectionRight));
+    bool DoMouseLook = SDL_GetRelativeMouseMode();
+    PlayerCam.Update(DoMouseLook, 0.085f);
+    WalkDirectionRight = PlayerCam.Right;
+    WalkDirectionForward = Normalize(Cross(GM_UP_VECTOR, PlayerCam.Right));
 
     // PLAYER MOVE
     DesiredMoveDirection = vec3();
     if (KeysCurrent[SDL_SCANCODE_W])
-        DesiredMoveDirection += Player.WalkDirectionForward;
+        DesiredMoveDirection += WalkDirectionForward;
     if (KeysCurrent[SDL_SCANCODE_A])
-        DesiredMoveDirection += -Player.WalkDirectionRight;
+        DesiredMoveDirection += -WalkDirectionRight;
     if (KeysCurrent[SDL_SCANCODE_S])
-        DesiredMoveDirection += -Player.WalkDirectionForward;
+        DesiredMoveDirection += -WalkDirectionForward;
     if (KeysCurrent[SDL_SCANCODE_D])
-        DesiredMoveDirection += Player.WalkDirectionRight;
+        DesiredMoveDirection += WalkDirectionRight;
 
     if (KeysPressed[SDL_SCANCODE_SPACE])
         JumpRequested = true;
@@ -60,7 +48,7 @@ void player_t::HandleInput()
 
 void player_t::PrePhysicsUpdate()
 {
-    Player.DoMovement(DesiredMoveDirection, JumpRequested, false);
+    DoMovement(DesiredMoveDirection, JumpRequested, false);
     JumpRequested = false;
 
     // Settings for our update function
@@ -96,7 +84,10 @@ void player_t::PrePhysicsUpdate()
 
 void player_t::PostPhysicsUpdate()
 {
-    Player.Root = FromJoltVector(Player.CharacterController->GetPosition());
+    Root = FromJoltVector(CharacterController->GetPosition());
+
+    if (!FlyCamActive)
+        PlayerCam.Position = Root + CamOffsetFromRoot;
 }
 
 void player_t::DoMovement(vec3 MovementDirection, bool inJump, bool inSwitchStance)
@@ -214,9 +205,9 @@ void player_t::AddToPhysicsSystem()
     Settings->mEnhancedInternalEdgeRemoval = false;
     Settings->mInnerBodyShape = nullptr;
     Settings->mInnerBodyLayer = Layers::MOVING;
-    Player.CharacterController = new JPH::CharacterVirtual(Settings, JPH::RVec3::sZero(), JPH::Quat::sIdentity(), 0, Physics.PhysicsSystem);
-    Player.CharacterController->SetCharacterVsCharacterCollision(&Physics.CharacterVirtualsHandler);
-    Physics.CharacterVirtualsHandler.Add(Player.CharacterController);
+    CharacterController = new JPH::CharacterVirtual(Settings, JPH::RVec3::sZero(), JPH::Quat::sIdentity(), 0, Physics.PhysicsSystem);
+    CharacterController->SetCharacterVsCharacterCollision(&Physics.CharacterVirtualsHandler);
+    Physics.CharacterVirtualsHandler.Add(CharacterController);
 
     // // Install contact listener for all characters
     // for (CharacterVirtual *character : mCharacterVsCharacterCollision.mCharacters)
@@ -225,5 +216,27 @@ void player_t::AddToPhysicsSystem()
 
 void player_t::LateNonPhysicsTick()
 {
+    if (FlyCamActive)
+    {
+        PlayerCam.DoFlyCamMovement(250.f);
+    }
+    else
+    {
+        // Camera tilt when strafing
+        static float camLean = 0.f;
+        static float desiredCamLean = 0.f;
+        const float camLeanSpeed = 15;
+        const float maxCamLean = 0.035f;
+        desiredCamLean = 0.f;
+        if(KeysCurrent[SDL_SCANCODE_D])
+            desiredCamLean += maxCamLean;
+        if(KeysCurrent[SDL_SCANCODE_A])
+            desiredCamLean += -maxCamLean;
+        camLean = Lerp(camLean, desiredCamLean, DeltaTime * camLeanSpeed);
+        quat fromto = RotationFromTo(PlayerCam.Up, PlayerCam.Right);
+        quat sle = Slerp(quat(), fromto, camLean);
+        vec3 CameraUpWithSway = RotateVector(PlayerCam.Up, sle);
+        PlayerCam.Up = CameraUpWithSway;
+    }
 
 }

@@ -7,6 +7,8 @@ void level_editor_t::Open()
 {
     SelectedTexture = Assets.DefaultEditorTexture;
     IsActive = true;
+    EditorCam.Position = vec3(776.0f, 508.9f, 302.7f);
+    EditorCam.Rotation = vec3(0.f, 145.2f, -28.8f);
 }
 
 void level_editor_t::Close()
@@ -79,10 +81,10 @@ vec3 SnapToGrid(vec3 beforeSnap)
 
 float GetEditorHandleSize(vec3 worldPosition, float sizeInPixels)
 {
-    float distanceFromCamera = Dot(worldPosition - LevelEditor.CameraPosition, LevelEditor.CameraDirection);
-    quat camOrientation = EulerToQuat(LevelEditor.CameraRotation * GM_DEG2RAD);
-    vec3 screenPos = WorldPointToScreenPoint(LevelEditor.CameraPosition + RotateVector(vec3(distanceFromCamera, 0, 0), camOrientation));
-    vec3 screenPos2 = WorldPointToScreenPoint(LevelEditor.CameraPosition + RotateVector(vec3(distanceFromCamera, 0, 32.f), camOrientation));
+    float distanceFromCamera = Dot(worldPosition - LevelEditor.EditorCam.Position, LevelEditor.EditorCam.Direction);
+    quat camOrientation = EulerToQuat(LevelEditor.EditorCam.Rotation * GM_DEG2RAD);
+    vec3 screenPos = WorldPointToScreenPoint(LevelEditor.EditorCam.Position + RotateVector(vec3(distanceFromCamera, 0, 0), camOrientation));
+    vec3 screenPos2 = WorldPointToScreenPoint(LevelEditor.EditorCam.Position + RotateVector(vec3(distanceFromCamera, 0, 32.f), camOrientation));
     // scaled by 32 to avoid floating point imprecision
     float screenDist = Magnitude(screenPos - screenPos2);
     return (sizeInPixels*32.f / GM_max(screenDist, 0.0001f));
@@ -96,41 +98,15 @@ void level_editor_t::Tick()
     SDL_SetRelativeMouseMode(MouseCurrent & SDL_BUTTON(SDL_BUTTON_RIGHT) ? SDL_TRUE : SDL_FALSE);
 
     // EDITOR CAMERA MOVE
+    EditorCam.Update(MouseCurrent & SDL_BUTTON(SDL_BUTTON_RIGHT), 0.1f);
     if (MouseCurrent & SDL_BUTTON(SDL_BUTTON_RIGHT))
     {
-        float camYawDelta = MouseDelta.x * 0.1f;
-        float camPitchDelta = MouseDelta.y * 0.1f;
-        CameraRotation.y -= camYawDelta;
-        CameraRotation.z -= camPitchDelta;
-        if (CameraRotation.z > 89.f)
-            CameraRotation.z = 89.f;
-        if (CameraRotation.z < -89.f)
-            CameraRotation.z = -89.f;
+        float MoveSpeed = 250.f;
+        if (KeysCurrent[SDL_SCANCODE_LSHIFT])
+            MoveSpeed *= 2.7f;
+        EditorCam.DoFlyCamMovement(MoveSpeed);
     }
-    CameraDirection = Normalize(OrientationToDirection(EulerToQuat(CameraRotation * GM_DEG2RAD)));
-    CameraRight = Normalize(Cross(CameraDirection, GM_UP_VECTOR));
-    CameraUp = Normalize(Cross(CameraRight, CameraDirection));
-    float moveSpeed = 250.f;
-    if (KeysCurrent[SDL_SCANCODE_LSHIFT])
-        moveSpeed *= 2.7f;
-    vec3 playerPositionDelta;
-    if (MouseCurrent & SDL_BUTTON(SDL_BUTTON_RIGHT))
-    {
-        if (KeysCurrent[SDL_SCANCODE_W])
-            playerPositionDelta += CameraDirection * moveSpeed * DeltaTime;
-        if (KeysCurrent[SDL_SCANCODE_A])
-            playerPositionDelta += -CameraRight * moveSpeed * DeltaTime;
-        if (KeysCurrent[SDL_SCANCODE_S])
-            playerPositionDelta += -CameraDirection * moveSpeed * DeltaTime;
-        if (KeysCurrent[SDL_SCANCODE_D])
-            playerPositionDelta += CameraRight * moveSpeed * DeltaTime;
-        if (KeysCurrent[SDL_SCANCODE_Q])
-            playerPositionDelta += -GM_UP_VECTOR * moveSpeed * DeltaTime;
-        if (KeysCurrent[SDL_SCANCODE_E])
-            playerPositionDelta += GM_UP_VECTOR * moveSpeed * DeltaTime;
-        CameraPosition += playerPositionDelta;
-    }
-    ActiveViewMatrix = ViewMatrixLookAt(CameraPosition, CameraPosition + CameraDirection, CameraUp);
+    ActiveViewMatrix = EditorCam.ViewFromWorldMatrix();
 
     // DRAW AXIS LINES
     SupportRenderer.DrawLine(vec3(320000.f, 0.f, 0.f), vec3(-320000.f, 0.f, 0.f), vec4(RGB255TO1(205, 56, 9), 0.8f));
@@ -473,7 +449,7 @@ void level_editor_t::DrawEntityBillboards()
     {
         const level_entity_t& Ent = LevelEntities[Index];
         SupportRenderer.DoPickableBillboard((u32)Index+1, 
-            Ent.Position, -CameraDirection, (int)Ent.Type);
+            Ent.Position, -EditorCam.Direction, (int)Ent.Type);
     }
 }
 
@@ -603,7 +579,7 @@ void level_editor_t::DoMovePointEntity()
         if (LMBPressedThisFrame) // refactor translation code into one util function 
         {
             EntityMoveStartPoint = Ent.Position;
-            IntersectPlaneAndLineWithDirections(Ent.Position, -CameraDirection, 
+            IntersectPlaneAndLineWithDirections(Ent.Position, -EditorCam.Direction, 
                 WorldPosMouse, WorldRayMouse, &DragPlanePoint);
         }
         else
@@ -613,7 +589,7 @@ void level_editor_t::DoMovePointEntity()
             {
                 vec3 Intersect;
                 IntersectPlaneAndLineWithDirections(DragPlanePoint, 
-                    vec3(-CameraDirection.x, 0.f, -CameraDirection.z), 
+                    vec3(-EditorCam.Direction.x, 0.f, -EditorCam.Direction.z), 
                     WorldPosMouse, WorldRayMouse, &Intersect);
                 float yTranslation = Dot((Intersect - DragPlanePoint), GM_UP_VECTOR);
                 TotalTranslation = vec3(0.f,yTranslation,0.f);
@@ -683,7 +659,7 @@ void level_editor_t::DoFaceManip()
         if (KeysCurrent[SDL_SCANCODE_LALT])
         {
             vec3 intersect;
-            IntersectPlaneAndLineWithDirections(DragPlanePoint, vec3(-CameraDirection.x, 0.f, -CameraDirection.z), worldpos_mouse, worldray_mouse, &intersect);
+            IntersectPlaneAndLineWithDirections(DragPlanePoint, vec3(-EditorCam.Direction.x, 0.f, -EditorCam.Direction.z), worldpos_mouse, worldray_mouse, &intersect);
             float yTranslation = Dot((intersect - DragPlanePoint), GM_UP_VECTOR);
             TotalTranslation = vec3(0.f,yTranslation,0.f);
             TotalTranslation = SnapToGrid(TotalTranslation);
@@ -742,7 +718,7 @@ void level_editor_t::DoVertexManip()
         for (u32 id = 1; id <= SELECTABLE_VERTICES.size(); ++id)
         {
             MapEdit::Vert *vert = SELECTABLE_VERTICES[id-1];
-            SupportRenderer.DoDiscHandle(id, vert->pos, CameraPosition, GetEditorHandleSize(vert->pos, DISC_HANDLE_RADIUS + 4.f));
+            SupportRenderer.DoDiscHandle(id, vert->pos, EditorCam.Position, GetEditorHandleSize(vert->pos, DISC_HANDLE_RADIUS + 4.f));
         }
         u32 clickedId = SupportRenderer.FlushHandles(MousePos, RenderTargetGame, ActiveViewMatrix, ActivePerspectiveMatrix, false);
 
@@ -762,7 +738,7 @@ void level_editor_t::DoVertexManip()
 
             vec3 worldpos_mouse = ScreenPointToWorldPoint(MousePos, 0.f);
             vec3 worldray_mouse = ScreenPointToWorldRay(MousePos);
-            IntersectPlaneAndLineWithDirections(hotVert->pos, -CameraDirection, worldpos_mouse, worldray_mouse, &DragPlanePoint);
+            IntersectPlaneAndLineWithDirections(hotVert->pos, -EditorCam.Direction, worldpos_mouse, worldray_mouse, &DragPlanePoint);
         }
         else if (!LCtrlDownOnLeftMouseDown)
         {
@@ -789,7 +765,7 @@ void level_editor_t::DoVertexManip()
         if (KeysCurrent[SDL_SCANCODE_LALT])
         {
             vec3 intersect;
-            IntersectPlaneAndLineWithDirections(DragPlanePoint, vec3(-CameraDirection.x, 0.f, -CameraDirection.z), worldpos_mouse, worldray_mouse, &intersect);
+            IntersectPlaneAndLineWithDirections(DragPlanePoint, vec3(-EditorCam.Direction.x, 0.f, -EditorCam.Direction.z), worldpos_mouse, worldray_mouse, &intersect);
             float yTranslation = Dot((intersect - DragPlanePoint), GM_UP_VECTOR);
             TotalTranslation = vec3(0.f,yTranslation,0.f);
             TotalTranslation = SnapToGrid(TotalTranslation);
@@ -962,7 +938,7 @@ void level_editor_t::DoSimpleBrushTool()
             vec3 drawingSurfaceNormal = drawingplanenormal;
             static vec3 height = vec3();
             static vec3 heightBeforeSnap = vec3();
-            vec3 pn = -CameraDirection;
+            vec3 pn = -EditorCam.Direction;
             vec3 pp = rectendpoint + heightBeforeSnap;
             vec3 wp = ScreenPointToWorldPoint(MousePos, 0.f);
             vec3 wr = ScreenPointToWorldRay(MousePos);
@@ -1199,14 +1175,14 @@ void level_editor_t::Draw()
             vec4 discHandleColor = vec4(RGBHEXTO1(0xFF8000), 1.f);
             if (std::find(SELECTED_VERTICES.begin(), SELECTED_VERTICES.end(), v) != SELECTED_VERTICES.end())
                 discHandleColor = vec4(RGB255TO1(254,8,8),1.f);
-            SupportRenderer.DrawSolidDisc(v->pos, LevelEditor.CameraPosition - v->pos, GetEditorHandleSize(v->pos, DISC_HANDLE_RADIUS),
+            SupportRenderer.DrawSolidDisc(v->pos, LevelEditor.EditorCam.Position - v->pos, GetEditorHandleSize(v->pos, DISC_HANDLE_RADIUS),
                                    discHandleColor);
         }
     }
 
     glDisable(GL_DEPTH_TEST);
     glDisable(GL_CULL_FACE);
-    vec3 gridTranslation = vec3(SnapToGrid(LevelEditor.CameraPosition.x), 0.f, SnapToGrid(LevelEditor.CameraPosition.z));
+    vec3 gridTranslation = vec3(SnapToGrid(LevelEditor.EditorCam.Position.x), 0.f, SnapToGrid(LevelEditor.EditorCam.Position.z));
     mat3 gridRotation = mat3();
     if (GRID_ORIGIN != vec3())
     {
