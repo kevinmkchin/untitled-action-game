@@ -6,6 +6,7 @@ struct player_t
     void Init();
     void Destroy();
 
+    void HandleInput();
     void PrePhysicsUpdate();
     void PostPhysicsUpdate();
     void LateNonPhysicsTick();
@@ -21,10 +22,12 @@ struct player_t
     vec3 CameraRight;
     vec3 CameraUp;
 
-    float MoveSpeed = 6.f;
-    float JumpSpeed = 4.f;
+    float MoveSpeed = 9.f;
+    float JumpSpeed = 5.f;
 
     JPH::CharacterVirtual *CharacterController;
+
+    weapon_state_t Weapon;
 
 private:
     void AddToPhysicsSystem();

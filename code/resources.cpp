@@ -445,6 +445,14 @@ void DeleteGPUTexture(GPUTexture *texture)
     texture->PixelDataType = GL_NONE;
 }
 
+Mix_Chunk *Mixer_LoadChunk(const char *filepath)
+{
+    Mix_Chunk *chunk = Mix_LoadWAV(filepath);
+    if (chunk == NULL)
+        printf("Failed to load sound effect! SDL_mixer error: %s\n", Mix_GetError());
+    return chunk;
+}
+
 
 
 db_tex_t asset_db_t::GetTextureById(u32 persistId)
@@ -582,6 +590,14 @@ void asset_db_t::LoadAllResources()
     DefaultEditorTexture = GetTextureById(1);
     CreateGPUTextureFromDisk(&DefaultMissingTexture, wd_path("missing_texture.png").c_str());
 
+    // === Weapon models ===
+    // SDL mixer does not support pitch adjustment so I must resample the sound manually
+    // and have multiple pitch-shifted versions of the sound
+    ASSERT(LoadModelGLTF2Bin(&Model_Nailgun, model_path("weapon_type1.glb").c_str()));
+
+    // === SFX ===
+    Sfx_Shoot0 = Mixer_LoadChunk(sfx_path("gunshot-37055.ogg").c_str());
+
     // === Level entity billboards ===
     // Load all the billboard bitmaps
     BitmapHandle BillboardBitmaps[64];
@@ -592,3 +608,5 @@ void asset_db_t::LoadAllResources()
     
 
 }
+
+// TODO(Kevin): FreeAllResources

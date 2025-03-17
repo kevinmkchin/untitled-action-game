@@ -117,6 +117,10 @@ void UpdateGPUTextureFromBitmap(GPUTexture *texture, unsigned char *bitmap, i32 
 void DeleteGPUTexture(GPUTexture *texture);
 
 
+// MIXER
+Mix_Chunk *Mixer_LoadChunk(const char *filepath);
+
+
 // Game Assets Database
 
 struct db_tex_t
@@ -137,6 +141,8 @@ struct asset_db_t
 public:
     db_tex_t DefaultEditorTexture;
     GPUTexture DefaultMissingTexture; // Conceptually, missing texture is not a persisted resource
+
+    Mix_Chunk *Sfx_Shoot0;
 
 private:
     u32 TexturePersistIdCounter;

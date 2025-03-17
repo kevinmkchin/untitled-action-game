@@ -516,6 +516,7 @@ inline mat3 RotationMatrix2D(float rotationInRadians);
 
 /** Generates scaling matrix for given x y z scales
     https://en.wikipedia.org/wiki/Scaling_(geometry)#Using_homogeneous_coordinates */
+inline mat4 ScaleMatrix(float scale);
 inline mat4 ScaleMatrix(float x_scale, float y_scale, float z_scale);
 inline mat4 ScaleMatrix(vec3 scale);
 inline mat3 ScaleMatrix2D(vec2 scale);
@@ -1111,6 +1112,11 @@ inline mat3 RotationMatrix2D(float rotationInRadians)
     ret[1][1] = cr;
     ret[2][2] = 1.f;
     return ret;
+}
+
+inline mat4 ScaleMatrix(float scale)
+{
+    return ScaleMatrix(scale,scale,scale);
 }
 
 inline mat4 ScaleMatrix(float x_scale, float y_scale, float z_scale)

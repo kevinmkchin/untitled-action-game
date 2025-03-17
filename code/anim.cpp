@@ -555,9 +555,11 @@ void RenderModelGLTF(ModelGLTF model)
         GPUMeshIndexed m = model.meshes[i];
         GPUTexture t = model.color[i];
 
-        // TODO(Kevin): if t.id is 0 then bind MissingTexture 
         glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, t.id);
+        if (t.id)
+            glBindTexture(GL_TEXTURE_2D, t.id);
+        else
+            glBindTexture(GL_TEXTURE_2D, Assets.DefaultMissingTexture.id);
 
         RenderGPUMeshIndexed(m);
     }

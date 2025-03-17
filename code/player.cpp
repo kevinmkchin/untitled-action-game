@@ -18,6 +18,46 @@ void player_t::Destroy()
     delete CharacterController;
 }
 
+void player_t::HandleInput()
+{
+    // CALCULATE PLAYER FACING DIRECTION
+    if (SDL_GetRelativeMouseMode())
+    {
+        float camYawDelta = MouseDelta.x * 0.085f;
+        float camPitchDelta = MouseDelta.y * 0.085f;
+        CameraRotation.y -= camYawDelta;
+        CameraRotation.z -= camPitchDelta;
+        if (CameraRotation.z > 89.f)
+            CameraRotation.z = 89.f;
+        if (CameraRotation.z < -89.f)
+            CameraRotation.z = -89.f;
+    }
+    CameraDirection = Normalize(OrientationToDirection(EulerToQuat(Player.CameraRotation * GM_DEG2RAD)));
+    CameraRight = Normalize(Cross(Player.CameraDirection, GM_UP_VECTOR));
+    CameraUp = Normalize(Cross(Player.CameraRight, Player.CameraDirection));
+    WalkDirectionRight = Player.CameraRight;
+    WalkDirectionForward = Normalize(Cross(GM_UP_VECTOR, Player.WalkDirectionRight));
+
+    // PLAYER MOVE
+    DesiredMoveDirection = vec3();
+    if (KeysCurrent[SDL_SCANCODE_W])
+        DesiredMoveDirection += Player.WalkDirectionForward;
+    if (KeysCurrent[SDL_SCANCODE_A])
+        DesiredMoveDirection += -Player.WalkDirectionRight;
+    if (KeysCurrent[SDL_SCANCODE_S])
+        DesiredMoveDirection += -Player.WalkDirectionForward;
+    if (KeysCurrent[SDL_SCANCODE_D])
+        DesiredMoveDirection += Player.WalkDirectionRight;
+
+    if (KeysPressed[SDL_SCANCODE_SPACE])
+        JumpRequested = true;
+
+    // SHOOT
+    bool LMBPressed = MouseCurrent & SDL_BUTTON(SDL_BUTTON_LEFT);
+    bool RMBPressed = MouseCurrent & SDL_BUTTON(SDL_BUTTON_RIGHT);
+    TickWeapon(&Weapon, LMBPressed, RMBPressed);
+}
+
 void player_t::PrePhysicsUpdate()
 {
     Player.DoMovement(DesiredMoveDirection, JumpRequested, false);
