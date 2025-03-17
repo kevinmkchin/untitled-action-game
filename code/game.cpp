@@ -12,7 +12,6 @@ bool GameLoopCanRun = true;
 bool LevelLoaded = false;
 physics_t Physics;
 player_t Player;
-mat4 GameViewMatrix;
 JPH::BodyID LevelColliderBodyId;
 
 
@@ -149,30 +148,6 @@ void LateNonPhysicsTick()
 #endif // JPH_DEBUG_RENDERER
 
     Player.LateNonPhysicsTick();
-
-    vec3 CameraPosOffsetFromRoot = vec3(0,64,0);
-    vec3 CameraPosition = Player.Root + CameraPosOffsetFromRoot;
-    // LogMessage("pos %f, %f, %f", playerControllerRoot.x, playerControllerRoot.y, playerControllerRoot.z);
-    // LogMessage("dir y %f, z %f\n", cameraRotation.y, cameraRotation.z);
-
-    static float camLean = 0.f;
-    static float desiredCamLean = 0.f;
-    const float camLeanSpeed = 15;
-    const float maxCamLean = 0.035f;
-    desiredCamLean = 0.f;
-    if(KeysCurrent[SDL_SCANCODE_D])
-        desiredCamLean += maxCamLean;
-    if(KeysCurrent[SDL_SCANCODE_A])
-        desiredCamLean += -maxCamLean;
-    camLean = Lerp(camLean, desiredCamLean, DeltaTime * camLeanSpeed);
-
-    quat fromto = RotationFromTo(Player.CameraUp, Player.CameraRight);
-    quat sle = Slerp(quat(), fromto, camLean);
-    vec3 CameraUpWithSway = RotateVector(Player.CameraUp, sle);
-    float dot = Dot(Normalize(Cross(CameraUpWithSway, Player.CameraRight)), Player.CameraDirection);
-    if (dot < 0.99f)
-        printf("bad cam up %f\n", dot);
-    GameViewMatrix = ViewMatrixLookAt(CameraPosition, CameraPosition + Player.CameraDirection, CameraUpWithSway);
 }
 
 void DoGameLoop()
@@ -196,10 +171,6 @@ void DoGameLoop()
     LateNonPhysicsTick();
 
     // Do animation loop
-    // if (KeysPressed[SDL_SCANCODE_G])
-    //     Animator.PlayAnimation(TestAnimClip0);
-    // if (KeysPressed[SDL_SCANCODE_H])
-    //     Animator.PlayAnimation(TestAnimClip1);
     Animator.UpdateGlobalPoses(DeltaTime);
     Animator.GetSkinningMatrixPalette();
 
@@ -231,7 +202,7 @@ void RenderGameLayer()
     float aspectratio = float(BackbufferWidth) / float(BackbufferHeight);
     float fovy = HorizontalFOVToVerticalFOV_RadianToRadian(90.f*GM_DEG2RAD, aspectratio);
     mat4 perspectiveMatrix = ProjectionMatrixPerspective(fovy, aspectratio, GAMEPROJECTION_NEARCLIP, GAMEPROJECTION_FARCLIP);
-    mat4 viewMatrix = GameViewMatrix;
+    mat4 viewMatrix = Player.PlayerCam.ViewFromWorldMatrix();
 
     UseShader(GameLevelShader);
     glEnable(GL_CULL_FACE);

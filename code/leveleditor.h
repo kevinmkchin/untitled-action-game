@@ -66,11 +66,7 @@ public:
     bool IsActive = false;
 
 public:
-    vec3 CameraPosition = vec3(776.0f, 508.9f, 302.7f);
-    vec3 CameraRotation = vec3(0.f, 145.2f, -28.8f);
-    vec3 CameraDirection;
-    vec3 CameraRight;
-    vec3 CameraUp;
+    camera_t EditorCam;
     mat4 ActiveViewMatrix;
     mat4 ActivePerspectiveMatrix;
 
