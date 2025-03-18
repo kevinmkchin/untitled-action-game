@@ -4,7 +4,6 @@
 // Disable common warnings triggered by Jolt, you can use JPH_SUPPRESS_WARNING_PUSH / JPH_SUPPRESS_WARNING_POP to store and restore the warning state
 JPH_SUPPRESS_WARNINGS
 
-
 // Callback for traces, connect this to your own trace function if you have one
 static void TraceImpl(const char *inFMT, ...)
 {
@@ -20,9 +19,8 @@ static void TraceImpl(const char *inFMT, ...)
 }
 
 #ifdef JPH_ENABLE_ASSERTS
-
 // Callback for asserts, connect this to your own assert handler if you have one
-static bool AssertFailedImpl(const char *inExpression, const char *inMessage, const char *inFile, uint inLine)
+static bool AssertFailedImpl(const char *inExpression, const char *inMessage, const char *inFile, unsigned int inLine)
 {
     // Print to the TTY
     std::cout << inFile << ":" << inLine << ": (" << inExpression << ") " << (inMessage != nullptr? inMessage : "") << std::endl;
@@ -30,37 +28,9 @@ static bool AssertFailedImpl(const char *inExpression, const char *inMessage, co
     // Breakpoint
     return true;
 };
-
 #endif // JPH_ENABLE_ASSERTS
 
-
-bool obj_layer_pair_filter_t::ShouldCollide(JPH::ObjectLayer inObject1, JPH::ObjectLayer inObject2) const
-{
-    switch (inObject1)
-    {
-        case Layers::NON_MOVING:
-            return inObject2 == Layers::MOVING; // Non moving only collides with moving
-        case Layers::MOVING:
-            return true; // Moving collides with everything
-        default:
-            JPH_ASSERT(false);
-            return false;
-    }
-}
-
-bool obj_vs_bp_layer_impl_t::ShouldCollide(JPH::ObjectLayer inLayer1, JPH::BroadPhaseLayer inLayer2) const
-{
-    switch (inLayer1)
-    {
-        case Layers::NON_MOVING:
-            return inLayer2 == BroadPhaseLayers::MOVING;
-        case Layers::MOVING:
-            return true;
-        default:
-            JPH_ASSERT(false);
-            return false;
-    }
-}
+#include "physics_bodies.cpp"
 
 void physics_t::Initialize()
 {
@@ -91,11 +61,11 @@ void physics_t::Initialize()
     // This is the max amount of rigid bodies that you can add to the physics 
     // system. If you try to add more you'll get an error. Note: For a real 
     // project use something in the order of 65536.
-    const uint cMaxBodies = 65536;
+    const unsigned int cMaxBodies = 65536;
 
     // This determines how many mutexes to allocate to protect rigid bodies 
     // from concurrent access. Set it to 0 for the default settings.
-    const uint cNumBodyMutexes = 0;
+    const unsigned int cNumBodyMutexes = 0;
 
     // This is the max amount of body pairs that can be queued at any time 
     // (the broad phase will detect overlapping body pairs based on their 
@@ -104,18 +74,22 @@ void physics_t::Initialize()
     // phase jobs will start to do narrow phase work. This is slightly less efficient.
     // Note: This value is low because this is a simple test. For a real project 
     // use something in the order of 65536.
-    const uint cMaxBodyPairs = 65536;
+    const unsigned int cMaxBodyPairs = 65536;
 
     // This is the maximum size of the contact constraint buffer. If more contacts
     // (collisions between bodies) are detected than this number then these contacts
     // will be ignored and bodies will start interpenetrating / fall through the world.
     // Note: For a real project use something in the order of 10240.
-    const uint cMaxContactConstraints = 10240;
+    const unsigned int cMaxContactConstraints = 10240;
+
+    ObjectLayerFilter = CreateAndSetupObjectLayers();
+    BroadphaseMapping = CreateAndSetupBroadPhaseLayers();
+    ObjectVsBroadphaseFilter = CreateAndSetupObjectVsBroadPhaseFilter(BroadphaseMapping, ObjectLayerFilter);
 
     // Now we can create the actual physics system.
     PhysicsSystem = new JPH::PhysicsSystem();
     PhysicsSystem->Init(cMaxBodies, cNumBodyMutexes, cMaxBodyPairs, cMaxContactConstraints, 
-        BroadPhaseLayerInterface, ObjectVsBroadphaseFilter, ObjectVsObjectFilter);
+        *BroadphaseMapping, *ObjectVsBroadphaseFilter, *ObjectLayerFilter);
 
     PhysicsSystem->SetGravity(JPH::Vec3(0, -9.81f, 0));
 
@@ -157,67 +131,8 @@ void physics_t::Tick()
     PhysicsSystem->Update(cDeltaTime, cCollisionSteps, TempAllocator, &PhysJobSystem);
 }
 
-void game_char_vs_char_handler_t::Remove(const JPH::CharacterVirtual *InCharacter)
-{
-    auto Iter = std::find(Characters.begin(), Characters.end(), InCharacter);
-    if (Iter != Characters.end())
-        Characters.erase(Iter);
-}
 
-void game_char_vs_char_handler_t::CollideCharacter(const JPH::CharacterVirtual *inCharacter, JPH::RMat44Arg inCenterOfMassTransform, const JPH::CollideShapeSettings &inCollideShapeSettings, JPH::RVec3Arg inBaseOffset, JPH::CollideShapeCollector &ioCollector) const
-{
-    // // Make shape 1 relative to inBaseOffset
-    // JPH::Mat44 transform1 = inCenterOfMassTransform.PostTranslated(-inBaseOffset).ToMat44();
 
-    // const JPH::Shape *shape = inCharacter->GetShape();
-    // JPH::CollideShapeSettings settings = inCollideShapeSettings;
-
-    // // Iterate over all characters
-    // for (const JPH::CharacterVirtual *c : Characters)
-    //     if (c != inCharacter
-    //         && !ioCollector.ShouldEarlyOut())
-    //     {
-    //         // Collector needs to know which character we're colliding with
-    //         ioCollector.SetUserData(reinterpret_cast<u64>(c));
-
-    //         // Make shape 2 relative to inBaseOffset
-    //         JPH::Mat44 transform2 = c->GetCenterOfMassTransform().PostTranslated(-inBaseOffset).ToMat44();
-
-    //         // We need to add the padding of character 2 so that we will detect collision with its outer shell
-    //         settings.mMaxSeparationDistance = inCollideShapeSettings.mMaxSeparationDistance + c->GetCharacterPadding();
-
-    //         // Note that this collides against the character's shape without padding, this will be corrected for in CharacterVirtual::GetContactsAtPosition
-    //         JPH::CollisionDispatch::sCollideShapeVsShape(shape, c->GetShape(), JPH::Vec3::sReplicate(1.0f), JPH::Vec3::sReplicate(1.0f), transform1, transform2, JPH::SubShapeIDCreator(), JPH::SubShapeIDCreator(), settings, ioCollector);
-    //     }
-
-    // // Reset the user data
-    // ioCollector.SetUserData(0);
-}
-
-void game_char_vs_char_handler_t::CastCharacter(const JPH::CharacterVirtual *inCharacter, JPH::RMat44Arg inCenterOfMassTransform, JPH::Vec3Arg inDirection, const JPH::ShapeCastSettings &inShapeCastSettings, JPH::RVec3Arg inBaseOffset, JPH::CastShapeCollector &ioCollector) const
-{
-    // // Convert shape cast relative to inBaseOffset
-    // JPH::Mat44 transform1 = inCenterOfMassTransform.PostTranslated(-inBaseOffset).ToMat44();
-    // JPH::ShapeCast shape_cast(inCharacter->GetShape(), JPH::Vec3::sReplicate(1.0f), transform1, inDirection);
-
-    // // Iterate over all characters
-    // for (const JPH::CharacterVirtual *c : Characters)
-    //     if (c != inCharacter
-    //         && !ioCollector.ShouldEarlyOut())
-    //     {
-    //         // Collector needs to know which character we're colliding with
-    //         ioCollector.SetUserData(reinterpret_cast<u64>(c));
-
-    //         // Make shape 2 relative to inBaseOffset
-    //         JPH::Mat44 transform2 = c->GetCenterOfMassTransform().PostTranslated(-inBaseOffset).ToMat44();
-
-    //         // Note that this collides against the character's shape without padding, this will be corrected for in CharacterVirtual::GetFirstContactForSweep
-    //         JPH::CollisionDispatch::sCastShapeVsShapeWorldSpace(shape_cast, inShapeCastSettings, c->GetShape(), JPH::Vec3::sReplicate(1.0f), { }, transform2, JPH::SubShapeIDCreator(), JPH::SubShapeIDCreator(), ioCollector);
-    //     }
-
-    // // Reset the user data
-    // ioCollector.SetUserData(0);
-}
 
 inline float ToJoltUnit(float GameUnit)
 {

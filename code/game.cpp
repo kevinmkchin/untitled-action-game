@@ -80,20 +80,34 @@ void LoadLevel(const char *MapPath)
     enemy_t Enemy0;
     // enemy_t Enemy1;
     // enemy_t Enemy2;
+    // enemy_t Enemy3;
+    // enemy_t Enemy4;
+    // enemy_t Enemy5;
+    // enemy_t Enemy6;
 
-    // Enemy0.Position = vec3(0, 0, 30);
-    // Enemy1.Position = vec3(0, 0, -30);
     GetRandomPointOnNavMesh((float*)&Enemy0.Position);
     // GetRandomPointOnNavMesh((float*)&Enemy1.Position);
     // GetRandomPointOnNavMesh((float*)&Enemy2.Position);
+    // GetRandomPointOnNavMesh((float*)&Enemy3.Position);
+    // GetRandomPointOnNavMesh((float*)&Enemy4.Position);
+    // GetRandomPointOnNavMesh((float*)&Enemy5.Position);
+    // GetRandomPointOnNavMesh((float*)&Enemy6.Position);
 
     Enemy0.Init();
     // Enemy1.Init();
     // Enemy2.Init();
+    // Enemy3.Init();
+    // Enemy4.Init();
+    // Enemy5.Init();
+    // Enemy6.Init();
 
     Enemies.put(Enemy0);
     // Enemies.put(Enemy1);
     // Enemies.put(Enemy2);
+    // Enemies.put(Enemy3);
+    // Enemies.put(Enemy4);
+    // Enemies.put(Enemy5);
+    // Enemies.put(Enemy6);
 
     LevelLoaded = true;
 }
@@ -145,6 +159,15 @@ void LateNonPhysicsTick()
 
     if (DebugDrawEnemyCollidersFlag)
         DebugDrawEnemyColliders();
+
+    // LogMessage("%zd", LiveProjectiles.lenu());
+    for (size_t i = 0; i < LiveProjectiles.lenu(); ++i)
+    {
+        projectile_t P = LiveProjectiles[i];
+        Physics.BodyInterface->GetShape(P.BodyId)->Draw(JoltDebugDrawer,
+            Physics.BodyInterface->GetCenterOfMassTransform(P.BodyId),
+            JPH::Vec3::sReplicate(1.0f), JPH::Color(255,0,0,255), false, false);
+    }
 #endif // JPH_DEBUG_RENDERER
 
     Player.LateNonPhysicsTick();
