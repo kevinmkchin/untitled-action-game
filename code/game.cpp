@@ -135,12 +135,16 @@ void PrePhysicsTick()
 {
     PrePhysicsTickAllEnemies();
 
+    PrePhysicsUpdateProjectiles();
+
     Player.PrePhysicsUpdate();
 }
 
 void PostPhysicsTick()
 {
     PostPhysicsTickAllEnemies();
+
+    PostPhysicsUpdateProjectiles();
 
     Player.PostPhysicsUpdate();
 }
@@ -160,14 +164,18 @@ void LateNonPhysicsTick()
     if (DebugDrawEnemyCollidersFlag)
         DebugDrawEnemyColliders();
 
-    // LogMessage("%zd", LiveProjectiles.lenu());
-    for (size_t i = 0; i < LiveProjectiles.lenu(); ++i)
+    if (DebugDrawProjectileCollidersFlag)
     {
-        projectile_t P = LiveProjectiles[i];
-        Physics.BodyInterface->GetShape(P.BodyId)->Draw(JoltDebugDrawer,
-            Physics.BodyInterface->GetCenterOfMassTransform(P.BodyId),
-            JPH::Vec3::sReplicate(1.0f), JPH::Color(255,0,0,255), false, false);
+        LogMessage("num live projectiles: %zd", LiveProjectiles.lenu());
+        for (size_t i = 0; i < LiveProjectiles.lenu(); ++i)
+        {
+            projectile_t P = LiveProjectiles[i];
+            Physics.BodyInterface->GetShape(P.BodyId)->Draw(JoltDebugDrawer,
+                Physics.BodyInterface->GetCenterOfMassTransform(P.BodyId),
+                JPH::Vec3::sReplicate(1.0f), JPH::Color(255,0,0,255), false, true);
+        }
     }
+    // LogMessage("%d", Physics.PhysicsSystem->GetNumBodies());
 #endif // JPH_DEBUG_RENDERER
 
     Player.LateNonPhysicsTick();
@@ -306,6 +314,7 @@ void RenderGameLayer()
     // RenderModelGLTF(Model_Knight);
 
     RenderWeapon(&Player.Weapon, perspectiveMatrix.ptr(), viewMatrix.GetInverse().ptr());
+    RenderProjectiles(perspectiveMatrix, viewMatrix.GetInverse());
 }
 
 void CreateAndRegisterLevelCollider()
@@ -345,7 +354,8 @@ void CreateAndRegisterLevelCollider()
     }
 
     // Create the settings for the body itself. Note that here you can also set other properties like the restitution / friction.
-    JPH::BodyCreationSettings LevelBodySettings(LevelShape, JPH::RVec3(0.0, 0.0, 0.0), JPH::Quat::sIdentity(), JPH::EMotionType::Static, Layers::NON_MOVING);
+    JPH::BodyCreationSettings LevelBodySettings(LevelShape, JPH::RVec3(0.0, 0.0, 0.0), 
+        JPH::Quat::sIdentity(), JPH::EMotionType::Static, Layers::STATIC);
     LevelBodySettings.mEnhancedInternalEdgeRemoval = true;
 
     // Create the actual rigid body

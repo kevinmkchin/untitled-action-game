@@ -11,6 +11,8 @@ struct weapon_state_t
     weapon_types_t ActiveType = NAILGUN;
 
     float Cooldown = 0.f;
+
+    struct player_t *Owner;
 };
 
 void TickWeapon(weapon_state_t *State, bool LMB, bool RMB);
@@ -35,15 +37,27 @@ struct projectile_t
 {
     // projectile damage type (flags?)
     float Damage;
-    u16 Flags = 0;
+    u16 Flags = 0; // JPH::Body user data is uint64...
+    quat RenderOrientation;
     // damage radius and falloff if explosive type
-    // velocity
-    // body
     JPH::BodyID BodyId;
 };
+
+struct projectile_hit_info_t
+{
+    const JPH::Body *Body1;
+    const JPH::Body *Body2;
+    const JPH::ContactManifold *Manifold;
+};
+
 dynamic_array<projectile_t> LiveProjectiles;
-void SpawnProjectile();
+dynamic_array<projectile_hit_info_t> ProjectileHitInfos;
+
+void SpawnProjectile(vec3 Pos, vec3 Dir, quat Orient);
 void PrePhysicsUpdateProjectiles();
 void PostPhysicsUpdateProjectiles();
+void RenderProjectiles(const mat4 &ProjFromView, const mat4 &WorldFromView);
 
 extern ModelGLTF Model_Nailgun;
+// TODO (Kevin): instance drawing of nail projectiles
+extern ModelGLTF Model_Nail;

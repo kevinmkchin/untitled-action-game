@@ -3,10 +3,12 @@
 
 namespace Layers
 {
-    static constexpr JPH::ObjectLayer NON_MOVING = 0;
-    static constexpr JPH::ObjectLayer MOVING = 1;
-    static constexpr JPH::ObjectLayer SENSOR = 2; // TRIGGERBOXES
-    static constexpr JPH::ObjectLayer NUM_LAYERS = 3;
+    static constexpr JPH::ObjectLayer STATIC = 0;
+    static constexpr JPH::ObjectLayer PLAYER = 1;
+    static constexpr JPH::ObjectLayer ENEMY = 2;
+    static constexpr JPH::ObjectLayer PROJECTILE = 3;
+    static constexpr JPH::ObjectLayer SENSOR = 4; // TRIGGERBOXES
+    static constexpr JPH::ObjectLayer NUM_LAYERS = 5;
 };
 
 // Each broadphase layer results in a separate bounding volume tree in the broad phase.
@@ -25,38 +27,19 @@ JPH::ObjectVsBroadPhaseLayerFilterTable *CreateAndSetupObjectVsBroadPhaseFilter(
     JPH::ObjectLayerPairFilterTable *ObjectLayerFilter);
 
 
+class MyContactListener : public JPH::ContactListener
+{
+    // Must be thread safe
+public:
+    virtual JPH::ValidateResult OnContactValidate(const JPH::Body &inBody1, const JPH::Body &inBody2, JPH::RVec3Arg inBaseOffset, const JPH::CollideShapeResult &inCollisionResult) override;
+    virtual void OnContactAdded(const JPH::Body &inBody1, const JPH::Body &inBody2, const JPH::ContactManifold &inManifold, JPH::ContactSettings &ioSettings) override;
+    virtual void OnContactPersisted(const JPH::Body &inBody1, const JPH::Body &inBody2, const JPH::ContactManifold &inManifold, JPH::ContactSettings &ioSettings) override;
+    virtual void OnContactRemoved(const JPH::SubShapeIDPair &inSubShapePair) override;
 
-// // A contact listener gets notified when bodies (are about to) collide, and when they separate again.
-// // Note that this is called from a job so whatever you do here needs to be thread safe.
-// // Registering one is entirely optional.
-// // An example contact listener
-// class MyContactListener : public ContactListener
-// {
-// public:
-//     // See: ContactListener
-//     virtual ValidateResult OnContactValidate(const Body &inBody1, const Body &inBody2, RVec3Arg inBaseOffset, const CollideShapeResult &inCollisionResult) override
-//     {
-//         cout << "Contact validate callback" << endl;
-
-//         // Allows you to ignore a contact before it is created (using layers to not make objects collide is cheaper!)
-//         return ValidateResult::AcceptAllContactsForThisBodyPair;
-//     }
-
-//     virtual void OnContactAdded(const Body &inBody1, const Body &inBody2, const ContactManifold &inManifold, ContactSettings &ioSettings) override
-//     {
-//         cout << "A contact was added" << endl;
-//     }
-
-//     virtual void OnContactPersisted(const Body &inBody1, const Body &inBody2, const ContactManifold &inManifold, ContactSettings &ioSettings) override
-//     {
-//         cout << "A contact was persisted" << endl;
-//     }
-
-//     virtual void OnContactRemoved(const SubShapeIDPair &inSubShapePair) override
-//     {
-//         cout << "A contact was removed" << endl;
-//     }
-// };
+private:
+    // For storing projectile hit infos
+    JPH::Mutex ProjectileHitMutex;
+};
 
 // // This class receives callbacks when a virtual character hits something.
 // class MyVirtualCharacterContactListener : public CharacterContactListener

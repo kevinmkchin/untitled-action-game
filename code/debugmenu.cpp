@@ -4,6 +4,7 @@
 bool DebugMenuActive = false;
 bool DebugDrawLevelColliderFlag = false;
 bool DebugDrawEnemyCollidersFlag = false;
+bool DebugDrawProjectileCollidersFlag = false;
 bool DebugDrawNavMeshFlag = false;
 bool DebugDrawEnemyPathingFlag = false;
 bool FlyCamActive = false;
@@ -69,6 +70,7 @@ void DisplayDebugMenu()
             GUI::EditorCheckbox("Noclip", &FlyCamActive);
             GUI::EditorCheckbox("Draw level collider", &DebugDrawLevelColliderFlag);
             GUI::EditorCheckbox("Draw enemy colliders", &DebugDrawEnemyCollidersFlag);
+            GUI::EditorCheckbox("Draw projectile colliders", &DebugDrawProjectileCollidersFlag);
             GUI::EditorCheckbox("Show nav mesh", &DebugDrawNavMeshFlag);
             GUI::EditorCheckbox("Show enemy pathing", &DebugDrawEnemyPathingFlag);
             if (GUI::EditorLabelledButton("Open level editor"))

@@ -5,11 +5,24 @@ JPH::ObjectLayerPairFilterTable *CreateAndSetupObjectLayers()
     JPH::ObjectLayerPairFilterTable *ObjectLayerFilter = 
         new JPH::ObjectLayerPairFilterTable(Layers::NUM_LAYERS);
 
-    ObjectLayerFilter->EnableCollision(Layers::MOVING, Layers::NON_MOVING);
-    ObjectLayerFilter->EnableCollision(Layers::MOVING, Layers::MOVING);
-    ObjectLayerFilter->EnableCollision(Layers::MOVING, Layers::SENSOR);
-    ObjectLayerFilter->EnableCollision(Layers::NON_MOVING, Layers::MOVING); // Non moving only collides with moving
-    ObjectLayerFilter->EnableCollision(Layers::SENSOR, Layers::MOVING);
+    ObjectLayerFilter->EnableCollision(Layers::STATIC, Layers::PLAYER);
+    ObjectLayerFilter->EnableCollision(Layers::STATIC, Layers::ENEMY);
+    ObjectLayerFilter->EnableCollision(Layers::STATIC, Layers::PROJECTILE);
+
+    ObjectLayerFilter->EnableCollision(Layers::PLAYER, Layers::STATIC);
+    ObjectLayerFilter->EnableCollision(Layers::PLAYER, Layers::ENEMY);
+    ObjectLayerFilter->EnableCollision(Layers::PLAYER, Layers::SENSOR);
+
+    ObjectLayerFilter->EnableCollision(Layers::ENEMY, Layers::STATIC);
+    ObjectLayerFilter->EnableCollision(Layers::ENEMY, Layers::ENEMY);
+    ObjectLayerFilter->EnableCollision(Layers::ENEMY, Layers::PROJECTILE);
+    ObjectLayerFilter->EnableCollision(Layers::ENEMY, Layers::SENSOR);
+
+    ObjectLayerFilter->EnableCollision(Layers::PROJECTILE, Layers::STATIC);
+    ObjectLayerFilter->EnableCollision(Layers::PROJECTILE, Layers::ENEMY);
+
+    ObjectLayerFilter->EnableCollision(Layers::SENSOR, Layers::PLAYER);
+    ObjectLayerFilter->EnableCollision(Layers::SENSOR, Layers::ENEMY);
 
     return ObjectLayerFilter;
 }
@@ -19,8 +32,10 @@ JPH::BroadPhaseLayerInterfaceTable *CreateAndSetupBroadPhaseLayers()
     JPH::BroadPhaseLayerInterfaceTable *MappingTable =
         new JPH::BroadPhaseLayerInterfaceTable(Layers::NUM_LAYERS, BroadPhaseLayers::NUM_LAYERS);
 
-    MappingTable->MapObjectToBroadPhaseLayer(Layers::NON_MOVING, BroadPhaseLayers::NON_MOVING);
-    MappingTable->MapObjectToBroadPhaseLayer(Layers::MOVING, BroadPhaseLayers::MOVING);
+    MappingTable->MapObjectToBroadPhaseLayer(Layers::STATIC, BroadPhaseLayers::NON_MOVING);
+    MappingTable->MapObjectToBroadPhaseLayer(Layers::PLAYER, BroadPhaseLayers::MOVING);
+    MappingTable->MapObjectToBroadPhaseLayer(Layers::ENEMY, BroadPhaseLayers::MOVING);
+    MappingTable->MapObjectToBroadPhaseLayer(Layers::PROJECTILE, BroadPhaseLayers::MOVING);
     MappingTable->MapObjectToBroadPhaseLayer(Layers::SENSOR, BroadPhaseLayers::SENSOR);
 
     return MappingTable;
@@ -37,6 +52,45 @@ JPH::ObjectVsBroadPhaseLayerFilterTable *CreateAndSetupObjectVsBroadPhaseFilter(
 
     return ObjVsBpFilter;
 }
+
+
+JPH::ValidateResult MyContactListener::OnContactValidate(const JPH::Body &inBody1, const JPH::Body &inBody2, JPH::RVec3Arg inBaseOffset, const JPH::CollideShapeResult &inCollisionResult)
+{
+    // Allows you to ignore a contact before it is created, but 
+    // using layers to not make objects collide is cheaper!
+    return JPH::ValidateResult::AcceptAllContactsForThisBodyPair;
+}
+
+void MyContactListener::OnContactAdded(const JPH::Body &inBody1, const JPH::Body &inBody2, 
+    const JPH::ContactManifold &inManifold, JPH::ContactSettings &ioSettings)
+{
+
+    if (inBody1.GetObjectLayer() == Layers::PROJECTILE ||
+        inBody2.GetObjectLayer() == Layers::PROJECTILE)
+    {
+        std::lock_guard Lock(ProjectileHitMutex);
+
+        projectile_hit_info_t PrjHitInfo;
+        PrjHitInfo.Body1 = &inBody1;
+        PrjHitInfo.Body2 = &inBody2;
+        PrjHitInfo.Manifold = &inManifold;
+        ProjectileHitInfos.put(PrjHitInfo);
+    }
+
+}
+
+void MyContactListener::OnContactPersisted(const JPH::Body &inBody1, const JPH::Body &inBody2, 
+    const JPH::ContactManifold &inManifold, JPH::ContactSettings &ioSettings)
+{
+
+}
+
+void MyContactListener::OnContactRemoved(const JPH::SubShapeIDPair &inSubShapePair)
+{
+
+}
+
+
 
 void game_char_vs_char_handler_t::Remove(const JPH::CharacterVirtual *InCharacter)
 {

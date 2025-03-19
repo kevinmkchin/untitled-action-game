@@ -593,7 +593,8 @@ void asset_db_t::LoadAllResources()
     // === Weapon models ===
     // SDL mixer does not support pitch adjustment so I must resample the sound manually
     // and have multiple pitch-shifted versions of the sound
-    ASSERT(LoadModelGLTF2Bin(&Model_Nailgun, model_path("weapon_type1.glb").c_str()));
+    ASSERT(LoadModelGLTF2Bin(&Model_Nailgun, model_path("wpn_type1.glb").c_str()));
+    ASSERT(LoadModelGLTF2Bin(&Model_Nail, model_path("prj_nail.glb").c_str()));
 
     // === SFX ===
     Sfx_Shoot0 = Mixer_LoadChunk(sfx_path("gunshot-37055.ogg").c_str());

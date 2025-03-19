@@ -22,4 +22,5 @@ void main()
     vec3 LightAMB = vec3(1.0) * AmbientIntensity;
     vec3 LightDIFF = vec3(0.4) * DiffuseIntensity;
     Light = min(LightAMB + LightDIFF, vec3(1.0));
+    // Light = vec3(1.0);
 }

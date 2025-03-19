@@ -33,7 +33,7 @@ void enemy_t::AddToPhysicsSystem()
 
     JPH::Ref<JPH::CharacterSettings> Settings = new JPH::CharacterSettings();
     Settings->mMaxSlopeAngle = JPH::DegreesToRadians(45.0f);
-    Settings->mLayer = Layers::MOVING;
+    Settings->mLayer = Layers::ENEMY;
     Settings->mShape = StandingShape;
     Settings->mFriction = 0.5f;
     Settings->mSupportingVolume = JPH::Plane(JPH::Vec3::sAxisY(), -AttackerCapsuleRadiusStanding); // Accept contacts that touch the lower sphere of the capsule

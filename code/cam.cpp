@@ -14,7 +14,8 @@ void camera_t::Update(bool DoMouseLook, float LookSensitivity)
             Rotation.z = -89.f;
     }
 
-    Direction = Normalize(OrientationToDirection(EulerToQuat(Rotation * GM_D2R)));
+    Orientation = EulerToQuat(Rotation * GM_D2R);
+    Direction = Normalize(OrientationToDirection(Orientation));
     Right = Normalize(Cross(Direction, GM_UP_VECTOR));
     Up = Normalize(Cross(Right, Direction));
 }
