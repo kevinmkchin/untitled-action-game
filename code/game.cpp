@@ -175,7 +175,12 @@ void LateNonPhysicsTick()
                 JPH::Vec3::sReplicate(1.0f), JPH::Color(255,0,0,255), false, true);
         }
     }
-    // LogMessage("%d", Physics.PhysicsSystem->GetNumBodies());
+
+    if (DebugShowNumberOfPhysicsBodies)
+    {
+        GUI::PrimitiveTextFmt(8, 48, GUI::GetFontSize(), GUI::Align::LEFT, 
+            "PhysicsSystem NumBodies: %d", Physics.PhysicsSystem->GetNumBodies());
+    }
 #endif // JPH_DEBUG_RENDERER
 
     Player.LateNonPhysicsTick();
