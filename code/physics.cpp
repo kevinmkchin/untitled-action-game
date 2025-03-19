@@ -91,6 +91,11 @@ void physics_t::Initialize()
     PhysicsSystem->Init(cMaxBodies, cNumBodyMutexes, cMaxBodyPairs, cMaxContactConstraints, 
         *BroadphaseMapping, *ObjectVsBroadphaseFilter, *ObjectLayerFilter);
 
+    // A contact listener gets notified when bodies (are about to) collide, and when they separate again.
+    // Note that this is called from a job so whatever you do here needs to be thread safe.
+    // Registering one is entirely optional.
+    PhysicsSystem->SetContactListener(&ContactListener);
+
     PhysicsSystem->SetGravity(JPH::Vec3(0, -9.81f, 0));
 
     // The main way to interact with the bodies in the physics system is through 

@@ -8,22 +8,15 @@ I could port the GL code to Vulkan
 
 TODO:
 
-- Player has a gun and shoots at enemy
-
-= I can start making and importing proper character models and animations
-= I can start making proper textures
-
 - Enemy moves and shoots at player
     - Try using straight path instead of smooth path (?)
     - State machine - patrol to chase to shoot/melee
     - sound (audio system)
     - death animation on dead
 
-
 - Bicubic lightmap filtering 
     https://docs.unity3d.com/6000.1/Documentation/Manual/urp/lighting/lightmapping-improve-visual-fidelity.html
     https://developer.valvesoftware.com/wiki/Lightmap#Bicubic_lightmaps
-
 
 
 - move gmath as subrepo of this repo so i can keep tests updated

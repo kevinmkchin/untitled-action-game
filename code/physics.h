@@ -15,6 +15,7 @@
 #include <Jolt/Core/Factory.h>
 #include <Jolt/Core/TempAllocator.h>
 #include <Jolt/Core/JobSystemThreadPool.h>
+#include <Jolt/Core/Mutex.h>
 #include <Jolt/Physics/PhysicsSettings.h>
 #include <Jolt/Physics/PhysicsSystem.h>
 #include <Jolt/Physics/Collision/Shape/BoxShape.h>
@@ -70,6 +71,8 @@ public:
     // Determines if an object layer can collide with a broadphase layer
     JPH::ObjectVsBroadPhaseLayerFilterTable *ObjectVsBroadphaseFilter;
 
+    // Notified when bodies collide and separate
+    MyContactListener ContactListener;
 };
 
 // Converts engine units to and from SI units

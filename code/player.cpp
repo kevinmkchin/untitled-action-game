@@ -43,6 +43,7 @@ void player_t::HandleInput()
     // SHOOT
     bool LMBPressed = MouseCurrent & SDL_BUTTON(SDL_BUTTON_LEFT);
     bool RMBPressed = MouseCurrent & SDL_BUTTON(SDL_BUTTON_RIGHT);
+    Weapon.Owner = this;
     TickWeapon(&Weapon, LMBPressed, RMBPressed);
 }
 
@@ -58,8 +59,8 @@ void player_t::PrePhysicsUpdate()
     const bool sEnableWalkStairs = true;
 
     // TODO get rid of these after we scale down units for physics
-    UpdateSettings.mStickToFloorStepDown.SetY(-12.f*GAME_UNIT_TO_SI_UNITS);
-    UpdateSettings.mWalkStairsStepUp.SetY(6.f*GAME_UNIT_TO_SI_UNITS);
+    UpdateSettings.mStickToFloorStepDown.SetY(ToJoltUnit(-12.f));
+    UpdateSettings.mWalkStairsStepUp.SetY(ToJoltUnit(6.f));
 
     if (!sEnableStickToFloor)
         UpdateSettings.mStickToFloorStepDown = JPH::Vec3::sZero();
@@ -75,8 +76,8 @@ void player_t::PrePhysicsUpdate()
     CharacterController->ExtendedUpdate(FixedDeltaTime,
                                         -CharacterController->GetUp() * Physics.PhysicsSystem->GetGravity().Length(),
                                         UpdateSettings,
-                                        Physics.PhysicsSystem->GetDefaultBroadPhaseLayerFilter(Layers::MOVING),
-                                        Physics.PhysicsSystem->GetDefaultLayerFilter(Layers::MOVING),
+                                        Physics.PhysicsSystem->GetDefaultBroadPhaseLayerFilter(Layers::PLAYER),
+                                        Physics.PhysicsSystem->GetDefaultLayerFilter(Layers::PLAYER),
                                         { },
                                         { },
                                         *Physics.TempAllocator);
@@ -204,7 +205,7 @@ void player_t::AddToPhysicsSystem()
     Settings->mSupportingVolume = JPH::Plane(JPH::Vec3::sAxisY(), -PlayerCapsuleRadiusStanding); // Accept contacts that touch the lower sphere of the capsule
     Settings->mEnhancedInternalEdgeRemoval = false;
     Settings->mInnerBodyShape = nullptr;
-    Settings->mInnerBodyLayer = Layers::MOVING;
+    Settings->mInnerBodyLayer = Layers::PLAYER;
     CharacterController = new JPH::CharacterVirtual(Settings, JPH::RVec3::sZero(), JPH::Quat::sIdentity(), 0, Physics.PhysicsSystem);
     CharacterController->SetCharacterVsCharacterCollision(&Physics.CharacterVirtualsHandler);
     Physics.CharacterVirtualsHandler.Add(CharacterController);

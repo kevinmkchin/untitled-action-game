@@ -10,6 +10,7 @@ void main()
 {
     vec3 Color = vec3(0.2, 0.2, 0.2);
     FragColor = vec4(Color * Light, 1.0);
+    FragColor.rgb = pow(FragColor.rgb, vec3(1.0/2.6)); // gamma correction
     // vec3 ColorAlbedo = texture(ColorTexture, uv1).rgb;
     // float LinearLight = texture(LightMap, uv2).r;
     //vec3 FinalColor = vec3(1.0,1.0,1.0) * LinearLight;

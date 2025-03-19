@@ -280,9 +280,9 @@ union mat4
         *this = { 0.f,0.f,0.f,0.f,0.f,0.f,0.f,0.f,0.f,0.f,0.f,0.f,0.f,0.f,0.f,0.f };
     }
 
-    inline mat4 GetTranspose();
+    inline mat4 GetTranspose() const;
 
-    inline mat4 GetInverse();
+    inline mat4 GetInverse() const;
 
     /** Returns a float pointer to the memory layout of the matrix. Useful
         for uploading data to graphics API. OpenGL uses column-major order.*/
@@ -326,9 +326,9 @@ union mat3
         *this = { 0.f,0.f,0.f,0.f,0.f,0.f,0.f,0.f,0.f };
     }
 
-    inline mat3 GetTranspose();
+    inline mat3 GetTranspose() const;
 
-    inline mat3 GetInverse();
+    inline mat3 GetInverse() const;
 
     /** Returns a float pointer to the memory layout of the matrix. Useful
         for uploading data to graphics API. OpenGL uses column-major order.*/
@@ -586,7 +586,8 @@ inline quat EulerToQuat(vec3 eulerAnglesInRadians);
 
 /** Returns an orientation that faces the given direction. The return value represents
     the rotation from the world's forward direction (forward vector) in order to face
-    the same direction as the given direction. */
+    the same direction as the given direction. The resulting orientation will point in
+    the desired direction but the degree of rotation around the desired direction may vary. */
 inline quat DirectionToOrientation(vec3 direction);
 
 /** Returns the direction of this orientation. The world's forward direction (forward vector)
@@ -1220,7 +1221,7 @@ inline mat4 ViewMatrixLookAt(vec3 const& eye, vec3 const& target, vec3 const& ey
     return ret;
 }
 
-inline mat4 mat4::GetTranspose()
+inline mat4 mat4::GetTranspose() const
 {
     mat4 ret;
     for(int col = 0; col < 4; ++col)
@@ -1233,7 +1234,7 @@ inline mat4 mat4::GetTranspose()
     return ret;
 }
 
-inline mat3 mat3::GetTranspose()
+inline mat3 mat3::GetTranspose() const
 {
     mat3 ret;
     for(int col = 0; col < 3; ++col)
@@ -1246,7 +1247,7 @@ inline mat3 mat3::GetTranspose()
     return ret;
 }
 
-inline mat4 mat4::GetInverse()
+inline mat4 mat4::GetInverse() const
 {
     float inv[16], det;
     int i;
@@ -1382,7 +1383,7 @@ inline mat4 mat4::GetInverse()
     return ret;
 }
 
-inline mat3 mat3::GetInverse() // TODO(Kevin): test coverage
+inline mat3 mat3::GetInverse() const // TODO(Kevin): test coverage
 {
     float a11 = e[0], a21 = e[1], a31 = e[2];
     float a12 = e[3], a22 = e[4], a32 = e[5];
