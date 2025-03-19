@@ -4,7 +4,7 @@ Something fucking cool.
 Priorty #1 is building the game, not the engine/tech
 Handcrafted with love.
 
-I could port the GL code to Vulkan
+I should port the GL code to Vulkan
 
 TODO:
 
@@ -66,18 +66,13 @@ with constraint that all vertices of a face must lie on the same plane and enfor
 the editor. Then I could have 
 
 == BUGS ==
-- (2024-09-24 T480) periodic frame rate drops down to ~59/60fps then back up when in
-                    fullscreen mode (both SDL_WINDOW_FULLSCREEN and SDL_WINDOW_FULLSCREEN_DESKTOP)
-                    I don't think it has to do with TickTime - Changing to use SDL_GetTicks64 no 
-                    effect. Look into https://wiki.libsdl.org/SDL2/SDL_GetWindowDisplayMode
-                    Also, setting the window size to the screen size when creating window makes 
-                    SDL enter fullscreen?
+
 
 == NOTES ==
 
     64x64 pixel texture for each 32x32 unit in game looks decent
 
-    Embrace the fact that lighting will be crude and not perfect. The visual artifacts 
+    Embrace the fact that lighting will be crude and imperfect. The visual artifacts 
     is part of the charm of my game and engine. Something that differentiates it from 
     the perfect crispy lighting of engines like Godot or Unity.
 

@@ -102,8 +102,6 @@ void RenderProjectiles(const mat4 &ProjFromView, const mat4 &WorldFromView)
 
 // The quality of projectiles is that a lot of them get created in bursts and they die quickly
 // New ones are created often and live ones die quickly
-// TODO probably activate and put to sleep these physics bodies rather than recreating them
-// TODO need to kill projectiles that go too far from origin (cuz level might not be enclosed)
 void SpawnProjectile(vec3 Pos, vec3 Dir, quat Orient)
 {
 
@@ -137,25 +135,36 @@ void SpawnProjectile(vec3 Pos, vec3 Dir, quat Orient)
     // LogMessage("%ld", (void*)Sphere.GetPtr());
 }
 
-static dynamic_array<JPH::BodyID> ProjectileBodyIdsToRemove;
 
-static void RemoveDeadProjectileBodiesFromPhysics()
+static void RemoveDeadProjectiles()
 {
-    if (ProjectileBodyIdsToRemove.lenu() > 0)
+    JPH::BodyID ProjectileBodyIdsToRemove[32];
+    int BodyIdsToRemoveCount = 0;
+
+    for (size_t i = 0; i < LiveProjectiles.lenu(); ++i)
     {
-        Physics.BodyInterface->RemoveBodies(ProjectileBodyIdsToRemove.data, 
-            (int)ProjectileBodyIdsToRemove.lenu());
-        Physics.BodyInterface->DestroyBodies(ProjectileBodyIdsToRemove.data, 
-            (int)ProjectileBodyIdsToRemove.lenu());
-        ProjectileBodyIdsToRemove.setlen(0);
+        projectile_t& Projectile = LiveProjectiles[i];
+        if (Projectile.Flags & ProjectileFlag_Dead)
+        {
+            ProjectileBodyIdsToRemove[BodyIdsToRemoveCount] = Projectile.BodyId;
+            ++BodyIdsToRemoveCount;
+
+            LiveProjectiles.delswap((int)i);
+            --i;
+        }
+    }
+
+    if (BodyIdsToRemoveCount > 0)
+    {
+        Physics.BodyInterface->RemoveBodies(ProjectileBodyIdsToRemove, BodyIdsToRemoveCount);
+        Physics.BodyInterface->DestroyBodies(ProjectileBodyIdsToRemove, BodyIdsToRemoveCount);
     }
 }
 
-void KillProjectile(int LiveProjectilesIndex)
+void KillProjectile(int LiveProjectileIndex)
 {
-    projectile_t &ProjectileToKill = LiveProjectiles[LiveProjectilesIndex];
-    ProjectileBodyIdsToRemove.put(ProjectileToKill.BodyId);
-    LiveProjectiles.delswap(LiveProjectilesIndex);
+    projectile_t &ProjectileToKill = LiveProjectiles[LiveProjectileIndex];
+    ProjectileToKill.Flags |= ProjectileFlag_Dead;
 }
 
 void PrePhysicsUpdateProjectiles()
@@ -194,6 +203,12 @@ static void ProcessProjectileHitInfos()
             continue;
         }
 
+        if (LiveProjectiles[ProjectileIdx].Flags & ProjectileFlag_Dead)
+        {
+            // the projectile is dead. already used.
+            continue;
+        }
+
         JPH::ObjectLayer SecondBodyLayer = Info.Body2->GetObjectLayer();
 
         if (SecondBodyLayer == Layers::ENEMY)
@@ -215,6 +230,6 @@ static void ProcessProjectileHitInfos()
 void PostPhysicsUpdateProjectiles()
 {
     ProcessProjectileHitInfos();
-    RemoveDeadProjectileBodiesFromPhysics();
+    RemoveDeadProjectiles();
 }
 
