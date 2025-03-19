@@ -206,6 +206,8 @@ static void ProcessProjectileHitInfos()
         if (LiveProjectiles[ProjectileIdx].Flags & ProjectileFlag_Dead)
         {
             // the projectile is dead. already used.
+            // NOTE(Kevin): sometimes I get duplicate projectile hit infos.
+            //              should be okay to ignore.
             continue;
         }
 
