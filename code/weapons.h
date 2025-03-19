@@ -37,7 +37,7 @@ struct projectile_t
 {
     // projectile damage type (flags?)
     float Damage;
-    u16 Flags = 0; // JPH::Body user data is uint64...
+    u32 Flags = 0; // JPH::Body user data is uint64...
     quat RenderOrientation;
     // damage radius and falloff if explosive type
     JPH::BodyID BodyId;
