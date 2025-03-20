@@ -151,6 +151,7 @@ void PostPhysicsTick()
 
 void LateNonPhysicsTick()
 {
+
 #ifdef JPH_DEBUG_RENDERER
     JoltDebugDrawer->Ready();
 
@@ -166,7 +167,6 @@ void LateNonPhysicsTick()
 
     if (DebugDrawProjectileCollidersFlag)
     {
-        LogMessage("num live projectiles: %zd", LiveProjectiles.lenu());
         for (size_t i = 0; i < LiveProjectiles.lenu(); ++i)
         {
             projectile_t P = LiveProjectiles[i];

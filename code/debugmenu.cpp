@@ -54,6 +54,11 @@ static void DebugMenu_BuildLevelAndPlay()
 
 void DisplayDebugMenu()
 {
+    if (KeysPressed[SDL_SCANCODE_P])
+    {
+        GameLoopCanRun = !GameLoopCanRun;
+    }
+
     if (DebugMenuActive)
     {
         SDL_SetRelativeMouseMode(SDL_FALSE);
