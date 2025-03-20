@@ -24,10 +24,9 @@ void TickWeapon(weapon_state_t *State, bool LMB, bool RMB)
     {
         // shoot
         static int ChannelIndex = 0;
-        Mix_VolumeChunk(Assets.Sfx_Shoot0, 16 
-            + RandomInt(-1, 1)); // Volume variation
-        Mix_PlayChannel(ChannelIndex++%4, Assets.Sfx_Shoot0, 0);
-        State->Cooldown = 0.09f;
+        Mix_VolumeChunk(Assets.Sfx_Shoot0, 32 + RandomInt(-2, 2)); // Volume variation
+        Mix_PlayChannel(ChannelIndex++%3, Assets.Sfx_Shoot0, 0);
+        State->Cooldown = 0.075f;
 
         GunRecoil = 0.9f;
 
@@ -114,7 +113,7 @@ void SpawnProjectile(vec3 Pos, vec3 Dir, quat Orient)
         JPH::Quat::sIdentity(), JPH::EMotionType::Dynamic, Layers::PROJECTILE);
 
     ProjectileCreationSettings.mPosition = ToJoltVector(Pos);
-    ProjectileCreationSettings.mLinearVelocity = ToJoltVector(Dir * 1600.f);
+    ProjectileCreationSettings.mLinearVelocity = ToJoltVector(Dir * 1650.f);
     ProjectileCreationSettings.mMotionQuality = JPH::EMotionQuality::LinearCast;
     // ProjectileCreationSettings.mOverrideMassProperties = JPH::EOverrideMassProperties::MassAndInertiaProvided;
     // ProjectileCreationSettings.mMassPropertiesOverride.mMass = 0.008f;
@@ -222,6 +221,14 @@ static void ProcessProjectileHitInfos()
         else if (SecondBodyLayer == Layers::STATIC)
         {
             LogMessage("Hit world geometry");
+
+            if (RandomInt(0,2) < 1)
+            {
+                Mix_Chunk *RicochetSnd = Assets.Sfx_Ricochet[RandomInt(0,2)];
+                Mix_VolumeChunk(RicochetSnd, 32 + RandomInt(-2, 2));
+                Mix_PlayChannel(-1, RicochetSnd, 0);
+            }
+
             KillProjectile(ProjectileIdx);
         }
     }

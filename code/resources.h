@@ -143,6 +143,7 @@ public:
     GPUTexture DefaultMissingTexture; // Conceptually, missing texture is not a persisted resource
 
     Mix_Chunk *Sfx_Shoot0;
+    Mix_Chunk *Sfx_Ricochet[3];
 
 private:
     u32 TexturePersistIdCounter;
