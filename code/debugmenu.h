@@ -8,6 +8,7 @@ extern bool DebugDrawProjectileCollidersFlag;
 extern bool DebugShowNumberOfPhysicsBodies;
 extern bool DebugDrawNavMeshFlag;
 extern bool DebugDrawEnemyPathingFlag;
+extern bool DebugEnemyBehaviourActive;
 extern bool FlyCamActive;
 
 void DisplayDebugMenu();

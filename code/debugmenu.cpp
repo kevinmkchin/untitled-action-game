@@ -8,6 +8,7 @@ bool DebugDrawProjectileCollidersFlag = false;
 bool DebugShowNumberOfPhysicsBodies = false;
 bool DebugDrawNavMeshFlag = false;
 bool DebugDrawEnemyPathingFlag = false;
+bool DebugEnemyBehaviourActive = true;
 bool FlyCamActive = false;
 
 static void DebugMenu_SwitchToLevelEditor()
@@ -80,6 +81,7 @@ void DisplayDebugMenu()
             GUI::EditorCheckbox("Show num physics bodies", &DebugShowNumberOfPhysicsBodies);
             GUI::EditorCheckbox("Show nav mesh", &DebugDrawNavMeshFlag);
             GUI::EditorCheckbox("Show enemy pathing", &DebugDrawEnemyPathingFlag);
+            GUI::EditorCheckbox("Enemy behaviour active", &DebugEnemyBehaviourActive);
             if (GUI::EditorLabelledButton("Open level editor"))
                 DebugMenu_SwitchToLevelEditor();
             GUI::EditorSpacer(0, 10);

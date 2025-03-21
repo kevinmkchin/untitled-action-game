@@ -52,6 +52,9 @@ void enemy_t::RemoveFromPhysicsSystem()
 
 void PrePhysicsTickAllEnemies()
 {
+    if (!DebugEnemyBehaviourActive)
+        return;
+
     for (size_t i = 0; i < Enemies.lenu(); ++i)
     {
         enemy_t& Enemy = Enemies[i];

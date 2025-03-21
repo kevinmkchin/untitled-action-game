@@ -491,7 +491,7 @@ inline mat4& operator*=(mat4& a, mat4 b);
 inline quat Add(quat a, quat b);
 inline quat Sub(quat a, quat b);
 inline float Dot(quat a, quat b);
-inline quat Mul(quat a, quat b);
+inline quat Mul(quat a, quat b); // Combines rotation a and b such that a is applied first then b
 inline quat Mul(quat a, float scale);
 inline quat Div(quat a, float scale);
 inline float Magnitude(quat a);
