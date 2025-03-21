@@ -54,6 +54,7 @@ dynamic_array<projectile_t> LiveProjectiles;
 dynamic_array<projectile_hit_info_t> ProjectileHitInfos;
 
 void SpawnProjectile(vec3 Pos, vec3 Dir, quat Orient);
+void KillProjectile(projectile_t *ProjectileToKill);
 void PrePhysicsUpdateProjectiles();
 void PostPhysicsUpdateProjectiles();
 void RenderProjectiles(const mat4 &ProjFromView, const mat4 &WorldFromView);

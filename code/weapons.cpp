@@ -90,6 +90,12 @@ void RenderProjectiles(const mat4 &ProjFromView, const mat4 &WorldFromView)
         projectile_t& P = LiveProjectiles[i];
         vec3 ProjectileRenderPos = FromJoltVector(Physics.BodyInterface->GetPosition(P.BodyId));
         quat ProjectileRenderRot = P.RenderOrientation;
+        // Putting out of world bound check here because we have position here
+        if (Magnitude(ProjectileRenderPos) > WORLD_LIMIT_F)
+        {
+            KillProjectile(&P);
+            continue;
+        }
         mat4 ViewFromModel = WorldFromView.GetInverse()
             * TranslationMatrix(ProjectileRenderPos) 
             * RotationMatrix(ProjectileRenderRot)
@@ -135,6 +141,16 @@ void SpawnProjectile(vec3 Pos, vec3 Dir, quat Orient)
     // LogMessage("%ld", (void*)Sphere.GetPtr());
 }
 
+void KillProjectile(projectile_t *ProjectileToKill)
+{
+    ProjectileToKill->Flags |= ProjectileFlag_Dead;
+}
+
+void PrePhysicsUpdateProjectiles()
+{
+    // go through all live projectiles, set their physics velocities?
+
+}
 
 static void RemoveDeadProjectiles()
 {
@@ -159,18 +175,6 @@ static void RemoveDeadProjectiles()
         Physics.BodyInterface->RemoveBodies(ProjectileBodyIdsToRemove, BodyIdsToRemoveCount);
         Physics.BodyInterface->DestroyBodies(ProjectileBodyIdsToRemove, BodyIdsToRemoveCount);
     }
-}
-
-void KillProjectile(int LiveProjectileIndex)
-{
-    projectile_t &ProjectileToKill = LiveProjectiles[LiveProjectileIndex];
-    ProjectileToKill.Flags |= ProjectileFlag_Dead;
-}
-
-void PrePhysicsUpdateProjectiles()
-{
-    // go through all live projectiles, set their physics velocities?
-
 }
 
 static void ProcessProjectileHitInfos()
@@ -217,7 +221,7 @@ static void ProcessProjectileHitInfos()
         {
             LogMessage("Direct hit on enemy");
             // TODO do direct hit damage to enemy
-            KillProjectile(ProjectileIdx);
+            KillProjectile(&LiveProjectiles[ProjectileIdx]);
         }
         else if (SecondBodyLayer == Layers::STATIC)
         {
@@ -230,7 +234,7 @@ static void ProcessProjectileHitInfos()
                 Mix_PlayChannel(-1, RicochetSnd, 0);
             }
 
-            KillProjectile(ProjectileIdx);
+            KillProjectile(&LiveProjectiles[ProjectileIdx]);
         }
     }
 

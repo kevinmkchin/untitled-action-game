@@ -211,6 +211,8 @@ inline std::string entity_icons_path(const std::string& name) { return wd_path()
 // sqrt(32^2 + 32^2) = 45.254833996 ~= 45
 #define STANDARD_LENGTH_DIAGONAL 45
 #define THIRTYTWO STANDARD_LENGTH_IN_GAME_UNITS
+#define WORLD_LIMIT 32000
+#define WORLD_LIMIT_F 32000.f
 
 
 #include "utility.h"
