@@ -15,6 +15,8 @@ const int MAX_BONE_INFLUENCE = 4;
 uniform mat4 FinalBonesMatrices[MAX_BONES];
 
 out vec2 TexCoords;
+out vec3 WorldPos;
+out vec3 WorldNormal;
 
 void main()
 {
@@ -32,6 +34,9 @@ void main()
         TotalPosition += LocalPosition * Weights[i];
         vec3 LocalNormal = mat3(FinalBonesMatrices[BoneIds[i]]) * Norm;
     }
+
+    WorldPos = (Model * TotalPosition).xyz;
+    WorldNormal = transpose(inverse(mat3(Model))) * Norm;
 
     mat4 ViewModel = View * Model;
     gl_Position =  Projection * ViewModel * TotalPosition;

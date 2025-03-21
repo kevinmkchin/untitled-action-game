@@ -243,6 +243,11 @@ void RenderGameLayer()
     UseShader(GameLevelShader);
     glEnable(GL_CULL_FACE);
 
+    GLBind4f(GameLevelShader, "MuzzleFlash", 
+        Player.Weapon.MuzzleFlash.x, 
+        Player.Weapon.MuzzleFlash.y, 
+        Player.Weapon.MuzzleFlash.z, 
+        Player.Weapon.MuzzleFlash.w);
     GLBindMatrix4fv(GameLevelShader, "projMatrix", 1, perspectiveMatrix.ptr());
     GLBindMatrix4fv(GameLevelShader, "viewMatrix", 1, viewMatrix.ptr());
 
@@ -283,6 +288,11 @@ void RenderGameLayer()
 
     UseShader(GameAnimatedCharacterShader);
     glEnable(GL_DEPTH_TEST);
+    GLBind4f(GameAnimatedCharacterShader, "MuzzleFlash", 
+        Player.Weapon.MuzzleFlash.x, 
+        Player.Weapon.MuzzleFlash.y, 
+        Player.Weapon.MuzzleFlash.z, 
+        Player.Weapon.MuzzleFlash.w);
     GLBindMatrix4fv(GameAnimatedCharacterShader, "Projection", 1, perspectiveMatrix.ptr());
     GLBindMatrix4fv(GameAnimatedCharacterShader, "View", 1, viewMatrix.ptr());
 

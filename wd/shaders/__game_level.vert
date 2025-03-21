@@ -10,9 +10,13 @@ uniform mat4 projMatrix;
 
 out vec2 uv1;
 out vec2 uv2;
+out vec3 WorldPos;
+out vec3 WorldNormal;
 
 void main()
 {
+    WorldPos = vertex_pos;
+    WorldNormal = vertex_normal;
     uv1 = vertex_uv1;
     uv2 = vertex_uv2;
 

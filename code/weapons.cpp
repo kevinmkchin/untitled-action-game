@@ -15,7 +15,10 @@ static float GunRecoil = 0.f;
 
 void TickWeapon(weapon_state_t *State, bool LMB, bool RMB)
 {
-    State->Cooldown -= DeltaTime;
+    if (State->Cooldown > 0.f)
+        State->Cooldown -= DeltaTime;
+    if (State->MuzzleFlash.w > 0.f)
+        State->MuzzleFlash.w -= DeltaTime;
 
     // switch on State->ActiveType
 
@@ -36,6 +39,11 @@ void TickWeapon(weapon_state_t *State, bool LMB, bool RMB)
         vec3 NailgunTip = Cam->Position + Cam->Direction * 32.f
             + vec3(0.f,-8.f,0.f);
         SpawnProjectile(NailgunTip, Cam->Direction, Cam->Orientation);
+
+        State->MuzzleFlash.w = 0.04f;
+        State->MuzzleFlash.x = NailgunTip.x;
+        State->MuzzleFlash.y = NailgunTip.y;
+        State->MuzzleFlash.z = NailgunTip.z;
     }
     if (LMB || RMB)
     {
