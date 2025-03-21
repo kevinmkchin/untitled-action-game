@@ -14,6 +14,7 @@ struct player_t
     vec3 Root;
     vec3 DesiredMoveDirection;
     bool JumpRequested = false;
+    bool WASD;
 
     vec3 WalkDirectionForward;
     vec3 WalkDirectionRight;
@@ -24,7 +25,8 @@ struct player_t
     JPH::CharacterVirtual *CharacterController;
 
     camera_t PlayerCam;
-    vec3 CamOffsetFromRoot = vec3(0,64,0);
+    static constexpr float YOffsetFromRoot = 64.f; 
+    vec3 CamOffsetFromRoot = vec3(0,YOffsetFromRoot,0);
 
     weapon_state_t Weapon;
 

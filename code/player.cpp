@@ -27,6 +27,9 @@ void player_t::HandleInput()
     WalkDirectionForward = Normalize(Cross(GM_UP_VECTOR, PlayerCam.Right));
 
     // PLAYER MOVE
+    WASD = KeysCurrent[SDL_SCANCODE_W] || KeysCurrent[SDL_SCANCODE_A] ||
+        KeysCurrent[SDL_SCANCODE_S] || KeysCurrent[SDL_SCANCODE_D];
+
     DesiredMoveDirection = vec3();
     if (KeysCurrent[SDL_SCANCODE_W])
         DesiredMoveDirection += WalkDirectionForward;
@@ -224,6 +227,25 @@ void player_t::LateNonPhysicsTick()
     else
     {
         PlayerCam.UpdateKnockbackAndStrafeTilt(KeysCurrent[SDL_SCANCODE_A], KeysCurrent[SDL_SCANCODE_D]);
+
+        // Move cam up and down while walking
+        static float WalkYOffset = 0.f;
+        static float WalkYChangePerSecond = 60.f;
+        if (!WASD && WalkYChangePerSecond < 0.f)
+        {
+            WalkYChangePerSecond = 25.f;
+        }
+        if (WASD && CharacterController->IsSupported()
+            && WalkYChangePerSecond > 0.f && WalkYOffset > 0.0f)
+        {
+            WalkYOffset = 0.f;
+            WalkYChangePerSecond = -40.f;
+        }
+        if (WalkYOffset < -11.f)
+            WalkYChangePerSecond = 25.f;
+        if (WalkYOffset <= 0.f)
+            WalkYOffset += WalkYChangePerSecond * DeltaTime;
+        CamOffsetFromRoot.y = YOffsetFromRoot + fmin(0.f, WalkYOffset);
     }
 
 }
