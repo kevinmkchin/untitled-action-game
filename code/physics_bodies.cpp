@@ -75,6 +75,13 @@ void MyContactListener::OnContactAdded(const JPH::Body &inBody1, const JPH::Body
         PrjHitInfo.Body2 = &inBody2;
         PrjHitInfo.Manifold = &inManifold;
         ProjectileHitInfos.put(PrjHitInfo);
+
+        // NOTE(Kevin): I can set the mass scales of each body to adjust
+        //              how far one body knocks back the other. Or I can
+        //              set mIsSensor to true for no collision response.
+        //              For enemies, their velocities are set every frame
+        //              so this doesn't affect them.
+        // ioSettings.mInvMassScale1 = 0.f;
     }
 
 }

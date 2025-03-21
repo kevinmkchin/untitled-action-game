@@ -26,11 +26,13 @@ void TickWeapon(weapon_state_t *State, bool LMB, bool RMB)
         static int ChannelIndex = 0;
         Mix_VolumeChunk(Assets.Sfx_Shoot0, 32 + RandomInt(-2, 2)); // Volume variation
         Mix_PlayChannel(ChannelIndex++%3, Assets.Sfx_Shoot0, 0);
-        State->Cooldown = 0.075f;
+        State->Cooldown = 0.180f;
+        // State->Cooldown = 0.080f;
 
         GunRecoil = 0.9f;
 
         camera_t *Cam = &(State->Owner->PlayerCam);
+        Cam->ApplyKnockback(0.034f, 0.12f);
         vec3 NailgunTip = Cam->Position + Cam->Direction * 32.f
             + vec3(0.f,-8.f,0.f);
         SpawnProjectile(NailgunTip, Cam->Direction, Cam->Orientation);
@@ -39,7 +41,6 @@ void TickWeapon(weapon_state_t *State, bool LMB, bool RMB)
     {
         NailgunRotationVelocity = NailgunRotationMaxVelocity;
     }
-
 }
 
 void RenderWeapon(weapon_state_t *State, float *ProjFromView, float *WorldFromView)
@@ -116,7 +117,7 @@ void SpawnProjectile(vec3 Pos, vec3 Dir, quat Orient)
     ProjectileCreationSettings.mLinearVelocity = ToJoltVector(Dir * 1650.f);
     ProjectileCreationSettings.mMotionQuality = JPH::EMotionQuality::LinearCast;
     // ProjectileCreationSettings.mOverrideMassProperties = JPH::EOverrideMassProperties::MassAndInertiaProvided;
-    // ProjectileCreationSettings.mMassPropertiesOverride.mMass = 0.008f;
+    ProjectileCreationSettings.mMassPropertiesOverride.mMass = 0.008f;
     ProjectileCreationSettings.mGravityFactor = 0.f;
     // https://github.com/jrouwe/JoltPhysics/discussions/1040
 

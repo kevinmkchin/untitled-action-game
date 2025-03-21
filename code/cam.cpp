@@ -18,6 +18,10 @@ void camera_t::Update(bool DoMouseLook, float LookSensitivity)
     Direction = Normalize(OrientationToDirection(Orientation));
     Right = Normalize(Cross(Direction, GM_UP_VECTOR));
     Up = Normalize(Cross(Right, Direction));
+
+    ViewPosition = Position;
+    ViewForward = Direction;
+    ViewUp = Up;
 }
 
 void camera_t::DoFlyCamMovement(float MoveSpeed)
@@ -38,9 +42,42 @@ void camera_t::DoFlyCamMovement(float MoveSpeed)
     Position += PositionDelta;
 }
 
-// void Shake();
-
 mat4 camera_t::ViewFromWorldMatrix() 
 {
-    return ViewMatrixLookAt(Position, Position + Direction, Up);
+    return ViewMatrixLookAt(ViewPosition, ViewPosition + ViewForward, ViewUp);
 }
+
+void camera_t::ApplyKnockback(float KnockbackInRadians, float RecoveryPerSecond)
+{
+    this->CurrentKnockback = KnockbackInRadians;
+    this->RecoveryPerSecond = RecoveryPerSecond;
+}
+
+void camera_t::UpdateKnockbackAndStrafeTilt(bool StrafeLeft, bool StrafeRight)
+{
+    // Knockback
+    quat RotKnock = EulerToQuat(0.f,0.f,CurrentKnockback);
+    ViewForward = Normalize(OrientationToDirection(Normalize(Mul(Orientation, RotKnock))));
+    ViewUp = Normalize(Cross(Right, ViewForward));
+
+    if (CurrentKnockback > 0.f)
+    {
+        CurrentKnockback -= RecoveryPerSecond * DeltaTime;
+        CurrentKnockback = GM_max(0.f, CurrentKnockback);
+    }
+
+    // Stafe tilt
+    const float TiltSpeed = 15;
+    const float MaxTilt = 0.035f;
+    float DesiredCamTilt = 0.f;
+    if(StrafeRight)
+        DesiredCamTilt += MaxTilt;
+    if(StrafeLeft)
+        DesiredCamTilt += -MaxTilt;
+    StrafeTilt = Lerp(StrafeTilt, DesiredCamTilt, DeltaTime * TiltSpeed);
+    quat fromto = RotationFromTo(ViewUp, Right);
+    quat sle = Slerp(quat(), fromto, StrafeTilt);
+    vec3 CameraUpWithSway = RotateVector(ViewUp, sle);
+    ViewUp = CameraUpWithSway;
+}
+

@@ -223,21 +223,7 @@ void player_t::LateNonPhysicsTick()
     }
     else
     {
-        // Camera tilt when strafing
-        static float camLean = 0.f;
-        static float desiredCamLean = 0.f;
-        const float camLeanSpeed = 15;
-        const float maxCamLean = 0.035f;
-        desiredCamLean = 0.f;
-        if(KeysCurrent[SDL_SCANCODE_D])
-            desiredCamLean += maxCamLean;
-        if(KeysCurrent[SDL_SCANCODE_A])
-            desiredCamLean += -maxCamLean;
-        camLean = Lerp(camLean, desiredCamLean, DeltaTime * camLeanSpeed);
-        quat fromto = RotationFromTo(PlayerCam.Up, PlayerCam.Right);
-        quat sle = Slerp(quat(), fromto, camLean);
-        vec3 CameraUpWithSway = RotateVector(PlayerCam.Up, sle);
-        PlayerCam.Up = CameraUpWithSway;
+        PlayerCam.UpdateKnockbackAndStrafeTilt(KeysCurrent[SDL_SCANCODE_A], KeysCurrent[SDL_SCANCODE_D]);
     }
 
 }
