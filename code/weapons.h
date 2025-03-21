@@ -12,6 +12,8 @@ struct weapon_state_t
 
     float Cooldown = 0.f;
 
+    vec4 MuzzleFlash; // w is timer
+
     struct player_t *Owner;
 };
 
