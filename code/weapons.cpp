@@ -40,7 +40,7 @@ void TickWeapon(weapon_state_t *State, bool LMB, bool RMB)
             + vec3(0.f,-8.f,0.f);
         SpawnProjectile(NailgunTip, Cam->Direction, Cam->Orientation);
 
-        State->MuzzleFlash.w = 0.04f;
+        State->MuzzleFlash.w = 0.080f;
         State->MuzzleFlash.x = NailgunTip.x;
         State->MuzzleFlash.y = NailgunTip.y;
         State->MuzzleFlash.z = NailgunTip.z;
