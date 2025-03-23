@@ -102,8 +102,8 @@ struct skinned_model_t
         LogError("skinned_model_t destructor should never be called. All animation objects are freed as part of static game memory.");
     }
 
-    mem_indexer<skinned_mesh_t> Meshes;
-    mem_indexer<GPUTexture> Textures;
+    fixed_array<skinned_mesh_t> Meshes;
+    fixed_array<GPUTexture> Textures;
 
     const struct skeleton_t *GetSkeleton() { return Skeleton; }
 private:
@@ -174,16 +174,16 @@ private:
     };
 
 public:
-    mem_indexer<keyframe_position_t> Positions;
-    mem_indexer<keyframe_rotation_t> Rotations;
-    mem_indexer<keyframe_scale_t>    Scales;
+    fixed_array<keyframe_position_t> Positions;
+    fixed_array<keyframe_rotation_t> Rotations;
+    fixed_array<keyframe_scale_t>    Scales;
 };
 
 struct animation_clip_t
 {
     float TicksPerSecond = 0.f;
     float DurationInTicks = 0.f;
-    mem_indexer<joint_pose_sampler_t> JointPoseSamplers;
+    fixed_array<joint_pose_sampler_t> JointPoseSamplers;
 
     animation_clip_t(const skeleton_t *InSkeleton)
     {
@@ -197,8 +197,8 @@ struct animation_clip_t
 
     void UpdateLocalPoses(float AnimationTime, mat4 *OutLocalPoses)
     {
-        ASSERT(JointPoseSamplers.count == Skeleton->Joints.count);
-        for (size_t i = 0; i < JointPoseSamplers.count; ++i)
+        ASSERT(JointPoseSamplers.length == Skeleton->Joints.count);
+        for (size_t i = 0; i < JointPoseSamplers.length; ++i)
         {
             OutLocalPoses[i] = JointPoseSamplers[i].SampleJointLocalPoseAt(AnimationTime);
         }
@@ -274,8 +274,8 @@ struct animator_t
 
 struct ModelGLTF
 {
-    mem_indexer<GPUMeshIndexed> meshes;
-    mem_indexer<GPUTexture> color;
+    fixed_array<GPUMeshIndexed> meshes;
+    fixed_array<GPUTexture> color;
 };
 
 void FreeModelGLTF(ModelGLTF model);

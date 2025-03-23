@@ -134,12 +134,81 @@ template<typename T, int _count> struct c_array
     const T& operator[](size_t index) const { ASSERT(index <= (size_t)count); return data[index]; }
 };
 
+template<typename T> struct fixed_array
+{
+    /** Create fixed array with provided memory type. */
 
+    T *data;
+    u32 length;
+    u32 capacity;
+private:
+    MemoryType mem;
+public:
+    fixed_array() : data(0), length(0), capacity(0), mem(MemoryType::DefaultMalloc) {}
+    fixed_array(u32 Capacity, MemoryType Mem) 
+        : length(0)
+        , capacity(Capacity)
+        , mem(Mem)
+    {
+        switch (Mem)
+        {
+            case MemoryType::DefaultMalloc:
+                data = (T*)malloc(sizeof(T)*Capacity);
+                break;
+            case MemoryType::StaticGame:
+                data = (T*)StaticGameMemory.Alloc(sizeof(T)*Capacity, alignof(T));
+                break;
+            case MemoryType::StaticLevel:
+                data = (T*)StaticLevelMemory.Alloc(sizeof(T)*Capacity, alignof(T));
+                break;
+        }
+    }
+
+    // Frees the array.
+    void free();
+    // Changes the length of the array to n with uninitialized slots.
+    void setlen(u32 n);
+    // Returns the number of elements in the array as an unsigned type.
+    u32 lenu() const;
+    // Returns the number of total elements the array can contain.
+    u32 cap();
+    // Removes the final element of the array and returns it.
+    T pop();
+    // Appends the item to the end of array. Returns item.
+    T put(T item);
+    // Inserts the item into the middle of array, into array[p],
+    // moving the rest of the array over. Returns item.
+    T ins(u32 p, T item);
+    // Inserts n uninitialized items into array starting at array[p],
+    // moving the rest of the array over.
+    void insn(u32 p, u32 n);
+    // Appends n uninitialized items onto array at the end.
+    // Returns a pointer to the first uninitialized item added.
+    T *addnptr(u32 n);
+    // Appends n uninitialized items onto array at the end.
+    // Returns the index of the first uninitialized item added.
+    u32 addnindex(u32 n);
+    // Deletes the element at a[p], moving the rest of the array over.
+    void del(u32 p);
+    // Deletes n elements starting at a[p], moving the rest of the array over.
+    void deln(u32 p, u32 n);
+    // Deletes the element at a[p], replacing it with the element from
+    // the end of the array. O(1) performance.
+    void delswap(u32 p);
+
+    T& operator[](int index) { ASSERT(0 <= index && index <= (int)length); return data[index]; }
+    T& operator[](unsigned int index) { ASSERT(index <= (unsigned int)length); return data[index]; }
+    T& operator[](size_t index) { ASSERT(index <= (size_t)length); return data[index]; }
+    const T& operator[](int index) const { ASSERT(0 <= index && index <= (int)length); return data[index]; }
+    const T& operator[](unsigned int index) const { ASSERT(index <= (unsigned int)length); return data[index]; }
+    const T& operator[](size_t index) const { ASSERT(index <= (size_t)length); return data[index]; }    
+};
 
 template<typename T> struct mem_indexer
 {
     /** Provide own block of memory and count. For when I want to carve 
-        an array out of pre-allocated arena and index into it. */
+        an array out of pre-allocated arena and index into it. Smaller
+        than fixed_array. */
 
     T *data = 0;
     int count = 0;

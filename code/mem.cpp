@@ -135,6 +135,146 @@ void dynamic_array<T>::delswap(int p)
 }
 
 
+template<typename T> 
+void fixed_array<T>::free()
+{
+    switch (mem)
+    {
+        case MemoryType::DefaultMalloc:
+            free(data);
+            break;
+        case MemoryType::StaticGameMemory:
+        case MemoryType::StaticLevelMemory:
+            LogWarning("Shouldn't try to free fixed_array allocated in static game memory!");
+            break;
+    }
+    data = 0;
+    length = 0;
+    capacity = 0;
+}
+
+template<typename T> 
+void fixed_array<T>::setlen(u32 n)
+{
+    if (n > capacity)
+    {
+        LogError("fixed_array cannot set length to greater than capacity");
+        ASSERT(0);
+    }
+
+    length = n;
+}
+
+template<typename T> 
+u32 fixed_array<T>::lenu() const
+{
+    return length;
+}
+
+template<typename T> 
+u32 fixed_array<T>::cap()
+{
+    return capacity;
+}
+
+template<typename T> 
+T fixed_array<T>::pop()
+{
+    T copy = *(data + length - 1);
+    --length;
+    return copy;
+}
+
+template<typename T> 
+T fixed_array<T>::put(T item)
+{
+    if (length >= capacity)
+    {
+        LogError("fixed array is at capacity and cannot put additional items");
+        ASSERT(0);
+    }
+
+    data[length] = elem;
+    ++count;
+    return data[length-1];
+}
+
+template<typename T>
+T fixed_array<T>::ins(u32 p, T item)
+{
+    if (length + 1 > capacity)
+    {
+        LogError("fixed array is at capacity and cannot insert additional items");
+        ASSERT(0);
+    }
+
+    memcpy(data+p+1, data+p, length-p);
+    length += 1;
+    data[p] = item;
+    return data[p];
+}
+
+template<typename T> 
+void fixed_array<T>::insn(u32 p, u32 n)
+{
+    if (length + n > capacity)
+    {
+        LogError("fixed array is at capacity and cannot insert additional items");
+        ASSERT(0);
+    }
+
+    memcpy(data+p+n, data+p, length-p);
+    length += n;
+}
+
+template<typename T> 
+T *fixed_array<T>::addnptr(u32 n)
+{
+    if (length + n > capacity)
+    {
+        LogError("fixed array is at capacity and cannot insert additional items");
+        ASSERT(0);
+    }
+
+    T *ptr = data + length;
+    length += n;
+    return ptr;
+}
+
+template<typename T> 
+u32 fixed_array<T>::addnindex(u32 n)
+{
+    if (length + n > capacity)
+    {
+        LogError("fixed array is at capacity and cannot insert additional items");
+        ASSERT(0);
+    }
+
+    u32 index = length;
+    length += n;
+    return index;
+}
+
+template<typename T> 
+void fixed_array<T>::del(u32 p)
+{
+    memcpy(data+p, data+p+1, length-(p+1));
+    length -= 1;
+}
+
+template<typename T> 
+void fixed_array<T>::deln(u32 p, u32 n)
+{
+    memcpy(data+p, data+p+n, length-(p+n));
+    length -= n;
+}
+
+template<typename T> 
+void fixed_array<T>::delswap(u32 p)
+{
+    data[p] = data[length-1];
+    length -= 1;
+}
 
 
 template<typename T, int C>
