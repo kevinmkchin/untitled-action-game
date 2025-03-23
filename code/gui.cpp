@@ -40,7 +40,7 @@ namespace GUI
         return style_textFont.ptr->font_height_px;
     }
 
-    static NiceArray<vtxt_font, 10> s_vtxtLoadedFonts;
+    static fixed_array<vtxt_font, 10> s_vtxtLoadedFonts;
     static Font s_Fonts[32];
     static Font s_DefaultFont;
 
@@ -62,8 +62,8 @@ namespace GUI
         fontToReturn.textureId = fontTexture.id;
         free(fontHandle.font_atlas.pixels);
 
-        s_vtxtLoadedFonts.PushBack(fontHandle);
-        fontToReturn.ptr = &s_vtxtLoadedFonts.Back();
+        s_vtxtLoadedFonts.put(fontHandle);
+        fontToReturn.ptr = &s_vtxtLoadedFonts.back();
         return fontToReturn;
     }
 
@@ -101,8 +101,8 @@ namespace GUI
             glyph->max_v = 1.f - (float(codepoint / 16 * glyphH) / bitmapH);
         }
 
-        s_vtxtLoadedFonts.PushBack(fontHandle);
-        bitmapFont.ptr = &s_vtxtLoadedFonts.Back();
+        s_vtxtLoadedFonts.put(fontHandle);
+        bitmapFont.ptr = &s_vtxtLoadedFonts.back();
         return bitmapFont;
     }
 
@@ -110,8 +110,8 @@ namespace GUI
 
     static char __reservedTextMemory[16000000];
     static u32 __reservedTextMemoryIndexer = 0;
-    NiceArray<SDL_Keycode, 32> keyboardInputASCIIKeycodeThisFrame;
-    static NiceArray<char, 128> activeTextInputBuffer;
+    fixed_array<SDL_Keycode, 32> keyboardInputASCIIKeycodeThisFrame;
+    static fixed_array<char, 128> activeTextInputBuffer;
 
     static ui_id hoveredUI = null_ui_id;
     static ui_id activeUI = null_ui_id;
@@ -162,14 +162,14 @@ namespace GUI
             anyElementActive = true;
     }
 
-    static NiceArray<u64, 16> hoveredThisFrame;
+    static fixed_array<u64, 16> hoveredThisFrame;
     void RequestSetHovered(ui_id id)
     {
         anyElementHovered = true;
 
         ASSERT((0xff000000 & id) == 0x00000000);
-        u64 idWithEmbeddedDepth = (u64() << 48) | id; 
-        hoveredThisFrame.PushBack(idWithEmbeddedDepth);
+        u64 idWithEmbeddedDepth = (u64() << 48) | id;
+        hoveredThisFrame.put(idWithEmbeddedDepth);
         // Actual setting of hoveredUI should be processed at NewFrame IMO
         // add to array with depth info and process later
     }
@@ -445,21 +445,21 @@ namespace GUI
         {
             for (int i = 0; i < keyboardInputASCIIKeycodeThisFrame.count; ++i)
             {
-                i32 keycodeASCII = keyboardInputASCIIKeycodeThisFrame.At(i);
+                i32 keycodeASCII = keyboardInputASCIIKeycodeThisFrame[i];
                 if (48 <= keycodeASCII && keycodeASCII <= 57)
                 {
-                    if (activeTextInputBuffer.count == 1 && activeTextInputBuffer.At(0) == '0')
+                    if (activeTextInputBuffer.count == 1 && activeTextInputBuffer[0] == '0')
                     {
-                        activeTextInputBuffer.At(0) = char(keycodeASCII);
+                        activeTextInputBuffer[0] = char(keycodeASCII);
                     }
                     else if (activeTextInputBuffer.count < 8) // just to prevent integers that are too big
                     {
-                        activeTextInputBuffer.PushBack(char(keycodeASCII));
+                        activeTextInputBuffer.put(char(keycodeASCII));
                     }
                 }
                 else if (keycodeASCII == 45 /* minus sign */ && activeTextInputBuffer.count == 0)
                 {
-                    activeTextInputBuffer.PushBack(char(keycodeASCII));
+                    activeTextInputBuffer.put(char(keycodeASCII));
                 }
                 else if (keycodeASCII == SDLK_RETURN)
                 {
@@ -469,7 +469,7 @@ namespace GUI
                 {
                     if (activeTextInputBuffer.count > 0)
                     {
-                        activeTextInputBuffer.Back() = '\0';
+                        activeTextInputBuffer.back() = '\0';
                         --activeTextInputBuffer.count;
                     }
                 }
@@ -485,7 +485,7 @@ namespace GUI
             if (MouseWentDown())
             {
                 std::string intValueAsString = std::to_string(*v);
-                activeTextInputBuffer.ResetToZero();
+                activeTextInputBuffer.memset_zero();
                 memcpy(activeTextInputBuffer.data, intValueAsString.c_str(), intValueAsString.size());
                 activeTextInputBuffer.count = (int)intValueAsString.size();
                 SetActive(id);
@@ -496,14 +496,14 @@ namespace GUI
         {
             int inputtedInteger = 0;
             bool inputIsNotEmpty = activeTextInputBuffer.count > 0;
-            bool onlyInputIsMinusSign = activeTextInputBuffer.count == 1 && activeTextInputBuffer.At(0) == '-';
+            bool onlyInputIsMinusSign = activeTextInputBuffer.count == 1 && activeTextInputBuffer[0] == '-';
             if (inputIsNotEmpty && !onlyInputIsMinusSign)
             {
                 inputtedInteger = std::stoi(activeTextInputBuffer.data);
             }
             *v = inputtedInteger;
-            activeTextInputBuffer.ResetCount();
-            activeTextInputBuffer.ResetToZero();
+            activeTextInputBuffer.reset_count();
+            activeTextInputBuffer.memset_zero();
             SetActive(null_ui_id);
         }
 
@@ -539,27 +539,27 @@ namespace GUI
         {
             for (int i = 0; i < keyboardInputASCIIKeycodeThisFrame.count; ++i)
             {
-                i32 keycodeASCII = keyboardInputASCIIKeycodeThisFrame.At(i);
+                i32 keycodeASCII = keyboardInputASCIIKeycodeThisFrame[i];
                 if (48 <= keycodeASCII && keycodeASCII <= 57)
                 {
-                    if (activeTextInputBuffer.count == 1 && activeTextInputBuffer.At(0) == '0')
+                    if (activeTextInputBuffer.count == 1 && activeTextInputBuffer[0] == '0')
                     {
-                        activeTextInputBuffer.At(0) = char(keycodeASCII);
+                        activeTextInputBuffer[0] = char(keycodeASCII);
                     }
                     else if (activeTextInputBuffer.count < 8) // just to prevent floats that are too big
                     {
-                        activeTextInputBuffer.PushBack(char(keycodeASCII));
+                        activeTextInputBuffer.put(char(keycodeASCII));
                     }
                 }
                 else if (keycodeASCII == 45 /* minus sign */
                          && activeTextInputBuffer.count == 0)
                 {
-                    activeTextInputBuffer.PushBack(char(keycodeASCII));
+                    activeTextInputBuffer.put(char(keycodeASCII));
                 }
                 else if (keycodeASCII == 46 /* decimal point */
                          && !IsOneOfArray('.', activeTextInputBuffer.data, activeTextInputBuffer.count))
                 {
-                    activeTextInputBuffer.PushBack(char(keycodeASCII));
+                    activeTextInputBuffer.put(char(keycodeASCII));
                 }
                 else if (keycodeASCII == SDLK_RETURN)
                 {
@@ -569,7 +569,7 @@ namespace GUI
                 {
                     if (activeTextInputBuffer.count > 0)
                     {
-                        activeTextInputBuffer.Back() = '\0';
+                        activeTextInputBuffer.back() = '\0';
                         --activeTextInputBuffer.count;
                     }
                 }
@@ -587,7 +587,7 @@ namespace GUI
                 std::string floatValueAsString = std::to_string(*v);
                 RemoveCharactersFromEndOfString(floatValueAsString, '0');
                 if (floatValueAsString.back() == '.') floatValueAsString.push_back('0');
-                activeTextInputBuffer.ResetToZero();
+                activeTextInputBuffer.memset_zero();
                 memcpy(activeTextInputBuffer.data, floatValueAsString.c_str(), floatValueAsString.size());
                 activeTextInputBuffer.count = (int)floatValueAsString.size();
                 SetActive(id);
@@ -599,14 +599,14 @@ namespace GUI
             float inputtedFloat = 0;
             bool inputIsNotEmpty = activeTextInputBuffer.count > 0;
             bool onlyInputIsMinusSignOrDot = activeTextInputBuffer.count == 1
-                                             && ISANYOF2(activeTextInputBuffer.At(0), '-', '.');
+                                             && ISANYOF2(activeTextInputBuffer[0], '-', '.');
             if (inputIsNotEmpty && !onlyInputIsMinusSignOrDot)
             {
                 inputtedFloat = std::stof(activeTextInputBuffer.data);
             }
             *v = inputtedFloat;
-            activeTextInputBuffer.ResetCount();
-            activeTextInputBuffer.ResetToZero();
+            activeTextInputBuffer.reset_count();
+            activeTextInputBuffer.memset_zero();
             SetActive(null_ui_id);
         }
 
@@ -1506,12 +1506,12 @@ namespace GUI
             u64 highestDepthElement = 0;
             for (int i = 0; i < hoveredThisFrame.count; ++i)
             {
-                u64 info = hoveredThisFrame.At(i);
+                u64 info = hoveredThisFrame[i];
                 if ((0xff000000 & info) >= (0xff000000 & highestDepthElement))
                     highestDepthElement = info;
             }
             hoveredUI = 0x00ffffff & highestDepthElement;
-            hoveredThisFrame.ResetCount();
+            hoveredThisFrame.reset_count();
         }
         ASSERT(hoveredThisFrame.count == 0);
 
@@ -1521,8 +1521,8 @@ namespace GUI
         if (activeUI == null_ui_id)
             anyElementActive = false;
 
-        keyboardInputASCIIKeycodeThisFrame.ResetCount();
-        keyboardInputASCIIKeycodeThisFrame.ResetToZero();
+        keyboardInputASCIIKeycodeThisFrame.reset_count();
+        keyboardInputASCIIKeycodeThisFrame.memset_zero();
         freshIdCounter = 0;
         __reservedTextMemoryIndexer = 0;
 
@@ -1551,7 +1551,7 @@ namespace GUI
                 SDL_KeyboardEvent keyevent = event.key;
                 SDL_Keycode keycodeASCII = keyevent.keysym.sym;
                 keycodeASCII = ModifyASCIIBasedOnModifiers(keycodeASCII, keyevent.keysym.mod & (KMOD_LSHIFT | KMOD_RSHIFT));
-                keyboardInputASCIIKeycodeThisFrame.PushBack(keycodeASCII);
+                keyboardInputASCIIKeycodeThisFrame.put(keycodeASCII);
             }break;
         }
     }
@@ -1811,8 +1811,8 @@ namespace GUI
     };
 
     static UIRect activeWindowMask;
-    static NiceArray<std::vector<UIDrawRequest*>, MAX_DRAWCOLLECTIONS_ALLOWED + 1> DRAWQSTORAGE;
-    static NiceArray<DrawCollectionMetaData, MAX_DRAWCOLLECTIONS_ALLOWED + 1> DRAWQUEUE_METADATA;
+    static fixed_array<std::vector<UIDrawRequest*>, MAX_DRAWCOLLECTIONS_ALLOWED + 1> DRAWQSTORAGE;
+    static fixed_array<DrawCollectionMetaData, MAX_DRAWCOLLECTIONS_ALLOWED + 1> DRAWQUEUE_METADATA;
     static std::stack<std::vector<UIDrawRequest*>*> DRAWREQCOLLECTIONSTACK;
 
     void GUIDraw_InitResources()
@@ -1830,15 +1830,15 @@ namespace GUI
         ASSERT(DRAWREQCOLLECTIONSTACK.empty());
 
         DRAWQSTORAGE.count = 1; // base collection
-        DRAWQUEUE_METADATA.PushBack({ UIRect(0,0,9999,9999), 0 }); 
-        DRAWREQCOLLECTIONSTACK.push(&DRAWQSTORAGE.Back());
+        DRAWQUEUE_METADATA.put({UIRect(0, 0, 9999, 9999), 0});
+        DRAWREQCOLLECTIONSTACK.push(&DRAWQSTORAGE.back());
     }
 
     void GUIDraw_NewFrame()
     {
         // Clear all collections
         for (int i = 0; i < DRAWQSTORAGE.count; ++i)
-            DRAWQSTORAGE.At(i).clear();
+            DRAWQSTORAGE[i].clear();
         // clear draw queue
         DRAWQSTORAGE.count = 1;
         DRAWQUEUE_METADATA.count = 1;
@@ -1868,25 +1868,25 @@ namespace GUI
         GLBindMatrix4fv(colored_text_shader, "matrixOrtho", 1, projectionMatrix.ptr());
 
         // Draw base collection
-        activeWindowMask = DRAWQUEUE_METADATA.At(0).windowMask;
-        std::vector<UIDrawRequest *> &baseDrawQueue = DRAWQSTORAGE.At(0);
+        activeWindowMask = DRAWQUEUE_METADATA[0].windowMask;
+        std::vector<UIDrawRequest *> &baseDrawQueue = DRAWQSTORAGE[0];
         for (auto drawCall : baseDrawQueue)
             drawCall->Draw();
 
         // could sort so its O(n) but realistically how many windows am I going to have...
         int highestDepth = 0;
         for (int i = 0; i < DRAWQUEUE_METADATA.count; ++i)
-            highestDepth = GM_max(highestDepth, DRAWQUEUE_METADATA.At(i).depth);
+            highestDepth = GM_max(highestDepth, DRAWQUEUE_METADATA[i].depth);
 
         // Draw collections of depth 0 to highestDepth except for base collection
         for (int depth = 0; depth <= highestDepth; ++depth)
         {
             for (int i = 1; i < DRAWQSTORAGE.count; ++i)
             {
-                if (DRAWQUEUE_METADATA.At(i).depth == depth)
+                if (DRAWQUEUE_METADATA[i].depth == depth)
                 {
-                    activeWindowMask = DRAWQUEUE_METADATA.At(i).windowMask;
-                    std::vector<UIDrawRequest*>& drawQueue = DRAWQSTORAGE.At(i);
+                    activeWindowMask = DRAWQUEUE_METADATA[i].windowMask;
+                    std::vector<UIDrawRequest*>& drawQueue = DRAWQSTORAGE[i];
                     for (auto drawCall : drawQueue)
                         drawCall->Draw();
                 }
@@ -1896,11 +1896,11 @@ namespace GUI
 
     void GUIDraw_PushDrawCollection(UIRect windowMask, int depth)
     {
-        ASSERT(DRAWQSTORAGE.NotAtCapacity());
+        ASSERT(DRAWQSTORAGE.not_at_cap());
         DRAWQSTORAGE.count++;
         depth = GM_min(depth, MAX_DRAWCOLLECTIONS_ALLOWED);
-        DRAWQUEUE_METADATA.PushBack({ windowMask, depth });
-        DRAWREQCOLLECTIONSTACK.push(&DRAWQSTORAGE.Back());
+        DRAWQUEUE_METADATA.put({windowMask, depth});
+        DRAWREQCOLLECTIONSTACK.push(&DRAWQSTORAGE.back());
     }
 
     void GUIDraw_PopDrawCollection()
@@ -1911,7 +1911,7 @@ namespace GUI
 
     u8 GetCurrentDrawingDepth()
     {
-        return DRAWQUEUE_METADATA.Back().depth;
+        return DRAWQUEUE_METADATA.back().depth;
     }
 
     void AppendToCurrentDrawRequestsCollection(UIDrawRequest *drawRequest)

@@ -319,7 +319,7 @@ void lightmapper_t::PrepareFaceLightmapsAndTexelStorage()
     for (int i = 0; i < BuildDataShared->TotalFaceCount; ++i)
     {
         // calculate bounds, and divide into patches/texels
-        MapEdit::Face *face = MapEdit::LevelEditorFaces.At(i);
+        MapEdit::Face *face = MapEdit::LevelEditorFaces[i];
 
         vec3 v0 = face->loopbase->v->pos;
         vec3 v1 = face->loopbase->loopNext->v->pos;

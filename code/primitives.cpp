@@ -3,7 +3,7 @@
 static u32 PRIM_VERTEX_POS_AND_COLOR_VAO;
 static u32 PRIM_VERTEX_POS_AND_COLOR_VBO;
 
-static NiceArray<float, 256000> PRIMITIVE_TRIS_VB;
+static fixed_array<float, 256000> PRIMITIVE_TRIS_VB;
 static GPUShader PRIMITIVES_TRIS_SHADER;
 static const char* PRIMITIVES_TRIS_SHADER_VS =
     "#version 330 core\n"
@@ -36,7 +36,7 @@ static const char* PRIMITIVES_TRIS_SHADER_FS =
 static u32 PRIM_VERTEX_POS_COLOR_LINEWIDTH_VAO;
 static u32 PRIM_VERTEX_POS_COLOR_LINEWIDTH_VBO;
 
-static NiceArray<float, 256000> PRIMITIVE_FATLINES_VB;
+static fixed_array<float, 256000> PRIMITIVE_FATLINES_VB;
 static GPUShader FATLINES_SHADER;
 static const char* FATLINES_SHADER_VS =
     "#version 330 core\n"
@@ -111,7 +111,7 @@ static const char* FATLINES_SHADER_FS =
     "    }\n"
     "}\n";
 
-static NiceArray<float, 256000> PRIMITIVE_LINES_VB;
+static fixed_array<float, 256000> PRIMITIVE_LINES_VB;
 static GPUShader LINES_SHADER;
 static const char* LINES_SHADER_VS =
     "#version 330 core\n"
@@ -150,7 +150,7 @@ static bool DrawAxisLines = false;
 static GPUFrameBuffer mousePickingRenderTarget;
 static u32 HANDLES_VAO = 0;
 static u32 HANDLES_VBO = 0;
-static NiceArray<float, 256 * 128> HANDLES_VB;
+static fixed_array<float, 256 * 128> HANDLES_VB;
 
 static GPUShader HANDLES_SHADER;
 static const char* HANDLES_SHADER_VS =
@@ -362,7 +362,7 @@ void support_renderer_t::FlushPrimitives(const mat4 *projectionMatrix, const mat
         glBindBuffer(GL_ARRAY_BUFFER, 0);
         glBindVertexArray(0);
 
-        PRIMITIVE_LINES_VB.ResetCount();
+        PRIMITIVE_LINES_VB.reset_count();
     }
 
     if (PRIMITIVE_FATLINES_VB.count > 0)
@@ -385,7 +385,7 @@ void support_renderer_t::FlushPrimitives(const mat4 *projectionMatrix, const mat
         glBindBuffer(GL_ARRAY_BUFFER, 0);
         glBindVertexArray(0);
 
-        PRIMITIVE_FATLINES_VB.ResetCount();
+        PRIMITIVE_FATLINES_VB.reset_count();
     }
 
     if (PRIMITIVE_TRIS_VB.count > 0)
@@ -408,7 +408,7 @@ void support_renderer_t::FlushPrimitives(const mat4 *projectionMatrix, const mat
         glBindBuffer(GL_ARRAY_BUFFER, 0);
         glBindVertexArray(0);
 
-        PRIMITIVE_TRIS_VB.ResetCount();
+        PRIMITIVE_TRIS_VB.reset_count();
     }
 }
 
@@ -423,29 +423,29 @@ void support_renderer_t::DrawSolidDisc(vec3 center, vec3 normal, float radius, v
         tangent = RotateVector(tangent, q);
         vec3 c = center + tangent * radius;
 
-        PRIMITIVE_TRIS_VB.PushBack(a.x);
-        PRIMITIVE_TRIS_VB.PushBack(a.y);
-        PRIMITIVE_TRIS_VB.PushBack(a.z);
-        PRIMITIVE_TRIS_VB.PushBack(color.x);
-        PRIMITIVE_TRIS_VB.PushBack(color.y);
-        PRIMITIVE_TRIS_VB.PushBack(color.z);
-        PRIMITIVE_TRIS_VB.PushBack(color.w);
+        PRIMITIVE_TRIS_VB.put(a.x);
+        PRIMITIVE_TRIS_VB.put(a.y);
+        PRIMITIVE_TRIS_VB.put(a.z);
+        PRIMITIVE_TRIS_VB.put(color.x);
+        PRIMITIVE_TRIS_VB.put(color.y);
+        PRIMITIVE_TRIS_VB.put(color.z);
+        PRIMITIVE_TRIS_VB.put(color.w);
 
-        PRIMITIVE_TRIS_VB.PushBack(b.x);
-        PRIMITIVE_TRIS_VB.PushBack(b.y);
-        PRIMITIVE_TRIS_VB.PushBack(b.z);
-        PRIMITIVE_TRIS_VB.PushBack(color.x);
-        PRIMITIVE_TRIS_VB.PushBack(color.y);
-        PRIMITIVE_TRIS_VB.PushBack(color.z);
-        PRIMITIVE_TRIS_VB.PushBack(color.w);
+        PRIMITIVE_TRIS_VB.put(b.x);
+        PRIMITIVE_TRIS_VB.put(b.y);
+        PRIMITIVE_TRIS_VB.put(b.z);
+        PRIMITIVE_TRIS_VB.put(color.x);
+        PRIMITIVE_TRIS_VB.put(color.y);
+        PRIMITIVE_TRIS_VB.put(color.z);
+        PRIMITIVE_TRIS_VB.put(color.w);
 
-        PRIMITIVE_TRIS_VB.PushBack(c.x);
-        PRIMITIVE_TRIS_VB.PushBack(c.y);
-        PRIMITIVE_TRIS_VB.PushBack(c.z);
-        PRIMITIVE_TRIS_VB.PushBack(color.x);
-        PRIMITIVE_TRIS_VB.PushBack(color.y);
-        PRIMITIVE_TRIS_VB.PushBack(color.z);
-        PRIMITIVE_TRIS_VB.PushBack(color.w);
+        PRIMITIVE_TRIS_VB.put(c.x);
+        PRIMITIVE_TRIS_VB.put(c.y);
+        PRIMITIVE_TRIS_VB.put(c.z);
+        PRIMITIVE_TRIS_VB.put(color.x);
+        PRIMITIVE_TRIS_VB.put(color.y);
+        PRIMITIVE_TRIS_VB.put(color.z);
+        PRIMITIVE_TRIS_VB.put(color.w);
     }
 }
 
@@ -456,42 +456,42 @@ void support_renderer_t::DrawSolidDisc(vec3 center, vec3 normal, float radius)
 
 void support_renderer_t::DrawLine(vec3 p1, vec3 p2, vec4 color)
 {
-    PRIMITIVE_LINES_VB.PushBack(p1.x);
-    PRIMITIVE_LINES_VB.PushBack(p1.y);
-    PRIMITIVE_LINES_VB.PushBack(p1.z);
-    PRIMITIVE_LINES_VB.PushBack(color.x);
-    PRIMITIVE_LINES_VB.PushBack(color.y);
-    PRIMITIVE_LINES_VB.PushBack(color.z);
-    PRIMITIVE_LINES_VB.PushBack(color.w);
+    PRIMITIVE_LINES_VB.put(p1.x);
+    PRIMITIVE_LINES_VB.put(p1.y);
+    PRIMITIVE_LINES_VB.put(p1.z);
+    PRIMITIVE_LINES_VB.put(color.x);
+    PRIMITIVE_LINES_VB.put(color.y);
+    PRIMITIVE_LINES_VB.put(color.z);
+    PRIMITIVE_LINES_VB.put(color.w);
 
-    PRIMITIVE_LINES_VB.PushBack(p2.x);
-    PRIMITIVE_LINES_VB.PushBack(p2.y);
-    PRIMITIVE_LINES_VB.PushBack(p2.z);
-    PRIMITIVE_LINES_VB.PushBack(color.x);
-    PRIMITIVE_LINES_VB.PushBack(color.y);
-    PRIMITIVE_LINES_VB.PushBack(color.z);
-    PRIMITIVE_LINES_VB.PushBack(color.w);
+    PRIMITIVE_LINES_VB.put(p2.x);
+    PRIMITIVE_LINES_VB.put(p2.y);
+    PRIMITIVE_LINES_VB.put(p2.z);
+    PRIMITIVE_LINES_VB.put(color.x);
+    PRIMITIVE_LINES_VB.put(color.y);
+    PRIMITIVE_LINES_VB.put(color.z);
+    PRIMITIVE_LINES_VB.put(color.w);
 }
 
 void support_renderer_t::DrawLine(vec3 p1, vec3 p2, vec4 color, float thickness)
 {
-    PRIMITIVE_FATLINES_VB.PushBack(p1.x);
-    PRIMITIVE_FATLINES_VB.PushBack(p1.y);
-    PRIMITIVE_FATLINES_VB.PushBack(p1.z);
-    PRIMITIVE_FATLINES_VB.PushBack(color.x);
-    PRIMITIVE_FATLINES_VB.PushBack(color.y);
-    PRIMITIVE_FATLINES_VB.PushBack(color.z);
-    PRIMITIVE_FATLINES_VB.PushBack(color.w);
-    PRIMITIVE_FATLINES_VB.PushBack(thickness*0.0025f);
+    PRIMITIVE_FATLINES_VB.put(p1.x);
+    PRIMITIVE_FATLINES_VB.put(p1.y);
+    PRIMITIVE_FATLINES_VB.put(p1.z);
+    PRIMITIVE_FATLINES_VB.put(color.x);
+    PRIMITIVE_FATLINES_VB.put(color.y);
+    PRIMITIVE_FATLINES_VB.put(color.z);
+    PRIMITIVE_FATLINES_VB.put(color.w);
+    PRIMITIVE_FATLINES_VB.put(thickness * 0.0025f);
 
-    PRIMITIVE_FATLINES_VB.PushBack(p2.x);
-    PRIMITIVE_FATLINES_VB.PushBack(p2.y);
-    PRIMITIVE_FATLINES_VB.PushBack(p2.z);
-    PRIMITIVE_FATLINES_VB.PushBack(color.x);
-    PRIMITIVE_FATLINES_VB.PushBack(color.y);
-    PRIMITIVE_FATLINES_VB.PushBack(color.z);
-    PRIMITIVE_FATLINES_VB.PushBack(color.w);
-    PRIMITIVE_FATLINES_VB.PushBack(thickness*0.0025f);
+    PRIMITIVE_FATLINES_VB.put(p2.x);
+    PRIMITIVE_FATLINES_VB.put(p2.y);
+    PRIMITIVE_FATLINES_VB.put(p2.z);
+    PRIMITIVE_FATLINES_VB.put(color.x);
+    PRIMITIVE_FATLINES_VB.put(color.y);
+    PRIMITIVE_FATLINES_VB.put(color.z);
+    PRIMITIVE_FATLINES_VB.put(color.w);
+    PRIMITIVE_FATLINES_VB.put(thickness * 0.0025f);
 }
 
 
@@ -516,26 +516,26 @@ void support_renderer_t::DoDiscHandle(u32 Id, vec3 WorldPosition, vec3 WorldNorm
         tangent = RotateVector(tangent, q);
         vec3 c = WorldPosition + tangent * Radius;
 
-        HANDLES_VB.PushBack(a.x);
-        HANDLES_VB.PushBack(a.y);
-        HANDLES_VB.PushBack(a.z);
-        HANDLES_VB.PushBack(idrgb.x);
-        HANDLES_VB.PushBack(idrgb.y);
-        HANDLES_VB.PushBack(idrgb.z);
+        HANDLES_VB.put(a.x);
+        HANDLES_VB.put(a.y);
+        HANDLES_VB.put(a.z);
+        HANDLES_VB.put(idrgb.x);
+        HANDLES_VB.put(idrgb.y);
+        HANDLES_VB.put(idrgb.z);
 
-        HANDLES_VB.PushBack(b.x);
-        HANDLES_VB.PushBack(b.y);
-        HANDLES_VB.PushBack(b.z);
-        HANDLES_VB.PushBack(idrgb.x);
-        HANDLES_VB.PushBack(idrgb.y);
-        HANDLES_VB.PushBack(idrgb.z);
+        HANDLES_VB.put(b.x);
+        HANDLES_VB.put(b.y);
+        HANDLES_VB.put(b.z);
+        HANDLES_VB.put(idrgb.x);
+        HANDLES_VB.put(idrgb.y);
+        HANDLES_VB.put(idrgb.z);
 
-        HANDLES_VB.PushBack(c.x);
-        HANDLES_VB.PushBack(c.y);
-        HANDLES_VB.PushBack(c.z);
-        HANDLES_VB.PushBack(idrgb.x);
-        HANDLES_VB.PushBack(idrgb.y);
-        HANDLES_VB.PushBack(idrgb.z);
+        HANDLES_VB.put(c.x);
+        HANDLES_VB.put(c.y);
+        HANDLES_VB.put(c.z);
+        HANDLES_VB.put(idrgb.x);
+        HANDLES_VB.put(idrgb.y);
+        HANDLES_VB.put(idrgb.z);
     }
 }
 
@@ -691,7 +691,7 @@ u32 support_renderer_t::FlushHandles(ivec2 clickat, const GPUFrameBuffer activeS
     {
         DrawHandlesVertexArray_GL(HANDLES_VB.data, HANDLES_VB.count,
             scaledDownFrustum.ptr(), activeViewMatrix.ptr());
-        HANDLES_VB.ResetCount();
+        HANDLES_VB.reset_count();
     }
 
     if (PICKABLE_BILLBOARDS_VB.lenu() > 0)

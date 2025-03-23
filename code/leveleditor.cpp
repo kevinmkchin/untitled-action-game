@@ -22,7 +22,7 @@ void level_editor_t::Close()
 float DISC_HANDLE_RADIUS = 10.f;
 // These indices are not guaranteed to persist frame to frame. For now (2024-09-04) they index into
 // the huge array of all Volumes EDITOR_MAP_VOLUMES. Things will/should move around within the array. 
-NiceArray<int, 16> SELECTED_MAP_VOLUMES_INDICES;
+fixed_array<int, 16> SELECTED_MAP_VOLUMES_INDICES;
 std::vector<MapEdit::Vert*> SELECTABLE_VERTICES;
 std::vector<MapEdit::Vert*> SELECTED_VERTICES;
 std::vector<MapEdit::Face*> SELECTABLE_FACES;
@@ -139,23 +139,23 @@ void level_editor_t::Tick()
         u32 pickedVolumeFrameId = PickVolume(LevelEditorVolumes.data, (u32)LevelEditorVolumes.lenu());
         if (pickedVolumeFrameId <= 0)
         {
-            SELECTED_MAP_VOLUMES_INDICES.ResetCount();
+            SELECTED_MAP_VOLUMES_INDICES.reset_count();
             ResetFaceToolData();
         }
         else
         {
             if (!KeysCurrent[SDL_SCANCODE_LCTRL])
             {
-                SELECTED_MAP_VOLUMES_INDICES.ResetCount();
+                SELECTED_MAP_VOLUMES_INDICES.reset_count();
                 ResetFaceToolData();
             }
 
             int pickedVolumeIndexInMegaArray = pickedVolumeFrameId-1;
             bool exists = false;
             for (int j = 0; j < SELECTED_MAP_VOLUMES_INDICES.count; ++j)
-                exists |= SELECTED_MAP_VOLUMES_INDICES.At(j) == pickedVolumeIndexInMegaArray;
+                exists |= SELECTED_MAP_VOLUMES_INDICES[j] == pickedVolumeIndexInMegaArray;
             if (!exists && SELECTED_MAP_VOLUMES_INDICES.count < SELECTED_MAP_VOLUMES_INDICES.capacity)
-                SELECTED_MAP_VOLUMES_INDICES.PushBack(pickedVolumeIndexInMegaArray);
+                SELECTED_MAP_VOLUMES_INDICES.put(pickedVolumeIndexInMegaArray);
         }
 
     }
@@ -170,7 +170,7 @@ void level_editor_t::Tick()
     SELECTABLE_FACES.clear();
     for (int i = 0; i < SELECTED_MAP_VOLUMES_INDICES.count; ++i)
     {
-        MapEdit::Volume& volume = LevelEditorVolumes[SELECTED_MAP_VOLUMES_INDICES.At(i)];
+        MapEdit::Volume& volume = LevelEditorVolumes[SELECTED_MAP_VOLUMES_INDICES[i]];
 
         for (int j = 0; j < volume.verts.lenu(); ++j)
         {
@@ -296,7 +296,7 @@ void level_editor_t::DoEditorGUI()
     GUI::EditorText((std::string("selected volumes (") + std::to_string(volc) + std::string(")")).c_str());
     for (int i = 0; i < SELECTED_MAP_VOLUMES_INDICES.count; ++i)
     {
-        int editorMapVolumeIndex = SELECTED_MAP_VOLUMES_INDICES.At(i);
+        int editorMapVolumeIndex = SELECTED_MAP_VOLUMES_INDICES[i];
         const MapEdit::Volume& volume = LevelEditorVolumes[editorMapVolumeIndex];
         std::string volPersIdStr = std::to_string(volume.persistId);
         GUI::EditorBeginHorizontal();
@@ -435,7 +435,7 @@ void level_editor_t::EnterNextState()
     switch (ActiveState)
     {
         case SIMPLE_BRUSH_TOOL:
-            SELECTED_MAP_VOLUMES_INDICES.ResetCount();
+            SELECTED_MAP_VOLUMES_INDICES.reset_count();
             break;
     }
 }
@@ -687,7 +687,7 @@ void level_editor_t::DoFaceManip()
         }
         for (int i = 0; i < SELECTED_MAP_VOLUMES_INDICES.count; ++i)
         {
-            MapEdit::Volume& selectedVol = LevelEditorVolumes[SELECTED_MAP_VOLUMES_INDICES.At(i)];
+            MapEdit::Volume& selectedVol = LevelEditorVolumes[SELECTED_MAP_VOLUMES_INDICES[i]];
             for (size_t j = 0; j < selectedVol.faces.lenu(); ++j)
             {
                 MapEdit::Face *face = selectedVol.faces[j];
@@ -795,7 +795,7 @@ void level_editor_t::DoVertexManip()
         }
         for (int i = 0; i < SELECTED_MAP_VOLUMES_INDICES.count; ++i)
         {
-            MapEdit::Volume& selectedVol = LevelEditorVolumes[SELECTED_MAP_VOLUMES_INDICES.At(i)];
+            MapEdit::Volume& selectedVol = LevelEditorVolumes[SELECTED_MAP_VOLUMES_INDICES[i]];
             for (size_t j = 0; j < selectedVol.faces.lenu(); ++j)
             {
                 MapEdit::Face *face = selectedVol.faces[j];
@@ -1099,7 +1099,7 @@ void level_editor_t::Draw()
     MapEdit::Face *hoveredFace = NULL;
     for (int i = 0; i < MapEdit::LevelEditorFaces.count; ++i)
     {
-        MapEdit::Face *editorVolumeFace = MapEdit::LevelEditorFaces.At(i);
+        MapEdit::Face *editorVolumeFace = MapEdit::LevelEditorFaces[i];
         if (ActiveState == FACE_MANIP)
         {
             if (LevelEditor.SelectedFace == editorVolumeFace)
@@ -1155,7 +1155,7 @@ void level_editor_t::Draw()
     // Draw outline of selected faces
     for (int i = 0; i < SELECTED_MAP_VOLUMES_INDICES.count; ++i)
     {
-        const MapEdit::Volume& volume = LevelEditor.LevelEditorVolumes[SELECTED_MAP_VOLUMES_INDICES.At(i)];
+        const MapEdit::Volume& volume = LevelEditor.LevelEditorVolumes[SELECTED_MAP_VOLUMES_INDICES[i]];
         for (size_t j = 0; j < volume.faces.lenu(); ++j)
         {
             MapEdit::Face *selVolFace = volume.faces[j];
@@ -1208,7 +1208,7 @@ void level_editor_t::Draw()
     // glEnable(GL_DEPTH_TEST);
     // for (int i = 0; i < MapEdit::EDITOR_FACES.count; ++i)
     // {
-    //     MapEdit::Face *editorVolumeFace = MapEdit::EDITOR_FACES.At(i);
+    //     MapEdit::Face *editorVolumeFace = MapEdit::EDITOR_FACES[i];
     //     std::vector<MapEdit::Edge*> faceEdges = editorVolumeFace->GetEdges();
     //     for (MapEdit::Edge* e : faceEdges)
     //     {
@@ -1376,8 +1376,8 @@ bool level_editor_t::LoadMap(const char *mapFilePath)
             ByteBufferRead(&mapbuf, u32, &aElemId);
             ByteBufferRead(&mapbuf, u32, &bElemId);
 
-            MapEdit::Vert *av = (MapEdit::Vert*)DeserElemIdToElem.at(aElemId);
-            MapEdit::Vert *bv = (MapEdit::Vert*)DeserElemIdToElem.at(bElemId);
+            MapEdit::Vert *av = (MapEdit::Vert*)DeserElemIdToElem[aElemId];
+            MapEdit::Vert *bv = (MapEdit::Vert*)DeserElemIdToElem[bElemId];
             void *elemptr = (void*)CreateEdge(av, bv, &owner); // MEM ALLOC
             DeserElemIdToElem.emplace(eElemId, elemptr);
         }
@@ -1393,7 +1393,7 @@ bool level_editor_t::LoadMap(const char *mapFilePath)
             {
                 u32 feElemId;
                 ByteBufferRead(&mapbuf, u32, &feElemId);
-                faceEdges.push_back((MapEdit::Edge*)DeserElemIdToElem.at(feElemId));
+                faceEdges.push_back((MapEdit::Edge*)DeserElemIdToElem[feElemId]);
             }
 
             u32 faceTexturePersistId;

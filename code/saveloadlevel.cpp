@@ -58,7 +58,7 @@ bool BuildGameMap(const char *path)
     // Polygon colliders data
     for (int i = 0; i < totalfacecount; ++i)
     {
-        MapEdit::Face *face = MapEdit::LevelEditorFaces.At(i);
+        MapEdit::Face *face = MapEdit::LevelEditorFaces[i];
 
         std::vector<MapEdit::Vert*> faceVerts = face->GetVertices();
 

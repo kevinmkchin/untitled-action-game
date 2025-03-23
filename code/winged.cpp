@@ -2,7 +2,7 @@
 
 namespace MapEdit
 {
-    NiceArray<Face*, 100000> LevelEditorFaces;
+    fixed_array<Face*, 100000> LevelEditorFaces;
 
     int Face::RefreshLoopLen()
     {
@@ -230,7 +230,7 @@ namespace MapEdit
         owner->faces.put(face);
         CreateGPUMesh(&face->facemesh, 3, 2, 3, GL_DYNAMIC_DRAW);
         face->storageIndex = LevelEditorFaces.count;
-        LevelEditorFaces.PushBack(face);
+        LevelEditorFaces.put(face);
 
         return face;
     }
@@ -268,10 +268,10 @@ namespace MapEdit
 
         DeleteGPUMesh(face->facemesh.idVAO, face->facemesh.idVBO);
    
-        // swap face->storageIndex and LevelEditorFaces.Back();
-        LevelEditorFaces.At(face->storageIndex) = LevelEditorFaces.Back();
-        LevelEditorFaces.At(face->storageIndex)->storageIndex = face->storageIndex;
-        LevelEditorFaces.PopBack();
+        // swap face->storageIndex and LevelEditorFaces.back();
+        LevelEditorFaces[face->storageIndex] = LevelEditorFaces.back();
+        LevelEditorFaces[face->storageIndex]->storageIndex = face->storageIndex;
+        LevelEditorFaces.pop();
 
         // maybe im missing some things
     }
