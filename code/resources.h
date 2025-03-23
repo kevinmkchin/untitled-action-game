@@ -129,6 +129,9 @@ struct db_tex_t
     GPUTexture gputex;
 };
 
+struct skeleton_t;
+struct skinned_model_t;
+
 struct asset_db_t
 {
     std::map<u32, db_tex_t> Textures;
@@ -144,6 +147,10 @@ public:
 
     Mix_Chunk *Sfx_Shoot0;
     Mix_Chunk *Sfx_Ricochet[3];
+
+
+    skeleton_t *Skeleton_Humanoid = nullptr;
+    skinned_model_t *Model_Attacker = nullptr;
 
 private:
     u32 TexturePersistIdCounter;

@@ -1,7 +1,5 @@
 
 
-skeleton_t *Skeleton_Humanoid = nullptr;
-skinned_model_t *Model_Attacker = nullptr;
 animator_t Animator;
 
 // extern
@@ -26,13 +24,7 @@ void InitializeGame()
 {
     PopulateProjectileDatabase();
 
-    // Should animation data be part of static mem or level mem?
-    Skeleton_Humanoid = new(StaticGameMemory.Alloc<skeleton_t>()) skeleton_t();
-    LoadSkeleton_GLTF2Bin(model_path("attacker.glb").c_str(), Skeleton_Humanoid);
-    Model_Attacker = new(StaticGameMemory.Alloc<skinned_model_t>()) skinned_model_t(Skeleton_Humanoid);
-    LoadSkinnedModel_GLTF2Bin(model_path("attacker.glb").c_str(), Model_Attacker);
-
-    Animator.PlayAnimation(Skeleton_Humanoid->Clips[SKE_HUMANOID_RUN], true);
+    Animator.PlayAnimation(Assets.Skeleton_Humanoid->Clips[SKE_HUMANOID_RUN], true);
 
     Physics.Initialize();
 

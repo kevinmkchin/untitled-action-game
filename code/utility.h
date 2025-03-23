@@ -185,8 +185,6 @@ template<typename T> struct mem_indexer
     const T& operator[](size_t index) const { ASSERT(index <= (size_t)count); return data[index]; }
 };
 
-#pragma region MEMORY
-
 struct linear_arena_t
 {
     // Linear allocator works best when we don't support freeing memory at the pointer level
@@ -206,6 +204,9 @@ struct linear_arena_t
 
     void *Alloc(size_t Bytes, size_t Align);
 };
+
+
+#pragma region BYTEBUFFER
 
 struct ByteBuffer
 {
@@ -272,5 +273,5 @@ void ByteBufferSeekToEnd(ByteBuffer* buffer);
 void ByteBufferAdvancePosition(ByteBuffer* buffer, size_t sz);
 void __byteBufferWriteImpl(ByteBuffer* buffer, void* data, size_t sz);
 
-#pragma endregion // MEMORY
+#pragma endregion // BYTEBUFFER
 
