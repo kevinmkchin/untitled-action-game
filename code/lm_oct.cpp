@@ -55,7 +55,7 @@ CollisionResult CollideFlatPolygonXLine(FlatPolygonCollider *polygon, LineCollid
     vec3 IntersectionPoint = line->a + t * (line->b - line->a);
 
     // project polygon and intersection point into 2D space
-    fixed_array<vec2, 32> projectedVertices; // TODO(Kevin): more than 32 verts
+    c_array<vec2, 32> projectedVertices; // TODO(Kevin): more than 32 verts
     projectedVertices.reset_count();
 
     vec3 basisU = edge0;

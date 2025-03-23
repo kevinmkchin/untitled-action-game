@@ -40,7 +40,7 @@ namespace GUI
         return style_textFont.ptr->font_height_px;
     }
 
-    static fixed_array<vtxt_font, 10> s_vtxtLoadedFonts;
+    static c_array<vtxt_font, 10> s_vtxtLoadedFonts;
     static Font s_Fonts[32];
     static Font s_DefaultFont;
 
@@ -110,8 +110,8 @@ namespace GUI
 
     static char __reservedTextMemory[16000000];
     static u32 __reservedTextMemoryIndexer = 0;
-    fixed_array<SDL_Keycode, 32> keyboardInputASCIIKeycodeThisFrame;
-    static fixed_array<char, 128> activeTextInputBuffer;
+    c_array<SDL_Keycode, 32> keyboardInputASCIIKeycodeThisFrame;
+    static c_array<char, 128> activeTextInputBuffer;
 
     static ui_id hoveredUI = null_ui_id;
     static ui_id activeUI = null_ui_id;
@@ -162,7 +162,7 @@ namespace GUI
             anyElementActive = true;
     }
 
-    static fixed_array<u64, 16> hoveredThisFrame;
+    static c_array<u64, 16> hoveredThisFrame;
     void RequestSetHovered(ui_id id)
     {
         anyElementHovered = true;
@@ -1811,8 +1811,8 @@ namespace GUI
     };
 
     static UIRect activeWindowMask;
-    static fixed_array<std::vector<UIDrawRequest*>, MAX_DRAWCOLLECTIONS_ALLOWED + 1> DRAWQSTORAGE;
-    static fixed_array<DrawCollectionMetaData, MAX_DRAWCOLLECTIONS_ALLOWED + 1> DRAWQUEUE_METADATA;
+    static c_array<std::vector<UIDrawRequest*>, MAX_DRAWCOLLECTIONS_ALLOWED + 1> DRAWQSTORAGE;
+    static c_array<DrawCollectionMetaData, MAX_DRAWCOLLECTIONS_ALLOWED + 1> DRAWQUEUE_METADATA;
     static std::stack<std::vector<UIDrawRequest*>*> DRAWREQCOLLECTIONSTACK;
 
     void GUIDraw_InitResources()

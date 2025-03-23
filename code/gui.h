@@ -16,7 +16,7 @@ typedef u64 ui_id;
 
 namespace GUI
 {
-    // extern fixed_array<SDL_Keycode, 32> keyboardInputASCIIKeycodeThisFrame;
+    // extern c_array<SDL_Keycode, 32> keyboardInputASCIIKeycodeThisFrame;
     // extern vec4 style_textColor;
 
     // Use to prevent mouse events from registering through UI or windows

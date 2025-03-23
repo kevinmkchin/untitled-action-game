@@ -58,7 +58,7 @@ namespace MapEdit
     struct Face;
 
     // TODO(Kevin): make this an implicit array using stb_ds
-    extern fixed_array<Face*, 100000> LevelEditorFaces;
+    extern c_array<Face*, 100000> LevelEditorFaces;
 
     struct Loop
     {

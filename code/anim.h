@@ -124,7 +124,7 @@ struct skeleton_t
     // look up table from joint/bone/node name to INDEX into Joints
     std::unordered_map<std::string, int> JointNameToIndex;
 
-    fixed_array<struct animation_clip_t *, 32> Clips;
+    c_array<struct animation_clip_t *, 32> Clips;
 };
 
 

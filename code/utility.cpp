@@ -488,7 +488,7 @@ void dynamic_array<T>::delswap(int p)
 
 
 template<typename T, int C>
-bool fixed_array<T,C>::contains(T v)
+bool c_array<T,C>::contains(T v)
 {
     for (int i = 0; i < count; ++i)
     {
@@ -498,7 +498,7 @@ bool fixed_array<T,C>::contains(T v)
 }
 
 template<typename T, int C>
-void fixed_array<T,C>::del(int index)
+void c_array<T,C>::del(int index)
 {
     if (index < count - 1)
     {
@@ -508,7 +508,7 @@ void fixed_array<T,C>::del(int index)
 }
 
 template<typename T, int C>
-void fixed_array<T,C>::del_first(T v)
+void c_array<T,C>::del_first(T v)
 {
     for (int i = 0; i < count; ++i)
     {
@@ -521,7 +521,7 @@ void fixed_array<T,C>::del_first(T v)
 }
 
 template<typename T, int C>
-void fixed_array<T,C>::del_every(T v)
+void c_array<T,C>::del_every(T v)
 {
     for (int i = 0; i < count; ++i)
     {
@@ -533,20 +533,20 @@ void fixed_array<T,C>::del_every(T v)
 }
 
 template<typename T, int C>
-bool fixed_array<T,C>::not_at_cap()
+bool c_array<T,C>::not_at_cap()
 {
     return count < capacity;
 }
 
 template<typename T, int C>
-void fixed_array<T,C>::put(T elem)
+void c_array<T,C>::put(T elem)
 {
     data[count] = elem;
     ++count;
 }
 
 template<typename T, int C>
-T fixed_array<T,C>::pop()
+T c_array<T,C>::pop()
 {
     T copy = *(data + count - 1);
     --count;
@@ -555,19 +555,19 @@ T fixed_array<T,C>::pop()
 }
 
 template<typename T, int C>
-T &fixed_array<T,C>::back()
+T &c_array<T,C>::back()
 {
     return *(data + count - 1);
 }
 
 template<typename T, int C>
-void fixed_array<T,C>::reset_count()
+void c_array<T,C>::reset_count()
 {
     count = 0;
 }
 
 template<typename T, int C>
-void fixed_array<T,C>::memset_zero()
+void c_array<T,C>::memset_zero()
 {
     memset(data, 0, capacity * sizeof(*data));
 }

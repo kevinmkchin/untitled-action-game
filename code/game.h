@@ -1,6 +1,13 @@
 #pragma once
 
 
+//struct global_object_pool_t
+//{
+//    mem_indexer<>
+//};
+
+
+
 void InitializeGame();
 void DestroyGame();
 void LoadLevel(const char *MapPath);
@@ -10,7 +17,6 @@ void DoGameLoop();
 
 // private
 void CreateAndRegisterLevelCollider();
-void CreateAndRegisterPlayerPhysicsController();
 
 /** NonPhysicsTick runs once per frame.
     Input handling should be done here.

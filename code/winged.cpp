@@ -2,7 +2,7 @@
 
 namespace MapEdit
 {
-    fixed_array<Face*, 100000> LevelEditorFaces;
+    c_array<Face*, 100000> LevelEditorFaces;
 
     int Face::RefreshLoopLen()
     {
