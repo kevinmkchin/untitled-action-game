@@ -103,9 +103,13 @@ struct skinned_model_t
 
     ~skinned_model_t()
     {
-        // TODO delete the meshes and texture resources off the gpu and free the arrays
+        // TODO delete the meshes and texture resources off the gpu
+        // we don't need to free the meshes and textures arrays if theyre
+        // in static game memory...although then we shouldn't call this destructor
+        // unless the game ends...
     }
 
+    // TODO(Kevin): allocate this dynamic array in StaticGameMemory
     struct skinned_mesh_t *Meshes   = NULL;
     struct GPUTexture     *Textures = NULL;
 
@@ -123,6 +127,7 @@ struct skeleton_joint_t
 
 struct skeleton_t
 {
+    // TODO(Kevin): allocate this dynamic array in StaticGameMemory
     dynamic_array<skeleton_joint_t> Joints;
 
     // look up table from joint/bone/node name to INDEX into Joints

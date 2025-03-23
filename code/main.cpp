@@ -238,6 +238,8 @@ inline std::string entity_icons_path(const std::string& name) { return wd_path()
 #include "nav.h"
 #include "debugmenu.h"
 
+linear_arena_t StaticLevelMemory;
+linear_arena_t StaticGameMemory;
 
 SDL_Window *SDLMainWindow;
 SDL_GLContext SDLGLContext;
@@ -590,6 +592,9 @@ int main(int argc, char* argv[])
 
     InitGameRenderer();
 
+    StaticLevelMemory.Init(32000000);
+    StaticGameMemory.Init(256000000);
+
     Assets.LoadAllResources();
 
     // RDOCAPI->LaunchReplayUI(1, "");
@@ -639,6 +644,9 @@ int main(int argc, char* argv[])
     DestroyGame();
 
     ApplicationEnd();
+
+    free(StaticLevelMemory.Arena);
+    free(StaticGameMemory.Arena);
 
     return 0;
 }

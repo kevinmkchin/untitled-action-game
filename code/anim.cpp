@@ -262,8 +262,8 @@ bool LoadSkeleton_GLTF2Bin(const char *InFilePath, skeleton_t *OutSkeleton)
     for (u32 i = 0; i < Scene->mNumAnimations; ++i)
     {
         aiAnimation *AssimpAnim = Scene->mAnimations[i];
-        // TODO(Kevin): Should these animation clips be stored in a linear arena?
-        animation_clip_t *Clip = new animation_clip_t(OutSkeleton);
+        void *Address = StaticGameMemory.Alloc<animation_clip_t>();
+        animation_clip_t *Clip = new(Address) animation_clip_t(OutSkeleton);
         ReadAnimationClip(AssimpAnim, Clip);
         OutSkeleton->Clips.put(Clip);
     }
@@ -298,7 +298,8 @@ void LoadAdditionalAnimationsForSkeleton(struct skeleton_t *Skeleton, const char
     for (u32 i = 0; i < Scene->mNumAnimations; ++i)
     {
         aiAnimation *AssimpAnim = Scene->mAnimations[i];
-        animation_clip_t *Clip = new animation_clip_t(Skeleton);
+        void *Address = StaticGameMemory.Alloc<animation_clip_t>();
+        animation_clip_t *Clip = new(Address) animation_clip_t(Skeleton);
         ReadAnimationClip(AssimpAnim, Clip);
         Skeleton->Clips.put(Clip);
     }
