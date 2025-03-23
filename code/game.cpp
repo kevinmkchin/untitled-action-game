@@ -10,26 +10,34 @@ bool GameLoopCanRun = true;
 
 // internal
 bool LevelLoaded = false;
-physics_t Physics;
 player_t Player;
 JPH::BodyID LevelColliderBodyId;
 
 
+enum ske_humanoid_clips : u32
+{
+    SKE_HUMANOID_DEATH = 0,
+    SKE_HUMANOID_RUN = 1,
+    SKE_HUMANOID_CLIPCOUNT = 2
+};
+
+
 void InitializeGame()
 {
+    PopulateProjectileDatabase();
+
     Skeleton_Humanoid = new skeleton_t();
     LoadSkeleton_GLTF2Bin(model_path("attacker.glb").c_str(), Skeleton_Humanoid);
     Model_Attacker = new skinned_model_t(Skeleton_Humanoid);
     LoadSkinnedModel_GLTF2Bin(model_path("attacker.glb").c_str(), Model_Attacker);
 
-    ASSERT(TestAnimClip0);
-    Animator.PlayAnimation(TestAnimClip0);
+    Animator.PlayAnimation(Skeleton_Humanoid->Clips[SKE_HUMANOID_RUN], true);
 
     Physics.Initialize();
 
-    Player.Init();
+    EnemySystem.Init();
 
-    Enemies.free();
+    Player.Init();
 
 #if INTERNAL_BUILD
     RecastDebugDrawer.Init();
@@ -42,8 +50,8 @@ void InitializeGame()
 
 void DestroyGame()
 {
+    EnemySystem.Destroy();
     Physics.Destroy();
-    Enemies.free();
 
 #if INTERNAL_BUILD
     RecastDebugDrawer.Destroy();
@@ -77,37 +85,7 @@ void LoadLevel(const char *MapPath)
     // TODO Apply rotation to camera rotation instead
     // Player.mCharacter->SetRotation(ToJoltQuat(EulerToQuat(MapLoadResult.PlayerStartRotation)));
 
-    enemy_t Enemy0;
-    // enemy_t Enemy1;
-    // enemy_t Enemy2;
-    // enemy_t Enemy3;
-    // enemy_t Enemy4;
-    // enemy_t Enemy5;
-    // enemy_t Enemy6;
-
-    GetRandomPointOnNavMesh((float*)&Enemy0.Position);
-    // GetRandomPointOnNavMesh((float*)&Enemy1.Position);
-    // GetRandomPointOnNavMesh((float*)&Enemy2.Position);
-    // GetRandomPointOnNavMesh((float*)&Enemy3.Position);
-    // GetRandomPointOnNavMesh((float*)&Enemy4.Position);
-    // GetRandomPointOnNavMesh((float*)&Enemy5.Position);
-    // GetRandomPointOnNavMesh((float*)&Enemy6.Position);
-
-    Enemy0.Init();
-    // Enemy1.Init();
-    // Enemy2.Init();
-    // Enemy3.Init();
-    // Enemy4.Init();
-    // Enemy5.Init();
-    // Enemy6.Init();
-
-    Enemies.put(Enemy0);
-    // Enemies.put(Enemy1);
-    // Enemies.put(Enemy2);
-    // Enemies.put(Enemy3);
-    // Enemies.put(Enemy4);
-    // Enemies.put(Enemy5);
-    // Enemies.put(Enemy6);
+    EnemySystem.SpawnEnemy();
 
     LevelLoaded = true;
 }
@@ -120,7 +98,7 @@ void UnloadPreviousLevel()
         Physics.BodyInterface->DestroyBody(LevelColliderBodyId);
     }
 
-    Enemies.free();
+    EnemySystem.DeactivateAll();
     DestroyRecastNavMesh();
 
     LevelLoaded = false;
@@ -179,7 +157,7 @@ void LateNonPhysicsTick()
     if (DebugShowNumberOfPhysicsBodies)
     {
         GUI::PrimitiveTextFmt(8, 48, GUI::GetFontSize(), GUI::Align::LEFT, 
-            "PhysicsSystem NumBodies: %d", Physics.PhysicsSystem->GetNumBodies());
+            "JPH NumActiveBodies: %d", Physics.PhysicsSystem->GetNumActiveBodies(JPH::EBodyType::RigidBody));
     }
 #endif // JPH_DEBUG_RENDERER
 
@@ -257,6 +235,11 @@ void RenderGameLayer()
         RenderFaceBatch(&GameLevelShader, &fb);
     }
 
+    RenderEnemies(perspectiveMatrix, viewMatrix);
+
+    RenderWeapon(&Player.Weapon, perspectiveMatrix.ptr(), viewMatrix.GetInverse().ptr());
+    RenderProjectiles(perspectiveMatrix, viewMatrix.GetInverse());
+
     // PRIMITIVES    
     static bool DoPrimitivesDepthTest = false;
     if (KeysPressed[SDL_SCANCODE_X])
@@ -285,51 +268,6 @@ void RenderGameLayer()
     mat4 ViewProjectionMatrix = perspectiveMatrix * viewMatrix;
     JoltDebugDrawer->Flush(ViewProjectionMatrix.ptr());
 #endif // JPH_DEBUG_RENDERER
-
-    UseShader(GameAnimatedCharacterShader);
-    glEnable(GL_DEPTH_TEST);
-    GLBind4f(GameAnimatedCharacterShader, "MuzzleFlash", 
-        Player.Weapon.MuzzleFlash.x, 
-        Player.Weapon.MuzzleFlash.y, 
-        Player.Weapon.MuzzleFlash.z, 
-        Player.Weapon.MuzzleFlash.w);
-    GLBindMatrix4fv(GameAnimatedCharacterShader, "Projection", 1, perspectiveMatrix.ptr());
-    GLBindMatrix4fv(GameAnimatedCharacterShader, "View", 1, viewMatrix.ptr());
-
-    mat4 ModelMatrix = TranslationMatrix(Enemies[0].Position) * 
-        RotationMatrix(Enemies[0].Orientation) * ScaleMatrix(SI_UNITS_TO_GAME_UNITS);
-
-    GLBindMatrix4fv(GameAnimatedCharacterShader, "Model", 1, ModelMatrix.ptr());
-
-    GLBindMatrix4fv(GameAnimatedCharacterShader, "FinalBonesMatrices[0]", MAX_BONES, 
-        Animator.SkinningMatrixPalette[0].ptr());
-
-    for (size_t i = 0; i < arrlenu(Model_Attacker->Meshes); ++i)
-    {
-        skinned_mesh_t m = Model_Attacker->Meshes[i];
-        GPUTexture t = Model_Attacker->Textures[i];
-
-        glActiveTexture(GL_TEXTURE0);
-        //glBindTexture(GL_TEXTURE_2D, t.id);
-        glBindTexture(GL_TEXTURE_2D, Assets.DefaultEditorTexture.gputex.id);
-
-        glBindVertexArray(m.VAO);
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m.IBO);
-        glDrawElements(GL_TRIANGLES, m.IndicesCount, GL_UNSIGNED_INT, nullptr);
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-        glBindVertexArray(0);
-    }
-
-    // RenderModelGLTF(Model_Knight);
-    // ModelMatrix = TranslationMatrix(Enemies[1].Position) * RotationMatrix(Enemies[1].Orientation);
-    // GLBindMatrix4fv(EditorShader_Scene, "modelMatrix", 1, ModelMatrix.ptr());
-    // RenderModelGLTF(Model_Knight);
-    // ModelMatrix = TranslationMatrix(Enemies[2].Position) * RotationMatrix(Enemies[2].Orientation);
-    // GLBindMatrix4fv(EditorShader_Scene, "modelMatrix", 1, ModelMatrix.ptr());
-    // RenderModelGLTF(Model_Knight);
-
-    RenderWeapon(&Player.Weapon, perspectiveMatrix.ptr(), viewMatrix.GetInverse().ptr());
-    RenderProjectiles(perspectiveMatrix, viewMatrix.GetInverse());
 }
 
 void CreateAndRegisterLevelCollider()

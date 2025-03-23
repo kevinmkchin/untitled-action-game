@@ -15,6 +15,12 @@ struct weapon_state_t
     vec4 MuzzleFlash; // w is timer
 
     struct player_t *Owner;
+
+    // Nailgun
+    float NailgunRotation = GM_HALFPI;
+    float NailgunRotationVelocity = 0.f;
+    static constexpr float NailgunRotationMaxVelocity = 16.f;
+    static constexpr float NailgunRotationAcceleration = -16.f;
 };
 
 void TickWeapon(weapon_state_t *State, bool LMB, bool RMB);
@@ -25,7 +31,7 @@ constexpr u32 ProjectileFlag_Bullet = 0x0002;  // bit 1
 // constexpr u32                    = 0x0004;  // bit 2
 // constexpr u32 ProjectileFlag_Gib = 0x0008;  // bit 3
 constexpr u32 DamageType_Small      = 0x0010;  // bit 4
-// constexpr u32 DamageType_Big        = 0x0020;  // bit 5
+// constexpr u32 DamageType_Big     = 0x0020;  // bit 5
 // constexpr u32                    = 0x0040;  // bit 6
 // constexpr u32                    = 0x0080;  // bit 7
 // constexpr u32                    = 0x0100;  // bit 8
@@ -35,13 +41,22 @@ constexpr u32 DamageType_Small      = 0x0010;  // bit 4
 // constexpr u32                    = 0x4000;  // bit 14
 // constexpr u32                    = 0x8000;  // bit 15
 
+enum projectile_type : u32
+{
+    PROJECTILE_NAIL = 0,
+    PROJECTILE_TYPE_COUNT = 1
+};
+
+struct projectile_data_t
+{
+    float BulletDamage = 0.f;
+};
+
 struct projectile_t
 {
-    // projectile damage type (flags?)
-    float Damage;
-    u32 Flags = 0; // JPH::Body user data is uint64...
+    u32 Flags = 0;
+    projectile_type Type = PROJECTILE_TYPE_COUNT;
     quat RenderOrientation;
-    // damage radius and falloff if explosive type
     JPH::BodyID BodyId;
 };
 
@@ -52,9 +67,11 @@ struct projectile_hit_info_t
     const JPH::ContactManifold *Manifold;
 };
 
-dynamic_array<projectile_t> LiveProjectiles;
-dynamic_array<projectile_hit_info_t> ProjectileHitInfos;
+extern projectile_data_t ProjectileDatabase[PROJECTILE_TYPE_COUNT];
+extern dynamic_array<projectile_t> LiveProjectiles;
+extern dynamic_array<projectile_hit_info_t> ProjectileHitInfos;
 
+void PopulateProjectileDatabase(); // Called once at start of game
 void SpawnProjectile(vec3 Pos, vec3 Dir, quat Orient);
 void KillProjectile(projectile_t *ProjectileToKill);
 void PrePhysicsUpdateProjectiles();

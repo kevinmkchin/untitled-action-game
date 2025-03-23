@@ -1,28 +1,87 @@
 #pragma once
 
+constexpr u32 EnemyFlag_Dead     = 0x0001;
+constexpr u32 EnemyFlag_Active   = 0x0002;
+// constexpr u32  = 0x0004;
+// constexpr u32  = 0x0008;
+// constexpr u32  = 0x0010;
+// constexpr u32  = 0x0020;
+// constexpr u32  = 0x0040;
+// constexpr u32  = 0x0080;
+// constexpr u32  = 0x0100;
+// constexpr u32  = 0x0200;
+// constexpr u32  = 0x1000;
+// constexpr u32  = 0x2000;
+// constexpr u32  = 0x4000;
+// constexpr u32  = 0x8000;
+
+constexpr u32 BAD_UINDEX = 0xFFFFFFFF;
+
 struct enemy_t
 {
-    void Init();
-    void Destroy();
+    u32 Index = BAD_UINDEX;
+    u32 Flags = 0x0;
 
     vec3 Position;
     quat Orientation;
 
+    float Health;
+
+    // Jolt Physics
     JPH::Character *RigidBody;
 
+    // Detour pathfinding
     dynamic_array<float> SmoothPath;
     int SmoothPathCount;
     int SmoothPathIter;
     float TimeSinceLastPathFind = 0.f;
 
-private:
-    void AddToPhysicsSystem();
-    void RemoveFromPhysicsSystem();
+    // each instance should have their own animator_t
 };
 
 void PrePhysicsTickAllEnemies();
 void PostPhysicsTickAllEnemies();
+void RenderEnemies(const mat4 &ProjFromView, const mat4 &ViewFromWorld);
 void DebugDrawEnemyColliders();
 
-extern dynamic_array<enemy_t> Enemies;
+void HurtEnemy(u32 EnemyIndex, float Damage);
+void KillEnemy(u32 EnemyIndex);
+
+struct global_enemy_state_t
+{
+    static constexpr int MaxEnemies = 64;
+    static constexpr int MaxCharacterBodies = 32;
+    
+    // Perhaps I could have multiple arrays one for each enemy type?
+    enemy_t Enemies[MaxEnemies];
+    // FUCKKKK JOLT
+    // linear_arena_t CharacterBodies;
+    // TODO(Kevin): separate array per collider type?
+    // TODO(Kevin): For example, what I could do is, use a custom allocator for JPH, then
+    // during initialization we alloc to linear_arena_t, but otherwise we will
+    // call the usual malloc, realloc, free, etc?
+    JPH::Character *CharacterBodies[MaxCharacterBodies];
+
+    void Init(); // Call once at start of game
+    void Destroy(); // Call once at end of game
+
+    void RemoveAll(); // Call before changing levels etc.
+
+    void SpawnEnemy();
+    void RemoveEnemy(u32 EnemyIndex);
+
+    JPH::Character *NextAvailableCharacterBody();
+    void RemoveCharacterBodyFromSimulation(JPH::Character *CharacterBody);
+
+    // Maybe an array of static corpses?
+
+private:
+    static constexpr float AttackerHeightStanding = 1.7f;
+    static constexpr float AttackerCapsuleRadiusStanding = 0.3f;
+    static constexpr float AttackerCapsuleHalfHeightStanding = (AttackerHeightStanding 
+        - AttackerCapsuleRadiusStanding * 2.f) * 0.5f;
+};
+
+extern global_enemy_state_t EnemySystem;
+
 

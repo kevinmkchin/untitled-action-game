@@ -296,26 +296,25 @@ void ByteBufferAdvancePosition(ByteBuffer* buffer, size_t sz);
 void __byteBufferWriteImpl(ByteBuffer* buffer, void* data, size_t sz);
 
 
-struct MemoryLinearBuffer
+struct linear_arena_t
 {
     // Linear allocator works best when we don't support freeing memory at the pointer level
-    // Carve allocations out of a pre alloced buffer
-
+    // Carve allocations out of a pre allocated arena
     // There is no per allocation overhead.
-    // The buffer memory is not modified by the allocator.
+    // The arena memory is not modified by the allocator.
     // The allocator is not thread-safe.
 
-    u8* buffer = nullptr;
-    size_t arenaOffset = 0;
-    size_t bufferSize = 0;
+    u8* Arena = nullptr;
+    size_t ArenaOffset = 0;
+    size_t ArenaSize = 0;
+
+    void Init(size_t Bytes);
+
+    template<typename T>
+    void *Alloc();
+
+    void *Alloc(size_t Bytes, size_t Align);
 };
-
-void MemoryLinearInitialize(MemoryLinearBuffer *buffer, size_t sizeBytes);
-
-#define MEMORY_LINEAR_ALLOCATE(buffer, type)\
-    MemoryLinearAllocate(buffer, sizeof(type), alignof(type))
-
-void *MemoryLinearAllocate(MemoryLinearBuffer *buffer, size_t wantedBytes, size_t align);
 
 #pragma endregion
 

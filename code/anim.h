@@ -1,8 +1,3 @@
-#pragma once
-
-struct animation_clip_t *TestAnimClip0;
-struct animation_clip_t *TestAnimClip1;
-
 /*
 
 ANIMATION API (kevinmkchin 2025)
@@ -69,10 +64,13 @@ TODO
 - Change keyframe_scale_t to only use uniform-scaling and replace scale vec3 with float
 
 */
+#pragma once
 
+// Load just the skeleton and its animation first
 bool LoadSkeleton_GLTF2Bin(const char *InFilePath, struct skeleton_t *OutSkeleton);
+// Load a skinned model using a loaded skeleton
 bool LoadSkinnedModel_GLTF2Bin(const char *InFilePath, struct skinned_model_t *OutSkinnedModel);
-
+// If additional animation clips are stored in another file that uses the same skeleton
 void LoadAdditionalAnimationsForSkeleton(const struct skeleton_t *Skeleton, const char *InFilePath);
 
 
@@ -129,6 +127,9 @@ struct skeleton_t
 
     // look up table from joint/bone/node name to INDEX into Joints
     std::map<std::string, int> JointNameToIndex;
+
+    // TODO(Kevin): This should just be a fixed size C array to clip pointers.
+    dynamic_array<struct animation_clip_t *> Clips;
 };
 
 
@@ -219,15 +220,17 @@ struct animator_t
 {
     animation_clip_t* CurrentAnimation = NULL;
     float CurrentTime;
+    bool Looping = false;
 
     mat4 LocalPosesArray[MAX_BONES];
     mat4 GlobalPosesArray[MAX_BONES];
     mat4 SkinningMatrixPalette[MAX_BONES];
 
-    void PlayAnimation(animation_clip_t *AnimationClip)
+    void PlayAnimation(animation_clip_t *AnimationClip, bool Loop)
     {
         CurrentAnimation = AnimationClip;
         CurrentTime = 0.0f;
+        Looping = Loop;
     }
 
     void UpdateGlobalPoses(float dt)
@@ -235,7 +238,10 @@ struct animator_t
         if (CurrentAnimation)
         {
             CurrentTime += CurrentAnimation->TicksPerSecond * dt;
-            CurrentTime = fmod(CurrentTime, CurrentAnimation->DurationInTicks);
+            if (!Looping && CurrentTime >= CurrentAnimation->DurationInTicks)
+                CurrentTime = CurrentAnimation->DurationInTicks - 0.01f;
+            else
+                CurrentTime = fmod(CurrentTime, CurrentAnimation->DurationInTicks);
 
             CurrentAnimation->UpdateLocalPoses(CurrentTime, LocalPosesArray);
 

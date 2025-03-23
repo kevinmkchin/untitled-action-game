@@ -371,29 +371,36 @@ static u8 *__PointerAlignForward(u8* ptr, size_t align)
     return ptr;
 }
 
-void MemoryLinearInitialize(MemoryLinearBuffer *buffer, size_t sizeBytes)
+void linear_arena_t::Init(size_t Bytes)
 {
-    buffer->buffer = (u8*) calloc(sizeBytes, 1);
-    buffer->bufferSize = sizeBytes;
-    buffer->arenaOffset = 0;
+    Arena = (u8 *)calloc(Bytes, 1);
+    ArenaSize = Bytes;
+    ArenaOffset = 0;
 }
 
-void *MemoryLinearAllocate(MemoryLinearBuffer *buffer, size_t wantedBytes, size_t align)
+template<typename T>
+void *linear_arena_t::Alloc()
 {
-    u8 *current_ptr = buffer->buffer + buffer->arenaOffset;
-    u8 *aligned_ptr = __PointerAlignForward(current_ptr, align);
-    size_t offset = aligned_ptr - buffer->buffer;
+    return Alloc(sizeof(T), alignof(T));
+}
 
-    if(offset + wantedBytes <= buffer->bufferSize)
+void *linear_arena_t::Alloc(size_t Bytes, size_t Align)
+{
+    u8 *current_ptr = Arena + ArenaOffset;
+    u8 *aligned_ptr = __PointerAlignForward(current_ptr, Align);
+    size_t offset = aligned_ptr - Arena;
+
+    if (offset + Bytes <= ArenaSize)
     {
-        void* ptr = buffer->buffer + offset;
-        buffer->arenaOffset = offset + wantedBytes;
+        void *ptr = Arena + offset;
+        ArenaOffset = offset + Bytes;
         return ptr;
     }
-    
-    printf("Out of memory in given MemoryLinearBuffer");
+
+    printf("Out of memory in given linear_arena_t");
     return nullptr;
 }
+
 
 template<typename T> 
 void dynamic_array<T>::free()
