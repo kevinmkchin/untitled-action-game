@@ -98,7 +98,7 @@ void UnloadPreviousLevel()
         Physics.BodyInterface->DestroyBody(LevelColliderBodyId);
     }
 
-    EnemySystem.DeactivateAll();
+    EnemySystem.RemoveAll();
     DestroyRecastNavMesh();
 
     LevelLoaded = false;
