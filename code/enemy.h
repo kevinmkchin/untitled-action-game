@@ -27,6 +27,8 @@ struct enemy_t
 
     float Health;
 
+    animator_t *Animator;
+
     // Jolt Physics
     JPH::Character *RigidBody;
 
@@ -54,12 +56,7 @@ struct global_enemy_state_t
     
     // Perhaps I could have multiple arrays one for each enemy type?
     enemy_t Enemies[MaxEnemies];
-    // FUCKKKK JOLT
-    // linear_arena_t CharacterBodies;
     // TODO(Kevin): separate array per collider type?
-    // TODO(Kevin): For example, what I could do is, use a custom allocator for JPH, then
-    // during initialization we alloc to linear_arena_t, but otherwise we will
-    // call the usual malloc, realloc, free, etc?
     JPH::Character *CharacterBodies[MaxCharacterBodies];
 
     void Init(); // Call once at start of game

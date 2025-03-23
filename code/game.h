@@ -1,13 +1,6 @@
 #pragma once
 
 
-//struct global_object_pool_t
-//{
-//    mem_indexer<>
-//};
-
-
-
 void InitializeGame();
 void DestroyGame();
 void LoadLevel(const char *MapPath);

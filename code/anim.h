@@ -215,6 +215,7 @@ struct animator_t
     animation_clip_t* CurrentAnimation = NULL;
     float CurrentTime;
     bool Looping = false;
+    bool HasOwner = false;
 
     mat4 LocalPosesArray[MAX_BONES];
     mat4 GlobalPosesArray[MAX_BONES];
@@ -259,13 +260,17 @@ struct animator_t
     // a skinned mesh. For each vertex, the renderer looks up the appropriate joint’s
     // skinning matrix in the palette and uses it to transform the vertex from bind 
     // pose into current pose.
-    void GetSkinningMatrixPalette()
+    void CalculateSkinningMatrixPalette()
     {
         if (CurrentAnimation)
         {
             const mem_indexer<skeleton_joint_t> Joints = CurrentAnimation->GetSkeleton()->Joints;
             for (int i = 0; i < Joints.count; ++i)
                 SkinningMatrixPalette[i] = GlobalPosesArray[i] * Joints[i].InverseBindPoseTransform;
+        }
+        else
+        {
+            LogError("Failed to calculate skinning matrix palette as there is no animation active.");
         }
     }
 

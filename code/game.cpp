@@ -1,6 +1,7 @@
 
 
-animator_t Animator;
+fixed_array<animator_t> AnimatorPool;
+
 
 // extern
 std::vector<face_batch_t> GameLevelFaceBatches;
@@ -22,9 +23,12 @@ enum ske_humanoid_clips : u32
 
 void InitializeGame()
 {
-    PopulateProjectileDatabase();
+    AnimatorPool = fixed_array<animator_t>(64, MemoryType::StaticGame);
+    AnimatorPool.setlen(64);
+    for (size_t i = 0; i < AnimatorPool.length; ++i)
+        AnimatorPool[i] = animator_t();
 
-    Animator.PlayAnimation(Assets.Skeleton_Humanoid->Clips[SKE_HUMANOID_RUN], true);
+    PopulateProjectileDatabase();
 
     Physics.Initialize();
 
@@ -186,9 +190,14 @@ void DoGameLoop()
 
     LateNonPhysicsTick();
 
-    // Do animation loop
-    Animator.UpdateGlobalPoses(DeltaTime);
-    Animator.GetSkinningMatrixPalette();
+    for (size_t i = 0; i < AnimatorPool.length; ++i)
+    {
+        if (AnimatorPool[i].HasOwner)
+        {
+            AnimatorPool[i].UpdateGlobalPoses(DeltaTime);
+            AnimatorPool[i].CalculateSkinningMatrixPalette();
+        }
+    }
 
     // Do render loop
     RenderGameLayer();
