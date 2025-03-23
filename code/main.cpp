@@ -268,7 +268,8 @@ RENDERDOC_API_1_6_0 *RDOCAPI = NULL;
 
 
 GPUShader GameLevelShader;
-GPUShader GameAnimatedCharacterShader;
+GPUShader GameModelTexturedShader;
+GPUShader GameModelSkinnedShader;
 GPUShader GunShader;
 GPUShader PatchesIDShader;
 GPUShader EditorShader_Scene;
@@ -372,14 +373,33 @@ static void InitGameRenderer()
     CreateGPUFrameBuffer(&RenderTargetGUI);
 
 
-    GLLoadShaderProgramFromFile(GameLevelShader, shader_path("__game_level.vert").c_str(), shader_path("__game_level.frag").c_str());
-    GLLoadShaderProgramFromFile(GameAnimatedCharacterShader, shader_path("game_animated_character.vert").c_str(), shader_path("game_animated_character.frag").c_str());
-    GLLoadShaderProgramFromFile(GunShader, shader_path("guns.vert").c_str(), shader_path("guns.frag").c_str());
-    GLLoadShaderProgramFromFile(PatchesIDShader, shader_path("__patches_id.vert").c_str(), shader_path("__patches_id.frag").c_str());
-    GLCreateShaderProgram(EditorShader_Scene, __editor_scene_shader_vs, __editor_scene_shader_fs);
-    GLCreateShaderProgram(EditorShader_Wireframe, __editor_scene_wireframe_shader_vs, __editor_scene_wireframe_shader_fs);
-    GLCreateShaderProgram(EditorShader_FaceSelected, __editor_shader_face_selected_vs, __editor_shader_face_selected_fs);
-    GLCreateShaderProgram(FinalPassShader, __finalpass_shader_vs, __finalpass_shader_fs);
+    GLLoadShaderProgramFromFile(GameLevelShader, 
+        shader_path("__game_level.vert").c_str(), 
+        shader_path("__game_level.frag").c_str());
+    GLLoadShaderProgramFromFile(GameModelTexturedShader, 
+        shader_path("model_textured.vert").c_str(), 
+        shader_path("model_textured_skinned.frag").c_str());
+    GLLoadShaderProgramFromFile(GameModelSkinnedShader, 
+        shader_path("model_skinned.vert").c_str(), 
+        shader_path("model_textured_skinned.frag").c_str());
+    GLLoadShaderProgramFromFile(GunShader, 
+        shader_path("guns.vert").c_str(), 
+        shader_path("guns.frag").c_str());
+    GLLoadShaderProgramFromFile(PatchesIDShader, 
+        shader_path("__patches_id.vert").c_str(), 
+        shader_path("__patches_id.frag").c_str());
+    GLCreateShaderProgram(EditorShader_Scene, 
+        __editor_scene_shader_vs, 
+        __editor_scene_shader_fs);
+    GLCreateShaderProgram(EditorShader_Wireframe, 
+        __editor_scene_wireframe_shader_vs, 
+        __editor_scene_wireframe_shader_fs);
+    GLCreateShaderProgram(EditorShader_FaceSelected, 
+        __editor_shader_face_selected_vs, 
+        __editor_shader_face_selected_fs);
+    GLCreateShaderProgram(FinalPassShader, 
+        __finalpass_shader_vs, 
+        __finalpass_shader_fs);
 
 
     float refQuadVertices[16] = {

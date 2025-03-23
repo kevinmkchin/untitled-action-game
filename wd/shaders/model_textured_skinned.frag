@@ -1,13 +1,13 @@
 #version 330 core
 
+layout(location = 0) out vec4 FragColor;
+
 in vec2 TexCoords;
 in vec3 WorldPos;
 in vec3 WorldNormal;
 
 uniform sampler2D ColorTexture;
 uniform vec4 MuzzleFlash;
-
-out vec4 FragColor;
 
 void main()
 {    

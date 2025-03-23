@@ -194,8 +194,8 @@ T fixed_array<T>::put(T item)
         ASSERT(0);
     }
 
-    data[length] = elem;
-    ++count;
+    data[length] = item;
+    ++length;
     return data[length-1];
 }
 

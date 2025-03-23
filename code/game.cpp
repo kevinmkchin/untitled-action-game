@@ -61,7 +61,8 @@ void DestroyGame()
 
 void LoadLevel(const char *MapPath)
 {
-    ASSERT(Physics.PhysicsSystem);
+    StaticLevelMemory.ArenaOffset = 0;
+    EnemySystem.Corpses = fixed_array<corpse_t>(EnemySystem.MaxCorpses, MemoryType::StaticLevel);
 
     SDL_SetRelativeMouseMode(SDL_TRUE);
 
@@ -75,6 +76,7 @@ void LoadLevel(const char *MapPath)
         return;
     }
 
+    ASSERT(Physics.PhysicsSystem);
     CreateAndRegisterLevelCollider();
     ASSERT(CreateRecastNavMesh());
 
@@ -99,10 +101,13 @@ void UnloadPreviousLevel()
     DestroyRecastNavMesh();
 
     LevelLoaded = false;
+    StaticLevelMemory.ArenaOffset = 0;
 }
 
 void NonPhysicsTick()
 {
+    NonPhysicsTickAllEnemies();
+
     Player.HandleInput();
 }
 
@@ -199,7 +204,6 @@ void DoGameLoop()
         }
     }
 
-    // Do render loop
     RenderGameLayer();
 
     UpdateGameGUI();
