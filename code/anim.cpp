@@ -200,11 +200,10 @@ static void ReadAnimationClip(const aiAnimation *AssimpAnim, animation_clip_t *O
     OutClip->TicksPerSecond = TEMPFLAG_IsGLB ? 1000.f : (float)AssimpAnim->mTicksPerSecond;
     // The number of bone animation channels. Each channel affects a single node.
     u32 NumChannels = AssimpAnim->mNumChannels;
-    OutClip->JointPoseSamplers = mem_indexer<joint_pose_sampler_t>(
-        StaticGameMemory.Alloc(NumChannels*sizeof(joint_pose_sampler_t), 
-        alignof(joint_pose_sampler_t)), NumChannels);
+    OutClip->JointPoseSamplers = fixed_array<joint_pose_sampler_t>(NumChannels, MemoryType::StaticGame);
+    OutClip->JointPoseSamplers.setlen(NumChannels);
     ASSERT(NumChannels == (u32)OutClip->GetSkeleton()->Joints.count);
-    for (size_t i = 0; i < OutClip->JointPoseSamplers.count; ++i)
+    for (size_t i = 0; i < OutClip->JointPoseSamplers.length; ++i)
         OutClip->JointPoseSamplers[i].Positions.data = NULL;
 
     // Reading channels (bones engaged in an animation and their keyframes)
@@ -372,10 +371,10 @@ bool LoadSkinnedModel_GLTF2Bin(const char* InFilePath, skinned_model_t *OutSkinn
     ASSERT(Scene->mNumMeshes > 0);
     ASSERT(OutSkinnedModel->Meshes.data == NULL);
     ASSERT(OutSkinnedModel->Textures.data == NULL);
-    void *Meshes = StaticGameMemory.Alloc(Scene->mNumMeshes*sizeof(skinned_mesh_t), alignof(skinned_mesh_t));
-    void *Textures = StaticGameMemory.Alloc(Scene->mNumMeshes*sizeof(GPUTexture), alignof(GPUTexture));
-    OutSkinnedModel->Meshes = mem_indexer<skinned_mesh_t>(Meshes, Scene->mNumMeshes);
-    OutSkinnedModel->Textures = mem_indexer<GPUTexture>(Textures, Scene->mNumMeshes);
+    OutSkinnedModel->Meshes = fixed_array<skinned_mesh_t>(Scene->mNumMeshes, MemoryType::StaticGame);
+    OutSkinnedModel->Meshes.setlen(Scene->mNumMeshes);
+    OutSkinnedModel->Textures = fixed_array<GPUTexture>(Scene->mNumMeshes, MemoryType::StaticGame);
+    OutSkinnedModel->Textures.setlen(Scene->mNumMeshes);
 
     for (u32 MeshIndex = 0; MeshIndex < Scene->mNumMeshes; ++MeshIndex)
     {
@@ -395,18 +394,15 @@ bool LoadSkinnedModel_GLTF2Bin(const char* InFilePath, skinned_model_t *OutSkinn
 void joint_pose_sampler_t::Create(const aiNodeAnim *InChannel)
 {
     ASSERT(!Positions.data && !Rotations.data && !Scales.data);
-    u32 NumPosKeys = InChannel->mNumPositionKeys;
-    u32 NumRotKeys = InChannel->mNumRotationKeys;
-    u32 NumScaKeys = InChannel->mNumScalingKeys;
-    void *PosArrBlock = StaticGameMemory.Alloc(sizeof(keyframe_position_t)*NumPosKeys, 
-        alignof(keyframe_position_t));
-    void *RotArrBlock = StaticGameMemory.Alloc(sizeof(keyframe_rotation_t)*NumRotKeys,
-        alignof(keyframe_rotation_t));
-    void *ScaArrBlock = StaticGameMemory.Alloc(sizeof(keyframe_scale_t)*NumScaKeys,
-        alignof(keyframe_scale_t));
-    Positions = mem_indexer<keyframe_position_t>(PosArrBlock, NumPosKeys);
-    Rotations = mem_indexer<keyframe_rotation_t>(RotArrBlock, NumRotKeys);
-    Scales = mem_indexer<keyframe_scale_t>(ScaArrBlock, NumScaKeys);
+    ASSERT(InChannel->mNumPositionKeys >= 2);
+    ASSERT(InChannel->mNumRotationKeys >= 2);
+    ASSERT(InChannel->mNumScalingKeys >= 2);
+    Positions = fixed_array<keyframe_position_t>(InChannel->mNumPositionKeys, MemoryType::StaticGame);
+    Positions.setlen(InChannel->mNumPositionKeys);
+    Rotations = fixed_array<keyframe_rotation_t>(InChannel->mNumRotationKeys, MemoryType::StaticGame);
+    Rotations.setlen(InChannel->mNumRotationKeys);
+    Scales = fixed_array<keyframe_scale_t>(InChannel->mNumScalingKeys, MemoryType::StaticGame);
+    Scales.setlen(InChannel->mNumScalingKeys);
 
     for (u32 i = 0; i < InChannel->mNumPositionKeys; ++i)
     {
@@ -455,10 +451,10 @@ mat4 joint_pose_sampler_t::SampleJointLocalPoseAt(float AnimationTime)
 
 int joint_pose_sampler_t::GetPositionIndex(float AnimationTime)
 {
-    for (int i = 0; i < Positions.count - 1; ++i)
+    for (size_t i = 0; i < Positions.length - 1; ++i)
     {
         if (AnimationTime < Positions[i + 1].Timestamp)
-            return i;
+            return (int)i;
     }
     ASSERT(0);
     return 0;
@@ -466,10 +462,10 @@ int joint_pose_sampler_t::GetPositionIndex(float AnimationTime)
 
 int joint_pose_sampler_t::GetRotationIndex(float AnimationTime)
 {
-    for (int i = 0; i < Rotations.count - 1; ++i)
+    for (size_t i = 0; i < Rotations.length - 1; ++i)
     {
         if (AnimationTime < Rotations[i + 1].Timestamp)
-            return i;
+            return (int)i;
     }
     ASSERT(0);
     return 0;
@@ -477,10 +473,10 @@ int joint_pose_sampler_t::GetRotationIndex(float AnimationTime)
 
 int joint_pose_sampler_t::GetScaleIndex(float AnimationTime)
 {
-    for (int i = 0; i < Scales.count - 1; ++i)
+    for (size_t i = 0; i < Scales.length - 1; ++i)
     {
         if (AnimationTime < Scales[i + 1].Timestamp)
-            return i;
+            return (int)i;
     }
     ASSERT(0);
     return 0;
@@ -495,7 +491,7 @@ float joint_pose_sampler_t::GetScaleFactor(float LastTimestamp, float NextTimest
 
 mat4 joint_pose_sampler_t::InterpolatePosition(float AnimationTime)
 {
-    if (Positions.count == 1)
+    if (Positions.length == 1)
         return TranslationMatrix(Positions[0].Position);
 
     int P0Index = GetPositionIndex(AnimationTime);
@@ -509,7 +505,7 @@ mat4 joint_pose_sampler_t::InterpolatePosition(float AnimationTime)
 
 mat4 joint_pose_sampler_t::InterpolateRotation(float AnimationTime)
 {
-    if (Rotations.count == 1)
+    if (Rotations.length == 1)
         return mat4(Normalize(Rotations[0].Orientation));
 
     int P0Index = GetRotationIndex(AnimationTime);
@@ -526,7 +522,7 @@ mat4 joint_pose_sampler_t::InterpolateScale(float AnimationTime)
 {
     return mat4();
 
-    if (Scales.count == 1)
+    if (Scales.length == 1)
         return ScaleMatrix(Scales[0].Scale);
 
     int P0Index = GetScaleIndex(AnimationTime);
@@ -544,9 +540,9 @@ void FreeModelGLTF(ModelGLTF model)
 {
     ASSERT(0);
 
-    ASSERT(model.meshes.count == model.color.count);
+    ASSERT(model.meshes.length == model.color.length);
 
-    for (int i = 0; i < model.meshes.count; ++i)
+    for (size_t i = 0; i < model.meshes.length; ++i)
     {
         DeleteGPUMeshIndexed(&model.meshes[i]);
         DeleteGPUTexture(&model.color[i]);
@@ -555,7 +551,7 @@ void FreeModelGLTF(ModelGLTF model)
 
 void RenderModelGLTF(ModelGLTF model)
 {
-    for (int i = 0; i < model.meshes.count; ++i)
+    for (size_t i = 0; i < model.meshes.length; ++i)
     {
         GPUMeshIndexed m = model.meshes[i];
         GPUTexture t = model.color[i];
@@ -689,13 +685,12 @@ bool LoadModelGLTF2Bin(ModelGLTF *model, const char *filepath)
     }
 
     ASSERT(scene->mNumMeshes > 0);
-
     ASSERT(model->meshes.data == NULL);
     ASSERT(model->color.data == NULL);
-    void *Meshes = StaticGameMemory.Alloc(scene->mNumMeshes*sizeof(GPUMeshIndexed), alignof(GPUMeshIndexed));
-    void *Textures = StaticGameMemory.Alloc(scene->mNumMeshes*sizeof(GPUTexture), alignof(GPUTexture));
-    model->meshes = mem_indexer<GPUMeshIndexed>(Meshes, scene->mNumMeshes);
-    model->color = mem_indexer<GPUTexture>(Textures, scene->mNumMeshes);
+    model->meshes = fixed_array<GPUMeshIndexed>(scene->mNumMeshes, MemoryType::StaticGame);
+    model->meshes.setlen(scene->mNumMeshes);
+    model->color = fixed_array<GPUTexture>(scene->mNumMeshes, MemoryType::StaticGame);
+    model->color.setlen(scene->mNumMeshes);
 
     for (u32 meshIndex = 0; meshIndex < scene->mNumMeshes; ++meshIndex)
     {
