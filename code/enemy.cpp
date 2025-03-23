@@ -5,8 +5,6 @@ global_enemy_state_t EnemySystem;
 
 void global_enemy_state_t::Init()
 {
-    // CharacterBodies.Init(sizeof(JPH::Character) * MaxCharacterBodies);
-
     // TODO are these Shapes and Settings deleted properly? when ref 0
     JPH::RefConst<JPH::Shape> StandingShape = JPH::RotatedTranslatedShapeSettings(
         JPH::Vec3(0, AttackerCapsuleHalfHeightStanding + AttackerCapsuleRadiusStanding, 0), 
@@ -40,6 +38,8 @@ void global_enemy_state_t::Init()
         Enemies[i].Position = vec3();
         Enemies[i].Orientation = quat();
 
+        Enemies[i].Animator = nullptr;
+
         Enemies[i].RigidBody = nullptr;
 
         Enemies[i].SmoothPath.setlen(MAX_SMOOTH);
@@ -64,7 +64,6 @@ void global_enemy_state_t::Destroy()
         delete CharacterBodies[i]; // ~JPH::Character destroys the body
         SetJPHMemoryAllocator(MemoryType::DefaultMalloc);
     }
-    // free(CharacterBodies.Arena);
 }
 
 void global_enemy_state_t::RemoveAll()
@@ -106,6 +105,18 @@ void global_enemy_state_t::SpawnEnemy()
     // THE USER DATA FOR JOLT BODY IS THE ENEMY INDEX FOR NOW
     Physics.BodyInterface->SetUserData(NextAvailableEnemy->RigidBody->GetBodyID(), 
         (u64)NextAvailableEnemy->Index);
+
+    for (size_t i = 0; i < AnimatorPool.length; ++i)
+    {
+        if (!AnimatorPool[i].HasOwner)
+        {
+            NextAvailableEnemy->Animator = &AnimatorPool[i];
+            NextAvailableEnemy->Animator->HasOwner = true;
+            NextAvailableEnemy->Animator->PlayAnimation(
+                Assets.Skeleton_Humanoid->Clips[SKE_HUMANOID_RUN], true);
+            break;
+        }
+    }
 }
 
 void global_enemy_state_t::RemoveEnemy(u32 EnemyIndex)
@@ -114,6 +125,9 @@ void global_enemy_state_t::RemoveEnemy(u32 EnemyIndex)
     Enemies[EnemyIndex].Flags = 0x0;
 
     RemoveCharacterBodyFromSimulation(Enemies[EnemyIndex].RigidBody);
+
+    Enemies[EnemyIndex].Animator->HasOwner = false;
+    Enemies[EnemyIndex].Animator->CurrentAnimation = nullptr;
 }
 
 JPH::Character *global_enemy_state_t::NextAvailableCharacterBody()
@@ -221,7 +235,7 @@ void RenderEnemies(const mat4 &ProjFromView, const mat4 &ViewFromWorld)
         GLBindMatrix4fv(GameAnimatedCharacterShader, "Model", 1, ModelMatrix.ptr());
 
         GLBindMatrix4fv(GameAnimatedCharacterShader, "FinalBonesMatrices[0]", MAX_BONES, 
-            Animator.SkinningMatrixPalette[0].ptr());
+            Enemy.Animator->SkinningMatrixPalette[0].ptr());
 
         for (size_t i = 0; i < Assets.Model_Attacker->Meshes.length; ++i)
         {
@@ -287,7 +301,7 @@ void KillEnemy(u32 EnemyIndex)
 
     Target.Flags |= EnemyFlag_Dead;
 
-    Animator.PlayAnimation(Assets.Skeleton_Humanoid->Clips[SKE_HUMANOID_DEATH], false);
+    Target.Animator->PlayAnimation(Assets.Skeleton_Humanoid->Clips[SKE_HUMANOID_DEATH], false);
 
     EnemySystem.RemoveCharacterBodyFromSimulation(Target.RigidBody);
 }
