@@ -222,8 +222,8 @@ enum class MemoryType
 };
 
 #include "utility.h"
-#include "anim.h"
 #include "resources.h"
+#include "anim.h"
 #include "shaders.h"
 #include "facebatch.h"
 #include "filedialog.h"

@@ -166,6 +166,25 @@ template<typename T, int _count> struct fixed_array
     const T& operator[](size_t index) const { ASSERT(index <= (size_t)count); return data[index]; }
 };
 
+template<typename T> struct mem_indexer
+{
+    /** Provide own block of memory and count. For when I want to carve 
+        an array out of pre-allocated arena and index into it. */
+
+    T *data = 0;
+    int count = 0;
+
+    mem_indexer() : data(0), count(0) {}
+    mem_indexer(void *Block, size_t Count) : data((T*)Block), count((int)Count) {}
+
+    T& operator[](int index) { ASSERT(0 <= index && index <= (int)count); return data[index]; }
+    T& operator[](unsigned int index) { ASSERT(index <= (unsigned int)count); return data[index]; }
+    T& operator[](size_t index) { ASSERT(index <= (size_t)count); return data[index]; }
+    const T& operator[](int index) const { ASSERT(0 <= index && index <= (int)count); return data[index]; }
+    const T& operator[](unsigned int index) const { ASSERT(index <= (unsigned int)count); return data[index]; }
+    const T& operator[](size_t index) const { ASSERT(index <= (size_t)count); return data[index]; }
+};
+
 #pragma region MEMORY
 
 struct linear_arena_t

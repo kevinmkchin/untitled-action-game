@@ -54,12 +54,8 @@ Currently, it also stores the skinning matrix palette.
 
 
 TODO
-- Memory clean up code!!!
 - Maybe move SkinningMatrixPalette storage out of animator_t since only one is used at a time
-- store anim clips somewhere // Animation clip management system
-- store skeletons somewhere // Skeleton management system
 - Do I need "AccumulateRootJointTransform" or not?
-- Simple linear allocator for all resources
 - Use u8 instead of int for BoneID in skinned_vertex_t (also in shader and attribs)
 - Change keyframe_scale_t to only use uniform-scaling and replace scale vec3 with float
 
@@ -103,15 +99,11 @@ struct skinned_model_t
 
     ~skinned_model_t()
     {
-        // TODO delete the meshes and texture resources off the gpu
-        // we don't need to free the meshes and textures arrays if theyre
-        // in static game memory...although then we shouldn't call this destructor
-        // unless the game ends...
+        LogError("skinned_model_t destructor should never be called. All animation objects are freed as part of static game memory.");
     }
 
-    // TODO(Kevin): allocate this dynamic array in StaticGameMemory
-    struct skinned_mesh_t *Meshes   = NULL;
-    struct GPUTexture     *Textures = NULL;
+    mem_indexer<skinned_mesh_t> Meshes;
+    mem_indexer<GPUTexture> Textures;
 
     const struct skeleton_t *GetSkeleton() { return Skeleton; }
 private:
@@ -127,8 +119,7 @@ struct skeleton_joint_t
 
 struct skeleton_t
 {
-    // TODO(Kevin): allocate this dynamic array in StaticGameMemory
-    dynamic_array<skeleton_joint_t> Joints;
+    mem_indexer<skeleton_joint_t> Joints;
 
     // look up table from joint/bone/node name to INDEX into Joints
     std::map<std::string, int> JointNameToIndex;
@@ -183,17 +174,16 @@ private:
     };
 
 public:
-    dynamic_array<keyframe_position_t> Positions;
-    dynamic_array<keyframe_rotation_t> Rotations;
-    dynamic_array<keyframe_scale_t>    Scales;
+    mem_indexer<keyframe_position_t> Positions;
+    mem_indexer<keyframe_rotation_t> Rotations;
+    mem_indexer<keyframe_scale_t>    Scales;
 };
 
 struct animation_clip_t
 {
     float TicksPerSecond = 0.f;
     float DurationInTicks = 0.f;
-    dynamic_array<joint_pose_sampler_t> JointPoseSamplers;
-    // bool IsLooping = false;
+    mem_indexer<joint_pose_sampler_t> JointPoseSamplers;
 
     animation_clip_t(const skeleton_t *InSkeleton)
     {
@@ -202,13 +192,13 @@ struct animation_clip_t
 
     ~animation_clip_t()
     {
-        // TODO destroy each JointPoseSampler and free the array
+        LogError("animation_clip_t destructor should never be called. All animation objects are freed as part of static game memory.");
     }
 
     void UpdateLocalPoses(float AnimationTime, mat4 *OutLocalPoses)
     {
-        ASSERT(JointPoseSamplers.lenu() == Skeleton->Joints.lenu());
-        for (size_t i = 0; i < JointPoseSamplers.lenu(); ++i)
+        ASSERT(JointPoseSamplers.count == Skeleton->Joints.count);
+        for (size_t i = 0; i < JointPoseSamplers.count; ++i)
         {
             OutLocalPoses[i] = JointPoseSamplers[i].SampleJointLocalPoseAt(AnimationTime);
         }
@@ -249,9 +239,9 @@ struct animator_t
 
             CurrentAnimation->UpdateLocalPoses(CurrentTime, LocalPosesArray);
 
-            dynamic_array<skeleton_joint_t> Joints = CurrentAnimation->GetSkeleton()->Joints;
+            const mem_indexer<skeleton_joint_t> Joints = CurrentAnimation->GetSkeleton()->Joints;
 
-            for (size_t i = 0; i < Joints.lenu(); ++i)
+            for (int i = 0; i < Joints.count; ++i)
             {
                 u8 ParentIndex = Joints[i].ParentIndex;
                 ASSERT(ParentIndex == 0xFF || ParentIndex < i);
@@ -273,8 +263,8 @@ struct animator_t
     {
         if (CurrentAnimation)
         {
-            dynamic_array<skeleton_joint_t> Joints = CurrentAnimation->GetSkeleton()->Joints;
-            for (size_t i = 0; i < Joints.lenu(); ++i)
+            const mem_indexer<skeleton_joint_t> Joints = CurrentAnimation->GetSkeleton()->Joints;
+            for (int i = 0; i < Joints.count; ++i)
                 SkinningMatrixPalette[i] = GlobalPosesArray[i] * Joints[i].InverseBindPoseTransform;
         }
     }
@@ -284,8 +274,8 @@ struct animator_t
 
 struct ModelGLTF
 {
-    struct GPUMeshIndexed *meshes   = NULL;
-    struct GPUTexture     *color    = NULL;
+    mem_indexer<GPUMeshIndexed> meshes;
+    mem_indexer<GPUTexture> color;
 };
 
 void FreeModelGLTF(ModelGLTF model);

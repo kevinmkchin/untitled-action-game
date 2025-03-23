@@ -223,7 +223,7 @@ void RenderEnemies(const mat4 &ProjFromView, const mat4 &ViewFromWorld)
         GLBindMatrix4fv(GameAnimatedCharacterShader, "FinalBonesMatrices[0]", MAX_BONES, 
             Animator.SkinningMatrixPalette[0].ptr());
 
-        for (size_t i = 0; i < arrlenu(Model_Attacker->Meshes); ++i)
+        for (size_t i = 0; i < Model_Attacker->Meshes.count; ++i)
         {
             skinned_mesh_t m = Model_Attacker->Meshes[i];
             GPUTexture t = Model_Attacker->Textures[i];
