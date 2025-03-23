@@ -214,6 +214,12 @@ inline std::string entity_icons_path(const std::string& name) { return wd_path()
 #define WORLD_LIMIT 32000
 #define WORLD_LIMIT_F 32000.f
 
+enum class MemoryType
+{
+    DefaultMalloc,
+    StaticGame,
+    StaticLevel
+};
 
 #include "utility.h"
 #include "anim.h"
@@ -238,8 +244,8 @@ inline std::string entity_icons_path(const std::string& name) { return wd_path()
 #include "nav.h"
 #include "debugmenu.h"
 
-linear_arena_t StaticLevelMemory;
 linear_arena_t StaticGameMemory;
+linear_arena_t StaticLevelMemory;
 
 SDL_Window *SDLMainWindow;
 SDL_GLContext SDLGLContext;
@@ -592,8 +598,8 @@ int main(int argc, char* argv[])
 
     InitGameRenderer();
 
-    StaticLevelMemory.Init(32000000);
     StaticGameMemory.Init(256000000);
+    StaticLevelMemory.Init(32000000);
 
     Assets.LoadAllResources();
 
@@ -645,8 +651,8 @@ int main(int argc, char* argv[])
 
     ApplicationEnd();
 
-    free(StaticLevelMemory.Arena);
     free(StaticGameMemory.Arena);
+    free(StaticLevelMemory.Arena);
 
     return 0;
 }
