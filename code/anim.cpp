@@ -255,8 +255,7 @@ bool LoadSkeleton_GLTF2Bin(const char *InFilePath, skeleton_t *OutSkeleton)
 
     // Read skeleton data
     dynamic_array<skeleton_joint_t> SkeletonJoints;
-    SkeletonJoints.setlen(64);
-    SkeletonJoints.setlen(0);
+    SkeletonJoints.setcap(64);
     ReadSkeletonJoints(Scene->mRootNode, BoneNameToInverseBindPose, OutSkeleton, SkeletonJoints);
     void *MemDst = StaticGameMemory.Alloc(SkeletonJoints.lenu()*sizeof(skeleton_joint_t), alignof(skeleton_joint_t));
     memcpy(MemDst, SkeletonJoints.data, SkeletonJoints.lenu()*sizeof(skeleton_joint_t));

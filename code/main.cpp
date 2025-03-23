@@ -214,13 +214,7 @@ inline std::string entity_icons_path(const std::string& name) { return wd_path()
 #define WORLD_LIMIT 32000
 #define WORLD_LIMIT_F 32000.f
 
-enum class MemoryType
-{
-    DefaultMalloc,
-    StaticGame,
-    StaticLevel
-};
-
+#include "mem.h"
 #include "utility.h"
 #include "resources.h"
 #include "anim.h"
@@ -244,8 +238,6 @@ enum class MemoryType
 #include "nav.h"
 #include "debugmenu.h"
 
-linear_arena_t StaticGameMemory;
-linear_arena_t StaticLevelMemory;
 
 SDL_Window *SDLMainWindow;
 SDL_GLContext SDLGLContext;
@@ -290,7 +282,7 @@ float GAMEPROJECTION_NEARCLIP = 4.f; // even 2 works fine to remove z fighting
 float GAMEPROJECTION_FARCLIP = 32000.f;
 
 
-
+#include "mem.cpp"
 #include "utility.cpp"
 #include "anim.cpp"
 #include "resources.cpp"
