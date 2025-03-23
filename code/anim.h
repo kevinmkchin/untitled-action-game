@@ -128,8 +128,7 @@ struct skeleton_t
     // look up table from joint/bone/node name to INDEX into Joints
     std::map<std::string, int> JointNameToIndex;
 
-    // TODO(Kevin): This should just be a fixed size C array to clip pointers.
-    dynamic_array<struct animation_clip_t *> Clips;
+    fixed_array<struct animation_clip_t *, 32> Clips;
 };
 
 

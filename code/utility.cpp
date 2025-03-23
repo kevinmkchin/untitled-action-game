@@ -486,3 +486,88 @@ void dynamic_array<T>::delswap(int p)
     arrdelswap(data, p);
 }
 
+
+template<typename T, int C>
+bool fixed_array<T,C>::contains(T v)
+{
+    for (int i = 0; i < count; ++i)
+    {
+        if (*(data + i) == v) return true;
+    }
+    return false;
+}
+
+template<typename T, int C>
+void fixed_array<T,C>::del(int index)
+{
+    if (index < count - 1)
+    {
+        memmove(data + index, data + index + 1, (count - index - 1) * sizeof(*data));
+    }
+    --count;
+}
+
+template<typename T, int C>
+void fixed_array<T,C>::del_first(T v)
+{
+    for (int i = 0; i < count; ++i)
+    {
+        if (*(data + i) == v)
+        {
+            del(i);
+            break;
+        }
+    }
+}
+
+template<typename T, int C>
+void fixed_array<T,C>::del_every(T v)
+{
+    for (int i = 0; i < count; ++i)
+    {
+        if (*(data + i) == v)
+        {
+            del(i);
+        }
+    }
+}
+
+template<typename T, int C>
+bool fixed_array<T,C>::not_at_cap()
+{
+    return count < capacity;
+}
+
+template<typename T, int C>
+void fixed_array<T,C>::put(T elem)
+{
+    data[count] = elem;
+    ++count;
+}
+
+template<typename T, int C>
+T fixed_array<T,C>::pop()
+{
+    T copy = *(data + count - 1);
+    --count;
+    memset(data + count, 0, sizeof(*data));
+    return copy;
+}
+
+template<typename T, int C>
+T &fixed_array<T,C>::back()
+{
+    return *(data + count - 1);
+}
+
+template<typename T, int C>
+void fixed_array<T,C>::reset_count()
+{
+    count = 0;
+}
+
+template<typename T, int C>
+void fixed_array<T,C>::memset_zero()
+{
+    memset(data, 0, capacity * sizeof(*data));
+}

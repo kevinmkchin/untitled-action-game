@@ -121,114 +121,72 @@ template<typename T> struct dynamic_array
     // the end of the array. O(1) performance.
     void delswap(int p);
 
-
     T& operator[](int index) { ASSERT(0 <= index && index <= (int)arrlenu(data)); return data[index]; }
-    T& operator[](u32 index) { ASSERT(index <= (u32)arrlenu(data)); return data[index]; }
+    T& operator[](unsigned int index) { ASSERT(index <= (unsigned int)arrlenu(data)); return data[index]; }
     T& operator[](size_t index) { ASSERT(index <= arrlenu(data)); return data[index]; }
     const T& operator[](int index) const { ASSERT(0 <= index && index <= (int)arrlenu(data)); return data[index]; }
-    const T& operator[](u32 index) const { ASSERT(index <= (u32)arrlenu(data)); return data[index]; }
+    const T& operator[](unsigned int index) const { ASSERT(index <= (unsigned int)arrlenu(data)); return data[index]; }
     const T& operator[](size_t index) const { ASSERT(index <= arrlenu(data)); return data[index]; }
 };
 
 
-template<typename T, int _count> struct NiceArray
+template<typename T, int _count> struct fixed_array
 {
-    /** Nice array wrapper for when you want to keep track of how many active/relevant
-        elements are in the array. Essentially a dynamic sized array/vector with a
-        maximum defined capacity (s.t. it can be defined on stack or static storage). */
+    /** Nice wrapper for fixed size C arrays */
 
     T data[_count] = {};
     int count = 0;
     const int capacity = _count;
 
-    // todo maybe Insert and Erase?
+    bool contains(T v);
+    // Deletes the element at data[index], moving the rest of the array over.
+    void del(int index);
+    // Call del for the first element that equals v
+    void del_first(T v);
+    // Call del for every element that equals v
+    void del_every(T v);
+    // count < capacity
+    bool not_at_cap();
+    // Appends the item to the end of array
+    void put(T elem);
+    // Removes the final element of the array and returns it.
+    T pop();
+    // Retrieve the final element
+    T &back();
+    // Set count to zero
+    void reset_count();
+    // Set the bits of the entire buffer to 0
+    void memset_zero();
 
-    bool Contains(T v)
-    {
-        for (int i = 0; i < count; ++i)
-        {
-            if (*(data + i) == v) return true;
-        }
-        return false;
-    }
-
-    void EraseAt(int index)
-    {
-        if (index < count - 1)
-        {
-            memmove(data + index, data + index + 1, (count - index - 1) * sizeof(*data));
-        }
-        --count;
-    }
-
-    void EraseFirstOf(T v)
-    {
-        for (int i = 0; i < count; ++i)
-        {
-            if (*(data + i) == v)
-            {
-                EraseAt(i);
-                break;
-            }
-        }
-    }
-
-    void EraseAllOf(T v)
-    {
-        for (int i = 0; i < count; ++i)
-        {
-            if (*(data + i) == v)
-            {
-                EraseAt(i);
-            }
-        }
-    }
-
-    bool NotAtCapacity()
-    {
-        return count < capacity;
-    }
-
-    void PushBack(T elem)
-    {
-        data[count] = elem;
-        ++count;
-    }
-
-    void PopBack()
-    {
-        --count;
-        memset(data + count, 0, sizeof(*data));
-    }
-
-    T& At(int index)
-    {
-        return *(data + index);
-    }
-
-    T& At(unsigned int index)
-    {
-        return At((int) index);
-    }
-
-    T& Back()
-    {
-        return *(data + count - 1);
-    }
-
-    void ResetCount()
-    {
-        count = 0;
-    }
-
-    void ResetToZero()
-    {
-        memset(data, 0, capacity * sizeof(*data));
-    }
+    T& operator[](int index) { ASSERT(0 <= index && index <= (int)count); return data[index]; }
+    T& operator[](unsigned int index) { ASSERT(index <= (unsigned int)count); return data[index]; }
+    T& operator[](size_t index) { ASSERT(index <= (size_t)count); return data[index]; }
+    const T& operator[](int index) const { ASSERT(0 <= index && index <= (int)count); return data[index]; }
+    const T& operator[](unsigned int index) const { ASSERT(index <= (unsigned int)count); return data[index]; }
+    const T& operator[](size_t index) const { ASSERT(index <= (size_t)count); return data[index]; }
 };
 
-
 #pragma region MEMORY
+
+struct linear_arena_t
+{
+    // Linear allocator works best when we don't support freeing memory at the pointer level
+    // Carve allocations out of a pre allocated arena
+    // There is no per allocation overhead.
+    // The arena memory is not modified by the allocator.
+    // The allocator is not thread-safe.
+
+    u8 *Arena = nullptr;
+    size_t ArenaOffset = 0;
+    size_t ArenaSize = 0;
+
+    void Init(size_t Bytes);
+
+    template<typename T>
+    void *Alloc();
+
+    void *Alloc(size_t Bytes, size_t Align);
+};
 
 struct ByteBuffer
 {
@@ -295,26 +253,5 @@ void ByteBufferSeekToEnd(ByteBuffer* buffer);
 void ByteBufferAdvancePosition(ByteBuffer* buffer, size_t sz);
 void __byteBufferWriteImpl(ByteBuffer* buffer, void* data, size_t sz);
 
-
-struct linear_arena_t
-{
-    // Linear allocator works best when we don't support freeing memory at the pointer level
-    // Carve allocations out of a pre allocated arena
-    // There is no per allocation overhead.
-    // The arena memory is not modified by the allocator.
-    // The allocator is not thread-safe.
-
-    u8* Arena = nullptr;
-    size_t ArenaOffset = 0;
-    size_t ArenaSize = 0;
-
-    void Init(size_t Bytes);
-
-    template<typename T>
-    void *Alloc();
-
-    void *Alloc(size_t Bytes, size_t Align);
-};
-
-#pragma endregion
+#pragma endregion // MEMORY
 

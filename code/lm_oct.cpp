@@ -55,8 +55,8 @@ CollisionResult CollideFlatPolygonXLine(FlatPolygonCollider *polygon, LineCollid
     vec3 IntersectionPoint = line->a + t * (line->b - line->a);
 
     // project polygon and intersection point into 2D space
-    NiceArray<vec2, 32> projectedVertices; // TODO(Kevin): more than 32 verts
-    projectedVertices.ResetCount();
+    fixed_array<vec2, 32> projectedVertices; // TODO(Kevin): more than 32 verts
+    projectedVertices.reset_count();
 
     vec3 basisU = edge0;
     vec3 basisV = Normalize(Cross(normal, basisU));
@@ -66,7 +66,7 @@ CollisionResult CollideFlatPolygonXLine(FlatPolygonCollider *polygon, LineCollid
         vec3 p = polygon->pointCloudPtr[i];
         float u = Dot(p-pv0, basisU);
         float v = Dot(p-pv0, basisV);
-        projectedVertices.PushBack(vec2(u, v));
+        projectedVertices.put(vec2(u, v));
     }
 
     vec2 pip; //projectedIntersectionPoint
@@ -80,8 +80,8 @@ CollisionResult CollideFlatPolygonXLine(FlatPolygonCollider *polygon, LineCollid
     u32 crossings = 0;
     for (int i = 0; i < projectedVertices.count; ++i)
     {
-        vec2 edgeA = projectedVertices.At(i);
-        vec2 edgeB = projectedVertices.At(i != projectedVertices.count-1 ? i+1 : 0);
+        vec2 edgeA = projectedVertices[i];
+        vec2 edgeB = projectedVertices[i != projectedVertices.count-1 ? i+1 : 0];
 
         if (edgeA == pip) // intersection point is a corner/vertex
         {
