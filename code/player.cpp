@@ -211,11 +211,8 @@ void player_t::AddToPhysicsSystem()
     Settings->mInnerBodyLayer = Layers::PLAYER;
     CharacterController = new JPH::CharacterVirtual(Settings, JPH::RVec3::sZero(), JPH::Quat::sIdentity(), 0, Physics.PhysicsSystem);
     CharacterController->SetCharacterVsCharacterCollision(&Physics.CharacterVirtualsHandler);
+    CharacterController->SetListener(&Physics.VirtualCharacterContactListener);
     Physics.CharacterVirtualsHandler.Add(CharacterController);
-
-    // // Install contact listener for all characters
-    // for (CharacterVirtual *character : mCharacterVsCharacterCollision.mCharacters)
-    //     character->SetListener(this);
 }
 
 void player_t::LateNonPhysicsTick()

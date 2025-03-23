@@ -97,6 +97,36 @@ void MyContactListener::OnContactRemoved(const JPH::SubShapeIDPair &inSubShapePa
 
 }
 
+/// Checks if a character can collide with specified body. Return true if the contact is valid.
+bool MyVirtualCharacterContactListener::OnContactValidate(
+    const JPH::CharacterVirtual *inCharacter,
+    const JPH::BodyID &inBodyID2,
+    const JPH::SubShapeID &inSubShapeID2) 
+{
+    return true;
+}
+
+/// Called whenever the character collides with a body.
+/// @param inCharacter Character that is being solved
+/// @param inBodyID2 Body ID of body that is being hit
+/// @param inSubShapeID2 Sub shape ID of shape that is being hit
+/// @param inContactPosition World space contact position
+/// @param inContactNormal World space contact normal
+/// @param ioSettings Settings returned by the contact callback to indicate 
+//         how the character should behave
+void MyVirtualCharacterContactListener::OnContactAdded(
+    const JPH::CharacterVirtual *inCharacter,
+    const JPH::BodyID &inBodyID2,
+    const JPH::SubShapeID &inSubShapeID2,
+    JPH::RVec3Arg inContactPosition,
+    JPH::Vec3Arg inContactNormal,
+    JPH::CharacterContactSettings &ioSettings)
+{
+    if (Physics.BodyInterface->GetObjectLayer(inBodyID2) == Layers::ENEMY)
+    {
+        Player.Health -= 5.f;
+    }
+}
 
 
 void game_char_vs_char_handler_t::Remove(const JPH::CharacterVirtual *InCharacter)

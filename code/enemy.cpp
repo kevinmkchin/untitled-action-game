@@ -94,6 +94,7 @@ void global_enemy_state_t::SpawnEnemy()
 
     NextAvailableEnemy->Flags = 0x0;
     NextAvailableEnemy->Flags |= EnemyFlag_Active;
+    NextAvailableEnemy->Health = 100.f;
 
     GetRandomPointOnNavMesh((float*)&NextAvailableEnemy->Position);
 
@@ -188,6 +189,11 @@ void PrePhysicsTickAllEnemies()
         if (!(Enemy.Flags & EnemyFlag_Active))
             continue;
 
+        if (Physics.BodyInterface->IsAdded(Enemy.RigidBody->GetBodyID()))
+        {
+            Enemy.RigidBody->SetPositionAndRotation(
+                ToJoltVector(Enemy.Position), ToJoltQuat(Enemy.Orientation));
+        }
 
         if (!DebugEnemyBehaviourActive || Enemy.Flags & EnemyFlag_Dead)
             continue;

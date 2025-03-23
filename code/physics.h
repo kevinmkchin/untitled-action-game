@@ -77,6 +77,9 @@ public:
     // ANY DATA THAT CAN BE MUTATED BY CONTACT LISTENER MUST USE CORRESPONDING MUTEX LOCK 
     // Notified when bodies collide and separate
     MyContactListener ContactListener;
+    // JPH::CharacterContactListener does not need to be thread safe
+    MyVirtualCharacterContactListener VirtualCharacterContactListener;
+
 };
 
 extern physics_t Physics;
