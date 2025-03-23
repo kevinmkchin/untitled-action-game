@@ -598,9 +598,11 @@ void asset_db_t::LoadAllResources()
 
     // === Character models ===
     Skeleton_Humanoid = new(StaticGameMemory.Alloc<skeleton_t>()) skeleton_t();
-    LoadSkeleton_GLTF2Bin(model_path("attacker.glb").c_str(), Skeleton_Humanoid);
+    ASSERT(LoadSkeleton_GLTF2Bin(model_path("attacker.glb").c_str(), Skeleton_Humanoid));
     Model_Attacker = new(StaticGameMemory.Alloc<skinned_model_t>()) skinned_model_t(Skeleton_Humanoid);
-    LoadSkinnedModel_GLTF2Bin(model_path("attacker.glb").c_str(), Model_Attacker);
+    ASSERT(LoadSkinnedModel_GLTF2Bin(model_path("attacker.glb").c_str(), Model_Attacker));
+    Model_AttackerCorpse = (ModelGLTF *)StaticGameMemory.Alloc<ModelGLTF>();
+    ASSERT(LoadModelGLTF2Bin(Model_AttackerCorpse, model_path("attacker_corpse.glb").c_str()));
 
     // === SFX ===
     Sfx_Shoot0 = Mixer_LoadChunk(sfx_path("snd_quakesupernailgun.ogg").c_str());

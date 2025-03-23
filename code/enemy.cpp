@@ -5,6 +5,11 @@ global_enemy_state_t EnemySystem;
 
 void global_enemy_state_t::Init()
 {
+    Enemies = fixed_array<enemy_t>(MaxEnemies, MemoryType::StaticGame);
+    Enemies.setlen(MaxEnemies);
+    CharacterBodies = fixed_array<JPH::Character *>(MaxCharacterBodies, MemoryType::StaticGame);
+    CharacterBodies.setlen(MaxCharacterBodies);
+
     // TODO are these Shapes and Settings deleted properly? when ref 0
     JPH::RefConst<JPH::Shape> StandingShape = JPH::RotatedTranslatedShapeSettings(
         JPH::Vec3(0, AttackerCapsuleHalfHeightStanding + AttackerCapsuleRadiusStanding, 0), 
@@ -150,15 +155,41 @@ void global_enemy_state_t::RemoveCharacterBodyFromSimulation(JPH::Character *Cha
     Physics.BodyInterface->SetUserData(CharacterBody->GetBodyID(), (u64)BAD_UINDEX);
 }
 
-void PrePhysicsTickAllEnemies()
+void NonPhysicsTickAllEnemies()
 {
-    if (!DebugEnemyBehaviourActive)
-        return;
-
     for (int i = 0; i < EnemySystem.MaxEnemies; ++i)
     {
         enemy_t& Enemy = EnemySystem.Enemies[i];
-        if (Enemy.Flags & EnemyFlag_Dead || !(Enemy.Flags & EnemyFlag_Active))
+        if (!(Enemy.Flags & EnemyFlag_Active))
+            continue;
+
+        if (Enemy.Flags & EnemyFlag_Dead)
+        {
+            Enemy.DeadTimer -= DeltaTime;
+            if (Enemy.DeadTimer <= 0.f)
+            {
+                corpse_t Corpse;
+                Corpse.Pos = Enemy.Position;
+                Corpse.Rot = Enemy.Orientation;
+                Corpse.CorpseModel = Assets.Model_AttackerCorpse;
+                EnemySystem.Corpses.put(Corpse);
+                EnemySystem.RemoveEnemy(Enemy.Index);
+                continue;
+            }
+        }
+    }
+}
+
+void PrePhysicsTickAllEnemies()
+{
+    for (int i = 0; i < EnemySystem.MaxEnemies; ++i)
+    {
+        enemy_t& Enemy = EnemySystem.Enemies[i];
+        if (!(Enemy.Flags & EnemyFlag_Active))
+            continue;
+
+
+        if (!DebugEnemyBehaviourActive || Enemy.Flags & EnemyFlag_Dead)
             continue;
 
         Enemy.TimeSinceLastPathFind += FixedDeltaTime;
@@ -213,15 +244,15 @@ void PostPhysicsTickAllEnemies()
 
 void RenderEnemies(const mat4 &ProjFromView, const mat4 &ViewFromWorld)
 {
-    UseShader(GameAnimatedCharacterShader);
+    UseShader(GameModelSkinnedShader);
     glEnable(GL_DEPTH_TEST);
-    GLBind4f(GameAnimatedCharacterShader, "MuzzleFlash", 
+    GLBind4f(GameModelSkinnedShader, "MuzzleFlash", 
         Player.Weapon.MuzzleFlash.x, 
         Player.Weapon.MuzzleFlash.y, 
         Player.Weapon.MuzzleFlash.z, 
         Player.Weapon.MuzzleFlash.w);
-    GLBindMatrix4fv(GameAnimatedCharacterShader, "Projection", 1, ProjFromView.ptr());
-    GLBindMatrix4fv(GameAnimatedCharacterShader, "View", 1, ViewFromWorld.ptr());
+    GLBindMatrix4fv(GameModelSkinnedShader, "Projection", 1, ProjFromView.ptr());
+    GLBindMatrix4fv(GameModelSkinnedShader, "View", 1, ViewFromWorld.ptr());
 
     for (int i = 0; i < EnemySystem.MaxEnemies; ++i)
     {
@@ -232,9 +263,9 @@ void RenderEnemies(const mat4 &ProjFromView, const mat4 &ViewFromWorld)
         mat4 ModelMatrix = TranslationMatrix(Enemy.Position) * 
             RotationMatrix(Enemy.Orientation) * ScaleMatrix(SI_UNITS_TO_GAME_UNITS);
 
-        GLBindMatrix4fv(GameAnimatedCharacterShader, "Model", 1, ModelMatrix.ptr());
+        GLBindMatrix4fv(GameModelSkinnedShader, "Model", 1, ModelMatrix.ptr());
 
-        GLBindMatrix4fv(GameAnimatedCharacterShader, "FinalBonesMatrices[0]", MAX_BONES, 
+        GLBindMatrix4fv(GameModelSkinnedShader, "FinalBonesMatrices[0]", MAX_BONES, 
             Enemy.Animator->SkinningMatrixPalette[0].ptr());
 
         for (size_t i = 0; i < Assets.Model_Attacker->Meshes.length; ++i)
@@ -254,6 +285,24 @@ void RenderEnemies(const mat4 &ProjFromView, const mat4 &ViewFromWorld)
         }
     }
 
+    UseShader(GameModelTexturedShader);
+    glEnable(GL_DEPTH_TEST);
+    GLBind4f(GameModelTexturedShader, "MuzzleFlash", 
+        Player.Weapon.MuzzleFlash.x, 
+        Player.Weapon.MuzzleFlash.y, 
+        Player.Weapon.MuzzleFlash.z, 
+        Player.Weapon.MuzzleFlash.w);
+    GLBindMatrix4fv(GameModelTexturedShader, "ProjFromView", 1, ProjFromView.ptr());
+    GLBindMatrix4fv(GameModelTexturedShader, "ViewFromWorld", 1, ViewFromWorld.ptr());
+
+    // TODO(Kevin): Instanced drawing for corpses
+    for (size_t i = 0; i < EnemySystem.Corpses.length; ++i)
+    {
+        mat4 ModelMatrix = TranslationMatrix(EnemySystem.Corpses[i].Pos) * 
+            RotationMatrix(EnemySystem.Corpses[i].Rot) * ScaleMatrix(SI_UNITS_TO_GAME_UNITS);
+        GLBindMatrix4fv(GameModelTexturedShader, "WorldFromModel", 1, ModelMatrix.ptr());
+        RenderModelGLTF(*EnemySystem.Corpses[i].CorpseModel);
+    }
 }
 
 void DebugDrawEnemyColliders()
@@ -300,6 +349,8 @@ void KillEnemy(u32 EnemyIndex)
     enemy_t &Target = EnemySystem.Enemies[EnemyIndex];
 
     Target.Flags |= EnemyFlag_Dead;
+
+    Target.DeadTimer = 1.f;
 
     Target.Animator->PlayAnimation(Assets.Skeleton_Humanoid->Clips[SKE_HUMANOID_DEATH], false);
 

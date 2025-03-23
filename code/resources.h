@@ -131,6 +131,7 @@ struct db_tex_t
 
 struct skeleton_t;
 struct skinned_model_t;
+struct ModelGLTF;
 
 struct asset_db_t
 {
@@ -151,6 +152,7 @@ public:
 
     skeleton_t *Skeleton_Humanoid = nullptr;
     skinned_model_t *Model_Attacker = nullptr;
+    ModelGLTF *Model_AttackerCorpse = nullptr;
 
 private:
     u32 TexturePersistIdCounter;

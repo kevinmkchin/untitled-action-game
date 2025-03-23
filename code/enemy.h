@@ -26,6 +26,7 @@ struct enemy_t
     quat Orientation;
 
     float Health;
+    float DeadTimer;
 
     animator_t *Animator;
 
@@ -41,6 +42,7 @@ struct enemy_t
     // each instance should have their own animator_t
 };
 
+void NonPhysicsTickAllEnemies();
 void PrePhysicsTickAllEnemies();
 void PostPhysicsTickAllEnemies();
 void RenderEnemies(const mat4 &ProjFromView, const mat4 &ViewFromWorld);
@@ -49,15 +51,22 @@ void DebugDrawEnemyColliders();
 void HurtEnemy(u32 EnemyIndex, float Damage);
 void KillEnemy(u32 EnemyIndex);
 
+struct corpse_t
+{
+    vec3 Pos;
+    quat Rot;
+    ModelGLTF *CorpseModel;
+};
+
 struct global_enemy_state_t
 {
     static constexpr int MaxEnemies = 64;
     static constexpr int MaxCharacterBodies = 32;
-    
-    // Perhaps I could have multiple arrays one for each enemy type?
-    enemy_t Enemies[MaxEnemies];
+    static constexpr int MaxCorpses = 256;
+
+    fixed_array<enemy_t> Enemies;
+    fixed_array<JPH::Character *> CharacterBodies;
     // TODO(Kevin): separate array per collider type?
-    JPH::Character *CharacterBodies[MaxCharacterBodies];
 
     void Init(); // Call once at start of game
     void Destroy(); // Call once at end of game
@@ -70,7 +79,7 @@ struct global_enemy_state_t
     JPH::Character *NextAvailableCharacterBody();
     void RemoveCharacterBodyFromSimulation(JPH::Character *CharacterBody);
 
-    // Maybe an array of static corpses?
+    fixed_array<corpse_t> Corpses;
 
 private:
     static constexpr float AttackerHeightStanding = 1.7f;
