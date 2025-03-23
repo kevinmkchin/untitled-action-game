@@ -596,6 +596,12 @@ void asset_db_t::LoadAllResources()
     ASSERT(LoadModelGLTF2Bin(&Model_Nailgun, model_path("wpn_type1.glb").c_str()));
     ASSERT(LoadModelGLTF2Bin(&Model_Nail, model_path("prj_nail.glb").c_str()));
 
+    // === Character models ===
+    Skeleton_Humanoid = new(StaticGameMemory.Alloc<skeleton_t>()) skeleton_t();
+    LoadSkeleton_GLTF2Bin(model_path("attacker.glb").c_str(), Skeleton_Humanoid);
+    Model_Attacker = new(StaticGameMemory.Alloc<skinned_model_t>()) skinned_model_t(Skeleton_Humanoid);
+    LoadSkinnedModel_GLTF2Bin(model_path("attacker.glb").c_str(), Model_Attacker);
+
     // === SFX ===
     Sfx_Shoot0 = Mixer_LoadChunk(sfx_path("snd_quakesupernailgun.ogg").c_str());
     Sfx_Ricochet[0] = Mixer_LoadChunk(sfx_path("snd_ricochet_0.ogg").c_str());

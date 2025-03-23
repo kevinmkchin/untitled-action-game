@@ -223,10 +223,10 @@ void RenderEnemies(const mat4 &ProjFromView, const mat4 &ViewFromWorld)
         GLBindMatrix4fv(GameAnimatedCharacterShader, "FinalBonesMatrices[0]", MAX_BONES, 
             Animator.SkinningMatrixPalette[0].ptr());
 
-        for (size_t i = 0; i < Model_Attacker->Meshes.count; ++i)
+        for (size_t i = 0; i < Assets.Model_Attacker->Meshes.count; ++i)
         {
-            skinned_mesh_t m = Model_Attacker->Meshes[i];
-            GPUTexture t = Model_Attacker->Textures[i];
+            skinned_mesh_t m = Assets.Model_Attacker->Meshes[i];
+            GPUTexture t = Assets.Model_Attacker->Textures[i];
 
             glActiveTexture(GL_TEXTURE0);
             //glBindTexture(GL_TEXTURE_2D, t.id);
@@ -287,7 +287,7 @@ void KillEnemy(u32 EnemyIndex)
 
     Target.Flags |= EnemyFlag_Dead;
 
-    Animator.PlayAnimation(Skeleton_Humanoid->Clips[SKE_HUMANOID_DEATH], false);
+    Animator.PlayAnimation(Assets.Skeleton_Humanoid->Clips[SKE_HUMANOID_DEATH], false);
 
     EnemySystem.RemoveCharacterBodyFromSimulation(Target.RigidBody);
 }

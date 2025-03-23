@@ -21,7 +21,7 @@ void main()
         if (CosTheta > 0.f)
         {
             float MuzzleIntensity = CosTheta * (2.0 /
-                (1.0 + 0.005 * DistToLight + 0.0002 * DistToLight * DistToLight));
+                (1.0 + 0.004 * DistToLight + 0.0001 * DistToLight * DistToLight));
             FinalColor = FinalColor * vec3(1.0 + MuzzleIntensity * 2.0, 
                 1.0 + MuzzleIntensity, 1.0 + MuzzleIntensity * 0.3);
         }

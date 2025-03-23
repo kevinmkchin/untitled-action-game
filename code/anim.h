@@ -122,7 +122,7 @@ struct skeleton_t
     mem_indexer<skeleton_joint_t> Joints;
 
     // look up table from joint/bone/node name to INDEX into Joints
-    std::map<std::string, int> JointNameToIndex;
+    std::unordered_map<std::string, int> JointNameToIndex;
 
     fixed_array<struct animation_clip_t *, 32> Clips;
 };
