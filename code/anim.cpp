@@ -191,23 +191,22 @@ static void ReadSkeletonJoints(const aiNode *Node,
         ReadSkeletonJoints(Node->mChildren[i], BoneLookup, Skeleton);
 }
 
-static animation_clip_t ReadAnimationClip(const aiAnimation *AssimpAnim, const skeleton_t *Skeleton)
+static void ReadAnimationClip(const aiAnimation *AssimpAnim, animation_clip_t *OutClip)
 {
     const bool TEMPFLAG_IsGLB = true;
     // GLTF2.0 exports animation clip durations in MILLISECONDS!
     // Therefore Animation TicksPerSeconds must be set to 1000.
-    animation_clip_t Clip = animation_clip_t(Skeleton);
-    Clip.DurationInTicks = (float)AssimpAnim->mDuration;
-    Clip.TicksPerSecond = TEMPFLAG_IsGLB ? 1000.f : (float)AssimpAnim->mTicksPerSecond;
+    OutClip->DurationInTicks = (float)AssimpAnim->mDuration;
+    OutClip->TicksPerSecond = TEMPFLAG_IsGLB ? 1000.f : (float)AssimpAnim->mTicksPerSecond;
     // The number of bone animation channels. Each channel affects a single node.
     u32 NumChannels = AssimpAnim->mNumChannels;
-    Clip.JointPoseSamplers.setlen(NumChannels);
-    ASSERT(NumChannels == (u32)Skeleton->Joints.lenu());
-    for (size_t i = 0; i < Clip.JointPoseSamplers.lenu(); ++i)
+    OutClip->JointPoseSamplers.setlen(NumChannels);
+    ASSERT(NumChannels == (u32)OutClip->GetSkeleton()->Joints.lenu());
+    for (size_t i = 0; i < OutClip->JointPoseSamplers.lenu(); ++i)
     {
-        Clip.JointPoseSamplers[i].Positions.data = NULL;
-        Clip.JointPoseSamplers[i].Rotations.data = NULL;
-        Clip.JointPoseSamplers[i].Scales.data = NULL;
+        OutClip->JointPoseSamplers[i].Positions.data = NULL;
+        OutClip->JointPoseSamplers[i].Rotations.data = NULL;
+        OutClip->JointPoseSamplers[i].Scales.data = NULL;
     }
 
     // Reading channels (bones engaged in an animation and their keyframes)
@@ -216,16 +215,14 @@ static animation_clip_t ReadAnimationClip(const aiAnimation *AssimpAnim, const s
         aiNodeAnim *NodeAnimChannel = AssimpAnim->mChannels[i];
         const char *JointName = NodeAnimChannel->mNodeName.data;
 
-        auto Iter = Skeleton->JointNameToIndex.find(JointName);
-        ASSERT(Iter != Skeleton->JointNameToIndex.end());
+        auto Iter = OutClip->GetSkeleton()->JointNameToIndex.find(JointName);
+        ASSERT(Iter != OutClip->GetSkeleton()->JointNameToIndex.end());
         int JointIndex = Iter->second;
 
-        joint_pose_sampler_t *JointPoseSampler = &Clip.JointPoseSamplers[JointIndex];
+        joint_pose_sampler_t *JointPoseSampler = &OutClip->JointPoseSamplers[JointIndex];
         ASSERT(JointPoseSampler->Positions.data == NULL);
         JointPoseSampler->Create(NodeAnimChannel);
     }
-
-    return Clip;
 }
 
 bool LoadSkeleton_GLTF2Bin(const char *InFilePath, skeleton_t *OutSkeleton)
@@ -265,18 +262,17 @@ bool LoadSkeleton_GLTF2Bin(const char *InFilePath, skeleton_t *OutSkeleton)
     for (u32 i = 0; i < Scene->mNumAnimations; ++i)
     {
         aiAnimation *AssimpAnim = Scene->mAnimations[i];
-        animation_clip_t AnimationClip = ReadAnimationClip(AssimpAnim, OutSkeleton);
-
-        // output Animation Clips
-        TestAnimClip0 = new animation_clip_t(OutSkeleton);
-        *TestAnimClip0 = AnimationClip;
+        // TODO(Kevin): Should these animation clips be stored in a linear arena?
+        animation_clip_t *Clip = new animation_clip_t(OutSkeleton);
+        ReadAnimationClip(AssimpAnim, Clip);
+        OutSkeleton->Clips.put(Clip);
     }
 
     return true;
 }
 
 
-void LoadAdditionalAnimationsForSkeleton(const struct skeleton_t *Skeleton, const char *InFilePath)
+void LoadAdditionalAnimationsForSkeleton(struct skeleton_t *Skeleton, const char *InFilePath)
 {
     Assimp::Importer Importer;
     const aiScene *Scene = Importer.ReadFile(InFilePath, aiProcess_Triangulate);
@@ -302,11 +298,9 @@ void LoadAdditionalAnimationsForSkeleton(const struct skeleton_t *Skeleton, cons
     for (u32 i = 0; i < Scene->mNumAnimations; ++i)
     {
         aiAnimation *AssimpAnim = Scene->mAnimations[i];
-        animation_clip_t AnimationClip = ReadAnimationClip(AssimpAnim, Skeleton);
-
-        // output Animation Clips
-        TestAnimClip1 = new animation_clip_t(Skeleton);
-        *TestAnimClip1 = AnimationClip;
+        animation_clip_t *Clip = new animation_clip_t(Skeleton);
+        ReadAnimationClip(AssimpAnim, Clip);
+        Skeleton->Clips.put(Clip);
     }
 }
 

@@ -53,6 +53,7 @@ namespace GUI
 
     /* Application API */
     void Init(); // on program start
+    // void Free();
     void NewFrame(); // before each frame
     void ProcessSDLEvent(const SDL_Event evt); // update input state
     void Draw(); // flush draw requests to GPU

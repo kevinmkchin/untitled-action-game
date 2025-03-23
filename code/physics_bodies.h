@@ -11,7 +11,8 @@ namespace Layers
     static constexpr JPH::ObjectLayer NUM_LAYERS = 5;
 };
 
-// Each broadphase layer results in a separate bounding volume tree in the broad phase.
+// Each broadphase layer results in a separate bounding volume tree in 
+// the broad phase. Too many will be slow.
 namespace BroadPhaseLayers
 {
     static constexpr JPH::BroadPhaseLayer NON_MOVING(0);
@@ -20,6 +21,7 @@ namespace BroadPhaseLayers
     static constexpr unsigned int NUM_LAYERS(3);
 };
 
+// Define the collision rules for the game
 JPH::ObjectLayerPairFilterTable *CreateAndSetupObjectLayers();
 JPH::BroadPhaseLayerInterfaceTable *CreateAndSetupBroadPhaseLayers();
 JPH::ObjectVsBroadPhaseLayerFilterTable *CreateAndSetupObjectVsBroadPhaseFilter(
@@ -36,34 +38,36 @@ public:
     virtual void OnContactPersisted(const JPH::Body &inBody1, const JPH::Body &inBody2, const JPH::ContactManifold &inManifold, JPH::ContactSettings &ioSettings) override;
     virtual void OnContactRemoved(const JPH::SubShapeIDPair &inSubShapePair) override;
 
-private:
+public:
     // For storing projectile hit infos
     JPH::Mutex ProjectileHitMutex;
 };
 
-// // This class receives callbacks when a virtual character hits something.
-// class MyVirtualCharacterContactListener : public CharacterContactListener
-// {
+/*
+// A body activation listener gets notified when bodies activate and go to sleep
+// Note that this is called from a job so whatever you do here needs to be thread safe.
+// Registering one is entirely optional.
+// An example activation listener
+class MyBodyActivationListener : public BodyActivationListener
+{
+public:
+    virtual void OnBodyActivated(const BodyID &inBodyID, uint64 inBodyUserData) override
+    {
+        cout << "A body got activated" << endl;
+    }
 
-// };
+    virtual void OnBodyDeactivated(const BodyID &inBodyID, uint64 inBodyUserData) override
+    {
+        cout << "A body went to sleep" << endl;
+    }
+};
 
-// // A body activation listener gets notified when bodies activate and go to sleep
-// // Note that this is called from a job so whatever you do here needs to be thread safe.
-// // Registering one is entirely optional.
-// // An example activation listener
-// class MyBodyActivationListener : public BodyActivationListener
-// {
-// public:
-//     virtual void OnBodyActivated(const BodyID &inBodyID, uint64 inBodyUserData) override
-//     {
-//         cout << "A body got activated" << endl;
-//     }
+// This class receives callbacks when a virtual character hits something.
+class MyVirtualCharacterContactListener : public CharacterContactListener
+{
 
-//     virtual void OnBodyDeactivated(const BodyID &inBodyID, uint64 inBodyUserData) override
-//     {
-//         cout << "A body went to sleep" << endl;
-//     }
-// };
+};
+*/
     
 /** Allows a CharacterVirtual to check collision with other CharacterVirtual instances.
     Since CharacterVirtual instances are not registered anywhere, it is up to the 

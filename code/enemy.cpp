@@ -1,31 +1,13 @@
 
-dynamic_array<enemy_t> Enemies;
+// external
+global_enemy_state_t EnemySystem;
 
-// In SI units
-static constexpr float AttackerHeightStanding = 1.7f;
-static constexpr float AttackerCapsuleRadiusStanding = 0.3f;
-static constexpr float AttackerCapsuleHalfHeightStanding = (AttackerHeightStanding 
-    - AttackerCapsuleRadiusStanding * 2.f) * 0.5f;
 
-void enemy_t::Init()
+void global_enemy_state_t::Init()
 {
-    SmoothPath.setlen(MAX_SMOOTH);
-    SmoothPathCount = 0;
-    SmoothPathIter = 1;
-    TimeSinceLastPathFind = 0.f;
+    // CharacterBodies.Init(sizeof(JPH::Character) * MaxCharacterBodies);
 
-    AddToPhysicsSystem();
-}
-
-void enemy_t::Destroy()
-{
-    SmoothPath.free();
-
-    RemoveFromPhysicsSystem();
-}
-
-void enemy_t::AddToPhysicsSystem()
-{
+    // TODO are these Shapes and Settings deleted properly? when ref 0
     JPH::RefConst<JPH::Shape> StandingShape = JPH::RotatedTranslatedShapeSettings(
         JPH::Vec3(0, AttackerCapsuleHalfHeightStanding + AttackerCapsuleRadiusStanding, 0), 
         JPH::Quat::sIdentity(), 
@@ -37,17 +19,117 @@ void enemy_t::AddToPhysicsSystem()
     Settings->mShape = StandingShape;
     Settings->mFriction = 0.5f;
     Settings->mSupportingVolume = JPH::Plane(JPH::Vec3::sAxisY(), -AttackerCapsuleRadiusStanding); // Accept contacts that touch the lower sphere of the capsule
-    
-    RigidBody = new JPH::Character(Settings, ToJoltVector(Position), 
-        ToJoltQuat(Orientation), 0, Physics.PhysicsSystem);
 
-    RigidBody->AddToPhysicsSystem(JPH::EActivation::Activate);
+    for (int i = 0; i < MaxCharacterBodies; ++i)
+    {
+        CharacterBodies[i] = new JPH::Character(
+            Settings, ToJoltVector(vec3()), ToJoltQuat(quat()), 0, Physics.PhysicsSystem);
+
+        Physics.BodyInterface->SetUserData(CharacterBodies[i]->GetBodyID(), 
+            (u64)BAD_UINDEX);
+    }
+
+    for (int i = 0; i < MaxEnemies; ++i)
+    {
+        Enemies[i].Index = i;
+        Enemies[i].Flags = 0x0;
+        Enemies[i].Health = 100.f;
+
+        Enemies[i].Position = vec3();
+        Enemies[i].Orientation = quat();
+
+        Enemies[i].RigidBody = nullptr;
+
+        Enemies[i].SmoothPath.setlen(MAX_SMOOTH);
+        Enemies[i].SmoothPathCount = 0;
+        Enemies[i].SmoothPathIter = 1;
+        Enemies[i].TimeSinceLastPathFind = 0.f;
+    }
 }
 
-void enemy_t::RemoveFromPhysicsSystem()
+void global_enemy_state_t::Destroy()
 {
-    RigidBody->RemoveFromPhysicsSystem();
-    delete RigidBody;
+    for (int i = 0; i < MaxEnemies; ++i)
+    {
+        Enemies[i].SmoothPath.free();
+    }
+
+    for (int i = 0; i < MaxCharacterBodies; ++i)
+    {
+        if (Physics.BodyInterface->IsAdded(CharacterBodies[i]->GetBodyID()))
+            Physics.BodyInterface->RemoveBody(CharacterBodies[i]->GetBodyID());
+        delete CharacterBodies[i]; // ~JPH::Character destroys the body
+    }
+    // free(CharacterBodies.Arena);
+}
+
+void global_enemy_state_t::RemoveAll()
+{
+    for (int i = 0; i < MaxEnemies; ++i)
+    {
+        RemoveEnemy(i);
+    }
+}
+
+void global_enemy_state_t::SpawnEnemy()
+{
+    enemy_t *NextAvailableEnemy = NULL;
+    for (int i = 0; i < MaxEnemies; ++i)
+    {
+        if (!(Enemies[i].Flags & EnemyFlag_Active))
+        {
+            NextAvailableEnemy = &Enemies[i];
+            break;
+        }
+    }
+    ASSERT(NextAvailableEnemy);
+
+    NextAvailableEnemy->Flags = 0x0;
+    NextAvailableEnemy->Flags |= EnemyFlag_Active;
+
+    GetRandomPointOnNavMesh((float*)&NextAvailableEnemy->Position);
+
+    NextAvailableEnemy->RigidBody = NextAvailableCharacterBody();
+    if (!NextAvailableEnemy->RigidBody)
+    {
+        LogError("GAME RUNTIME ERROR: Failed to spawn enemy.");
+        RemoveEnemy(NextAvailableEnemy->Index);
+        return;
+    }
+    Physics.BodyInterface->AddBody(NextAvailableEnemy->RigidBody->GetBodyID(), JPH::EActivation::Activate);
+    NextAvailableEnemy->RigidBody->SetPosition(ToJoltVector(NextAvailableEnemy->Position));
+    // NextAvailableEnemy->RigidBody->SetRotation();
+    // THE USER DATA FOR JOLT BODY IS THE ENEMY INDEX FOR NOW
+    Physics.BodyInterface->SetUserData(NextAvailableEnemy->RigidBody->GetBodyID(), 
+        (u64)NextAvailableEnemy->Index);
+}
+
+void global_enemy_state_t::RemoveEnemy(u32 EnemyIndex)
+{
+    Enemies[EnemyIndex].Flags &= ~EnemyFlag_Active;
+    Enemies[EnemyIndex].Flags = 0x0;
+
+    RemoveCharacterBodyFromSimulation(Enemies[EnemyIndex].RigidBody);
+}
+
+JPH::Character *global_enemy_state_t::NextAvailableCharacterBody()
+{
+    for (int i = 0; i < MaxCharacterBodies; ++i)
+    {
+        u32 OwnerIndex = (u32)Physics.BodyInterface->GetUserData(CharacterBodies[i]->GetBodyID());
+        if (OwnerIndex == BAD_UINDEX)
+            return CharacterBodies[i];
+    }
+    LogError("GAME RUNTIME ERROR: Failed to retrieve next available JPH::Character body"
+        "because all of them are in use.");
+    return nullptr;
+}
+
+void global_enemy_state_t::RemoveCharacterBodyFromSimulation(JPH::Character *CharacterBody)
+{
+    if (Physics.BodyInterface->IsAdded(CharacterBody->GetBodyID()))
+        Physics.BodyInterface->RemoveBody(CharacterBody->GetBodyID());
+    Physics.BodyInterface->SetUserData(CharacterBody->GetBodyID(), (u64)BAD_UINDEX);
 }
 
 void PrePhysicsTickAllEnemies()
@@ -55,9 +137,11 @@ void PrePhysicsTickAllEnemies()
     if (!DebugEnemyBehaviourActive)
         return;
 
-    for (size_t i = 0; i < Enemies.lenu(); ++i)
+    for (int i = 0; i < EnemySystem.MaxEnemies; ++i)
     {
-        enemy_t& Enemy = Enemies[i];
+        enemy_t& Enemy = EnemySystem.Enemies[i];
+        if (Enemy.Flags & EnemyFlag_Dead || !(Enemy.Flags & EnemyFlag_Active))
+            continue;
 
         Enemy.TimeSinceLastPathFind += FixedDeltaTime;
 
@@ -97,14 +181,61 @@ void PrePhysicsTickAllEnemies()
 
 void PostPhysicsTickAllEnemies()
 {
-    for (size_t i = 0; i < Enemies.lenu(); ++i)
+    for (int i = 0; i < EnemySystem.MaxEnemies; ++i)
     {
-        enemy_t& Enemy = Enemies[i];
+        enemy_t& Enemy = EnemySystem.Enemies[i];
+        if (!(Enemy.Flags & EnemyFlag_Active))
+            continue;
         
         static const float MaxSeparationDistance = 0.05f;
         Enemy.RigidBody->PostSimulation(MaxSeparationDistance);
         Enemy.Position = FromJoltVector(Enemy.RigidBody->GetPosition());
     }
+}
+
+void RenderEnemies(const mat4 &ProjFromView, const mat4 &ViewFromWorld)
+{
+    UseShader(GameAnimatedCharacterShader);
+    glEnable(GL_DEPTH_TEST);
+    GLBind4f(GameAnimatedCharacterShader, "MuzzleFlash", 
+        Player.Weapon.MuzzleFlash.x, 
+        Player.Weapon.MuzzleFlash.y, 
+        Player.Weapon.MuzzleFlash.z, 
+        Player.Weapon.MuzzleFlash.w);
+    GLBindMatrix4fv(GameAnimatedCharacterShader, "Projection", 1, ProjFromView.ptr());
+    GLBindMatrix4fv(GameAnimatedCharacterShader, "View", 1, ViewFromWorld.ptr());
+
+    for (int i = 0; i < EnemySystem.MaxEnemies; ++i)
+    {
+        enemy_t& Enemy = EnemySystem.Enemies[i];
+        if (!(Enemy.Flags & EnemyFlag_Active))
+            continue;
+
+        mat4 ModelMatrix = TranslationMatrix(Enemy.Position) * 
+            RotationMatrix(Enemy.Orientation) * ScaleMatrix(SI_UNITS_TO_GAME_UNITS);
+
+        GLBindMatrix4fv(GameAnimatedCharacterShader, "Model", 1, ModelMatrix.ptr());
+
+        GLBindMatrix4fv(GameAnimatedCharacterShader, "FinalBonesMatrices[0]", MAX_BONES, 
+            Animator.SkinningMatrixPalette[0].ptr());
+
+        for (size_t i = 0; i < arrlenu(Model_Attacker->Meshes); ++i)
+        {
+            skinned_mesh_t m = Model_Attacker->Meshes[i];
+            GPUTexture t = Model_Attacker->Textures[i];
+
+            glActiveTexture(GL_TEXTURE0);
+            //glBindTexture(GL_TEXTURE_2D, t.id);
+            glBindTexture(GL_TEXTURE_2D, Assets.DefaultEditorTexture.gputex.id);
+
+            glBindVertexArray(m.VAO);
+            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m.IBO);
+            glDrawElements(GL_TRIANGLES, m.IndicesCount, GL_UNSIGNED_INT, nullptr);
+            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+            glBindVertexArray(0);
+        }
+    }
+
 }
 
 void DebugDrawEnemyColliders()
@@ -116,23 +247,44 @@ void DebugDrawEnemyColliders()
         return;
     }
 
-    for (size_t i = 0; i < Enemies.lenu(); ++i)
+    for (int i = 0; i < EnemySystem.MaxEnemies; ++i)
     {
-        enemy_t& Enemy = Enemies[i];
+        enemy_t &Enemy = EnemySystem.Enemies[i];
+
+        if (!Enemy.RigidBody || !Physics.BodyInterface->IsAdded(Enemy.RigidBody->GetBodyID()))
+            continue;
 
         JPH::RMat44 COM = Physics.BodyInterface->GetCenterOfMassTransform(Enemy.RigidBody->GetBodyID());
         const JPH::Shape *EnemyBodyShape = Enemy.RigidBody->GetShape();
 
-        EnemyBodyShape->Draw(JoltDebugDrawer, COM, JPH::Vec3::sReplicate(1.0f), JPH::Color::sGrey, false, true);
-
-        // JoltDebugDrawer->DrawCapsule(COM, 
-        //     0.5f*0.8128f,//CapsuleShape->GetHalfHeightOfCylinder(), 
-        //     AttackerCapsuleRadiusStanding,
-        //     JPH::Color::sGrey, JPH::DebugRenderer::ECastShadow::Off, 
-        //     JPH::DebugRenderer::EDrawMode::Wireframe);
+        EnemyBodyShape->Draw(JoltDebugDrawer, COM, JPH::Vec3::sReplicate(1.0f), JPH::Color::sRed, false, true);
 
         // JoltDebugDrawCharacterState(JoltDebugDraw, mCharacter,   
         //     WorldTransform, mCharacter->GetLinearVelocity());
     }
 #endif // JPH_DEBUG_RENDERER
 }
+
+void HurtEnemy(u32 EnemyIndex, float Damage)
+{
+    enemy_t &Target = EnemySystem.Enemies[EnemyIndex];
+
+    Target.Health -= Damage;
+
+    if (Target.Health <= 0.f && !(Target.Flags & EnemyFlag_Dead))
+    {
+        KillEnemy(EnemyIndex);
+    }
+}
+
+void KillEnemy(u32 EnemyIndex)
+{
+    enemy_t &Target = EnemySystem.Enemies[EnemyIndex];
+
+    Target.Flags |= EnemyFlag_Dead;
+
+    Animator.PlayAnimation(Skeleton_Humanoid->Clips[SKE_HUMANOID_DEATH], false);
+
+    EnemySystem.RemoveCharacterBodyFromSimulation(Target.RigidBody);
+}
+

@@ -9,6 +9,7 @@
 #if INTERNAL_BUILD
 #define JPH_DEBUG_RENDERER
 #endif // INTERNAL_BUILD
+// #define JPH_DISABLE_CUSTOM_ALLOCATOR
 #include <Jolt/Jolt.h>
 // Jolt includes
 #include <Jolt/RegisterTypes.h>
@@ -71,9 +72,12 @@ public:
     // Determines if an object layer can collide with a broadphase layer
     JPH::ObjectVsBroadPhaseLayerFilterTable *ObjectVsBroadphaseFilter;
 
+    // ANY DATA THAT CAN BE MUTATED BY CONTACT LISTENER MUST USE CORRESPONDING MUTEX LOCK 
     // Notified when bodies collide and separate
     MyContactListener ContactListener;
 };
+
+extern physics_t Physics;
 
 // Converts engine units to and from SI units
 inline float ToJoltUnit(float GameUnit);

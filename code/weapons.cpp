@@ -1,15 +1,13 @@
 #include "weapons.h"
 
 // external
+projectile_data_t ProjectileDatabase[PROJECTILE_TYPE_COUNT];
+dynamic_array<projectile_t> LiveProjectiles;
+dynamic_array<projectile_hit_info_t> ProjectileHitInfos;
 ModelGLTF Model_Nailgun;
 ModelGLTF Model_Nail;
 
 // internal
-static float NailgunRotation = GM_HALFPI;
-static float NailgunRotationVelocity = 0.f;
-static constexpr float NailgunRotationMaxVelocity = 16.f;
-static constexpr float NailgunRotationAcceleration = -16.f;
-
 static float GunRecoil = 0.f;
 
 
@@ -27,7 +25,7 @@ void TickWeapon(weapon_state_t *State, bool LMB, bool RMB)
     {
         // shoot
         static int ChannelIndex = 0;
-        Mix_VolumeChunk(Assets.Sfx_Shoot0, 32 + RandomInt(-2, 2)); // Volume variation
+        Mix_VolumeChunk(Assets.Sfx_Shoot0, 24 + RandomInt(-2, 2)); // Volume variation
         Mix_PlayChannel(ChannelIndex++%3, Assets.Sfx_Shoot0, 0);
         State->Cooldown = 0.180f;
         // State->Cooldown = 0.080f;
@@ -47,7 +45,7 @@ void TickWeapon(weapon_state_t *State, bool LMB, bool RMB)
     }
     if (LMB || RMB)
     {
-        NailgunRotationVelocity = NailgunRotationMaxVelocity;
+        State->NailgunRotationVelocity = State->NailgunRotationMaxVelocity;
     }
 }
 
@@ -67,17 +65,19 @@ void RenderWeapon(weapon_state_t *State, float *ProjFromView, float *WorldFromVi
     // glActiveTexture(GL_TEXTURE0);
     // glBindTexture(GL_TEXTURE_2D, t.id);
     RenderGPUMeshIndexed(m);
-    NailgunRotation += NailgunRotationVelocity * DeltaTime;
-    NailgunRotationVelocity = GM_max(0.f, NailgunRotationVelocity + NailgunRotationAcceleration * DeltaTime);
-    if (NailgunRotationVelocity > 0.1f && NailgunRotationVelocity <= 3.f)
+    State->NailgunRotation += State->NailgunRotationVelocity * DeltaTime;
+    State->NailgunRotationVelocity = fmax(0.f, State->NailgunRotationVelocity + State->NailgunRotationAcceleration * DeltaTime);
+    if (State->NailgunRotationVelocity > 0.1f && State->NailgunRotationVelocity <= 3.f)
     {
-        NailgunRotationVelocity = GM_max(3.f, NailgunRotationVelocity);
-        if (abs(fmodf(NailgunRotation, GM_PI) - GM_HALFPI) < 0.01f)
+        State->NailgunRotationVelocity = fmax(3.f, State->NailgunRotationVelocity);
+        if (abs(fmodf(State->NailgunRotation, GM_PI) - GM_HALFPI) < 0.01f)
         {
-            NailgunRotationVelocity = 0.f;
+            State->NailgunRotationVelocity = 0.f;
         }
     }
-    GunOffsetAndScale = TranslationMatrix(0,-4,GunRecoil) * RotationMatrix(EulerToQuat(0,0,NailgunRotation)) * ScaleMatrix(SI_UNITS_TO_GAME_UNITS);
+    GunOffsetAndScale = TranslationMatrix(0,-4,GunRecoil) 
+        * RotationMatrix(EulerToQuat(0,0,State->NailgunRotation)) 
+        * ScaleMatrix(SI_UNITS_TO_GAME_UNITS);
     GLBindMatrix4fv(GunShader, "ViewFromModel", 1, GunOffsetAndScale.ptr());
     m = Model_Nailgun.meshes[1];
     t = Model_Nailgun.color[1];
@@ -113,6 +113,10 @@ void RenderProjectiles(const mat4 &ProjFromView, const mat4 &WorldFromView)
     }
 }
 
+void PopulateProjectileDatabase()
+{
+    ProjectileDatabase[PROJECTILE_NAIL].BulletDamage = 16.f;
+}
 
 // The quality of projectiles is that a lot of them get created in bursts and they die quickly
 // New ones are created often and live ones die quickly
@@ -139,6 +143,8 @@ void SpawnProjectile(vec3 Pos, vec3 Dir, quat Orient)
         ProjectileCreationSettings, JPH::EActivation::Activate);
 
     projectile_t Projectile;
+    Projectile.Flags = 0x0;
+    Projectile.Type = PROJECTILE_NAIL;
     Projectile.BodyId = ProjectileBodyId;
     Projectile.RenderOrientation = Orient;
 
@@ -187,6 +193,11 @@ static void RemoveDeadProjectiles()
 
 static void ProcessProjectileHitInfos()
 {
+    // NOTE(Kevin): Physics threads could still be running as we process this.
+    //              Any data that can be mutated from ContactListener must be
+    //              protected!
+    std::lock_guard Lock(Physics.ContactListener.ProjectileHitMutex);
+
     for (size_t i = 0; i < ProjectileHitInfos.lenu(); ++i)
     {
         projectile_hit_info_t Info = ProjectileHitInfos[i];
@@ -211,7 +222,7 @@ static void ProcessProjectileHitInfos()
 
         if (ProjectileIdx < 0)
         {
-            LogError("There is no live projectile with collided Body ID...something went wrong!");
+            LogError("GAME RUNTIME ERROR: There is no live projectile with collided Body ID...something went wrong!");
             continue;
         }
 
@@ -220,6 +231,7 @@ static void ProcessProjectileHitInfos()
             // the projectile is dead. already used.
             // NOTE(Kevin): sometimes I get duplicate projectile hit infos.
             //              should be okay to ignore.
+            // NOTE(Kevin): I am using a mutex lock, but still getting dupes...
             continue;
         }
 
@@ -227,18 +239,23 @@ static void ProcessProjectileHitInfos()
 
         if (SecondBodyLayer == Layers::ENEMY)
         {
-            LogMessage("Direct hit on enemy");
-            // TODO do direct hit damage to enemy
+            switch (LiveProjectiles[ProjectileIdx].Type)
+            {
+                case PROJECTILE_NAIL: {
+                    float Dmg = ProjectileDatabase[PROJECTILE_NAIL].BulletDamage;
+                    u32 EnemyIndex = (u32)Info.Body2->GetUserData();
+                    HurtEnemy(EnemyIndex, Dmg);
+                } break;
+            }
+
             KillProjectile(&LiveProjectiles[ProjectileIdx]);
         }
         else if (SecondBodyLayer == Layers::STATIC)
         {
-            LogMessage("Hit world geometry");
-
             if (RandomInt(0,2) < 1)
             {
                 Mix_Chunk *RicochetSnd = Assets.Sfx_Ricochet[RandomInt(0,2)];
-                Mix_VolumeChunk(RicochetSnd, 32 + RandomInt(-2, 2));
+                Mix_VolumeChunk(RicochetSnd, 24 + RandomInt(-2, 2));
                 Mix_PlayChannel(-1, RicochetSnd, 0);
             }
 

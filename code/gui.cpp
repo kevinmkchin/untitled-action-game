@@ -119,8 +119,8 @@ namespace GUI
     bool anyElementActive = false;
     bool anyWindowHovered = false;
 
-    static MemoryLinearBuffer drawRequestsFrameStorageBuffer;
-#define MESAIMGUI_NEW_DRAW_REQUEST(type) new (MEMORY_LINEAR_ALLOCATE(&drawRequestsFrameStorageBuffer, type)) type()
+    static linear_arena_t drawRequestsFrameStorageBuffer;
+#define MESAIMGUI_NEW_DRAW_REQUEST(type) new (drawRequestsFrameStorageBuffer.Alloc<type>()) type()
 
 
     struct WindowData
@@ -1446,7 +1446,7 @@ namespace GUI
 
     void Init()
     {
-        MemoryLinearInitialize(&drawRequestsFrameStorageBuffer, 1000000);
+        drawRequestsFrameStorageBuffer.Init(1000000);
 
         hoveredUI = null_ui_id;
         activeUI = null_ui_id;
@@ -1526,7 +1526,7 @@ namespace GUI
         freshIdCounter = 0;
         __reservedTextMemoryIndexer = 0;
 
-        drawRequestsFrameStorageBuffer.arenaOffset = 0;
+        drawRequestsFrameStorageBuffer.ArenaOffset = 0;
         GUIDraw_NewFrame();
     }
 
