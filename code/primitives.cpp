@@ -3,7 +3,7 @@
 static u32 PRIM_VERTEX_POS_AND_COLOR_VAO;
 static u32 PRIM_VERTEX_POS_AND_COLOR_VBO;
 
-static fixed_array<float, 256000> PRIMITIVE_TRIS_VB;
+static c_array<float, 256000> PRIMITIVE_TRIS_VB;
 static GPUShader PRIMITIVES_TRIS_SHADER;
 static const char* PRIMITIVES_TRIS_SHADER_VS =
     "#version 330 core\n"
@@ -36,7 +36,7 @@ static const char* PRIMITIVES_TRIS_SHADER_FS =
 static u32 PRIM_VERTEX_POS_COLOR_LINEWIDTH_VAO;
 static u32 PRIM_VERTEX_POS_COLOR_LINEWIDTH_VBO;
 
-static fixed_array<float, 256000> PRIMITIVE_FATLINES_VB;
+static c_array<float, 256000> PRIMITIVE_FATLINES_VB;
 static GPUShader FATLINES_SHADER;
 static const char* FATLINES_SHADER_VS =
     "#version 330 core\n"
@@ -111,7 +111,7 @@ static const char* FATLINES_SHADER_FS =
     "    }\n"
     "}\n";
 
-static fixed_array<float, 256000> PRIMITIVE_LINES_VB;
+static c_array<float, 256000> PRIMITIVE_LINES_VB;
 static GPUShader LINES_SHADER;
 static const char* LINES_SHADER_VS =
     "#version 330 core\n"
@@ -150,7 +150,7 @@ static bool DrawAxisLines = false;
 static GPUFrameBuffer mousePickingRenderTarget;
 static u32 HANDLES_VAO = 0;
 static u32 HANDLES_VBO = 0;
-static fixed_array<float, 256 * 128> HANDLES_VB;
+static c_array<float, 256 * 128> HANDLES_VB;
 
 static GPUShader HANDLES_SHADER;
 static const char* HANDLES_SHADER_VS =

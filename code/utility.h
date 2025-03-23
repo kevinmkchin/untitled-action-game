@@ -130,7 +130,7 @@ template<typename T> struct dynamic_array
 };
 
 
-template<typename T, int _count> struct fixed_array
+template<typename T, int _count> struct c_array
 {
     /** Nice wrapper for fixed size C arrays */
 

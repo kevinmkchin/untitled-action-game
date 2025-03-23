@@ -22,7 +22,7 @@ void level_editor_t::Close()
 float DISC_HANDLE_RADIUS = 10.f;
 // These indices are not guaranteed to persist frame to frame. For now (2024-09-04) they index into
 // the huge array of all Volumes EDITOR_MAP_VOLUMES. Things will/should move around within the array. 
-fixed_array<int, 16> SELECTED_MAP_VOLUMES_INDICES;
+c_array<int, 16> SELECTED_MAP_VOLUMES_INDICES;
 std::vector<MapEdit::Vert*> SELECTABLE_VERTICES;
 std::vector<MapEdit::Vert*> SELECTED_VERTICES;
 std::vector<MapEdit::Face*> SELECTABLE_FACES;
