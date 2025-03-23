@@ -61,13 +61,27 @@ public:
         cout << "A body went to sleep" << endl;
     }
 };
+*/
 
 // This class receives callbacks when a virtual character hits something.
-class MyVirtualCharacterContactListener : public CharacterContactListener
+// Does not need to be thread safe!
+class MyVirtualCharacterContactListener : public JPH::CharacterContactListener
 {
+    /// Checks if a character can collide with specified body. Return true if the contact is valid.
+    virtual bool OnContactValidate(const JPH::CharacterVirtual *inCharacter, 
+        const JPH::BodyID &inBodyID2, const JPH::SubShapeID &inSubShapeID2) override;
 
+    /// Called whenever the character collides with a body.
+    virtual void OnContactAdded(const JPH::CharacterVirtual *inCharacter, const JPH::BodyID &inBodyID2, 
+        const JPH::SubShapeID &inSubShapeID2, JPH::RVec3Arg inContactPosition, JPH::Vec3Arg inContactNormal, 
+        JPH::CharacterContactSettings &ioSettings) override;
+
+    // OnAdjustBodyVelocity
+    // OnCharacterContactValidate
+    // OnCharacterContactAdded
+    // OnContactSolve
+    // OnCharacterContactSolve
 };
-*/
     
 /** Allows a CharacterVirtual to check collision with other CharacterVirtual instances.
     Since CharacterVirtual instances are not registered anywhere, it is up to the 

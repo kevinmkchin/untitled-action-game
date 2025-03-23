@@ -84,7 +84,6 @@ void LoadLevel(const char *MapPath)
     // TODO Apply rotation to camera rotation instead
     // Player.mCharacter->SetRotation(ToJoltQuat(EulerToQuat(MapLoadResult.PlayerStartRotation)));
 
-    EnemySystem.SpawnEnemy();
 
     LevelLoaded = true;
 }
@@ -106,9 +105,24 @@ void UnloadPreviousLevel()
 
 void NonPhysicsTick()
 {
+    if (!(EnemySystem.Enemies[0].Flags & EnemyFlag_Active))
+    {
+        EnemySystem.SpawnEnemy();
+        while (EnemySystem.Enemies[0].Position.y > 10.f)
+        {
+            GetRandomPointOnNavMesh((float*)&EnemySystem.Enemies[0].Position);
+        }
+    }
+
     NonPhysicsTickAllEnemies();
 
     Player.HandleInput();
+
+    if (Player.Health <= 0.f)
+    {
+        ASSERT(0);
+    }
+    GUI::PrimitiveTextFmt(180, 650, 54, GUI::Align::RIGHT, "%d", (int)ceilf(Player.Health));
 }
 
 void PrePhysicsTick()

@@ -22,6 +22,8 @@ struct player_t
     float MoveSpeed = 9.f;
     float JumpSpeed = 5.f;
 
+    float Health = 100.f;
+
     JPH::CharacterVirtual *CharacterController;
 
     camera_t PlayerCam;
