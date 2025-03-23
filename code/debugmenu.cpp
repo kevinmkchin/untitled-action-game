@@ -5,7 +5,13 @@ bool DebugMenuActive = false;
 bool DebugDrawLevelColliderFlag = false;
 bool DebugDrawEnemyCollidersFlag = false;
 bool DebugDrawProjectileCollidersFlag = false;
+#if INTERNAL_BUILD
+bool DebugShowNumberOfPhysicsBodies = true;
+bool DebugShowGameMemoryUsage = true;
+#else
 bool DebugShowNumberOfPhysicsBodies = false;
+bool DebugShowGameMemoryUsage = false;
+#endif
 bool DebugDrawNavMeshFlag = false;
 bool DebugDrawEnemyPathingFlag = false;
 bool DebugEnemyBehaviourActive = true;
@@ -75,6 +81,7 @@ void DisplayDebugMenu()
             GUI::EditorCheckbox("Paused", &DebugPausedFlag);
             GameLoopCanRun = !DebugPausedFlag;
             GUI::EditorCheckbox("Noclip", &FlyCamActive);
+            GUI::EditorCheckbox("Show memory usage", &DebugShowGameMemoryUsage);
             GUI::EditorCheckbox("Draw level collider", &DebugDrawLevelColliderFlag);
             GUI::EditorCheckbox("Draw enemy colliders", &DebugDrawEnemyCollidersFlag);
             GUI::EditorCheckbox("Draw projectile colliders", &DebugDrawProjectileCollidersFlag);

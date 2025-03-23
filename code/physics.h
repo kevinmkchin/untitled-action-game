@@ -42,6 +42,8 @@
 
 #include "physics_bodies.h"
 
+void SetJPHMemoryAllocator(MemoryType Allocator);
+
 /*
 Note that the physics simulation works best if you use SI units (meters, radians, seconds, kg). In 
 order for the simulation to be accurate, dynamic objects should be in the order [0.1, 10] meters long, 

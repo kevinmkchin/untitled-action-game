@@ -161,6 +161,15 @@ void LateNonPhysicsTick()
             "JPH NumActiveBodies: %d", Physics.PhysicsSystem->GetNumActiveBodies(JPH::EBodyType::RigidBody));
     }
 #endif // JPH_DEBUG_RENDERER
+    if (DebugShowGameMemoryUsage)
+    {
+        GUI::PrimitiveTextFmt(8, 58, GUI::GetFontSize(), GUI::Align::LEFT, 
+            "StaticGameMemory usage  [%zd/%zd bytes]", 
+            StaticGameMemory.ArenaOffset, StaticGameMemory.ArenaSize);
+        GUI::PrimitiveTextFmt(8, 68, GUI::GetFontSize(), GUI::Align::LEFT, 
+            "StaticLevelMemory usage [%zd/%zd bytes]", 
+            StaticLevelMemory.ArenaOffset, StaticLevelMemory.ArenaSize);
+    }
 
     Player.LateNonPhysicsTick();
 }
