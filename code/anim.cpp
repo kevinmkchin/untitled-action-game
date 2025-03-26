@@ -536,7 +536,7 @@ mat4 joint_pose_sampler_t::InterpolateScale(float AnimationTime)
 
 
 
-void FreeModelGLTF(ModelGLTF model)
+void FreeModelGLTF(ModelGLTF& model)
 {
     ASSERT(0);
 
@@ -549,7 +549,7 @@ void FreeModelGLTF(ModelGLTF model)
     }
 }
 
-void RenderModelGLTF(ModelGLTF model)
+void RenderModelGLTF(ModelGLTF& model)
 {
     for (size_t i = 0; i < model.meshes.length; ++i)
     {
@@ -641,6 +641,13 @@ bool LoadModelGLTF2Bin(ModelGLTF *model, const char *filepath)
     for (u32 matIndex = 0; matIndex < scene->mNumMaterials; ++matIndex)
     {
         aiMaterial *mat = scene->mMaterials[matIndex];
+
+        u32 TexCountDiffuse = mat->GetTextureCount(aiTextureType_DIFFUSE);
+        u32 TexCountEmissive = mat->GetTextureCount(aiTextureType_EMISSIVE);
+        u32 TexCountBaseColor = mat->GetTextureCount(aiTextureType_BASE_COLOR);
+        u32 TexCountRoughness = mat->GetTextureCount(aiTextureType_DIFFUSE_ROUGHNESS);
+        u32 TexCountEmissionColor = mat->GetTextureCount(aiTextureType_EMISSION_COLOR);
+        u32 TexCountUnknown = mat->GetTextureCount(aiTextureType_UNKNOWN);
 
         GPUTexture gputexEmissive;
         if (mat->GetTextureCount(aiTextureType_EMISSIVE))

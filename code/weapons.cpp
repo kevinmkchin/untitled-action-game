@@ -4,8 +4,6 @@
 projectile_data_t ProjectileDatabase[PROJECTILE_TYPE_COUNT];
 dynamic_array<projectile_t> LiveProjectiles;
 dynamic_array<projectile_hit_info_t> ProjectileHitInfos;
-ModelGLTF Model_Nailgun;
-ModelGLTF Model_Nail;
 
 // internal
 static float GunRecoil = 0.f;
@@ -60,8 +58,8 @@ void RenderWeapon(weapon_state_t *State, float *ProjFromView, float *WorldFromVi
     GPUTexture t;
     mat4 GunOffsetAndScale = TranslationMatrix(0,-4,GunRecoil) * ScaleMatrix(SI_UNITS_TO_GAME_UNITS);
     GLBindMatrix4fv(GunShader, "ViewFromModel", 1, GunOffsetAndScale.ptr());
-    m = Model_Nailgun.meshes[0];
-    t = Model_Nailgun.color[0];
+    m = Assets.ModelsTextured[MT_WPN_TYPE1].meshes[0];
+    t = Assets.ModelsTextured[MT_WPN_TYPE1].color[0];
     // glActiveTexture(GL_TEXTURE0);
     // glBindTexture(GL_TEXTURE_2D, t.id);
     RenderGPUMeshIndexed(m);
@@ -79,8 +77,8 @@ void RenderWeapon(weapon_state_t *State, float *ProjFromView, float *WorldFromVi
         * RotationMatrix(EulerToQuat(0,0,State->NailgunRotation)) 
         * ScaleMatrix(SI_UNITS_TO_GAME_UNITS);
     GLBindMatrix4fv(GunShader, "ViewFromModel", 1, GunOffsetAndScale.ptr());
-    m = Model_Nailgun.meshes[1];
-    t = Model_Nailgun.color[1];
+    m = Assets.ModelsTextured[MT_WPN_TYPE1].meshes[1];
+    t = Assets.ModelsTextured[MT_WPN_TYPE1].color[1];
     // glActiveTexture(GL_TEXTURE0);
     // glBindTexture(GL_TEXTURE_2D, t.id);
     RenderGPUMeshIndexed(m);
@@ -109,7 +107,7 @@ void RenderProjectiles(const mat4 &ProjFromView, const mat4 &WorldFromView)
             * RotationMatrix(ProjectileRenderRot)
             * ScaleMatrix(SI_UNITS_TO_GAME_UNITS);
         GLBindMatrix4fv(GunShader, "ViewFromModel", 1, ViewFromModel.ptr());
-        RenderModelGLTF(Model_Nail);
+        RenderModelGLTF(Assets.ModelsTextured[MT_PRJ_NAIL]);
     }
 }
 
