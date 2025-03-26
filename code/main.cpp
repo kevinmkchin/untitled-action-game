@@ -4,69 +4,6 @@ Something fucking cool.
 Priorty #1 is building the game, not the engine/tech
 Handcrafted with love.
 
-I should port the GL code to Vulkan
-
-TODO:
-
-- Enemy moves and shoots at player
-    - Try using straight path instead of smooth path (?)
-    - State machine - patrol to chase to shoot/melee
-    - sound (audio system)
-    - death animation on dead
-
-- Bicubic lightmap filtering 
-    https://docs.unity3d.com/6000.1/Documentation/Manual/urp/lighting/lightmapping-improve-visual-fidelity.html
-    https://developer.valvesoftware.com/wiki/Lightmap#Bicubic_lightmaps
-
-
-- move gmath as subrepo of this repo so i can keep tests updated
-- Port over dropdown console?
-
-
-- list all point entities in the scene
-- entity placement window with dropdown
-- entity properties window
-- reset data when switching between game and map editor
-
-- show lines visualizing total translation when moving things. up and down axis as well
-- srgb gamma correction bull shit for editor texture that are not lit
-
-- save/load texture database
-- Anisotropic filtering https://registry.khronos.org/vulkan/specs/latest/man/html/VkSamplerCreateInfo.html
-
-- move volume mode/tool (don't need whole tool...maybe make brush tool part of this mode? like trenchbroom)
-- multi select vertices need to be fixed
-- Toggle element translation along axis
-- Finish Winged brep editing atomics
-- Edge select
-- Edge loop
-
-
-EPICS:
-
-View-space projected blood decals
-
-Particle effects
-
-
-== OTHER ==
-
-(poly draw) Draw poly on plane then raise to create volume tool
-
-SDL3:
-Can set FramesInFlight https://wiki.libsdl.org/SDL3/SDL_SetGPUAllowedFramesInFlight but 
-not sure how it works. Try upgrading to SDL3 first...or to latest SDL2...ugh might still 
-just have to rewrite platforms code. Rewrite platforms code in Win32 and remove SDL - FPS
-mouselook feels janky (lag + stutter when low framerate), yaw and pitch calculation as 
-euler might be dumb. Just write directly to a rotation matrix?
-
-Non-convex faces:
-I _could_ replace my shitty fanning triangulation with CDT library (https://github.com/artem-ogre/CDT)
-with constraint that all vertices of a face must lie on the same plane and enforce that constraint in
-the editor. Then I could have 
-
-== BUGS ==
-
 
 == NOTES ==
 
@@ -625,7 +562,7 @@ int main(int argc, char* argv[])
     // BuildGameMap(wd_path("buildtest2.map").c_str());
     // LoadLevel(wd_path("buildtest2.map").c_str());
 
-    LoadLevel(wd_path("playground_0.map").c_str());
+    LoadLevel(wd_path("testing.map").c_str());
     // LevelEditor.Open();
 
     while (!ProgramShutdownRequested)
