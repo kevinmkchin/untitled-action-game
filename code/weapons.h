@@ -77,7 +77,3 @@ void KillProjectile(projectile_t *ProjectileToKill);
 void PrePhysicsUpdateProjectiles();
 void PostPhysicsUpdateProjectiles();
 void RenderProjectiles(const mat4 &ProjFromView, const mat4 &WorldFromView);
-
-extern ModelGLTF Model_Nailgun;
-// TODO (Kevin): instance drawing of nail projectiles
-extern ModelGLTF Model_Nail;

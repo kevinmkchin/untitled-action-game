@@ -172,7 +172,7 @@ void NonPhysicsTickAllEnemies()
                 corpse_t Corpse;
                 Corpse.Pos = Enemy.Position;
                 Corpse.Rot = Enemy.Orientation;
-                Corpse.CorpseModel = Assets.Model_AttackerCorpse;
+                Corpse.CorpseModel = &Assets.ModelsTextured[MT_ATTACKER_CORPSE];
                 EnemySystem.Corpses.put(Corpse);
                 EnemySystem.RemoveEnemy(Enemy.Index);
                 continue;
