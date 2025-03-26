@@ -570,22 +570,28 @@ void asset_db_t::CreateEntityBillboardAtlasForSupportRenderer(BitmapHandle *Bill
 void asset_db_t::LoadAllResources()
 {
     LoadNewTexture(wd_path("default.png").c_str());
-    LoadNewTexture(texture_path("t_bpav2.bmp").c_str());
-    LoadNewTexture(texture_path("t_gf56464.bmp").c_str());
-    LoadNewTexture(texture_path("t_hzdg.bmp").c_str());
-    LoadNewTexture(texture_path("t_kgr2_p.bmp").c_str());
-    LoadNewTexture(texture_path("t_mbrk2_1.bmp").c_str());
-    LoadNewTexture(texture_path("t_vstnfcv.bmp").c_str());
-    LoadNewTexture(texture_path("example_5.jpg").c_str());
-    LoadNewTexture(texture_path("example_7.jpg").c_str());
-    LoadNewTexture(texture_path("example_9.jpg").c_str());
-    LoadNewTexture(texture_path("example_10.jpg").c_str());
-    LoadNewTexture(texture_path("example_14.jpg").c_str());
-    LoadNewTexture(texture_path("example_16.jpg").c_str());
-    LoadNewTexture(texture_path("example_17.jpg").c_str());
-    LoadNewTexture(texture_path("sld_gegfblock02b_64.jpg").c_str());
-    LoadNewTexture(texture_path("example_19.jpg").c_str());
-    LoadNewTexture(texture_path("example_20.jpg").c_str());
+    // LoadNewTexture(texture_path("t_bpav2.bmp").c_str());
+    // LoadNewTexture(texture_path("t_gf56464.bmp").c_str());
+    // LoadNewTexture(texture_path("t_hzdg.bmp").c_str());
+    // LoadNewTexture(texture_path("t_kgr2_p.bmp").c_str());
+    // LoadNewTexture(texture_path("t_mbrk2_1.bmp").c_str());
+    // LoadNewTexture(texture_path("t_vstnfcv.bmp").c_str());
+    // LoadNewTexture(texture_path("example_5.jpg").c_str());
+    // LoadNewTexture(texture_path("example_7.jpg").c_str());
+    // LoadNewTexture(texture_path("example_9.jpg").c_str());
+    // LoadNewTexture(texture_path("example_10.jpg").c_str());
+    // LoadNewTexture(texture_path("example_14.jpg").c_str());
+    // LoadNewTexture(texture_path("example_16.jpg").c_str());
+    // LoadNewTexture(texture_path("example_17.jpg").c_str());
+    // LoadNewTexture(texture_path("sld_gegfblock02b_64.jpg").c_str());
+    // LoadNewTexture(texture_path("example_19.jpg").c_str());
+    // LoadNewTexture(texture_path("example_20.jpg").c_str());
+    LoadNewTexture(texture_path("tex_concretepanel.png").c_str());
+    LoadNewTexture(texture_path("tex_metalgrate.png").c_str());
+    LoadNewTexture(texture_path("tex_cables_0.png").c_str());
+    LoadNewTexture(texture_path("tex_cables_1.png").c_str());
+    LoadNewTexture(texture_path("tex_cables_glow.png").c_str());
+    LoadNewTexture(texture_path("tex_cables_pipe.png").c_str());
 
     DefaultEditorTexture = GetTextureById(1);
     CreateGPUTextureFromDisk(&DefaultMissingTexture, wd_path("missing_texture.png").c_str());

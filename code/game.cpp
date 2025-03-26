@@ -120,7 +120,7 @@ void NonPhysicsTick()
 
     if (Player.Health <= 0.f)
     {
-        ASSERT(0);
+        // ASSERT(0);
     }
     GUI::PrimitiveTextFmt(180, 650, 54, GUI::Align::RIGHT, "%d", (int)ceilf(Player.Health));
 }
