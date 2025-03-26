@@ -673,7 +673,7 @@ bool LoadModelGLTF2Bin(ModelGLTF *model, const char *filepath)
                 ASSERT(rawPixelData);
 
                 CreateGPUTextureFromBitmap(&gputexEmissive, rawPixelData, width, height, 
-                    GL_RGBA, GL_RGBA, GL_NEAREST, GL_NEAREST);
+                    GL_SRGB, GL_RGBA, GL_NEAREST, GL_NEAREST);
 
                 if (compressed)
                 {
