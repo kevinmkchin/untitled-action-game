@@ -10,7 +10,22 @@ void player_t::Init()
         JPH::Quat::sIdentity(), 
         new JPH::CapsuleShape(PlayerCapsuleHalfHeightCrouching, PlayerCapsuleRadiusCrouching)).Create().Get();
 
-    AddToPhysicsSystem();
+    JPH::Ref<JPH::CharacterVirtualSettings> Settings = new JPH::CharacterVirtualSettings();
+    Settings->mMaxSlopeAngle = JPH::DegreesToRadians(45.0f);
+    Settings->mMaxStrength = 100.0f; // Maximum force with which the character can push other bodies (N)
+    Settings->mShape = StandingShape;
+    Settings->mBackFaceMode = JPH::EBackFaceMode::IgnoreBackFaces;//CollideWithBackFaces;
+    Settings->mCharacterPadding = 0.02f;
+    Settings->mPenetrationRecoverySpeed = 1.0f;
+    Settings->mPredictiveContactDistance = 0.1f;
+    Settings->mSupportingVolume = JPH::Plane(JPH::Vec3::sAxisY(), -PlayerCapsuleRadiusStanding); // Accept contacts that touch the lower sphere of the capsule
+    Settings->mEnhancedInternalEdgeRemoval = false;
+    // Settings->mInnerBodyShape = nullptr; // NOTE(Kevin): not exactly sure what optional inner body is used for
+    // Settings->mInnerBodyLayer = Layers::PLAYER;
+    CharacterController = new JPH::CharacterVirtual(Settings, JPH::RVec3::sZero(), JPH::Quat::sIdentity(), 0, Physics.PhysicsSystem);
+    CharacterController->SetCharacterVsCharacterCollision(&Physics.CharacterVirtualsHandler);
+    CharacterController->SetListener(&Physics.VirtualCharacterContactListener);
+    Physics.CharacterVirtualsHandler.Add(CharacterController);
 }
 
 void player_t::Destroy()
@@ -52,49 +67,55 @@ void player_t::HandleInput()
 
 void player_t::PrePhysicsUpdate()
 {
-    DoMovement(DesiredMoveDirection, JumpRequested, false);
+    CharacterController->SetPosition(ToJoltVector(Root));
+
+    if (!FlyCamActive)
+    {
+        DoPhysicsMovement(DesiredMoveDirection, JumpRequested, false);
+
+
+        // Settings for our update function
+        JPH::CharacterVirtual::ExtendedUpdateSettings UpdateSettings;
+
+        const bool sEnableStickToFloor = true;
+        const bool sEnableWalkStairs = true;
+
+        UpdateSettings.mStickToFloorStepDown.SetY(ToJoltUnit(-12.f));
+        UpdateSettings.mWalkStairsStepUp.SetY(ToJoltUnit(6.f));
+
+        if (!sEnableStickToFloor)
+            UpdateSettings.mStickToFloorStepDown = JPH::Vec3::sZero();
+        else
+            UpdateSettings.mStickToFloorStepDown = -CharacterController->GetUp() * UpdateSettings.mStickToFloorStepDown.Length();
+
+        if (!sEnableWalkStairs)
+            UpdateSettings.mWalkStairsStepUp = JPH::Vec3::sZero();
+        else
+            UpdateSettings.mWalkStairsStepUp = CharacterController->GetUp() * UpdateSettings.mWalkStairsStepUp.Length();
+
+
+        // Update the character position
+        CharacterController->ExtendedUpdate(FixedDeltaTime,
+                                            -CharacterController->GetUp() * Physics.PhysicsSystem->GetGravity().Length(),
+                                            UpdateSettings,
+                                            Physics.PhysicsSystem->GetDefaultBroadPhaseLayerFilter(Layers::PLAYER),
+                                            Physics.PhysicsSystem->GetDefaultLayerFilter(Layers::PLAYER),
+                                            { },
+                                            { },
+                                            *Physics.TempAllocator);
+    }
+
     JumpRequested = false;
-
-    // Settings for our update function
-    JPH::CharacterVirtual::ExtendedUpdateSettings UpdateSettings;
-
-    const bool sEnableStickToFloor = true;
-    const bool sEnableWalkStairs = true;
-
-    // TODO get rid of these after we scale down units for physics
-    UpdateSettings.mStickToFloorStepDown.SetY(ToJoltUnit(-12.f));
-    UpdateSettings.mWalkStairsStepUp.SetY(ToJoltUnit(6.f));
-
-    if (!sEnableStickToFloor)
-        UpdateSettings.mStickToFloorStepDown = JPH::Vec3::sZero();
-    else
-        UpdateSettings.mStickToFloorStepDown = -CharacterController->GetUp() * UpdateSettings.mStickToFloorStepDown.Length();
-
-    if (!sEnableWalkStairs)
-        UpdateSettings.mWalkStairsStepUp = JPH::Vec3::sZero();
-    else
-        UpdateSettings.mWalkStairsStepUp = CharacterController->GetUp() * UpdateSettings.mWalkStairsStepUp.Length();
-
-    // Update the character position
-    CharacterController->ExtendedUpdate(FixedDeltaTime,
-                                        -CharacterController->GetUp() * Physics.PhysicsSystem->GetGravity().Length(),
-                                        UpdateSettings,
-                                        Physics.PhysicsSystem->GetDefaultBroadPhaseLayerFilter(Layers::PLAYER),
-                                        Physics.PhysicsSystem->GetDefaultLayerFilter(Layers::PLAYER),
-                                        { },
-                                        { },
-                                        *Physics.TempAllocator);
 }
 
 void player_t::PostPhysicsUpdate()
 {
     Root = FromJoltVector(CharacterController->GetPosition());
-
     if (!FlyCamActive)
         PlayerCam.Position = Root + CamOffsetFromRoot;
 }
 
-void player_t::DoMovement(vec3 MovementDirection, bool inJump, bool inSwitchStance)
+void player_t::DoPhysicsMovement(vec3 MovementDirection, bool inJump, bool inSwitchStance)
 {
     JPH::Vec3Arg inMovementDirection = ToJoltVectorNoConvert(MovementDirection);
     JPH::PhysicsSystem *mPhysicsSystem = Physics.PhysicsSystem;
@@ -195,31 +216,11 @@ void player_t::DoMovement(vec3 MovementDirection, bool inJump, bool inSwitchStan
     // }
 }
 
-void player_t::AddToPhysicsSystem()
-{
-    JPH::Ref<JPH::CharacterVirtualSettings> Settings = new JPH::CharacterVirtualSettings();
-    Settings->mMaxSlopeAngle = JPH::DegreesToRadians(45.0f);
-    Settings->mMaxStrength = 100.0f; // Maximum force with which the character can push other bodies (N)
-    Settings->mShape = StandingShape;
-    Settings->mBackFaceMode = JPH::EBackFaceMode::CollideWithBackFaces;
-    Settings->mCharacterPadding = 0.02f;
-    Settings->mPenetrationRecoverySpeed = 1.0f;
-    Settings->mPredictiveContactDistance = 0.1f;
-    Settings->mSupportingVolume = JPH::Plane(JPH::Vec3::sAxisY(), -PlayerCapsuleRadiusStanding); // Accept contacts that touch the lower sphere of the capsule
-    Settings->mEnhancedInternalEdgeRemoval = false;
-    Settings->mInnerBodyShape = nullptr;
-    Settings->mInnerBodyLayer = Layers::PLAYER;
-    CharacterController = new JPH::CharacterVirtual(Settings, JPH::RVec3::sZero(), JPH::Quat::sIdentity(), 0, Physics.PhysicsSystem);
-    CharacterController->SetCharacterVsCharacterCollision(&Physics.CharacterVirtualsHandler);
-    CharacterController->SetListener(&Physics.VirtualCharacterContactListener);
-    Physics.CharacterVirtualsHandler.Add(CharacterController);
-}
-
 void player_t::LateNonPhysicsTick()
 {
     if (FlyCamActive)
     {
-        PlayerCam.DoFlyCamMovement(250.f);
+        PlayerCam.DoFlyCamMovement(350.f);
     }
     else
     {

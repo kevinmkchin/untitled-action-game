@@ -33,8 +33,8 @@ struct player_t
     weapon_state_t Weapon;
 
 private:
-    void AddToPhysicsSystem();
-    void DoMovement(vec3 MovementDirection, bool DoJump, bool DoSwitchStance);
+
+    void DoPhysicsMovement(vec3 MovementDirection, bool DoJump, bool DoSwitchStance);
 
     static constexpr float PlayerHeightStanding = 1.7f;
     static constexpr float PlayerCapsuleRadiusStanding = 0.25f;
