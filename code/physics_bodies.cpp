@@ -21,6 +21,8 @@ JPH::ObjectLayerPairFilterTable *CreateAndSetupObjectLayers()
     ObjectLayerFilter->EnableCollision(Layers::PROJECTILE, Layers::STATIC);
     ObjectLayerFilter->EnableCollision(Layers::PROJECTILE, Layers::ENEMY);
 
+    ObjectLayerFilter->EnableCollision(Layers::GIB, Layers::STATIC);
+
     ObjectLayerFilter->EnableCollision(Layers::SENSOR, Layers::PLAYER);
     ObjectLayerFilter->EnableCollision(Layers::SENSOR, Layers::ENEMY);
 
@@ -36,6 +38,7 @@ JPH::BroadPhaseLayerInterfaceTable *CreateAndSetupBroadPhaseLayers()
     MappingTable->MapObjectToBroadPhaseLayer(Layers::PLAYER, BroadPhaseLayers::MOVING);
     MappingTable->MapObjectToBroadPhaseLayer(Layers::ENEMY, BroadPhaseLayers::MOVING);
     MappingTable->MapObjectToBroadPhaseLayer(Layers::PROJECTILE, BroadPhaseLayers::MOVING);
+    MappingTable->MapObjectToBroadPhaseLayer(Layers::GIB, BroadPhaseLayers::MOVING);
     MappingTable->MapObjectToBroadPhaseLayer(Layers::SENSOR, BroadPhaseLayers::SENSOR);
 
     return MappingTable;

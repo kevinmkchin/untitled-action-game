@@ -1036,7 +1036,7 @@ bool FindSmoothPathTo(vec3 Origin, vec3 Target, float *SmoothPath, int *SmoothPa
 void GetRandomPointOnNavMesh(float *Point)
 {
     dtPolyRef RandomPoly;
-    dtStatus Status = m_navQuery->findRandomPoint(&m_filter, frand, 
+    dtStatus Status = m_navQuery->findRandomPoint(&m_filter, frand01, 
         &RandomPoly, Point);
     ASSERT(dtStatusSucceed(Status));
 }
@@ -1070,7 +1070,7 @@ void GetRandomPointOnNavMesh(float *Point)
 //         dtStatus Status = m_navQuery->findNearestPoly(
 //             (float*)&EnemyStartPos, (float*)&SearchHalfExtents, &m_filter, 
 //             &m_startRef, m_spos);
-//         //dtStatus Status = m_navQuery->findRandomPoint(&m_filter, frand, 
+//         //dtStatus Status = m_navQuery->findRandomPoint(&m_filter, frand01, 
 //         //    &StartNearestPoly, (float*)&StartNearestPoint);
 //         ASSERT(dtStatusSucceed(Status));
 

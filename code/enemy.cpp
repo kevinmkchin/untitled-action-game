@@ -356,9 +356,33 @@ void KillEnemy(u32 EnemyIndex)
 
     Target.Flags |= EnemyFlag_Dead;
 
-    Target.DeadTimer = 1.f;
+    if (false)
+    {
+        Target.DeadTimer = 1.f;
+        Target.Animator->PlayAnimation(Assets.Skeleton_Humanoid->Clips[SKE_HUMANOID_DEATH], false);
+    }
+    else
+    {
+        Target.DeadTimer = 0.f;
 
-    Target.Animator->PlayAnimation(Assets.Skeleton_Humanoid->Clips[SKE_HUMANOID_DEATH], false);
+        // maybe randomize num of gibs
+        for (int i = 0; i < 4; ++i)
+        {
+            // actually the directions in which the gibs explode is really
+            // important to how they feel. some of the explosions feel much nicer
+            // to look at than others currently. maybe they should all sort of arc
+            // upwards then shower down
+            vec3 GibDirection = RandomDirection();
+            GibDirection.y = fabsf(GibDirection.y)*2.f;
+            GibDirection = Normalize(GibDirection);
+            SpawnProjectile(projectile_type_enum(PROJECTILE_GENERIC_GIB_0 + RandomInt(0, 1)),
+                FromJoltVector(Target.RigidBody->GetCenterOfMassPosition()), 
+                vec3(),
+                quat(),
+                GibDirection * (540.f + frand() * 100.f),
+                RandomDirection() * 5.0f);
+        }
+    }
 
     EnemySystem.RemoveCharacterBodyFromSimulation(Target.RigidBody);
 }

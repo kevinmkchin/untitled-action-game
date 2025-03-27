@@ -7,8 +7,9 @@ namespace Layers
     static constexpr JPH::ObjectLayer PLAYER = 1;
     static constexpr JPH::ObjectLayer ENEMY = 2;
     static constexpr JPH::ObjectLayer PROJECTILE = 3;
-    static constexpr JPH::ObjectLayer SENSOR = 4; // TRIGGERBOXES
-    static constexpr JPH::ObjectLayer NUM_LAYERS = 5;
+    static constexpr JPH::ObjectLayer GIB = 4;
+    static constexpr JPH::ObjectLayer SENSOR = 5; // TRIGGERBOXES
+    static constexpr JPH::ObjectLayer NUM_LAYERS = 6;
 };
 
 // Each broadphase layer results in a separate bounding volume tree in 

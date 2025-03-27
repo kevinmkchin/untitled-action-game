@@ -8,6 +8,8 @@ static MemoryType ActiveAllocator = MemoryType::DefaultMalloc;
 
 void SetJPHMemoryAllocator(MemoryType Allocator)
 {
+    // so this doesnt really work because when we go to free it, the 
+    // memory allocator is default malloc...ugh this shit is so annoying
     ActiveAllocator = Allocator;
 }
 

@@ -35,11 +35,16 @@ inline bool IsOneOfArray(T v, T* array, int count);
 /* Pick random integer in range [min, max] inclusive. */
 int RandomInt(int min, int max);
 
-// Returns a random number [0..1]
-float frand()
+// Returns a random float [-1, 1]
+inline float frand()
 {
-//  return ((float)(rand() & 0xffff)/(float)0xffff);
-    return (float)rand()/(float)RAND_MAX;
+    return 2.0f * ((float)rand() / RAND_MAX) - 1.0f;
+}
+
+// Returns a random float [0, 1]
+inline float frand01()
+{
+    return (float)rand()/RAND_MAX;
 }
 
 i32 ModifyASCIIBasedOnModifiers(i32 keycodeASCII, bool shift);
@@ -52,6 +57,41 @@ vec3 HSVToRGB(float h, float s, float v);
 // normalized rgb to hsv
 vec3 RGBToHSV(float r, float g, float b);
 
+vec3 RandomDirection()
+{
+    // Generate random vector until it's not zero-length
+    vec3 Dir;
+    do 
+    {
+        Dir.x = frand();
+        Dir.y = frand();
+        Dir.z = frand();
+    } 
+    while (Magnitude(Dir) == 0.0f);
+    return Normalize(Dir);
+}
+
+quat RandomOrientation()
+{
+    float u1, u2, u3;
+    float w, x, y, z;
+
+    // Generate three random numbers in [0, 1]
+    u1 = frand01();
+    u2 = frand01();
+    u3 = frand01();
+
+    // Convert to a uniformly distributed unit quaternion
+    float sqrt1_minus_u1 = sqrtf(1.0f - u1);
+    float sqrt_u1 = sqrtf(u1);
+
+    w = cosf(2.0f * GM_PI * u2) * sqrt1_minus_u1;
+    x = sinf(2.0f * GM_PI * u2) * sqrt1_minus_u1;
+    y = cosf(2.0f * GM_PI * u3) * sqrt_u1;
+    z = sinf(2.0f * GM_PI * u3) * sqrt_u1;
+
+    return quat(w,x,y,z);
+}
 
 
 #pragma region BYTEBUFFER

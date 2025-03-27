@@ -28,9 +28,9 @@ void InitializeGame()
     for (size_t i = 0; i < AnimatorPool.length; ++i)
         AnimatorPool[i] = animator_t();
 
-    PopulateProjectileDatabase();
-
     Physics.Initialize();
+
+    SetupProjectilesDataAndAllocateMemory();
 
     EnemySystem.Init();
 
@@ -115,6 +115,8 @@ void NonPhysicsTick()
     }
 
     NonPhysicsTickAllEnemies();
+
+    NonPhysicsUpdateProjectiles();
 
     Player.HandleInput();
 
@@ -267,7 +269,7 @@ void RenderGameLayer()
     RenderEnemies(perspectiveMatrix, viewMatrix);
 
     RenderWeapon(&Player.Weapon, perspectiveMatrix.ptr(), viewMatrix.GetInverse().ptr());
-    RenderProjectiles(perspectiveMatrix, viewMatrix.GetInverse());
+    RenderProjectiles(perspectiveMatrix, viewMatrix);
 
     // PRIMITIVES    
     static bool DoPrimitivesDepthTest = false;
