@@ -3,114 +3,34 @@
 // external
 physics_t Physics;
 
-// internal
-static MemoryType ActiveAllocator = MemoryType::DefaultMalloc;
 
-void SetJPHMemoryAllocator(MemoryType Allocator)
-{
-    // so this doesnt really work because when we go to free it, the 
-    // memory allocator is default malloc...ugh this shit is so annoying
-    ActiveAllocator = Allocator;
-}
-
+// Custom memory management
 static void *CustomJPHAllocate(size_t inSize)
 {
     JPH_ASSERT(inSize > 0);
-    // malloc uses alignof(max_align_t)
-    switch (ActiveAllocator)
-    {
-        case MemoryType::DefaultMalloc:
-            return malloc(inSize);
-        case MemoryType::StaticGame:
-            return StaticGameMemory.Alloc(inSize, alignof(max_align_t));
-        case MemoryType::StaticLevel:
-            return StaticLevelMemory.Alloc(inSize, alignof(max_align_t));
-    }
-    return malloc(inSize);
+    return JoltPhysicsMemory.alloc(inSize);
 }
 
 static void *CustomJPHReallocate(void *inBlock, size_t inOldSize, size_t inNewSize)
 {
     JPH_ASSERT(inNewSize > 0);
-    switch (ActiveAllocator)
-    {
-        case MemoryType::DefaultMalloc:
-            return realloc(inBlock, inNewSize);
-        case MemoryType::StaticGame:
-        case MemoryType::StaticLevel:
-            LogWarning("JPH::Reallocate is not supported for StaticGame and StaticLevel memory. Calling malloc as a fallback.");
-            void *Address = malloc(inNewSize);
-            memcpy(Address, inBlock, inOldSize);
-            return Address;
-    }
-    return realloc(inBlock, inNewSize);
+    return JoltPhysicsMemory.realloc(inBlock, inNewSize);
 }
 
 static void CustomJPHFree(void *inBlock)
 {
-    switch (ActiveAllocator)
-    {
-        case MemoryType::DefaultMalloc:
-            free(inBlock);
-            break;
-        case MemoryType::StaticGame:
-        case MemoryType::StaticLevel:
-            break;
-    }
+    JoltPhysicsMemory.free(inBlock);
 }
 
 static void *CustomJPHAlignedAllocate(size_t inSize, size_t inAlignment)
 {
     JPH_ASSERT(inSize > 0 && inAlignment > 0);
-
-#if defined(JPH_PLATFORM_WINDOWS)
-    switch (ActiveAllocator)
-    {
-        case MemoryType::DefaultMalloc:
-            return _aligned_malloc(inSize, inAlignment);
-        case MemoryType::StaticGame:
-            return StaticGameMemory.Alloc(inSize, inAlignment);
-        case MemoryType::StaticLevel:
-            return StaticLevelMemory.Alloc(inSize, inAlignment);
-    }
-    // Microsoft doesn't implement posix_memalign
-    return _aligned_malloc(inSize, inAlignment);
-#else
-    // NOTE(Kevin): The custom alloc here is not tested! Might be incorrect.
-    void *block = nullptr;
-    JPH_SUPPRESS_WARNING_PUSH
-    JPH_GCC_SUPPRESS_WARNING("-Wunused-result")
-    JPH_CLANG_SUPPRESS_WARNING("-Wunused-result")
-    switch (ActiveAllocator)
-    {
-        case MemoryType::DefaultMalloc:
-            posix_memalign(&block, inAlignment, inSize);
-            break;
-        case MemoryType::StaticGame:
-            return StaticGameMemory.Alloc(inSize, inAlignment);
-        case MemoryType::StaticLevel:
-            return StaticLevelMemory.Alloc(inSize, inAlignment);
-    }
-    JPH_SUPPRESS_WARNING_POP
-    return block;
-#endif
+    return JoltPhysicsMemory.alloc(inSize, inAlignment);
 }
 
 static void CustomJPHAlignedFree(void *inBlock)
 {
-    switch (ActiveAllocator)
-    {
-        case MemoryType::DefaultMalloc:
-#if defined(JPH_PLATFORM_WINDOWS)
-            _aligned_free(inBlock);
-#else
-            free(inBlock);
-#endif
-            break;
-        case MemoryType::StaticGame:
-        case MemoryType::StaticLevel:
-            break;
-    }
+    JoltPhysicsMemory.free(inBlock);
 }
 
 

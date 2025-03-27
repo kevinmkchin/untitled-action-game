@@ -28,11 +28,46 @@ struct linear_arena_t
     void *Alloc(size_t Bytes, size_t Align);
 };
 
+
+struct manualheap_arena_t
+{
+
+    // Allocate 16-byte aligned memory for SIMD compatibility
+    void Init(size_t size);
+    void* alloc(size_t size, size_t alignment = 16);
+    void free(void* ptr);
+    void* realloc(void* ptr, size_t new_size, size_t alignment = 16);
+
+    void DebugPrint() const;
+
+private:
+    struct BlockHeader
+    {
+        size_t size;
+        bool free;
+        BlockHeader* next;
+    };
+
+    uint8_t* memory = nullptr;
+    size_t arenaSize = 0;
+    BlockHeader* freeList = nullptr;
+
+    size_t alignUp(size_t size, size_t alignment) const;
+    size_t minBlockSize() const;
+    void splitBlock(BlockHeader* block, size_t usedSize);
+    void coalesce();
+    BlockHeader* findBlock(void* ptr);
+};
+
+
 // MY PRE ALLOCATED MEMORY ARENAS
 extern linear_arena_t StaticGameMemory;
 extern linear_arena_t StaticLevelMemory;
 #define new_InGameMemory(type) new (StaticGameMemory.Alloc<type>()) type
 #define new_InLevelMemory(type) new (StaticLevelMemory.Alloc<type>()) type
+
+extern manualheap_arena_t JoltPhysicsMemory;
+
 
 // === CONTAINERS ===
 template<typename T> struct dynamic_array

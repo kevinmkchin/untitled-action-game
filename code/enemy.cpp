@@ -25,10 +25,8 @@ void global_enemy_state_t::Init()
 
     for (int i = 0; i < MaxCharacterBodies; ++i)
     {
-        SetJPHMemoryAllocator(MemoryType::StaticGame);
         CharacterBodies[i] = new JPH::Character(
             Settings, ToJoltVector(vec3()), ToJoltQuat(quat()), 0, Physics.PhysicsSystem);
-        SetJPHMemoryAllocator(MemoryType::DefaultMalloc);
 
         Physics.BodyInterface->SetUserData(CharacterBodies[i]->GetBodyID(), 
             (u64)BAD_UINDEX);
@@ -65,9 +63,7 @@ void global_enemy_state_t::Destroy()
     {
         if (Physics.BodyInterface->IsAdded(CharacterBodies[i]->GetBodyID()))
             Physics.BodyInterface->RemoveBody(CharacterBodies[i]->GetBodyID());
-        SetJPHMemoryAllocator(MemoryType::StaticGame);
         delete CharacterBodies[i]; // ~JPH::Character destroys the body
-        SetJPHMemoryAllocator(MemoryType::DefaultMalloc);
     }
 }
 

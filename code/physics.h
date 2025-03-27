@@ -42,7 +42,6 @@
 
 #include "physics_bodies.h"
 
-void SetJPHMemoryAllocator(MemoryType Allocator);
 
 /*
 Note that the physics simulation works best if you use SI units (meters, radians, seconds, kg). In 
