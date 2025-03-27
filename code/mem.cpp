@@ -3,6 +3,7 @@
 // external
 linear_arena_t StaticGameMemory;
 linear_arena_t StaticLevelMemory;
+linear_arena_t FrameMemory;
 manualheap_arena_t JoltPhysicsMemory;
 
 
