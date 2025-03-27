@@ -89,6 +89,8 @@ void DisplayDebugMenu()
             GUI::EditorCheckbox("Show nav mesh", &DebugDrawNavMeshFlag);
             GUI::EditorCheckbox("Show enemy pathing", &DebugDrawEnemyPathingFlag);
             GUI::EditorCheckbox("Enemy behaviour active", &DebugEnemyBehaviourActive);
+            if (GUI::EditorLabelledButton("Print JoltPhysicsMemory usage"))
+                JoltPhysicsMemory.DebugPrint();
             if (GUI::EditorLabelledButton("Open level editor"))
                 DebugMenu_SwitchToLevelEditor();
             GUI::EditorSpacer(0, 10);

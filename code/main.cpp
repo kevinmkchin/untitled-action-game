@@ -27,6 +27,8 @@ Handcrafted with love.
 #include <chrono>
 #include <iterator>
 #include <algorithm>
+#include <iostream>
+#include <iomanip>
 
 #include "BUILDINFO.H"
 
@@ -549,8 +551,9 @@ int main(int argc, char* argv[])
 
     InitGameRenderer();
 
-    StaticGameMemory.Init(256000000);
+    StaticGameMemory.Init(128000000);
     StaticLevelMemory.Init(32000000);
+    JoltPhysicsMemory.Init(128000000);
 
     Assets.LoadAllResources();
 
