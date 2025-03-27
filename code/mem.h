@@ -4,7 +4,8 @@ enum class MemoryType
 {
     DefaultMalloc,
     StaticGame,
-    StaticLevel
+    StaticLevel,
+    Frame
 };
 
 // === ARENAS ===
@@ -63,8 +64,10 @@ private:
 // MY PRE ALLOCATED MEMORY ARENAS
 extern linear_arena_t StaticGameMemory;
 extern linear_arena_t StaticLevelMemory;
+extern linear_arena_t FrameMemory;
 #define new_InGameMemory(type) new (StaticGameMemory.Alloc<type>()) type
 #define new_InLevelMemory(type) new (StaticLevelMemory.Alloc<type>()) type
+#define new_InFrameMemory(type) new (FrameMemory.Alloc<type>()) type
 
 extern manualheap_arena_t JoltPhysicsMemory;
 
@@ -199,6 +202,9 @@ public:
                 break;
             case MemoryType::StaticLevel:
                 data = (T*)StaticLevelMemory.Alloc(sizeof(T)*Capacity, alignof(T));
+                break;
+            case MemoryType::Frame:
+                data = (T*)FrameMemory.Alloc(sizeof(T)*Capacity, alignof(T));
                 break;
         }
     }

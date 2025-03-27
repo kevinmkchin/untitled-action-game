@@ -108,7 +108,7 @@ namespace GUI
 
     UIRect::UIRect(struct ALH *layout) : x(layout->x), y(layout->y), w(layout->w), h(layout->h) {};
 
-    static char __reservedTextMemory[16000000];
+    static char __reservedTextMemory[4000000];
     static u32 __reservedTextMemoryIndexer = 0;
     c_array<SDL_Keycode, 32> keyboardInputASCIIKeycodeThisFrame;
     static c_array<char, 128> activeTextInputBuffer;

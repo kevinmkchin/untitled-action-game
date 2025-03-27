@@ -553,6 +553,7 @@ int main(int argc, char* argv[])
 
     StaticGameMemory.Init(128000000);
     StaticLevelMemory.Init(32000000);
+    FrameMemory.Init(32000000);
     JoltPhysicsMemory.Init(128000000);
 
     Assets.LoadAllResources();
@@ -572,6 +573,7 @@ int main(int argc, char* argv[])
 
     while (!ProgramShutdownRequested)
     {
+        FrameMemory.ArenaOffset = 0;
         TickTime();
         GUI::NewFrame();
         ProcessSDLEvents();
