@@ -264,6 +264,11 @@ extern "C" __global__ void __raygen__rg()
 
 extern "C" __global__ void __miss__HemisphereSample()
 {
+    // TODO(Kevin): this miss should contribute indirect lighting from the skybox
+    //              even a constant background/sky color.
+    //              rays that miss geometry and hit the sky should contribute indirect 
+    //              lighting, but only if the sky is emitting light. If the background 
+    //              is black and not emitting, they contribute nothing.
     optixSetPayload_7(true);
 }
 
