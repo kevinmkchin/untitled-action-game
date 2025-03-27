@@ -1,9 +1,9 @@
 #include "weapons.h"
 
 // external
-projectile_data_t ProjectileDatabase[PROJECTILE_TYPE_COUNT];
-dynamic_array<projectile_t> LiveProjectiles;
-dynamic_array<projectile_hit_info_t> ProjectileHitInfos;
+fixed_array<projectile_breed_t> ProjectilesData;
+fixed_array<projectile_t> LiveProjectiles;
+fixed_array<projectile_hit_info_t> ProjectileHitInfos;
 
 // internal
 static float GunRecoil = 0.f;
@@ -34,7 +34,8 @@ void TickWeapon(weapon_state_t *State, bool LMB, bool RMB)
         Cam->ApplyKnockback(0.034f, 0.12f);
         vec3 NailgunTip = Cam->Position + Cam->Direction * 32.f
             + vec3(0.f,-8.f,0.f);
-        SpawnProjectile(NailgunTip, Cam->Direction, Cam->Orientation);
+        SpawnProjectile(PROJECTILE_NAIL, NailgunTip, Cam->Direction, 
+            Cam->Orientation, vec3(), vec3());
 
         State->MuzzleFlash.w = 0.080f;
         State->MuzzleFlash.x = NailgunTip.x;
@@ -84,84 +85,176 @@ void RenderWeapon(weapon_state_t *State, float *ProjFromView, float *WorldFromVi
     RenderGPUMeshIndexed(m);
 }
 
-void RenderProjectiles(const mat4 &ProjFromView, const mat4 &WorldFromView)
+void RenderProjectiles(const mat4 &ProjFromView, const mat4 &ViewFromWorld)
 {
-    UseShader(GunShader);
+    UseShader(GameModelTexturedShader);
     glEnable(GL_DEPTH_TEST);
-    GLBindMatrix4fv(GunShader, "WorldFromView", 1, WorldFromView.ptr());
-    GLBindMatrix4fv(GunShader, "ProjFromView", 1, ProjFromView.ptr());
+    GLBind4f(GameModelTexturedShader, "MuzzleFlash", 
+        Player.Weapon.MuzzleFlash.x, 
+        Player.Weapon.MuzzleFlash.y, 
+        Player.Weapon.MuzzleFlash.z, 
+        Player.Weapon.MuzzleFlash.w);
+    GLBindMatrix4fv(GameModelTexturedShader, "ProjFromView", 1, ProjFromView.ptr());
+    GLBindMatrix4fv(GameModelTexturedShader, "ViewFromWorld", 1, ViewFromWorld.ptr());
 
     for (size_t i = 0; i < LiveProjectiles.lenu(); ++i)
     {
         projectile_t& P = LiveProjectiles[i];
         vec3 ProjectileRenderPos = FromJoltVector(Physics.BodyInterface->GetPosition(P.BodyId));
-        quat ProjectileRenderRot = P.RenderOrientation;
+        quat ProjectileRenderRot = FromJoltQuat(Physics.BodyInterface->GetRotation(P.BodyId));
         // Putting out of world bound check here because we have position here
         if (Magnitude(ProjectileRenderPos) > WORLD_LIMIT_F)
         {
             KillProjectile(&P);
             continue;
         }
-        mat4 ViewFromModel = WorldFromView.GetInverse()
-            * TranslationMatrix(ProjectileRenderPos) 
-            * RotationMatrix(ProjectileRenderRot)
-            * ScaleMatrix(SI_UNITS_TO_GAME_UNITS);
-        GLBindMatrix4fv(GunShader, "ViewFromModel", 1, ViewFromModel.ptr());
-        RenderModelGLTF(Assets.ModelsTextured[MT_PRJ_NAIL]);
+        mat4 WorldFromModel = TranslationMatrix(ProjectileRenderPos) 
+                            * RotationMatrix(ProjectileRenderRot)
+                            * ScaleMatrix(SI_UNITS_TO_GAME_UNITS);
+        GLBindMatrix4fv(GameModelTexturedShader, "WorldFromModel", 1, WorldFromModel.ptr());
+
+        RenderModelGLTF(*(P.Type->TexturedModel));
     }
 }
 
-void PopulateProjectileDatabase()
+void SetupProjectilesDataAndAllocateMemory()
 {
-    ProjectileDatabase[PROJECTILE_NAIL].BulletDamage = 16.f;
+    ProjectilesData = fixed_array<projectile_breed_t>(PROJECTILE_TYPE_COUNT, MemoryType::StaticGame);
+    ProjectilesData.setlen(PROJECTILE_TYPE_COUNT);
+    LiveProjectiles = fixed_array<projectile_t>(512, MemoryType::StaticGame);
+    ProjectileHitInfos = fixed_array<projectile_hit_info_t>(128, MemoryType::StaticGame);
+
+    // Jolt is annoying I can't really not allocate these on the heap...
+    JPH::Shape *PhysicsShape_Sphere4 = new JPH::SphereShape(ToJoltUnit(4));
+    JPH::Shape *PhysicsShape_Box8 = new JPH::BoxShape(ToJoltVector(vec3(4.f,4.f,4.f)));
+
+    ProjectilesData[PROJECTILE_NAIL].BulletDamage = 16.f;
+    ProjectilesData[PROJECTILE_NAIL].LinearVelocity = 1650.f;
+    ProjectilesData[PROJECTILE_NAIL].TexturedModel = &Assets.ModelsTextured[MT_PRJ_NAIL];
+    ProjectilesData[PROJECTILE_NAIL].ObjectLayer = Layers::PROJECTILE;
+    ProjectilesData[PROJECTILE_NAIL].MotionQuality = JPH::EMotionQuality::LinearCast;
+    ProjectilesData[PROJECTILE_NAIL].PhysicsShape = PhysicsShape_Sphere4;
+    ProjectilesData[PROJECTILE_NAIL].Mass_kg = 0.008f;
+    ProjectilesData[PROJECTILE_NAIL].SetFriction = false;
+    ProjectilesData[PROJECTILE_NAIL].Friction = -1.f;
+    ProjectilesData[PROJECTILE_NAIL].GravityFactor = 0.f;
+    ProjectilesData[PROJECTILE_NAIL].KillAfterTimer = 8.f;
+    ProjectilesData[PROJECTILE_NAIL].KillAfterSlowingDown = false;
+
+    ProjectilesData[PROJECTILE_GENERIC_GIB_0].BulletDamage = 0.f;
+    ProjectilesData[PROJECTILE_GENERIC_GIB_0].LinearVelocity = 0.f;
+    ProjectilesData[PROJECTILE_GENERIC_GIB_0].TexturedModel = &Assets.ModelsTextured[MT_GENERIC_GIB_0];
+    ProjectilesData[PROJECTILE_GENERIC_GIB_0].ObjectLayer = Layers::GIB;
+    ProjectilesData[PROJECTILE_GENERIC_GIB_0].MotionQuality = JPH::EMotionQuality::Discrete;
+    ProjectilesData[PROJECTILE_GENERIC_GIB_0].PhysicsShape = PhysicsShape_Box8;
+    ProjectilesData[PROJECTILE_GENERIC_GIB_0].Mass_kg = 3.f;
+    ProjectilesData[PROJECTILE_GENERIC_GIB_0].SetFriction = true;
+    ProjectilesData[PROJECTILE_GENERIC_GIB_0].Friction = 100.f;
+    ProjectilesData[PROJECTILE_GENERIC_GIB_0].GravityFactor = 1.f;
+    ProjectilesData[PROJECTILE_GENERIC_GIB_0].KillAfterTimer = 10.f;
+    ProjectilesData[PROJECTILE_GENERIC_GIB_0].KillAfterSlowingDown = true;
+
+    ProjectilesData[PROJECTILE_GENERIC_GIB_1].BulletDamage = 0.f;
+    ProjectilesData[PROJECTILE_GENERIC_GIB_1].LinearVelocity = 0.f;
+    ProjectilesData[PROJECTILE_GENERIC_GIB_1].TexturedModel = &Assets.ModelsTextured[MT_GENERIC_GIB_1];
+    ProjectilesData[PROJECTILE_GENERIC_GIB_1].ObjectLayer = Layers::GIB;
+    ProjectilesData[PROJECTILE_GENERIC_GIB_1].MotionQuality = JPH::EMotionQuality::Discrete;
+    ProjectilesData[PROJECTILE_GENERIC_GIB_1].PhysicsShape = PhysicsShape_Box8;
+    ProjectilesData[PROJECTILE_GENERIC_GIB_1].Mass_kg = 3.f;
+    ProjectilesData[PROJECTILE_GENERIC_GIB_1].SetFriction = true;
+    ProjectilesData[PROJECTILE_GENERIC_GIB_1].Friction = 100.f;
+    ProjectilesData[PROJECTILE_GENERIC_GIB_1].GravityFactor = 1.f;
+    ProjectilesData[PROJECTILE_GENERIC_GIB_1].KillAfterTimer = 10.f;
+    ProjectilesData[PROJECTILE_GENERIC_GIB_1].KillAfterSlowingDown = true;
 }
 
 // The quality of projectiles is that a lot of them get created in bursts and they die quickly
 // New ones are created often and live ones die quickly
-void SpawnProjectile(vec3 Pos, vec3 Dir, quat Orient)
+void SpawnProjectile(projectile_type_enum Type, vec3 Pos, vec3 Dir, 
+    quat Orient, vec3 Impulse, vec3 AngularImpulse)
 {
+    projectile_breed_t *PrjInfo = &ProjectilesData[Type];
 
-    // create projectile_t and a physics body (sphere probably) and add to simulation
-
-    JPH::RefConst<JPH::SphereShape> JPHShape_Sphere4 = new JPH::SphereShape(ToJoltUnit(4));
-
-    // BodyCreationSettings
-    JPH::BodyCreationSettings ProjectileCreationSettings(JPHShape_Sphere4, JPH::RVec3::sZero(), 
-        JPH::Quat::sIdentity(), JPH::EMotionType::Dynamic, Layers::PROJECTILE);
+    JPH::BodyCreationSettings ProjectileCreationSettings(
+        PrjInfo->PhysicsShape,
+        JPH::RVec3::sZero(),
+        JPH::Quat::sIdentity(),
+        JPH::EMotionType::Dynamic,
+        PrjInfo->ObjectLayer);
 
     ProjectileCreationSettings.mPosition = ToJoltVector(Pos);
-    ProjectileCreationSettings.mLinearVelocity = ToJoltVector(Dir * 1650.f);
-    ProjectileCreationSettings.mMotionQuality = JPH::EMotionQuality::LinearCast;
-    // ProjectileCreationSettings.mOverrideMassProperties = JPH::EOverrideMassProperties::MassAndInertiaProvided;
-    ProjectileCreationSettings.mMassPropertiesOverride.mMass = 0.008f;
-    ProjectileCreationSettings.mGravityFactor = 0.f;
-    // https://github.com/jrouwe/JoltPhysics/discussions/1040
+    ProjectileCreationSettings.mRotation = ToJoltQuat(Orient);
+    ProjectileCreationSettings.mLinearVelocity = ToJoltVector(Dir * PrjInfo->LinearVelocity);
+    ProjectileCreationSettings.mMotionQuality = PrjInfo->MotionQuality;
+    if (PrjInfo->Mass_kg >= 0.f)
+    {
+        ProjectileCreationSettings.mOverrideMassProperties = JPH::EOverrideMassProperties::CalculateInertia;
+        ProjectileCreationSettings.mMassPropertiesOverride.mMass = PrjInfo->Mass_kg;
+    }
+    if (PrjInfo->SetFriction)
+    {
+        ProjectileCreationSettings.mFriction = PrjInfo->Friction;
+    }
+    ProjectileCreationSettings.mGravityFactor = PrjInfo->GravityFactor;
 
+    // this body gets new-ed...
     JPH::BodyID ProjectileBodyId = Physics.BodyInterface->CreateAndAddBody(
         ProjectileCreationSettings, JPH::EActivation::Activate);
 
+    if (Impulse != vec3())
+        Physics.BodyInterface->AddImpulse(ProjectileBodyId, ToJoltVector(Impulse));
+    if (AngularImpulse != vec3())
+        Physics.BodyInterface->AddAngularImpulse(ProjectileBodyId, ToJoltVector(AngularImpulse));
+
     projectile_t Projectile;
-    Projectile.Flags = 0x0;
-    Projectile.Type = PROJECTILE_NAIL;
+    Projectile.Type = PrjInfo;
+    Projectile.IsDead = false;
     Projectile.BodyId = ProjectileBodyId;
-    Projectile.RenderOrientation = Orient;
+    Projectile.BeenAliveTimer = 0.f;
 
     LiveProjectiles.put(Projectile);
-
-    // BodyInterface.SetLinearVelocity(ProjectileBodyId, Vec3(0.0f, -5.0f, 0.0f));
-    // LogMessage("%d", Sphere->GetRefCount());
-    // LogMessage("%ld", (void*)Sphere.GetPtr());
 }
 
 void KillProjectile(projectile_t *ProjectileToKill)
 {
-    ProjectileToKill->Flags |= ProjectileFlag_Dead;
+    ProjectileToKill->IsDead = true;
+}
+
+void NonPhysicsUpdateProjectiles()
+{
+    for (size_t i = 0; i < LiveProjectiles.lenu(); ++i)
+    {
+        projectile_t& Projectile = LiveProjectiles[i];
+        if (!Projectile.IsDead)
+        {
+            Projectile.BeenAliveTimer += DeltaTime;
+
+            if (Projectile.Type->KillAfterTimer < Projectile.BeenAliveTimer)
+            {
+                KillProjectile(&Projectile);
+            }
+
+            if (Projectile.Type->KillAfterSlowingDown && Projectile.BeenAliveTimer > 3.f)
+            {
+                vec3 LinVel = FromJoltVector(Physics.BodyInterface->GetLinearVelocity(Projectile.BodyId));
+                if (Magnitude(LinVel) < 32.f)
+                    KillProjectile(&Projectile);
+            }
+        }
+    }
 }
 
 void PrePhysicsUpdateProjectiles()
 {
-    // go through all live projectiles, set their physics velocities?
-
+    for (size_t IndexAtPrePhysicsTick = 0; IndexAtPrePhysicsTick < LiveProjectiles.lenu(); ++IndexAtPrePhysicsTick)
+    {
+        projectile_t& Projectile = LiveProjectiles[IndexAtPrePhysicsTick];
+        if (!Projectile.IsDead && Projectile.Type->ObjectLayer == Layers::PROJECTILE)
+        {
+            u64 UserData = IndexAtPrePhysicsTick;
+            Physics.BodyInterface->SetUserData(Projectile.BodyId, UserData);
+        }
+    }
 }
 
 static void RemoveDeadProjectiles()
@@ -172,7 +265,7 @@ static void RemoveDeadProjectiles()
     for (size_t i = 0; i < LiveProjectiles.lenu(); ++i)
     {
         projectile_t& Projectile = LiveProjectiles[i];
-        if (Projectile.Flags & ProjectileFlag_Dead)
+        if (Projectile.IsDead)
         {
             ProjectileBodyIdsToRemove[BodyIdsToRemoveCount] = Projectile.BodyId;
             ++BodyIdsToRemoveCount;
@@ -205,28 +298,18 @@ static void ProcessProjectileHitInfos()
             std::swap(Info.Body1, Info.Body2);
         }
 
-        JPH::BodyID ProjectileBodyId = Info.Body1->GetID();
+        size_t ProjectileIdx = (size_t)Info.Body1->GetUserData();
 
-        int ProjectileIdx = -1;
-
-        for (size_t p = 0; p < LiveProjectiles.lenu(); ++p)
+        if (ProjectileIdx >= LiveProjectiles.lenu())
         {
-            if (LiveProjectiles[p].BodyId == ProjectileBodyId)
-            {
-                ProjectileIdx = (int)p;
-                break;
-            }
-        }
-
-        if (ProjectileIdx < 0)
-        {
-            LogError("GAME RUNTIME ERROR: There is no live projectile with collided Body ID...something went wrong!");
+            // LogError("GAME RUNTIME ERROR: There is no live projectile with collided Body ID...something went wrong!");
+            LogError("GAME RUNTIME ERROR: Bad user data from projectile body...something went wrong!");
             continue;
         }
 
-        if (LiveProjectiles[ProjectileIdx].Flags & ProjectileFlag_Dead)
+        if (LiveProjectiles[ProjectileIdx].IsDead)
         {
-            // the projectile is dead. already used.
+            // the projectile is already dead/used.
             // NOTE(Kevin): sometimes I get duplicate projectile hit infos.
             //              should be okay to ignore.
             // NOTE(Kevin): I am using a mutex lock, but still getting dupes...
@@ -237,13 +320,12 @@ static void ProcessProjectileHitInfos()
 
         if (SecondBodyLayer == Layers::ENEMY)
         {
-            switch (LiveProjectiles[ProjectileIdx].Type)
+            projectile_breed_t *PrjInfo = LiveProjectiles[ProjectileIdx].Type;
+
+            if (PrjInfo->BulletDamage > 0.f)
             {
-                case PROJECTILE_NAIL: {
-                    float Dmg = ProjectileDatabase[PROJECTILE_NAIL].BulletDamage;
-                    u32 EnemyIndex = (u32)Info.Body2->GetUserData();
-                    HurtEnemy(EnemyIndex, Dmg);
-                } break;
+                u32 EnemyIndex = (u32)Info.Body2->GetUserData();
+                HurtEnemy(EnemyIndex, PrjInfo->BulletDamage);
             }
 
             KillProjectile(&LiveProjectiles[ProjectileIdx]);
