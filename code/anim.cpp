@@ -320,17 +320,17 @@ bool LoadSkinnedModel_GLTF2Bin(const char* InFilePath, skinned_model_t *OutSkinn
 
     ASSERT(OutSkinnedModel->GetSkeleton());
 
-    dynamic_array<GPUTexture> matEmissiveTextures;
+    dynamic_array<GPUTexture> matTextures;
 
     for (u32 matIndex = 0; matIndex < Scene->mNumMaterials; ++matIndex)
     {
         aiMaterial *mat = Scene->mMaterials[matIndex];
 
-        GPUTexture gputexEmissive;
-        if (mat->GetTextureCount(aiTextureType_EMISSIVE))
+        GPUTexture gputex;
+        if (mat->GetTextureCount(aiTextureType_DIFFUSE))
         {
             aiString path;
-            if (mat->GetTexture(aiTextureType_EMISSIVE, 0, &path) == AI_SUCCESS)
+            if (mat->GetTexture(aiTextureType_DIFFUSE, 0, &path) == AI_SUCCESS)
             {
                 ASSERT(path.C_Str()[0] == '*'); // Assert texture is embedded into the binary
 
@@ -356,8 +356,8 @@ bool LoadSkinnedModel_GLTF2Bin(const char* InFilePath, skinned_model_t *OutSkinn
 
                 ASSERT(rawPixelData);
 
-                CreateGPUTextureFromBitmap(&gputexEmissive, rawPixelData, width, height, 
-                    GL_RGBA, GL_RGBA, GL_NEAREST, GL_NEAREST);
+                CreateGPUTextureFromBitmap(&gputex, rawPixelData, width, height,
+                    GL_SRGB, GL_RGBA, GL_NEAREST, GL_NEAREST);
 
                 if (compressed)
                 {
@@ -365,7 +365,7 @@ bool LoadSkinnedModel_GLTF2Bin(const char* InFilePath, skinned_model_t *OutSkinn
                 }
             }
         }
-        matEmissiveTextures.put(gputexEmissive);
+        matTextures.put(gputex);
     }
 
     ASSERT(Scene->mNumMeshes > 0);
@@ -381,12 +381,12 @@ bool LoadSkinnedModel_GLTF2Bin(const char* InFilePath, skinned_model_t *OutSkinn
         aiMesh* MeshNode = Scene->mMeshes[MeshIndex];
         skinned_mesh_t SkinnedMesh = ProcessSkinnedMesh(MeshNode, OutSkinnedModel->GetSkeleton());
         u32 MaterialIndex = MeshNode->mMaterialIndex;
-        GPUTexture ColorTex = matEmissiveTextures[MaterialIndex];
+        GPUTexture ColorTex = matTextures[MaterialIndex];
         OutSkinnedModel->Meshes[MeshIndex] = SkinnedMesh;
         OutSkinnedModel->Textures[MeshIndex] = ColorTex;
     }
 
-    matEmissiveTextures.free();
+    matTextures.free();
 
     return true;
 }
@@ -636,24 +636,24 @@ bool LoadModelGLTF2Bin(ModelGLTF *model, const char *filepath)
     // I'm only going to support embedded textures (GLB).
     // Assume 8-bit per channel RGBA format for texture input format
 
-    GPUTexture *matEmissiveTextures = NULL;
+    GPUTexture *ModelTextures = NULL;
 
     for (u32 matIndex = 0; matIndex < scene->mNumMaterials; ++matIndex)
     {
         aiMaterial *mat = scene->mMaterials[matIndex];
 
-        u32 TexCountDiffuse = mat->GetTextureCount(aiTextureType_DIFFUSE);
-        u32 TexCountEmissive = mat->GetTextureCount(aiTextureType_EMISSIVE);
-        u32 TexCountBaseColor = mat->GetTextureCount(aiTextureType_BASE_COLOR);
-        u32 TexCountRoughness = mat->GetTextureCount(aiTextureType_DIFFUSE_ROUGHNESS);
-        u32 TexCountEmissionColor = mat->GetTextureCount(aiTextureType_EMISSION_COLOR);
-        u32 TexCountUnknown = mat->GetTextureCount(aiTextureType_UNKNOWN);
+        //u32 TexCountDiffuse = mat->GetTextureCount(aiTextureType_DIFFUSE);
+        //u32 TexCountEmissive = mat->GetTextureCount(aiTextureType_EMISSIVE);
+        //u32 TexCountBaseColor = mat->GetTextureCount(aiTextureType_BASE_COLOR);
+        //u32 TexCountRoughness = mat->GetTextureCount(aiTextureType_DIFFUSE_ROUGHNESS);
+        //u32 TexCountEmissionColor = mat->GetTextureCount(aiTextureType_EMISSION_COLOR);
+        //u32 TexCountUnknown = mat->GetTextureCount(aiTextureType_UNKNOWN);
 
-        GPUTexture gputexEmissive;
-        if (mat->GetTextureCount(aiTextureType_EMISSIVE))
+        GPUTexture gputex;
+        if (mat->GetTextureCount(aiTextureType_DIFFUSE))
         {
             aiString path;
-            if (mat->GetTexture(aiTextureType_EMISSIVE, 0, &path) == AI_SUCCESS)
+            if (mat->GetTexture(aiTextureType_DIFFUSE, 0, &path) == AI_SUCCESS)
             {
                 ASSERT(path.C_Str()[0] == '*'); // Assert texture is embedded into the binary
 
@@ -679,7 +679,7 @@ bool LoadModelGLTF2Bin(ModelGLTF *model, const char *filepath)
 
                 ASSERT(rawPixelData);
 
-                CreateGPUTextureFromBitmap(&gputexEmissive, rawPixelData, width, height, 
+                CreateGPUTextureFromBitmap(&gputex, rawPixelData, width, height,
                     GL_SRGB, GL_RGBA, GL_NEAREST, GL_NEAREST);
 
                 if (compressed)
@@ -688,7 +688,7 @@ bool LoadModelGLTF2Bin(ModelGLTF *model, const char *filepath)
                 }
             }
         }
-        arrput(matEmissiveTextures, gputexEmissive);
+        arrput(ModelTextures, gputex);
     }
 
     ASSERT(scene->mNumMeshes > 0);
@@ -704,13 +704,13 @@ bool LoadModelGLTF2Bin(ModelGLTF *model, const char *filepath)
         aiMesh* meshNode = scene->mMeshes[meshIndex];
         GPUMeshIndexed gpumesh = ASSIMPMeshToGPUMeshIndexed(meshNode);
         u32 matIndex = meshNode->mMaterialIndex;
-        GPUTexture colorTex = matEmissiveTextures[matIndex];
+        GPUTexture colorTex = ModelTextures[matIndex];
 
         model->meshes[meshIndex] = gpumesh;
         model->color[meshIndex] = colorTex;
     }
 
-    arrfree(matEmissiveTextures);
+    arrfree(ModelTextures);
 
     return true;
 }

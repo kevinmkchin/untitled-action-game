@@ -1,6 +1,5 @@
 #pragma once
 
-
 enum class MemoryType
 {
     DefaultMalloc,
@@ -8,6 +7,7 @@ enum class MemoryType
     StaticLevel
 };
 
+// === ARENAS ===
 struct linear_arena_t
 {
     // Linear allocator works best when we don't support freeing memory at the pointer level
@@ -28,9 +28,13 @@ struct linear_arena_t
     void *Alloc(size_t Bytes, size_t Align);
 };
 
+// MY PRE ALLOCATED MEMORY ARENAS
 extern linear_arena_t StaticGameMemory;
 extern linear_arena_t StaticLevelMemory;
+#define new_InGameMemory(type) new (StaticGameMemory.Alloc<type>()) type
+#define new_InLevelMemory(type) new (StaticLevelMemory.Alloc<type>()) type
 
+// === CONTAINERS ===
 template<typename T> struct dynamic_array
 {
     // stb_ds.h dynamic array wrapper
