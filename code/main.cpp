@@ -577,6 +577,7 @@ int main(int argc, char* argv[])
         FrameMemory.ArenaOffset = 0;
         TickTime();
         GUI::NewFrame();
+        SupportRenderer.NewFrame();
         ProcessSDLEvents();
 
 #if INTERNAL_BUILD

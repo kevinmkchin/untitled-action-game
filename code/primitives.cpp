@@ -3,7 +3,8 @@
 static u32 PRIM_VERTEX_POS_AND_COLOR_VAO;
 static u32 PRIM_VERTEX_POS_AND_COLOR_VBO;
 
-static c_array<float, 256000> PRIMITIVE_TRIS_VB;
+// these can go in frame memory
+static fixed_array<float> PRIMITIVE_TRIS_VB;
 static GPUShader PRIMITIVES_TRIS_SHADER;
 static const char* PRIMITIVES_TRIS_SHADER_VS =
     "#version 330 core\n"
@@ -36,7 +37,7 @@ static const char* PRIMITIVES_TRIS_SHADER_FS =
 static u32 PRIM_VERTEX_POS_COLOR_LINEWIDTH_VAO;
 static u32 PRIM_VERTEX_POS_COLOR_LINEWIDTH_VBO;
 
-static c_array<float, 256000> PRIMITIVE_FATLINES_VB;
+static fixed_array<float> PRIMITIVE_FATLINES_VB;
 static GPUShader FATLINES_SHADER;
 static const char* FATLINES_SHADER_VS =
     "#version 330 core\n"
@@ -111,7 +112,7 @@ static const char* FATLINES_SHADER_FS =
     "    }\n"
     "}\n";
 
-static c_array<float, 256000> PRIMITIVE_LINES_VB;
+static fixed_array<float> PRIMITIVE_LINES_VB;
 static GPUShader LINES_SHADER;
 static const char* LINES_SHADER_VS =
     "#version 330 core\n"
@@ -150,7 +151,7 @@ static bool DrawAxisLines = false;
 static GPUFrameBuffer mousePickingRenderTarget;
 static u32 HANDLES_VAO = 0;
 static u32 HANDLES_VBO = 0;
-static c_array<float, 256 * 128> HANDLES_VB;
+static fixed_array<float> HANDLES_VB;
 
 static GPUShader HANDLES_SHADER;
 static const char* HANDLES_SHADER_VS =
@@ -173,7 +174,7 @@ static const char* HANDLES_SHADER_FS =
     "}\n";
 
 static GPUMesh PICKABLE_BILLBOARDS_MESH;
-static dynamic_array<float> PICKABLE_BILLBOARDS_VB; 
+static fixed_array<float> PICKABLE_BILLBOARDS_VB; 
 static GPUShader PICKABLE_BILLBOARDS_SHADER;
 static const char *PICKABLE_BILLBOARDS_SHADER_VS =
     "#version 330 core\n"
@@ -240,6 +241,15 @@ static const char* GRID_MESH_SHADER_FS =
 
 support_renderer_t SupportRenderer;
 
+void support_renderer_t::NewFrame()
+{
+    PRIMITIVE_TRIS_VB = fixed_array<float>(2000000, MemoryType::Frame);
+    PRIMITIVE_FATLINES_VB = fixed_array<float>(250000, MemoryType::Frame);
+    PRIMITIVE_LINES_VB = fixed_array<float>(250000, MemoryType::Frame);
+    HANDLES_VB = fixed_array<float>(250000, MemoryType::Frame);
+    PICKABLE_BILLBOARDS_VB = fixed_array<float>(1024 * 48, MemoryType::Frame);
+}
+
 void support_renderer_t::Initialize()
 {
     glGenVertexArrays(1, &PRIM_VERTEX_POS_AND_COLOR_VAO);
@@ -285,7 +295,6 @@ void support_renderer_t::Initialize()
     GLCreateShaderProgram(HANDLES_SHADER, HANDLES_SHADER_VS, HANDLES_SHADER_FS);
 
     CreateGPUMesh(&PICKABLE_BILLBOARDS_MESH, 3, 2, 3, GL_DYNAMIC_DRAW);
-    PICKABLE_BILLBOARDS_VB.setcap(384);
     GLCreateShaderProgram(PICKABLE_BILLBOARDS_SHADER, PICKABLE_BILLBOARDS_SHADER_VS, PICKABLE_BILLBOARDS_SHADER_FS);
 
     vec3 gridmeshdata[4001*4];
@@ -342,7 +351,7 @@ void support_renderer_t::DrawGrid(float scale, mat3 rotation, vec3 translation, 
 
 void support_renderer_t::FlushPrimitives(const mat4 *projectionMatrix, const mat4 *viewMatrix, GLuint sceneDepthTextureId, vec2 framebufferSize)
 {
-    if (PRIMITIVE_LINES_VB.count > 0)
+    if (PRIMITIVE_LINES_VB.lenu() > 0)
     {
         UseShader(LINES_SHADER);
         GLBindMatrix4fv(LINES_SHADER, "projectionMatrix", 1, projectionMatrix->ptr());
@@ -356,16 +365,16 @@ void support_renderer_t::FlushPrimitives(const mat4 *projectionMatrix, const mat
         GLBind1f(LINES_SHADER, "occludedOpacity", 0.5f);
         glBindVertexArray(PRIM_VERTEX_POS_AND_COLOR_VAO);
         glBindBuffer(GL_ARRAY_BUFFER, PRIM_VERTEX_POS_AND_COLOR_VBO);
-        glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr) sizeof(float) * PRIMITIVE_LINES_VB.count, PRIMITIVE_LINES_VB.data,
+        glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr) sizeof(float) * PRIMITIVE_LINES_VB.lenu(), PRIMITIVE_LINES_VB.data,
                      GL_DYNAMIC_DRAW);
-        glDrawArrays(GL_LINES, 0, PRIMITIVE_LINES_VB.count / 7);
+        glDrawArrays(GL_LINES, 0, PRIMITIVE_LINES_VB.lenu() / 7);
         glBindBuffer(GL_ARRAY_BUFFER, 0);
         glBindVertexArray(0);
 
-        PRIMITIVE_LINES_VB.reset_count();
+        PRIMITIVE_LINES_VB.setlen(0);
     }
 
-    if (PRIMITIVE_FATLINES_VB.count > 0)
+    if (PRIMITIVE_FATLINES_VB.lenu() > 0)
     {
         UseShader(FATLINES_SHADER);
         GLBindMatrix4fv(FATLINES_SHADER, "projectionMatrix", 1, projectionMatrix->ptr());
@@ -379,16 +388,16 @@ void support_renderer_t::FlushPrimitives(const mat4 *projectionMatrix, const mat
         GLBind1f(FATLINES_SHADER, "occludedOpacity", 0.33f);
         glBindVertexArray(PRIM_VERTEX_POS_COLOR_LINEWIDTH_VAO);
         glBindBuffer(GL_ARRAY_BUFFER, PRIM_VERTEX_POS_COLOR_LINEWIDTH_VBO);
-        glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr) sizeof(float) * PRIMITIVE_FATLINES_VB.count, PRIMITIVE_FATLINES_VB.data,
+        glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr) sizeof(float) * PRIMITIVE_FATLINES_VB.lenu(), PRIMITIVE_FATLINES_VB.data,
                      GL_DYNAMIC_DRAW);
-        glDrawArrays(GL_LINES, 0, PRIMITIVE_FATLINES_VB.count / 8);
+        glDrawArrays(GL_LINES, 0, PRIMITIVE_FATLINES_VB.lenu() / 8);
         glBindBuffer(GL_ARRAY_BUFFER, 0);
         glBindVertexArray(0);
 
-        PRIMITIVE_FATLINES_VB.reset_count();
+        PRIMITIVE_FATLINES_VB.setlen(0);
     }
 
-    if (PRIMITIVE_TRIS_VB.count > 0)
+    if (PRIMITIVE_TRIS_VB.lenu() > 0)
     {
         UseShader(PRIMITIVES_TRIS_SHADER);
         GLBindMatrix4fv(PRIMITIVES_TRIS_SHADER, "projectionMatrix", 1, projectionMatrix->ptr());
@@ -402,13 +411,13 @@ void support_renderer_t::FlushPrimitives(const mat4 *projectionMatrix, const mat
         GLBind1f(PRIMITIVES_TRIS_SHADER, "occludedOpacity", 0.5f);
         glBindVertexArray(PRIM_VERTEX_POS_AND_COLOR_VAO);
         glBindBuffer(GL_ARRAY_BUFFER, PRIM_VERTEX_POS_AND_COLOR_VBO);
-        glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr) sizeof(float) * PRIMITIVE_TRIS_VB.count, PRIMITIVE_TRIS_VB.data,
+        glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr) sizeof(float) * PRIMITIVE_TRIS_VB.lenu(), PRIMITIVE_TRIS_VB.data,
                      GL_DYNAMIC_DRAW);
-        glDrawArrays(GL_TRIANGLES, 0, PRIMITIVE_TRIS_VB.count / 7);
+        glDrawArrays(GL_TRIANGLES, 0, PRIMITIVE_TRIS_VB.lenu() / 7);
         glBindBuffer(GL_ARRAY_BUFFER, 0);
         glBindVertexArray(0);
 
-        PRIMITIVE_TRIS_VB.reset_count();
+        PRIMITIVE_TRIS_VB.setlen(0);
     }
 }
 
@@ -452,6 +461,78 @@ void support_renderer_t::DrawSolidDisc(vec3 center, vec3 normal, float radius, v
 void support_renderer_t::DrawSolidDisc(vec3 center, vec3 normal, float radius)
 {
     DrawSolidDisc(center, normal, radius, vec4(RGB255TO1(248, 230, 60), 1.f));
+}
+
+void support_renderer_t::DrawSolidRect(vec3 center, vec3 normal, float halfWidth, vec4 color)
+{
+    vec3 tangent = Normalize(Cross(normal == GM_UP_VECTOR ? GM_RIGHT_VECTOR : GM_UP_VECTOR, normal));
+
+    vec3 right = tangent * halfWidth;
+    vec3 up = Normalize(Cross(normal, tangent)) * halfWidth;
+
+    vec3 a = center - up - right;
+    vec3 b = center - up + right;
+    vec3 c = center + up - right;
+    vec3 d = center + up + right;
+
+    PRIMITIVE_TRIS_VB.put(a.x);
+    PRIMITIVE_TRIS_VB.put(a.y);
+    PRIMITIVE_TRIS_VB.put(a.z);
+    PRIMITIVE_TRIS_VB.put(color.x);
+    PRIMITIVE_TRIS_VB.put(color.y);
+    PRIMITIVE_TRIS_VB.put(color.z);
+    PRIMITIVE_TRIS_VB.put(color.w);
+
+    PRIMITIVE_TRIS_VB.put(b.x);
+    PRIMITIVE_TRIS_VB.put(b.y);
+    PRIMITIVE_TRIS_VB.put(b.z);
+    PRIMITIVE_TRIS_VB.put(color.x);
+    PRIMITIVE_TRIS_VB.put(color.y);
+    PRIMITIVE_TRIS_VB.put(color.z);
+    PRIMITIVE_TRIS_VB.put(color.w);
+
+    PRIMITIVE_TRIS_VB.put(c.x);
+    PRIMITIVE_TRIS_VB.put(c.y);
+    PRIMITIVE_TRIS_VB.put(c.z);
+    PRIMITIVE_TRIS_VB.put(color.x);
+    PRIMITIVE_TRIS_VB.put(color.y);
+    PRIMITIVE_TRIS_VB.put(color.z);
+    PRIMITIVE_TRIS_VB.put(color.w);
+
+    PRIMITIVE_TRIS_VB.put(c.x);
+    PRIMITIVE_TRIS_VB.put(c.y);
+    PRIMITIVE_TRIS_VB.put(c.z);
+    PRIMITIVE_TRIS_VB.put(color.x);
+    PRIMITIVE_TRIS_VB.put(color.y);
+    PRIMITIVE_TRIS_VB.put(color.z);
+    PRIMITIVE_TRIS_VB.put(color.w);
+
+    PRIMITIVE_TRIS_VB.put(b.x);
+    PRIMITIVE_TRIS_VB.put(b.y);
+    PRIMITIVE_TRIS_VB.put(b.z);
+    PRIMITIVE_TRIS_VB.put(color.x);
+    PRIMITIVE_TRIS_VB.put(color.y);
+    PRIMITIVE_TRIS_VB.put(color.z);
+    PRIMITIVE_TRIS_VB.put(color.w);
+
+    PRIMITIVE_TRIS_VB.put(d.x);
+    PRIMITIVE_TRIS_VB.put(d.y);
+    PRIMITIVE_TRIS_VB.put(d.z);
+    PRIMITIVE_TRIS_VB.put(color.x);
+    PRIMITIVE_TRIS_VB.put(color.y);
+    PRIMITIVE_TRIS_VB.put(color.z);
+    PRIMITIVE_TRIS_VB.put(color.w);
+}
+
+void support_renderer_t::DrawColoredCube(vec3 center, float halfWidth,
+    vec4 ColorPX, vec4 ColorNX, vec4 ColorPY, vec4 ColorNY, vec4 ColorPZ, vec4 ColorNZ)
+{
+    DrawSolidRect(center + GM_FORWARD_VECTOR * halfWidth, GM_FORWARD_VECTOR, halfWidth, ColorPX);
+    DrawSolidRect(center - GM_FORWARD_VECTOR * halfWidth, -GM_FORWARD_VECTOR, halfWidth, ColorNX);
+    DrawSolidRect(center + GM_UP_VECTOR * halfWidth, GM_UP_VECTOR, halfWidth, ColorPY);
+    DrawSolidRect(center - GM_UP_VECTOR * halfWidth, -GM_UP_VECTOR, halfWidth, ColorNY);
+    DrawSolidRect(center + GM_RIGHT_VECTOR * halfWidth, GM_RIGHT_VECTOR, halfWidth, ColorPZ);
+    DrawSolidRect(center - GM_RIGHT_VECTOR * halfWidth, -GM_RIGHT_VECTOR, halfWidth, ColorNZ);
 }
 
 void support_renderer_t::DrawLine(vec3 p1, vec3 p2, vec4 color)
@@ -558,14 +639,14 @@ void support_renderer_t::DoPickableBillboard(u32 Id, vec3 WorldPos, vec3 Normal,
 
 void support_renderer_t::AddTrianglesToPickableHandles(float *Vertices, int Count)
 {
-    if (HANDLES_VB.count + Count > HANDLES_VB.capacity)
+    if (HANDLES_VB.lenu() + Count > HANDLES_VB.cap())
     {
         LogError("AddTrianglesToPickableHandles exceeds allocated HANDLES_VB buffer.");
         return;
     }
 
-    memcpy(HANDLES_VB.data + HANDLES_VB.count, Vertices, Count * sizeof(float));
-    HANDLES_VB.count += Count;
+    float *CopyTo = HANDLES_VB.addnptr(Count);
+    memcpy(CopyTo, Vertices, Count * sizeof(float));
 }
 
 void support_renderer_t::DrawHandlesVertexArray_GL(float *VertexBuffer, u32 VertexBufferCount, 
@@ -658,7 +739,7 @@ void support_renderer_t::ClearPickableBillboards()
 u32 support_renderer_t::FlushHandles(ivec2 clickat, const GPUFrameBuffer activeSceneTarget,
                  const mat4& activeViewMatrix, const mat4& activeProjectionMatrix, bool orthographic)
 {
-    if (HANDLES_VB.count == 0 && PICKABLE_BILLBOARDS_VB.lenu() == 0) return 0;
+    if (HANDLES_VB.lenu() == 0 && PICKABLE_BILLBOARDS_VB.lenu() == 0) return 0;
 
     const float sceneResolutionW = (float)activeSceneTarget.width;
     const float sceneResolutionH = (float)activeSceneTarget.height;
@@ -687,11 +768,11 @@ u32 support_renderer_t::FlushHandles(ivec2 clickat, const GPUFrameBuffer activeS
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glEnable(GL_DEPTH_TEST);
 
-    if (HANDLES_VB.count > 0)
+    if (HANDLES_VB.lenu() > 0)
     {
-        DrawHandlesVertexArray_GL(HANDLES_VB.data, HANDLES_VB.count,
+        DrawHandlesVertexArray_GL(HANDLES_VB.data, HANDLES_VB.lenu(),
             scaledDownFrustum.ptr(), activeViewMatrix.ptr());
-        HANDLES_VB.reset_count();
+        HANDLES_VB.setlen(0);
     }
 
     if (PICKABLE_BILLBOARDS_VB.lenu() > 0)
