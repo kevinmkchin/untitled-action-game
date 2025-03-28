@@ -12,6 +12,8 @@ bool LevelLoaded = false;
 player_t Player;
 JPH::BodyID LevelColliderBodyId;
 
+lc_volume_t *LightCacheVolume;
+
 
 enum ske_humanoid_clips : u32
 {
@@ -75,6 +77,7 @@ void LoadLevel(const char *MapPath)
         LogError("failed to load game map");
         return;
     }
+    LightCacheVolume = MapLoadResult.LightCacheVolume;
 
     ASSERT(Physics.PhysicsSystem);
     CreateAndRegisterLevelCollider();
@@ -148,6 +151,20 @@ void PostPhysicsTick()
 void LateNonPhysicsTick()
 {
 
+    for (size_t i = 0; i < LightCacheVolume->CubePositions.lenu(); ++i)
+    {
+        const vec3 &CubePos = LightCacheVolume->CubePositions[i];
+        const lc_ambient_t &AmbientCube = LightCacheVolume->AmbientCubes[i];
+        SupportRenderer.DrawColoredCube(CubePos, 1.f, 
+            vec4(AmbientCube.PosX,AmbientCube.PosX,AmbientCube.PosX,1),
+            vec4(AmbientCube.NegX,AmbientCube.NegX,AmbientCube.NegX,1),
+            vec4(AmbientCube.PosY,AmbientCube.PosY,AmbientCube.PosY,1),
+            vec4(AmbientCube.NegY,AmbientCube.NegY,AmbientCube.NegY,1),
+            vec4(AmbientCube.PosZ,AmbientCube.PosZ,AmbientCube.PosZ,1),
+            vec4(AmbientCube.NegZ,AmbientCube.NegZ,AmbientCube.NegZ,1)
+        );
+    }
+
 #ifdef JPH_DEBUG_RENDERER
     JoltDebugDrawer->Ready();
 
@@ -181,11 +198,14 @@ void LateNonPhysicsTick()
     if (DebugShowGameMemoryUsage)
     {
         GUI::PrimitiveTextFmt(8, 58, GUI::GetFontSize(), GUI::Align::LEFT, 
-            "StaticGameMemory usage  [%zd/%zd bytes]", 
+            "Game Memory usage  [%zd/%zd bytes]", 
             StaticGameMemory.ArenaOffset, StaticGameMemory.ArenaSize);
         GUI::PrimitiveTextFmt(8, 68, GUI::GetFontSize(), GUI::Align::LEFT, 
-            "StaticLevelMemory usage [%zd/%zd bytes]", 
+            "Level Memory usage [%zd/%zd bytes]", 
             StaticLevelMemory.ArenaOffset, StaticLevelMemory.ArenaSize);
+        GUI::PrimitiveTextFmt(8, 78, GUI::GetFontSize(), GUI::Align::LEFT, 
+            "Frame Memory usage [%zd/%zd bytes]", 
+            FrameMemory.ArenaOffset, FrameMemory.ArenaSize);
     }
 
     Player.LateNonPhysicsTick();
@@ -272,13 +292,7 @@ void RenderGameLayer()
     RenderProjectiles(perspectiveMatrix, viewMatrix);
 
     // PRIMITIVES    
-    static bool DoPrimitivesDepthTest = false;
-    if (KeysPressed[SDL_SCANCODE_X])
-        DoPrimitivesDepthTest = !DoPrimitivesDepthTest;
-    if (DoPrimitivesDepthTest)
-        glEnable(GL_DEPTH_TEST);
-    else
-        glDisable(GL_DEPTH_TEST);
+    glEnable(GL_DEPTH_TEST);
     glDisable(GL_CULL_FACE);
     SupportRenderer.FlushPrimitives(&perspectiveMatrix, &viewMatrix, RenderTargetGame.depthTexId, 
         vec2((float)RenderTargetGame.width, (float)RenderTargetGame.height));

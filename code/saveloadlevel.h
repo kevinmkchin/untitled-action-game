@@ -6,6 +6,8 @@ struct map_load_result_t
 
     vec3 PlayerStartPosition;
     vec3 PlayerStartRotation;
+
+    lc_volume_t *LightCacheVolume;
 };
 
 bool BuildGameMap(const char *path);

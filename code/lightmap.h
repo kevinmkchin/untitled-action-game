@@ -118,8 +118,9 @@ struct lc_volume_t
     fixed_array<lc_ambient_t> AmbientCubes;
     fixed_array<lc_light_indices_t> SignificantLightIndices;
 
-    void Serialize(ByteBuffer Buf);
-    void Deserialize(ByteBuffer Buf);
+    static constexpr u64 lc_volume_t_serialize_end_marker = 0x6C63766F6C736572;
+    void Serialize(ByteBuffer *Buf);
+    void Deserialize(ByteBuffer *Buf, MemoryType VolumeStorageType = MemoryType::StaticLevel);
 
 
     vec3 Start;
@@ -135,6 +136,10 @@ struct lc_volume_baker_t
     void BakeLightCubes(game_map_build_data_t& BuildData);
 
     lc_volume_t LightCubeVolume;
+
+    // Since level geomtry will often by aligned to grid, let's offset the positions
+    // of cubes by a certain amount so they aren't clipping geometry as often.
+    vec3 CubePlacementOffsetToAvoidClipping = vec3(4.5f, 16.5f, 4.5f);
 
 private:
     void PlaceLightCubes();

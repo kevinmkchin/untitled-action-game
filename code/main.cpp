@@ -164,10 +164,10 @@ inline std::string entity_icons_path(const std::string& name) { return wd_path()
 #include "filedialog.h"
 #include "physics.h"
 #include "physics_debug.h"
-#include "primitives.h"
 #include "cam.h"
 #include "winged.h"
 #include "lightmap.h"
+#include "primitives.h"
 #include "levelentities.h"
 #include "leveleditor.h"
 #include "saveloadlevel.h"
@@ -569,7 +569,7 @@ int main(int argc, char* argv[])
     BuildGameMap(wd_path("buildtest.map").c_str());
     LoadLevel(wd_path("buildtest.map").c_str());
 
-    // LoadLevel(wd_path("testing.map").c_str());
+    // LoadLevel(wd_path("buildtest.map").c_str());
     // LevelEditor.Open();
 
     while (!ProgramShutdownRequested)

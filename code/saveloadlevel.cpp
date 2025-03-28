@@ -36,7 +36,6 @@ static void DeallocateGameMapBuildData(game_map_build_data_t *BuildData)
 
 bool BuildGameMap(const char *path)
 {
-    // TODO(Kevin): remove this timing shit
     u32 TimeAtStartOfBuildGameMap = SDL_GetTicks();
 
     LogMessage("Building game map data to %s", path);
@@ -90,10 +89,10 @@ bool BuildGameMap(const char *path)
     Lightmapper->FreeLightmap();
     delete Lightmapper;
 
-    lc_volume_baker_t *LightCubeVolumeBaker = new lc_volume_baker_t();
-    LightCubeVolumeBaker->BakeLightCubes(BuildData);
-    LightCubeVolumeBaker->LightCubeVolume;
-    delete LightCubeVolumeBaker;
+    lc_volume_baker_t *LightCacheVolumeBaker = new lc_volume_baker_t();
+    LightCacheVolumeBaker->BakeLightCubes(BuildData);
+    LightCacheVolumeBaker->LightCubeVolume.Serialize(&BuildData.Output);
+    delete LightCacheVolumeBaker;
 
     // colliders
     size_t numColliderPoints = ColliderWorldPoints.size();
@@ -119,7 +118,6 @@ bool BuildGameMap(const char *path)
     bool writtenToFile = ByteBufferWriteToFile(&BuildData.Output, path) == 1;
     ByteBufferFree(&BuildData.Output);
 
-    // TODO(Kevin): remove this timing shit
     u32 TimeAtEndOfBuildGameMap = SDL_GetTicks();
     float TimeElapsedToBuildGameMapInSeconds = (TimeAtEndOfBuildGameMap - TimeAtStartOfBuildGameMap)/1000.f;
     LogMessage("Took %fs to build.", TimeElapsedToBuildGameMapInSeconds);
@@ -161,6 +159,8 @@ map_load_result_t LoadGameMap(const char *path)
     //                            GL_R32F, GL_RED, GL_NEAREST, GL_NEAREST, GL_FLOAT);
     arrfree(lightMapData);
 
+    Result.LightCacheVolume = new_InLevelMemory(lc_volume_t)();
+    Result.LightCacheVolume->Deserialize(&mapbuf, MemoryType::StaticLevel);
 
     // colliders
     size_t numColliderPoints, numColliderSpans;
