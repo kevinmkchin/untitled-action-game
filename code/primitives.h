@@ -12,11 +12,17 @@ struct support_renderer_t
     void Initialize();
     void Destroy();
 
+    void NewFrame();
+
 public: // Primitives
 
     // Queue a solid disc to be drawn later
     void DrawSolidDisc(vec3 center, vec3 normal, float radius, vec4 color);
     void DrawSolidDisc(vec3 center, vec3 normal, float radius);
+    // Queue a solid rect to be drawn later
+    void DrawSolidRect(vec3 center, vec3 normal, float halfWidth, vec4 color);
+    void DrawColoredCube(vec3 center, float halfWidth,
+        vec4 ColorPX, vec4 ColorNX, vec4 ColorPY, vec4 ColorNY, vec4 ColorPZ, vec4 ColorNZ);
     // Queue a line to be drawn later
     void DrawLine(vec3 p1, vec3 p2, vec4 color);
     void DrawLine(vec3 p1, vec3 p2, vec4 color, float thickness);
