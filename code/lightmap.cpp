@@ -929,14 +929,54 @@ size_t lc_volume_t::IndexByPosition(vec3 WorldPosition)
     return CubeIndex;
 }
 
-void lc_volume_t::Serialize(ByteBuffer Buf)
+void lc_volume_t::Serialize(ByteBuffer *Buf)
 {
+    ByteBufferWrite(Buf, vec3, Start);
+    ByteBufferWrite(Buf, vec3, End);
+    ByteBufferWrite(Buf, int, CountX);
+    ByteBufferWrite(Buf, int, CountY);
+    ByteBufferWrite(Buf, int, CountZ);
+    ByteBufferWrite(Buf, ivec3, LightCubePlacementInterval);
 
+    u32 TotalCubeCount = u32(CountX * CountY * CountZ);
+    ASSERT(TotalCubeCount == CubePositions.lenu());
+    ASSERT(TotalCubeCount == AmbientCubes.lenu());
+    ASSERT(TotalCubeCount == SignificantLightIndices.lenu());
+    ByteBufferWrite(Buf, u32, TotalCubeCount);
+
+    ByteBufferWriteBulk(Buf, CubePositions.data, sizeof(vec3) * TotalCubeCount);
+    ByteBufferWriteBulk(Buf, AmbientCubes.data, sizeof(lc_ambient_t) * TotalCubeCount);
+    ByteBufferWriteBulk(Buf, SignificantLightIndices.data, sizeof(lc_light_indices_t) * TotalCubeCount);
+
+    ByteBufferWrite(Buf, u64, lc_volume_t_serialize_end_marker);
 }
 
-void lc_volume_t::Deserialize(ByteBuffer Buf)
+void lc_volume_t::Deserialize(ByteBuffer *Buf, MemoryType VolumeStorageType)
 {
+    ByteBufferRead(Buf, vec3, &Start);
+    ByteBufferRead(Buf, vec3, &End);
+    ByteBufferRead(Buf, int, &CountX);
+    ByteBufferRead(Buf, int, &CountY);
+    ByteBufferRead(Buf, int, &CountZ);
+    ByteBufferRead(Buf, ivec3, &LightCubePlacementInterval);
 
+    u32 TotalCubeCount;
+    ByteBufferRead(Buf, u32, &TotalCubeCount);
+    ASSERT(TotalCubeCount == u32(CountX * CountY * CountZ));
+
+    CubePositions = fixed_array<vec3>(TotalCubeCount, VolumeStorageType);
+    AmbientCubes = fixed_array<lc_ambient_t>(TotalCubeCount, VolumeStorageType);
+    SignificantLightIndices = fixed_array<lc_light_indices_t>(TotalCubeCount, VolumeStorageType);
+    CubePositions.setlen(TotalCubeCount);
+    AmbientCubes.setlen(TotalCubeCount);
+    SignificantLightIndices.setlen(TotalCubeCount);
+    ByteBufferReadBulk(Buf, CubePositions.data, sizeof(vec3) * TotalCubeCount);
+    ByteBufferReadBulk(Buf, AmbientCubes.data, sizeof(lc_ambient_t) * TotalCubeCount);
+    ByteBufferReadBulk(Buf, SignificantLightIndices.data, sizeof(lc_light_indices_t) * TotalCubeCount);
+
+    u64 SerializeEndMarker;
+    ByteBufferRead(Buf, u64, &SerializeEndMarker);
+    ASSERT(SerializeEndMarker == lc_volume_t_serialize_end_marker);
 }
 
 void lc_volume_baker_t::PlaceLightCubes()
@@ -968,26 +1008,23 @@ void lc_volume_baker_t::PlaceLightCubes()
     End.x = GM_sign(BoundsMaxf.x) * (int(ceilf(fabsf(BoundsMaxf.x))) - int(ceilf(fabsf(BoundsMaxf.x))) % LightCubeVolume.LightCubePlacementInterval.x);
     End.y = GM_sign(BoundsMaxf.y) * (int(ceilf(fabsf(BoundsMaxf.y))) - int(ceilf(fabsf(BoundsMaxf.y))) % LightCubeVolume.LightCubePlacementInterval.y);
     End.z = GM_sign(BoundsMaxf.z) * (int(ceilf(fabsf(BoundsMaxf.z))) - int(ceilf(fabsf(BoundsMaxf.z))) % LightCubeVolume.LightCubePlacementInterval.z);
-    // Since level geomtry will often by aligned to grid, let's offset the positions
-    // of cubes by a certain amount so they aren't clipping geometry as often.
-    const ivec3 CubePlacementOffsetToAvoidClipping = ivec3(6,10,6);
-    Start += CubePlacementOffsetToAvoidClipping;
-    End += CubePlacementOffsetToAvoidClipping;
 
     LightCubeVolume.CountX = (End.x/LightCubeVolume.LightCubePlacementInterval.x - Start.x/LightCubeVolume.LightCubePlacementInterval.x + 1);
     LightCubeVolume.CountY = (End.y/LightCubeVolume.LightCubePlacementInterval.y - Start.y/LightCubeVolume.LightCubePlacementInterval.y + 1);
     LightCubeVolume.CountZ = (End.z/LightCubeVolume.LightCubePlacementInterval.z - Start.z/LightCubeVolume.LightCubePlacementInterval.z + 1);
     LightCubeVolume.Start = vec3((float)Start.x,(float)Start.y,(float)Start.z);
     LightCubeVolume.End = vec3((float)End.x,(float)End.y,(float)End.z);
+    LightCubeVolume.Start += CubePlacementOffsetToAvoidClipping;
+    LightCubeVolume.End += CubePlacementOffsetToAvoidClipping;
     int TotalNumberOfCubes = LightCubeVolume.CountX * LightCubeVolume.CountY * LightCubeVolume.CountZ;
     ASSERT(TotalNumberOfCubes >= 0);
     ASSERT(TotalNumberOfCubes <= 1000000);
 
     LightCubeVolume.CubePositions = fixed_array<vec3>(TotalNumberOfCubes, MemoryType::DefaultMalloc);
-    LightCubeVolume.CubePositions.setlen(TotalNumberOfCubes);
     LightCubeVolume.AmbientCubes = fixed_array<lc_ambient_t>(TotalNumberOfCubes, MemoryType::DefaultMalloc);
-    LightCubeVolume.AmbientCubes.setlen(TotalNumberOfCubes);
     LightCubeVolume.SignificantLightIndices = fixed_array<lc_light_indices_t>(TotalNumberOfCubes, MemoryType::DefaultMalloc);
+    LightCubeVolume.CubePositions.setlen(TotalNumberOfCubes);
+    LightCubeVolume.AmbientCubes.setlen(TotalNumberOfCubes);
     LightCubeVolume.SignificantLightIndices.setlen(TotalNumberOfCubes);
 
     // int CubeIndexTest0 = LightCubeVolume.IndexByPosition(vec3(-839, -84, -308)); // should give third index (2)
@@ -998,14 +1035,15 @@ void lc_volume_baker_t::PlaceLightCubes()
     // int CubeIndexTest5 = LightCubeVolume.IndexByPosition(vec3(-1400, -84, -308));
     // int CubeIndexTest6 = LightCubeVolume.IndexByPosition(vec3(1400, 276, 932));
 
-    for (int y = Start.y; y <= End.y; y += LightCubeVolume.LightCubePlacementInterval.y)
+    const float ErrorTolerance = 0.1f;
+    for (float y = LightCubeVolume.Start.y; y <= LightCubeVolume.End.y + ErrorTolerance; y += (float)LightCubeVolume.LightCubePlacementInterval.y)
     {
-        for (int z = Start.z; z <= End.z; z += LightCubeVolume.LightCubePlacementInterval.z)
+        for (float z = LightCubeVolume.Start.z; z <= LightCubeVolume.End.z + ErrorTolerance; z += (float)LightCubeVolume.LightCubePlacementInterval.z)
         {
-            for (int x = Start.x; x <= End.x; x += LightCubeVolume.LightCubePlacementInterval.x)
+            for (float x = LightCubeVolume.Start.x; x <= LightCubeVolume.End.x + ErrorTolerance; x += (float)LightCubeVolume.LightCubePlacementInterval.x)
             {
-                size_t CubeIndex = LightCubeVolume.IndexByPosition(vec3((float)x,(float)y,(float)z));
-                LightCubeVolume.CubePositions[CubeIndex] = (vec3((float)x,(float)y,(float)z));
+                size_t CubeIndex = LightCubeVolume.IndexByPosition(vec3(x,y,z));
+                LightCubeVolume.CubePositions[CubeIndex] = (vec3(x,y,z));
                 LightCubeVolume.AmbientCubes[CubeIndex] = (lc_ambient_t());
                 LightCubeVolume.SignificantLightIndices[CubeIndex] = (lc_light_indices_t());
             }
