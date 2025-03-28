@@ -13,3 +13,5 @@ cmake-build-*/
 
 CMakeSettings.json
 code/BUILDINFO.H
+
+!jolt/Build/
