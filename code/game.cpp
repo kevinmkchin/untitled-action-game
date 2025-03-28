@@ -327,6 +327,7 @@ void CreateAndRegisterLevelCollider()
         LoadingLevelColliderPointsIterator += Span;
     }
     JPH::MeshShapeSettings LevelColliderSettings = JPH::MeshShapeSettings(LevelColliderTriangles);
+    LevelColliderSettings.mBuildQuality = JPH::MeshShapeSettings::EBuildQuality::FavorRuntimePerformance;
     LevelColliderSettings.SetEmbedded();
 
     // Create the shape

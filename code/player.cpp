@@ -175,6 +175,10 @@ void player_t::DoPhysicsMovement(vec3 MovementDirection, bool inJump, bool inSwi
             const JPH::CharacterVirtual::ContactList& ContactResults = CharacterController->GetActiveContacts();
             for (const JPH::CharacterVirtual::Contact& Result : ContactResults)
             {
+                if (Result.mWasDiscarded)
+                    continue;
+
+                // set velocity to zero when collided above with the level collider
                 if (Result.mBodyB == LevelColliderBodyId
                     && Result.mContactNormal.Dot(JPH::Vec3(0.f,-1.f,0.f)) > 0.9f)
                 {
