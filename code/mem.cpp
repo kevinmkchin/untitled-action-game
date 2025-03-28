@@ -67,6 +67,8 @@ void manualheap_arena_t::Init(size_t size)
 
 void* manualheap_arena_t::alloc(size_t size, size_t alignment)
 {
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
+
     if (alignment < alignof(std::max_align_t))
         alignment = alignof(std::max_align_t);
     size = alignUp(size, alignment);
@@ -104,6 +106,8 @@ void manualheap_arena_t::free(void* ptr)
     if (!ptr)
         return;
 
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
+
     BlockHeader* block = findBlock(ptr);
     if (block) {
         block->free = true;
@@ -115,6 +119,9 @@ void* manualheap_arena_t::realloc(void* ptr, size_t new_size, size_t alignment)
 {
     if (!ptr)
         return alloc(new_size, alignment);
+
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
+
     if (new_size == 0) {
         free(ptr);
         return nullptr;
@@ -140,8 +147,10 @@ void* manualheap_arena_t::realloc(void* ptr, size_t new_size, size_t alignment)
     return new_ptr;
 }
 
-void manualheap_arena_t::DebugPrint() const 
+void manualheap_arena_t::DebugPrint() 
 {
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
+
     std::cout << "=== SimpleArena Debug ===\n";
     const BlockHeader* current = reinterpret_cast<const BlockHeader*>(memory);
     size_t used = 0;

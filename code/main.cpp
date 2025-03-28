@@ -75,6 +75,7 @@ Handcrafted with love.
 #include <memory>
 #include <utility>
 #include <thread>
+#include <mutex>
 
 
 typedef uint8_t       u8;

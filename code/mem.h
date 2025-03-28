@@ -32,14 +32,14 @@ struct linear_arena_t
 
 struct manualheap_arena_t
 {
+    // SIMD compatible thread-safe heap allocator for Jolt Physics library
 
-    // Allocate 16-byte aligned memory for SIMD compatibility
     void Init(size_t size);
     void* alloc(size_t size, size_t alignment = 16);
     void free(void* ptr);
     void* realloc(void* ptr, size_t new_size, size_t alignment = 16);
 
-    void DebugPrint() const;
+    void DebugPrint();
 
 private:
     struct BlockHeader
@@ -52,6 +52,7 @@ private:
     uint8_t* memory = nullptr;
     size_t arenaSize = 0;
     BlockHeader* freeList = nullptr;
+    std::recursive_mutex mutex_;
 
     size_t alignUp(size_t size, size_t alignment) const;
     size_t minBlockSize() const;
