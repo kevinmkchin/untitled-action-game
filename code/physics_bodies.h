@@ -77,9 +77,15 @@ class MyVirtualCharacterContactListener : public JPH::CharacterContactListener
         const JPH::SubShapeID &inSubShapeID2, JPH::RVec3Arg inContactPosition, JPH::Vec3Arg inContactNormal, 
         JPH::CharacterContactSettings &ioSettings) override;
 
+    /// Called whenever the character persists colliding with a body.
+    virtual void OnContactPersisted(const JPH::CharacterVirtual *inCharacter, const JPH::BodyID &inBodyID2, 
+        const JPH::SubShapeID &inSubShapeID2, JPH::RVec3Arg inContactPosition, JPH::Vec3Arg inContactNormal, 
+        JPH::CharacterContactSettings &ioSettings) override;
+
     // OnAdjustBodyVelocity
     // OnCharacterContactValidate
     // OnCharacterContactAdded
+    // OnCharacterContactPersisted
     // OnContactSolve
     // OnCharacterContactSolve
 };
