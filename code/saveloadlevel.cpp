@@ -78,7 +78,22 @@ bool BuildGameMap(const char *path)
     ByteBufferWrite(&BuildData.Output, vec3, BuildData.PlayerStartPosition);
     ByteBufferWrite(&BuildData.Output, vec3, BuildData.PlayerStartRotation);
 
-    Lightmapper.BakeStaticLighting(BuildData);
+    lightmapper_t *Lightmapper = new lightmapper_t();
+    Lightmapper->BakeStaticLighting(BuildData);
+    float *LightmapAtlas;
+    i32 LightmapAtlasW;
+    i32 LightmapAtlasH;
+    Lightmapper->GetLightmap(&LightmapAtlas, &LightmapAtlasW, &LightmapAtlasH);
+    ByteBufferWrite(&BuildData.Output, i32, LightmapAtlasW);
+    ByteBufferWrite(&BuildData.Output, i32, LightmapAtlasH);
+    ByteBufferWriteBulk(&BuildData.Output, LightmapAtlas, LightmapAtlasW*LightmapAtlasH*sizeof(float));
+    Lightmapper->FreeLightmap();
+    delete Lightmapper;
+
+    lc_volume_baker_t *LightCubeVolumeBaker = new lc_volume_baker_t();
+    LightCubeVolumeBaker->BakeLightCubes(BuildData);
+    LightCubeVolumeBaker->LightCubeVolume;
+    delete LightCubeVolumeBaker;
 
     // colliders
     size_t numColliderPoints = ColliderWorldPoints.size();

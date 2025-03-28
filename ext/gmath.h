@@ -418,13 +418,13 @@ inline bool operator!=(const ivec2 &lhs, const ivec2 &rhs);
 inline ivec3 operator-(ivec3 a);
 inline ivec3 operator+(ivec3 a, ivec3 b);
 inline ivec3 operator-(ivec3 a, ivec3 b);
-inline ivec3 operator*(ivec3 a, float b);
-inline ivec3 operator*(float b, ivec3 a);
-inline ivec3 operator/(ivec3 a, float b);
+inline ivec3 operator*(ivec3 a, int b);
+inline ivec3 operator*(int b, ivec3 a);
+inline ivec3 operator/(ivec3 a, int b);
 inline ivec3 &operator+=(ivec3& a, ivec3 b);
 inline ivec3 &operator-=(ivec3& a, ivec3 b);
-inline ivec3 &operator*=(ivec3& a, float b);
-inline ivec3 &operator/=(ivec3& a, float b);
+inline ivec3 &operator*=(ivec3& a, int b);
+inline ivec3 &operator/=(ivec3& a, int b);
 inline bool operator==(const ivec3& lhs, const ivec3& rhs);
 inline bool operator!=(const ivec3& lhs, const ivec3& rhs);
 

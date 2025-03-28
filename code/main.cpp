@@ -565,11 +565,11 @@ int main(int argc, char* argv[])
 
     InitializeGame();
 
-    // LevelEditor.LoadMap(wd_path("playground_0.emf").c_str());
-    // BuildGameMap(wd_path("buildtest2.map").c_str());
-    // LoadLevel(wd_path("buildtest2.map").c_str());
+    LevelEditor.LoadMap(wd_path("testing.emf").c_str());
+    BuildGameMap(wd_path("buildtest.map").c_str());
+    LoadLevel(wd_path("buildtest.map").c_str());
 
-    LoadLevel(wd_path("testing.map").c_str());
+    // LoadLevel(wd_path("testing.map").c_str());
     // LevelEditor.Open();
 
     while (!ProgramShutdownRequested)
