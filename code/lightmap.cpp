@@ -5,8 +5,6 @@
 #include "lm_oct.cpp" // only needed by lightmap.cpp
 
 
-lightmapper_t Lightmapper;
-
 LevelPolygonOctree LightMapOcclusionTree;
 std::vector<FlatPolygonCollider> MapSurfaceColliders;
 
@@ -15,6 +13,7 @@ void lightmapper_t::BakeStaticLighting(game_map_build_data_t& BuildData)
 {
     BuildDataShared = &BuildData;
 
+    // TODO(Kevin): get rid of max limit and just dynamically figure out how many texels we need
     arrsetcap(all_lm_pos, MaxNumTexels);
     arrsetcap(all_lm_norm, MaxNumTexels);
     arrsetcap(all_light_global, MaxNumTexels);
@@ -30,8 +29,7 @@ void lightmapper_t::BakeStaticLighting(game_map_build_data_t& BuildData)
     GenerateLevelVertices();
 
     // The Big Lightmap Atlas
-    float *LIGHT_MAP_ATLAS = NULL;
-    arrsetcap(LIGHT_MAP_ATLAS, lightMapAtlasW*lightMapAtlasH);
+    arrsetcap(LIGHTMAPATLAS, lightMapAtlasW*lightMapAtlasH);
 
     // World geometry in triangles world positions only
     dynamic_array<vec3> WorldGeometryVertices;
@@ -58,8 +56,8 @@ void lightmapper_t::BakeStaticLighting(game_map_build_data_t& BuildData)
         static_point_light_t PLight = BuildDataShared->PointLights[i];
         radiant_pointlight_t PointLightInfo;
         PointLightInfo.Position = *((radiant_vec3_t*)&PLight.Pos);
-        PointLightInfo.AttenuationLinear = 0.02f;
-        PointLightInfo.AttenuationQuadratic = 0.00019f;
+        PointLightInfo.AttenuationLinear = PLight.AttenuationLinear;
+        PointLightInfo.AttenuationQuadratic = PLight.AttenuationQuadratic;
         PointLightInfos.put(PointLightInfo);
     }
     BakeInfo.PointLights = PointLightInfos.data;
@@ -68,7 +66,11 @@ void lightmapper_t::BakeStaticLighting(game_map_build_data_t& BuildData)
     BakeInfo.NumberOfSampleRaysPerTexel = 4096;
     BakeInfo.NumberOfLightBounces = 3;
     RadiantBake(BakeInfo);
+
+
     PointLightInfos.free();
+    WorldGeometryVertices.free();
+
 
 #if 0
     // direct lighting
@@ -245,17 +247,11 @@ void lightmapper_t::BakeStaticLighting(game_map_build_data_t& BuildData)
         if (rect.was_packed == 0) continue;
         ASSERT(rect.was_packed != 0);
         const lm_face_t& lmface = FaceLightmaps[rect.id];
-        BlitRect((u8*)LIGHT_MAP_ATLAS, lightMapAtlasW, lightMapAtlasH, 
+        BlitRect((u8*)LIGHTMAPATLAS, lightMapAtlasW, lightMapAtlasH, 
             (u8*)lmface.light, lmface.w, lmface.h, rect.x, rect.y, sizeof(float));
         TotalUsedTexelsInLightmapAtlas += lmface.w * lmface.h;
     }
-    // Why tf is the lighting data in float not u8? I remember specifically changing it but why...
-    // I think I did it so that lighting value can exceed 1.0? 11c6bf455d6e43af48df397945a87fc54baf3759
-    // NOTE(Kevin) 2025-03-14: HDR (brightness not clamped to 1.0), apparently reduced color banding
-    ByteBufferWrite(&BuildData.Output, i32, lightMapAtlasW);
-    ByteBufferWrite(&BuildData.Output, i32, lightMapAtlasH);
-    ByteBufferWriteBulk(&BuildData.Output, LIGHT_MAP_ATLAS, lightMapAtlasW*lightMapAtlasH*sizeof(float));
-    arrfree(LIGHT_MAP_ATLAS);
+
 
     size_t NumPatches = arrlenu(all_lm_pos);
     size_t CapAllPatchData = arrcap(all_lm_pos);
@@ -287,6 +283,21 @@ void lightmapper_t::BakeStaticLighting(game_map_build_data_t& BuildData)
     arrfree(all_light_indirect);
 
     BuildDataShared = nullptr;
+}
+
+void lightmapper_t::GetLightmap(float **PtrToLightMapAtlas, i32 *AtlasWidth, i32 *AtlasHeight)
+{
+    // Why tf is the lighting data in float not u8? I remember specifically changing it but why...
+    // I think I did it so that lighting value can exceed 1.0? 11c6bf455d6e43af48df397945a87fc54baf3759
+    // NOTE(Kevin) 2025-03-14: HDR (brightness not clamped to 1.0), apparently reduced color banding
+    *PtrToLightMapAtlas = LIGHTMAPATLAS;
+    *AtlasWidth = lightMapAtlasW;
+    *AtlasHeight = lightMapAtlasH;
+}
+
+void lightmapper_t::FreeLightmap()
+{
+    arrfree(LIGHTMAPATLAS);
 }
 
 void lightmapper_t::GenerateLightmapOcclusionTestTree()
@@ -821,3 +832,188 @@ void lightmapper_t::ThreadSafe_DoDirectLightingIntoLightMap(u32 patchIndexStart,
 //         }
 //     }
 // }
+
+
+void lc_volume_baker_t::BakeLightCubes(game_map_build_data_t& BuildData)
+{
+    BuildDataShared = &BuildData;
+
+    PlaceLightCubes();
+
+    // struct radiant_bake_info_t
+    // {
+    //     // The array of light values at each texel. This gets set when baking.
+    //     float *OutputLightmap;
+    //     size_t OutputLightmapSize;
+
+    //     radiant_vec3_t *LightMapTexelPositions; // this must be OutputLightmapSize long
+    //     radiant_vec3_t *LightMapTexelNormals;   // this must be OutputLightmapSize long
+
+    //     radiant_vec3_t *WorldGeometryVertices;
+    //     size_t WorldGeometryVerticesCount;
+
+    //     radiant_pointlight_t *PointLights;
+    //     size_t PointLightsCount;
+
+    //     radiant_vec3_t DirectionToSun; // if set to { 0.f, 0.f, 0.f } then no sun
+
+    //     int NumberOfSampleRaysPerTexel;
+    //     int NumberOfLightBounces;
+
+    //     // add
+    //     bool BakeDirectLighting = false;
+
+    //     // Can cache which direct lights pass through certain world positions
+    //     radiant_vec3_t *DirectLightInfoCachePositions;
+    //     direct_light_indices_t *OutputDirectLightIndices;
+
+    //     struct direct_light_indices_t;
+    //     {
+    //         short Index0;
+    //         short Index1;
+    //         short Index2;
+    //         short Index3;
+    //     };
+
+    // };
+
+    // BakeInfo.OutputLightmap = all_light_global;
+    // BakeInfo.OutputLightmapSize = UsedLightmapTexelCount;
+    // BakeInfo.LightMapTexelPositions = (radiant_vec3_t*)all_lm_pos;
+    // BakeInfo.LightMapTexelNormals = (radiant_vec3_t*)all_lm_norm;
+    // BakeInfo.NumberOfSampleRaysPerTexel = 1024;
+    // BakeInfo.NumberOfLightBounces = 2;
+
+    // either pass a flag to not calculate direct lighting
+    // or separate the output array into direct and indirect lighting arrays
+    // need flag and output array to capture which light sources are visible
+
+    // perhaps I input an array of probe positions
+    // an output array same len as probe positions (outputs indices into PointLightInfos and Sun)
+    // each entry in output array is a fixed size array of maybe 2 or 4 most significant light sources
+    //      determination of the most significant should happen in shader
+    //          point light intensity BEFORE lambertian (there is no normal for a probe)
+    //          the sun always takes priority
+
+    // so, with each probe, I store
+    //      6 directional ambient colors +-X +-Y +-Z
+    //      4 most significant light sources (store indices)
+    //          at runtime for pointlights, i need their position, and attenuation coefficients
+    //          at runtime for sunlight, i need direction to sun
+
+    // log number of light cube caches generated and how long it took
+}
+
+size_t lc_volume_t::IndexByPosition(vec3 WorldPosition)
+{
+    vec3 OffsetFromStart = WorldPosition - Start;
+    // translate WorldPosition so we go to nearest cube
+    ivec3 Translate = LightCubePlacementInterval/2;
+    ivec3 TranslatedWorldPos = ivec3((int)OffsetFromStart.x,(int)OffsetFromStart.y,(int)OffsetFromStart.z) + Translate;
+    ivec3 XYZIndices;
+    XYZIndices.x = TranslatedWorldPos.x / LightCubePlacementInterval.x;
+    XYZIndices.y = TranslatedWorldPos.y / LightCubePlacementInterval.y;
+    XYZIndices.z = TranslatedWorldPos.z / LightCubePlacementInterval.z;
+    XYZIndices.x = std::max(0, XYZIndices.x);
+    XYZIndices.y = std::max(0, XYZIndices.y);
+    XYZIndices.z = std::max(0, XYZIndices.z);
+    XYZIndices.x = std::min(XYZIndices.x, CountX-1);
+    XYZIndices.y = std::min(XYZIndices.y, CountY-1);
+    XYZIndices.z = std::min(XYZIndices.z, CountZ-1);
+    const int VolumeAreaInCubes = CountX * CountZ;
+    const int VolumeLengthInCubes = CountX;
+    size_t CubeIndex = XYZIndices.y * VolumeAreaInCubes + XYZIndices.z * VolumeLengthInCubes + XYZIndices.x;
+    ASSERT(0 <= CubeIndex && CubeIndex < CubePositions.lenu());
+    ASSERT(CubePositions.lenu() == AmbientCubes.lenu());
+    ASSERT(CubePositions.lenu() == SignificantLightIndices.lenu());
+    return CubeIndex;
+}
+
+void lc_volume_t::Serialize(ByteBuffer Buf)
+{
+
+}
+
+void lc_volume_t::Deserialize(ByteBuffer Buf)
+{
+
+}
+
+void lc_volume_baker_t::PlaceLightCubes()
+{
+    vec3 BoundsMinf = vec3();
+    vec3 BoundsMaxf = vec3();
+
+    for (int i = 0; i < BuildDataShared->TotalFaceCount; ++i)
+    {
+        MapEdit::Face *face = MapEdit::LevelEditorFaces[i];
+        std::vector<MapEdit::Loop*> loopcycle = face->GetLoopCycle();
+        for (MapEdit::Loop *loop : loopcycle)
+        {
+            const vec3 &p = loop->v->pos;
+            BoundsMinf.x = fmin(p.x, BoundsMinf.x);
+            BoundsMinf.y = fmin(p.y, BoundsMinf.y);
+            BoundsMinf.z = fmin(p.z, BoundsMinf.z);
+            BoundsMaxf.x = fmax(p.x, BoundsMaxf.x);
+            BoundsMaxf.y = fmax(p.y, BoundsMaxf.y);
+            BoundsMaxf.z = fmax(p.z, BoundsMaxf.z);
+        }
+    }
+
+    ivec3 Start;
+    ivec3 End;
+    Start.x = GM_sign(BoundsMinf.x) * (int(ceilf(fabsf(BoundsMinf.x))) - int(ceilf(fabsf(BoundsMinf.x))) % LightCubeVolume.LightCubePlacementInterval.x);
+    Start.y = GM_sign(BoundsMinf.y) * (int(ceilf(fabsf(BoundsMinf.y))) - int(ceilf(fabsf(BoundsMinf.y))) % LightCubeVolume.LightCubePlacementInterval.y);
+    Start.z = GM_sign(BoundsMinf.z) * (int(ceilf(fabsf(BoundsMinf.z))) - int(ceilf(fabsf(BoundsMinf.z))) % LightCubeVolume.LightCubePlacementInterval.z);
+    End.x = GM_sign(BoundsMaxf.x) * (int(ceilf(fabsf(BoundsMaxf.x))) - int(ceilf(fabsf(BoundsMaxf.x))) % LightCubeVolume.LightCubePlacementInterval.x);
+    End.y = GM_sign(BoundsMaxf.y) * (int(ceilf(fabsf(BoundsMaxf.y))) - int(ceilf(fabsf(BoundsMaxf.y))) % LightCubeVolume.LightCubePlacementInterval.y);
+    End.z = GM_sign(BoundsMaxf.z) * (int(ceilf(fabsf(BoundsMaxf.z))) - int(ceilf(fabsf(BoundsMaxf.z))) % LightCubeVolume.LightCubePlacementInterval.z);
+    // Since level geomtry will often by aligned to grid, let's offset the positions
+    // of cubes by a certain amount so they aren't clipping geometry as often.
+    const ivec3 CubePlacementOffsetToAvoidClipping = ivec3(6,10,6);
+    Start += CubePlacementOffsetToAvoidClipping;
+    End += CubePlacementOffsetToAvoidClipping;
+
+    LightCubeVolume.CountX = (End.x/LightCubeVolume.LightCubePlacementInterval.x - Start.x/LightCubeVolume.LightCubePlacementInterval.x + 1);
+    LightCubeVolume.CountY = (End.y/LightCubeVolume.LightCubePlacementInterval.y - Start.y/LightCubeVolume.LightCubePlacementInterval.y + 1);
+    LightCubeVolume.CountZ = (End.z/LightCubeVolume.LightCubePlacementInterval.z - Start.z/LightCubeVolume.LightCubePlacementInterval.z + 1);
+    LightCubeVolume.Start = vec3((float)Start.x,(float)Start.y,(float)Start.z);
+    LightCubeVolume.End = vec3((float)End.x,(float)End.y,(float)End.z);
+    int TotalNumberOfCubes = LightCubeVolume.CountX * LightCubeVolume.CountY * LightCubeVolume.CountZ;
+    ASSERT(TotalNumberOfCubes >= 0);
+    ASSERT(TotalNumberOfCubes <= 1000000);
+
+    LightCubeVolume.CubePositions = fixed_array<vec3>(TotalNumberOfCubes, MemoryType::DefaultMalloc);
+    LightCubeVolume.CubePositions.setlen(TotalNumberOfCubes);
+    LightCubeVolume.AmbientCubes = fixed_array<lc_ambient_t>(TotalNumberOfCubes, MemoryType::DefaultMalloc);
+    LightCubeVolume.AmbientCubes.setlen(TotalNumberOfCubes);
+    LightCubeVolume.SignificantLightIndices = fixed_array<lc_light_indices_t>(TotalNumberOfCubes, MemoryType::DefaultMalloc);
+    LightCubeVolume.SignificantLightIndices.setlen(TotalNumberOfCubes);
+
+    // int CubeIndexTest0 = LightCubeVolume.IndexByPosition(vec3(-839, -84, -308)); // should give third index (2)
+    // int CubeIndexTest1 = LightCubeVolume.IndexByPosition(vec3(407, 276, 932)); // should give third last index (total - 3)
+    // int CubeIndexTest2 = LightCubeVolume.IndexByPosition(vec3(500, 276, 932)); // should give last index (total - 1)
+    // int CubeIndexTest3 = LightCubeVolume.IndexByPosition(vec3(452, 276, 932)); // should give second last index (total - 2)
+    // int CubeIndexTest4 = LightCubeVolume.IndexByPosition(vec3(409, 276, 932)); // should give second last index (total - 2)
+    // int CubeIndexTest5 = LightCubeVolume.IndexByPosition(vec3(-1400, -84, -308));
+    // int CubeIndexTest6 = LightCubeVolume.IndexByPosition(vec3(1400, 276, 932));
+
+    for (int y = Start.y; y <= End.y; y += LightCubeVolume.LightCubePlacementInterval.y)
+    {
+        for (int z = Start.z; z <= End.z; z += LightCubeVolume.LightCubePlacementInterval.z)
+        {
+            for (int x = Start.x; x <= End.x; x += LightCubeVolume.LightCubePlacementInterval.x)
+            {
+                size_t CubeIndex = LightCubeVolume.IndexByPosition(vec3((float)x,(float)y,(float)z));
+                LightCubeVolume.CubePositions[CubeIndex] = (vec3((float)x,(float)y,(float)z));
+                LightCubeVolume.AmbientCubes[CubeIndex] = (lc_ambient_t());
+                LightCubeVolume.SignificantLightIndices[CubeIndex] = (lc_light_indices_t());
+            }
+        }
+    }
+
+    ASSERT(LightCubeVolume.CubePositions.lenu() == LightCubeVolume.CubePositions.cap());
+    ASSERT(LightCubeVolume.AmbientCubes.lenu() == LightCubeVolume.AmbientCubes.cap());
+    ASSERT(LightCubeVolume.SignificantLightIndices.lenu() == LightCubeVolume.SignificantLightIndices.cap());
+}
+

@@ -19,6 +19,8 @@ struct lm_face_t
 struct static_point_light_t
 {
     vec3 Pos;
+    float AttenuationLinear = 0.02f;
+    float AttenuationQuadratic = 0.00019f;
 };
 
 struct game_map_build_data_t
@@ -50,6 +52,8 @@ constexpr int HemicubeFaceAreaHalf = HemicubeFaceW*HemicubeFaceHHalf;
 struct lightmapper_t
 {
     void BakeStaticLighting(game_map_build_data_t& BuildData);
+    void GetLightmap(float **PtrToLightMapAtlas, i32 *AtlasWidth, i32 *AtlasHeight);
+    void FreeLightmap();
 
 private:
     void PrepareFaceLightmapsAndTexelStorage();
@@ -68,6 +72,10 @@ private:
 private:
     game_map_build_data_t *BuildDataShared = nullptr;
 
+    // output
+    float *LIGHTMAPATLAS = NULL;
+
+    // intermediary data
     dynamic_array<lm_face_t> FaceLightmaps;
     dynamic_array<stbrp_rect> PackedLMRects;
     vec3 *all_lm_pos = NULL;
@@ -83,5 +91,55 @@ private:
     float MultiplierMapSide[HemicubeFaceAreaHalf];
 };
 
-extern lightmapper_t Lightmapper;
+struct lc_ambient_t
+{
+    float PosX = 0.f;
+    float NegX = 0.f;
+    float PosY = 0.f;
+    float NegY = 0.f;
+    float PosZ = 0.f;
+    float NegZ = 0.f;
+};
 
+struct lc_light_indices_t
+{
+    short Index0 = -1; // i think corresponds to short2 in CUDA https://docs.nvidia.com/cuda/cuda-math-api/cuda_math_api/group__CUDA__MATH__INTRINSIC__INT.html
+    short Index1 = -1;
+    short Index2 = -1;
+    short Index3 = -1; // maybe use the last one to indicate if its a sun idk
+};
+
+struct lc_volume_t
+{
+    // Return the index of the nearest cube to position
+    size_t IndexByPosition(vec3 WorldPosition);
+
+    fixed_array<vec3> CubePositions;
+    fixed_array<lc_ambient_t> AmbientCubes;
+    fixed_array<lc_light_indices_t> SignificantLightIndices;
+
+    void Serialize(ByteBuffer Buf);
+    void Deserialize(ByteBuffer Buf);
+
+
+    vec3 Start;
+    vec3 End;
+    int CountX = -1; // length
+    int CountY = -1; // height
+    int CountZ = -1; // width
+    ivec3 LightCubePlacementInterval = ivec3(48,64,48);
+};
+
+struct lc_volume_baker_t
+{
+    void BakeLightCubes(game_map_build_data_t& BuildData);
+
+    lc_volume_t LightCubeVolume;
+
+private:
+    void PlaceLightCubes();
+
+private:
+    game_map_build_data_t *BuildDataShared = nullptr;
+
+};
