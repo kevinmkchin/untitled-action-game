@@ -1,9 +1,6 @@
 #
-# CMakeLists.txt equivalent of build.bat
-# Exists for compatibility with IDEs like CLion
 # This project only compiles with MSVC!!!
 # Must set both toolchain and generator in CLion or Visual Studio to Visual Studio
-# This may not be kept up to date with build.bat
 #
 
 cmake_minimum_required(VERSION 3.20)
@@ -16,9 +13,13 @@ if (NOT CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
 endif()
 
 add_subdirectory(jolt/Build)
+add_subdirectory(recast/Recast)
+add_subdirectory(recast/Detour)
+add_subdirectory(recast/DebugUtils)
+add_subdirectory(recast/DetourTileCache)
 
 add_executable(${PROJECT_NAME} code/main.cpp)
-target_link_libraries(${PROJECT_NAME} PRIVATE Jolt)
+target_link_libraries(${PROJECT_NAME} PRIVATE Jolt Recast Detour DebugUtils)
 
 file(WRITE  "code/BUILDINFO.H" "#pragma once\n")
 file(APPEND "code/BUILDINFO.H" "#define PROJECT_WORKING_DIR \"${CMAKE_CURRENT_SOURCE_DIR}/wd/\"\n")
@@ -31,8 +32,11 @@ target_include_directories(${PROJECT_NAME} PRIVATE
         ${CMAKE_SOURCE_DIR}/ext/sdl/include
         ${CMAKE_SOURCE_DIR}/ext/sdl2_mixer/include
         ${CMAKE_SOURCE_DIR}/ext/assimp/include
-        ${CMAKE_SOURCE_DIR}/ext/recast/Includes
         ${CMAKE_SOURCE_DIR}/jolt
+        ${CMAKE_SOURCE_DIR}/recast/Recast/Include
+        ${CMAKE_SOURCE_DIR}/recast/Detour/Include
+        ${CMAKE_SOURCE_DIR}/recast/DebugUtils/Include
+        ${CMAKE_SOURCE_DIR}/recast/DetourTileCache/Include
         ${CMAKE_SOURCE_DIR}/radiant
 )
 
@@ -51,11 +55,9 @@ set(MSVC_LINKER_OPTIONS
         /LIBPATH:"${CMAKE_SOURCE_DIR}/radiant/Release" radiant.lib
 )
 set(MSVC_LINKER_DEBUG_OPTIONS ${MSVC_LINKER_OPTIONS}
-        /LIBPATH:"${CMAKE_SOURCE_DIR}/ext/recast/Debug" Recast-d.lib Detour-d.lib DebugUtils-d.lib
 )
 set(MSVC_LINKER_RELEASE_OPTIONS ${MSVC_LINKER_OPTIONS}
         /LTCG
-        /LIBPATH:"${CMAKE_SOURCE_DIR}/ext/recast/Release" Recast.lib Detour.lib DebugUtils.lib
 )
 target_link_options(${PROJECT_NAME} PRIVATE $<$<CONFIG:Debug>:${MSVC_LINKER_DEBUG_OPTIONS}>)
 target_link_options(${PROJECT_NAME} PRIVATE $<$<CONFIG:Release>:${MSVC_LINKER_RELEASE_OPTIONS}>)
