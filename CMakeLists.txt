@@ -24,7 +24,10 @@ target_link_libraries(${PROJECT_NAME} PRIVATE Jolt Recast Detour DebugUtils)
 file(WRITE  "code/BUILDINFO.H" "#pragma once\n")
 file(APPEND "code/BUILDINFO.H" "#define PROJECT_WORKING_DIR \"${CMAKE_CURRENT_SOURCE_DIR}/wd/\"\n")
 file(APPEND "code/BUILDINFO.H" "#define MESA_WINDOWS 1\n")
-file(APPEND "code/BUILDINFO.H" "#define INTERNAL_BUILD 1\n")
+target_compile_definitions(${PROJECT_NAME} PRIVATE
+    $<$<CONFIG:Debug>:INTERNAL_BUILD=1>
+    $<$<NOT:$<CONFIG:Debug>>:INTERNAL_BUILD=0>
+)
 
 target_include_directories(${PROJECT_NAME} PRIVATE
         ${CMAKE_SOURCE_DIR}/ext
