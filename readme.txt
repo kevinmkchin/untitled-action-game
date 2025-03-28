@@ -2,19 +2,20 @@
 
 == Build for Windows ==
 
-BUILD.BAT calls MSVC cl.exe
+Requires MSVC
 
-build           : output to build\Debug\ with debug mode /Zi flag and creates PDB
-build release   : output to build\Release\ with full optimizations /O2 flag
+cmake -S . -B build
+cmake --build build --config Debug
 
-There is also a CMakeLists.txt but this might not be kept up to date. There primarily for IDEs.
+Build configs: Debug, Release, Distribution
+Debug          : output to build\Debug\ with debug mode /Zi flag and creates PDB
+Release        : output to build\Release\ with full optimizations /O2 flag
+Distribution   : shippable build
 
 
 == Dependencies ==
 
 Jolt - physics https://github.com/jrouwe/JoltPhysics
-     - built with JPH_DEBUG_RENDERER only for Debug config
-     - otherwise, mostly default configs in their CMakeLists were used
 Recast - navigation mesh https://github.com/recastnavigation/recastnavigation
        - built with their default configs without any conflicts
 NVIDIA OptiX - RTX ray tracing support for lightmapping
