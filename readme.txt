@@ -17,7 +17,6 @@ Distribution   : shippable build
 
 Jolt - physics https://github.com/jrouwe/JoltPhysics
 Recast - navigation mesh https://github.com/recastnavigation/recastnavigation
-       - built with their default configs without any conflicts
 NVIDIA OptiX - RTX ray tracing support for lightmapping
 gmath.h - math
 stb_ds.h - dynamic arrays
