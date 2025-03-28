@@ -225,6 +225,7 @@ void player_t::LateNonPhysicsTick()
     if (FlyCamActive)
     {
         PlayerCam.DoFlyCamMovement(350.f);
+        Root = PlayerCam.Position - CamOffsetFromRoot;
     }
     else
     {
