@@ -15,28 +15,40 @@ struct cu_pointlight_t
     float AttenuationQuadratic;
 };
 
+enum bake_lm_procedure
+{
+    BAKE_LIGHTMAP,
+    BAKE_DIRECTLIGHTINFO
+};
+
 struct bake_lm_params_t
 {
+    bake_lm_procedure Procedure;
+
+    // Procedure 1: Lightmap baking
     float *OutputLightmap;
-
-    int DoDirectionalLight;
-    float3 DirectionToSun;
-
-    float3 SkyboxColor;
-    float SkyboxBrightness;
-
-    int CountOfPointLights;
-    cu_pointlight_t *PointLights;
-
     float3 *TexelWorldPositions;
     float3 *TexelWorldNormals;
+
+    // Procedure 2: Cache light visibility information
+    short *OutputDirectLightIndices;
+    size_t OutputDirectLightIndicesPerSample;
+    float3 *DirectLightCachePositions;
+
+    // Light setup
+    int DoSunLight;
+    float3 DirectionToSun;
+    float3 SkyboxColor;
+    float SkyboxBrightness;
+    int CountOfPointLights;
+    cu_pointlight_t *PointLights;
 
     // Traversable handle to the geometry acceleration structure
     OptixTraversableHandle GASHandle;
 
+    // Lightmap bake parameters
     int NumberOfSampleRaysPerTexel;
     int NumberOfBounces;
-
     int BakeDirectLighting;
 };
 
