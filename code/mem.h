@@ -196,7 +196,7 @@ public:
         switch (Mem)
         {
             case MemoryType::DefaultMalloc:
-                data = (T*)malloc(sizeof(T)*Capacity);
+                data = (T*)std::malloc(sizeof(T)*Capacity);
                 break;
             case MemoryType::StaticGame:
                 data = (T*)StaticGameMemory.Alloc(sizeof(T)*Capacity, alignof(T));

@@ -334,10 +334,10 @@ void fixed_array<T>::free()
     switch (mem)
     {
         case MemoryType::DefaultMalloc:
-            free(data);
+            std::free(data);
             break;
-        case MemoryType::StaticGameMemory:
-        case MemoryType::StaticLevelMemory:
+        case MemoryType::StaticGame:
+        case MemoryType::StaticLevel:
             LogWarning("Shouldn't try to free fixed_array allocated in static game memory!");
             break;
     }
