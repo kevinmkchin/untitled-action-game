@@ -33,6 +33,7 @@ struct bake_lm_params_t
     // Procedure 2: Cache light visibility information
     short *OutputDirectLightIndices;
     size_t OutputDirectLightIndicesPerSample;
+    float *TempBufferForSignificanceComparisons;
     float3 *DirectLightCachePositions;
 
     // Light setup

@@ -706,6 +706,10 @@ extern "C" RADIANT_API void __cdecl RadiantBake(radiant_bake_info_t BakeInfo)
         CUDA_CHECK(cudaMemcpy(d_lightcache_world_positions, BakeInfo.DirectLightCachePositions,
             NumLightCaches * sizeof(float3), cudaMemcpyHostToDevice));
 
+        CUdeviceptr *d_temp_buf_significance_storage;
+        CUDA_CHECK(cudaMalloc(&d_temp_buf_significance_storage, BakeInfo.OutputDirectLightIndicesSize * sizeof(float)));
+        CUDA_CHECK(cudaMemset(d_temp_buf_significance_storage, 0, BakeInfo.OutputDirectLightIndicesSize * sizeof(float)));
+
         sutil::CUDAOutputBuffer<short> LightIndicesBuffer(BakeInfo.OutputDirectLightIndicesSize, 1);
         {
             CUstream stream;
@@ -715,6 +719,7 @@ extern "C" RADIANT_API void __cdecl RadiantBake(radiant_bake_info_t BakeInfo)
             BakeParams.Procedure = BAKE_DIRECTLIGHTINFO;
             BakeParams.OutputDirectLightIndices = LightIndicesBuffer.map();
             BakeParams.OutputDirectLightIndicesPerSample = BakeInfo.OutputDirectLightIndicesPerSample;
+            BakeParams.TempBufferForSignificanceComparisons = (float*)d_temp_buf_significance_storage;
             BakeParams.DirectLightCachePositions = (float3*)d_lightcache_world_positions;
 
             BakeParams.DoSunLight = int(!NoSun);
@@ -743,6 +748,9 @@ extern "C" RADIANT_API void __cdecl RadiantBake(radiant_bake_info_t BakeInfo)
             CUDA_CHECK(cudaFree(reinterpret_cast<void *>(d_param)));
         }
         memcpy(BakeInfo.OutputDirectLightIndices, LightIndicesBuffer.getHostPointer(), BakeInfo.OutputDirectLightIndicesSize*sizeof(short));
+
+        CUDA_CHECK(cudaFree(reinterpret_cast<void *>(d_lightcache_world_positions)));
+        CUDA_CHECK(cudaFree(reinterpret_cast<void *>(d_temp_buf_significance_storage)));
     }
 
     CUDA_CHECK(cudaFree(reinterpret_cast<void *>(d_world_positions)));
