@@ -253,6 +253,7 @@ void lightmapper_t::BakeStaticLighting(game_map_build_data_t& BuildData)
     }
 
 
+    LogMessage("- Baking lightmap finished");
     size_t NumPatches = arrlenu(all_lm_pos);
     size_t CapAllPatchData = arrcap(all_lm_pos);
     size_t TotalAllocMemForPatchData
@@ -262,10 +263,10 @@ void lightmapper_t::BakeStaticLighting(game_map_build_data_t& BuildData)
         + sizeof(float)*arrcap(all_light_global)
         + sizeof(float)*arrcap(all_light_direct)
         + sizeof(float)*arrcap(all_light_indirect);
-    LogMessage("Filled %.1f%% (%zd/%zd) of allocated memory (%zd KB) lightmap baking intermediate data.", 
+    LogMessage("      Filled %.1f%% (%zd/%zd) of allocated memory (%zd KB) lightmap baking intermediate data.", 
         float(NumPatches)/float(CapAllPatchData)*100.f, NumPatches, CapAllPatchData,
-        TotalAllocMemForPatchData / 1000);
-    LogMessage("Filled %.1f%% (%d/%d) of output lightmap texture (%dx%d).",
+        TotalAllocMemForPatchData/1000);
+    LogMessage("      Filled %.1f%% (%d/%d) of output lightmap texture (%dx%d).",
         float(TotalUsedTexelsInLightmapAtlas)/float(lightMapAtlasW*lightMapAtlasH)*100.f,
         TotalUsedTexelsInLightmapAtlas, lightMapAtlasW*lightMapAtlasH,
         lightMapAtlasW, lightMapAtlasH);
@@ -840,22 +841,6 @@ void lc_volume_baker_t::BakeLightCubes(game_map_build_data_t& BuildData)
 
     PlaceLightCubes();
 
-
-    //     // add
-    //     bool BakeDirectLighting = false;
-
-    //     // Can cache which direct lights pass through certain world positions
-    //     radiant_vec3_t *DirectLightInfoCachePositions;
-    //     direct_light_indices_t *OutputDirectLightIndices;
-
-    //     struct direct_light_indices_t;
-    //     {
-    //         short Index0;
-    //         short Index1;
-    //         short Index2;
-    //         short Index3;
-    //     };
-
     u32 NumSamples = LightCubeVolume.AmbientCubes.lenu() * 6; // num cubes * 6
     fixed_array<vec3> CubePositionsRepeated = fixed_array<vec3>(NumSamples, MemoryType::DefaultMalloc);
     fixed_array<vec3> CubeNormalsRepeated = fixed_array<vec3>(NumSamples, MemoryType::DefaultMalloc);
@@ -890,33 +875,26 @@ void lc_volume_baker_t::BakeLightCubes(game_map_build_data_t& BuildData)
     RadiantBakeInfo.OutputDirectLightIndices = (short *) LightCubeVolume.SignificantLightIndices.data;
     RadiantBakeInfo.OutputDirectLightIndicesSize = 4 * LightCubeVolume.SignificantLightIndices.lenu();
     RadiantBakeInfo.OutputDirectLightIndicesPerSample = 4;
-    // RadiantBakeInfo.DirectLightIndexForSun = ;
     RadiantBakeInfo.DirectLightCachePositions = (radiant_vec3_t *)LightCubeVolume.CubePositions.data;
     RadiantBake(RadiantBakeInfo);
+
+    LogMessage("- Baking light cubes finished");
+    size_t TotalSizeLightVolumeData 
+        = sizeof(vec3) * LightCubeVolume.CubePositions.lenu()
+        + sizeof(lc_ambient_t) * LightCubeVolume.AmbientCubes.lenu()
+        + sizeof(lc_light_indices_t) * LightCubeVolume.SignificantLightIndices.lenu();
+    size_t TotalMallocedBytes = TotalSizeLightVolumeData 
+        + CubePositionsRepeated.lenu() * sizeof(vec3)
+        + CubeNormalsRepeated.lenu() * sizeof(vec3);
+    LogMessage("      Generated %d cubes. Persistent size: %zd KB. Temporarily allocated %zd KB on heap.",
+        LightCubeVolume.CubePositions.lenu(), TotalSizeLightVolumeData/1000, TotalMallocedBytes/1000);
 
     CubePositionsRepeated.free();
     CubeNormalsRepeated.free();
     arrfree(RadiantBakeInfo.WorldGeometryVertices);
     arrfree(RadiantBakeInfo.PointLights);
 
-    // either pass a flag to not calculate direct lighting
-    // or separate the output array into direct and indirect lighting arrays
-    // need flag and output array to capture which light sources are visible
-
-    // perhaps I input an array of probe positions
-    // an output array same len as probe positions (outputs indices into PointLightInfos and Sun)
-    // each entry in output array is a fixed size array of maybe 2 or 4 most significant light sources
-    //      determination of the most significant should happen in shader
-    //          point light intensity BEFORE lambertian (there is no normal for a probe)
-    //          the sun always takes priority
-
-    // so, with each probe, I store
-    //      6 directional ambient colors +-X +-Y +-Z
-    //      4 most significant light sources (store indices)
-    //          at runtime for pointlights, i need their position, and attenuation coefficients
-    //          at runtime for sunlight, i need direction to sun
-
-    // log number of light cube caches generated and how long it took
+    BuildDataShared = nullptr;
 }
 
 size_t lc_volume_t::IndexByPosition(vec3 WorldPosition)
