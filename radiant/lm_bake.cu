@@ -276,19 +276,57 @@ static __device__ void ProcBakeLightmap()
     Params.OutputLightmap[idx.x] = DirectLightValue + IrradianceAtThisPoint;
 }
 
-static __inline__ __device__ void CacheIndexIfMoreSignificant(
+static __inline__ __device__ void CacheIndexIfMoreSignificant(float Contribution,
     unsigned int LightSourceIdx, unsigned int LightCacheIdx)
 {
     const unsigned int Offset = LightCacheIdx * Params.OutputDirectLightIndicesPerSample;
-    for (int i = 0; i < Params.OutputDirectLightIndicesPerSample; ++i)
+
+    unsigned int LeastSignificant = LightSourceIdx;
+    unsigned int LeastSignificantOffset = 0;
+    for (unsigned int i = 0; i < Params.OutputDirectLightIndicesPerSample; ++i)
     {
         short ExistingIdx = Params.OutputDirectLightIndices[Offset + i];
         if (ExistingIdx < 0)
         {
             Params.OutputDirectLightIndices[Offset + i] = LightSourceIdx;
+            Params.TempBufferForSignificanceComparisons[Offset + i] = Contribution;
             return;
         }
 
+        float ExistingIndexContribution = Params.TempBufferForSignificanceComparisons[Offset + i];
+        if (ExistingIndexContribution > Contribution)
+        {
+            continue;
+        }
+
+        // at this point the existing index contribution is less than this new light source
+        // so we definitely add this new index or kick out an old one
+
+        if (LeastSignificant == LightSourceIdx)
+        {
+            // first lesser significant encountered
+            LeastSignificant = ExistingIdx;
+            LeastSignificantOffset = Offset + i;
+            continue;
+        }
+        else
+        {
+            // compare this lesser significant with the current least significant
+            float LeastSignificantContribution = Params.TempBufferForSignificanceComparisons[LeastSignificantOffset];
+            if (ExistingIndexContribution < LeastSignificantContribution)
+            {
+                LeastSignificant = ExistingIdx;
+                LeastSignificantOffset = Offset + i;
+                continue;
+            }
+        }
+    }
+
+    if (LeastSignificant != LightSourceIdx)
+    {
+        // kick out least significant and replace with new light source index
+        Params.OutputDirectLightIndices[LeastSignificantOffset] = LightSourceIdx;
+        Params.TempBufferForSignificanceComparisons[LeastSignificantOffset] = Contribution;
     }
 }
 
@@ -315,7 +353,8 @@ static __device__ void ProcCacheDirectLightInfo()
         float result = GetContributionFromDirectionalLightSource(Position, Params.DirectionToSun);
         if (result > 0.f)
         {
-            CacheIndexIfMoreSignificant(32767, LightCacheIdx);
+            // Give big contribution number for sun so sun is always added if visible
+            CacheIndexIfMoreSignificant(1000.f, 32767, LightCacheIdx);
         }
     }
 
@@ -327,7 +366,7 @@ static __device__ void ProcCacheDirectLightInfo()
         float result = GetContributionFromPointLightSource(i, DirectionToPointLight, Position, DirectionToPointLight);
         if (result > 0.f)
         {
-            CacheIndexIfMoreSignificant(i, LightCacheIdx);
+            CacheIndexIfMoreSignificant(result, i, LightCacheIdx);
         }
     }
 }
