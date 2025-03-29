@@ -744,7 +744,7 @@ void support_renderer_t::ClearPickableBillboards()
 u32 support_renderer_t::FlushHandles(ivec2 clickat, const GPUFrameBuffer activeSceneTarget,
                  const mat4& activeViewMatrix, const mat4& activeProjectionMatrix, bool orthographic)
 {
-    if (HANDLES_VB.lenu() == 0 && PICKABLE_BILLBOARDS_VB.lenu() == 0) return 0;
+    if (HANDLES_VB.lenu() == 0 && BillboardsRequested.empty()) return 0;
 
     const float sceneResolutionW = (float)activeSceneTarget.width;
     const float sceneResolutionH = (float)activeSceneTarget.height;
@@ -780,7 +780,7 @@ u32 support_renderer_t::FlushHandles(ivec2 clickat, const GPUFrameBuffer activeS
         HANDLES_VB.setlen(0);
     }
 
-    if (PICKABLE_BILLBOARDS_VB.lenu() > 0)
+    if (BillboardsRequested.size() > 0)
     {
         DrawPickableBillboards_GL(scaledDownFrustum.ptr(), activeViewMatrix.ptr(), true);
         ClearPickableBillboards();
