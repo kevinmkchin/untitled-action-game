@@ -76,6 +76,67 @@ static __forceinline__ __device__ float3 cosine_sample_hemisphere(unsigned int &
     return make_float3(x, y, z);
 }
 
+static __inline__ __device__ float GetContributionFromDirectionalLightSource(float3 Position, float3 Normal)
+{
+    // Send
+    // p0: Normal.x
+    // p1: Normal.y
+    // p2: Normal.z
+    // Receive
+    // p0: float light contribution
+    unsigned int p0, p1, p2;
+    p0 = __float_as_uint(Normal.x);
+    p1 = __float_as_uint(Normal.y);
+    p2 = __float_as_uint(Normal.z);
+    optixTrace( // Trace the ray against our scene hierarchy
+        Params.GASHandle,
+        Position,
+        Params.DirectionToSun,
+        0.01f,    // Min intersection distance
+        100000.f, // Max intersection distance
+        0.0f,     // rayTime -- used for motion blur
+        OptixVisibilityMask(255), // Specify always visible
+        OPTIX_RAY_FLAG_NONE,
+        RAY_TYPE_DIRECTIONAL_LIGHT, // SBT offset   -- See SBT discussion
+        RAY_TYPE_COUNT,             // SBT stride   -- See SBT discussion
+        RAY_TYPE_DIRECTIONAL_LIGHT, // missSBTIndex -- See SBT discussion
+        p0, p1, p2);
+    float result = __uint_as_float(p0);
+    return result;
+}
+
+static __inline__ __device__ float GetContributionFromPointLightSource(
+    unsigned int PointLightIdx, float3 DirectionToPointLight, float3 Position, float3 Normal)
+{
+    // Send
+    // p0: unsigned int point light index
+    // p1: Normal.x
+    // p2: Normal.y
+    // p3: Normal.z
+    // Receive
+    // p0: float light contribution
+    unsigned int p0, p1, p2, p3;
+    p0 = PointLightIdx;
+    p1 = __float_as_uint(Normal.x);
+    p2 = __float_as_uint(Normal.y);
+    p3 = __float_as_uint(Normal.z);
+    optixTrace(
+        Params.GASHandle,
+        Position,
+        DirectionToPointLight,
+        0.01f,    // Min intersection distance
+        100000.f, // Max intersection distance
+        0.0f,     // rayTime -- used for motion blur
+        OptixVisibilityMask(255),
+        OPTIX_RAY_FLAG_NONE,
+        RAY_TYPE_POINT_LIGHT,
+        RAY_TYPE_COUNT,
+        RAY_TYPE_POINT_LIGHT,
+        p0, p1, p2, p3);
+    float LightContribution = __uint_as_float(p0);
+    return LightContribution;
+}
+
 static __device__ float CalculateDirectionalLight(float3 Position, float3 SurfaceNormal)
 {
     float LightValue = 0.f;
@@ -85,30 +146,7 @@ static __device__ float CalculateDirectionalLight(float3 Position, float3 Surfac
         float CosTheta = dot(SurfaceNormal, Params.DirectionToSun);
         if (CosTheta > 0.f)
         {
-            // Send
-            // p0: SurfaceNormal.x
-            // p1: SurfaceNormal.y
-            // p2: SurfaceNormal.z
-            // Receive
-            // p0: float light contribution
-            unsigned int p0, p1, p2;
-            p0 = __float_as_uint(SurfaceNormal.x);
-            p1 = __float_as_uint(SurfaceNormal.y);
-            p2 = __float_as_uint(SurfaceNormal.z);
-            optixTrace( // Trace the ray against our scene hierarchy
-                Params.GASHandle,
-                Position,
-                Params.DirectionToSun,
-                0.01f,    // Min intersection distance
-                100000.f, // Max intersection distance
-                0.0f,     // rayTime -- used for motion blur
-                OptixVisibilityMask(255), // Specify always visible
-                OPTIX_RAY_FLAG_NONE,
-                RAY_TYPE_DIRECTIONAL_LIGHT, // SBT offset   -- See SBT discussion
-                RAY_TYPE_COUNT,             // SBT stride   -- See SBT discussion
-                RAY_TYPE_DIRECTIONAL_LIGHT, // missSBTIndex -- See SBT discussion
-                p0, p1, p2);
-            float result = __uint_as_float(p0);
+            float result = GetContributionFromDirectionalLightSource(Position, SurfaceNormal);
             LightValue += result;
         }
     }
@@ -121,33 +159,8 @@ static __device__ float CalculateDirectionalLight(float3 Position, float3 Surfac
         float CosTheta = dot(SurfaceNormal, DirectionToPointLight);
         if (CosTheta > 0.f)
         {
-            // Send
-            // p0: unsigned int point light index
-            // p1: SurfaceNormal.x
-            // p2: SurfaceNormal.y
-            // p3: SurfaceNormal.z
-            // Receive
-            // p0: float light contribution
-            unsigned int p0, p1, p2, p3;
-            p0 = i;
-            p1 = __float_as_uint(SurfaceNormal.x);
-            p2 = __float_as_uint(SurfaceNormal.y);
-            p3 = __float_as_uint(SurfaceNormal.z);
-            optixTrace(
-                Params.GASHandle,
-                Position,
-                DirectionToPointLight,
-                0.01f,    // Min intersection distance
-                100000.f, // Max intersection distance
-                0.0f,     // rayTime -- used for motion blur
-                OptixVisibilityMask(255),
-                OPTIX_RAY_FLAG_NONE,
-                RAY_TYPE_POINT_LIGHT,
-                RAY_TYPE_COUNT,
-                RAY_TYPE_POINT_LIGHT,
-                p0, p1, p2, p3);
-            float LightContribution = __uint_as_float(p0);
-            LightValue += LightContribution;
+            float result = GetContributionFromPointLightSource(i, DirectionToPointLight, Position, SurfaceNormal);
+            LightValue += result;
         }
     }
 
@@ -263,9 +276,60 @@ static __device__ void ProcBakeLightmap()
     Params.OutputLightmap[idx.x] = DirectLightValue + IrradianceAtThisPoint;
 }
 
+static __inline__ __device__ void CacheIndexIfMoreSignificant(
+    unsigned int LightSourceIdx, unsigned int LightCacheIdx)
+{
+    const unsigned int Offset = LightCacheIdx * Params.OutputDirectLightIndicesPerSample;
+    for (int i = 0; i < Params.OutputDirectLightIndicesPerSample; ++i)
+    {
+        short ExistingIdx = Params.OutputDirectLightIndices[Offset + i];
+        if (ExistingIdx < 0)
+        {
+            Params.OutputDirectLightIndices[Offset + i] = LightSourceIdx;
+            return;
+        }
+
+    }
+}
+
 static __device__ void ProcCacheDirectLightInfo()
 {
+    const unsigned int LightCacheIdx = optixGetLaunchIndex().x;
 
+    const unsigned int Offset = LightCacheIdx * Params.OutputDirectLightIndicesPerSample;
+    for (int i = 0; i < Params.OutputDirectLightIndicesPerSample; ++i)
+    {
+        Params.OutputDirectLightIndices[Offset + i] = -1;
+    }
+
+    // For determining the most significant lights, simply use the light contribution
+    // of the direct light source under ideal condition ("surface normal" is in the 
+    // directon of the light source). This will factor point light attenuation.
+    // If a ray cast to a light source returns contribution of 0, the light source is not
+    // visible or too far away and we can ignore it.
+
+    float3 Position = Params.DirectLightCachePositions[LightCacheIdx];
+
+    if (Params.DoSunLight)
+    {
+        float result = GetContributionFromDirectionalLightSource(Position, Params.DirectionToSun);
+        if (result > 0.f)
+        {
+            CacheIndexIfMoreSignificant(32767, LightCacheIdx);
+        }
+    }
+
+    unsigned int CountOfPointLights = Params.CountOfPointLights;
+    for (unsigned int i = 0; i < CountOfPointLights; ++i)
+    {
+        float3 PointLightWorldPos = Params.PointLights[i].Position;
+        float3 DirectionToPointLight = normalize(PointLightWorldPos - Position);
+        float result = GetContributionFromPointLightSource(i, DirectionToPointLight, Position, DirectionToPointLight);
+        if (result > 0.f)
+        {
+            CacheIndexIfMoreSignificant(i, LightCacheIdx);
+        }
+    }
 }
 
 extern "C" __global__ void __raygen__rg()

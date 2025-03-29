@@ -14,6 +14,8 @@ struct radiant_pointlight_t
     float AttenuationQuadratic;
 };
 
+constexpr short RadiantSunIndex = 32767;
+
 struct radiant_bake_info_t
 {
     // Procedure 1: Lightmap baking
