@@ -63,8 +63,12 @@ void lightmapper_t::BakeStaticLighting(game_map_build_data_t& BuildData)
     RadiantBakeInfo.PointLights = PointLightInfos.data;
     RadiantBakeInfo.PointLightsCount = BuildDataShared->PointLights.lenu();
     RadiantBakeInfo.DirectionToSun = *((radiant_vec3_t*)&BuildDataShared->DirectionToSun);
+    RadiantBakeInfo.SkyboxColor = { 0.53f, 0.81f, 0.92f };
+    RadiantBakeInfo.SkyboxBrightness = 0.4f;
     RadiantBakeInfo.NumberOfSampleRaysPerTexel = 4096;
     RadiantBakeInfo.NumberOfLightBounces = 3;
+    RadiantBakeInfo.BakeDirectLighting = true;
+    RadiantBakeInfo.CacheDirectLightIndices = false;
     RadiantBake(RadiantBakeInfo);
 
 
@@ -880,9 +884,14 @@ void lc_volume_baker_t::BakeLightCubes(game_map_build_data_t& BuildData)
     RadiantBakeInfo.LightMapTexelNormals = (radiant_vec3_t *)CubeNormalsRepeated.data;
     RadiantBakeInfo.NumberOfSampleRaysPerTexel = 1024;
     RadiantBakeInfo.NumberOfLightBounces = 3;
-    //RadiantBakeInfo.BakeDirectLighting = false;
-    //RadiantBakeInfo.DirectLightCachePositions = (radiant_vec3_t *)LightCubeVolume.CubePositions.data;
-    //RadiantBakeInfo.OutputDirectLightIndices = ( *) LightCubeVolume.SignificantLightIndices;
+    RadiantBakeInfo.BakeDirectLighting = false;
+
+    RadiantBakeInfo.CacheDirectLightIndices = true;
+    RadiantBakeInfo.OutputDirectLightIndices = (short *) LightCubeVolume.SignificantLightIndices.data;
+    RadiantBakeInfo.OutputDirectLightIndicesSize = 4 * LightCubeVolume.SignificantLightIndices.lenu();
+    RadiantBakeInfo.OutputDirectLightIndicesPerSample = 4;
+    // RadiantBakeInfo.DirectLightIndexForSun = ;
+    RadiantBakeInfo.DirectLightCachePositions = (radiant_vec3_t *)LightCubeVolume.CubePositions.data;
     RadiantBake(RadiantBakeInfo);
 
     CubePositionsRepeated.free();

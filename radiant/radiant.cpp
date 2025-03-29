@@ -376,10 +376,10 @@ extern "C" RADIANT_API void __cdecl RadiantBake(radiant_bake_info_t BakeInfo)
     OptixPipelineCompileOptions pipeline_compile_options = {};
     {
         OptixModuleCompileOptions module_compile_options = {};
-//#if INTERNAL_BUILD
-//        module_compile_options.optLevel = OPTIX_COMPILE_OPTIMIZATION_LEVEL_0;
-//        module_compile_options.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_FULL;
-//#endif
+#ifndef NDEBUG
+        module_compile_options.optLevel = OPTIX_COMPILE_OPTIMIZATION_LEVEL_0;
+        module_compile_options.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_FULL;
+#endif // NDEBUG
         // NOTE(Kevin): holy fuck compiling the optixir in Release mode and setting
         // optLevel to all optimizations and debug level to minimal (the defaults) 
         // makes it so fast. 634375 texels (at texel size 2) with 4096 sample rays per
@@ -653,6 +653,14 @@ extern "C" RADIANT_API void __cdecl RadiantBake(radiant_bake_info_t BakeInfo)
     float3 DirectionToSun = *((float3*)&BakeInfo.DirectionToSun);
     DirectionToSun = normalize(DirectionToSun);
 
+/*
+    bool CacheDirectLightIndices = false;
+    short *OutputDirectLightIndices;
+    size_t OutputDirectLightIndicesSize;
+    size_t OutputDirectLightIndicesPerSample;
+    radiant_vec3_t *DirectLightCachePositions;
+*/
+
     //
     // launch
     //
@@ -664,6 +672,8 @@ extern "C" RADIANT_API void __cdecl RadiantBake(radiant_bake_info_t BakeInfo)
         BakeParams.OutputLightmap = output_buffer.map();
         BakeParams.DoDirectionalLight = int(!NoSun);
         BakeParams.DirectionToSun = *((float3*)&DirectionToSun);
+        BakeParams.SkyboxColor = *((float3*)&BakeInfo.SkyboxColor);
+        BakeParams.SkyboxBrightness = BakeInfo.SkyboxBrightness;
         BakeParams.CountOfPointLights = PointLightsCount;
         BakeParams.PointLights = (cu_pointlight_t*)d_point_light_srcs;
         BakeParams.TexelWorldPositions = (float3*)d_world_positions;
@@ -671,6 +681,7 @@ extern "C" RADIANT_API void __cdecl RadiantBake(radiant_bake_info_t BakeInfo)
         BakeParams.GASHandle = gas_handle;
         BakeParams.NumberOfSampleRaysPerTexel = BakeInfo.NumberOfSampleRaysPerTexel;
         BakeParams.NumberOfBounces = BakeInfo.NumberOfLightBounces;
+        BakeParams.BakeDirectLighting = int(BakeInfo.BakeDirectLighting);
 
         CUdeviceptr d_param;
         CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_param), sizeof(bake_lm_params_t)));
