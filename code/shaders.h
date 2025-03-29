@@ -20,6 +20,8 @@ void GLDeleteShader(GPUShader& shader);
 
 void UseShader(const GPUShader& shader);
 
+i32 GetCachedUniformLocation(const GPUShader& shader, const char* uniformName);
+
 void GLBind1i(const GPUShader& shader, const char* uniformName, GLint v0);
 void GLBind2i(const GPUShader& shader, const char* uniformName, GLint v0, GLint v1);
 void GLBind3i(const GPUShader& shader, const char* uniformName, GLint v0, GLint v1, GLint v2);

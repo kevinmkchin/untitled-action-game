@@ -52,6 +52,7 @@ static void DeserializeMapLightData(ByteBuffer *Buf, map_info_t *MapInfo)
     ASSERT(SerializeStartMarker == lightdata_serialize_start_marker);
 
     ByteBufferRead(Buf, vec3, &MapInfo->DirectionToSun);
+    MapInfo->DirectionToSun = Normalize(MapInfo->DirectionToSun);
     u32 PointLightsCount;
     ByteBufferRead(Buf, u32, &PointLightsCount);
     MapInfo->PointLights = fixed_array<static_point_light_t>(PointLightsCount, MemoryType::StaticLevel);

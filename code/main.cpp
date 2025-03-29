@@ -178,6 +178,7 @@ inline std::string entity_icons_path(const std::string& name) { return wd_path()
 #include "enemy.h"
 #include "nav.h"
 #include "debugmenu.h"
+#include "shader_helpers.h"
 
 
 SDL_Window *SDLMainWindow;
@@ -231,6 +232,7 @@ float GAMEPROJECTION_FARCLIP = 32000.f;
 #include "game_assets.cpp"
 #include "physics_debug.cpp"
 #include "shaders.cpp"
+#include "shader_helpers.cpp"
 #include "facebatch.cpp"
 #include "filedialog.cpp"
 #include "primitives.cpp"
