@@ -118,7 +118,7 @@ struct lc_volume_t
     fixed_array<lc_ambient_t> AmbientCubes;
     fixed_array<lc_light_indices_t> SignificantLightIndices;
 
-    static constexpr u64 lc_volume_t_serialize_end_marker = 0x6C63766F6C736572;
+    static constexpr u64 lc_volume_t_serialize_start_marker = 0x6C63766F6C736572;
     void Serialize(ByteBuffer *Buf);
     void Deserialize(ByteBuffer *Buf, MemoryType VolumeStorageType = MemoryType::StaticLevel);
 

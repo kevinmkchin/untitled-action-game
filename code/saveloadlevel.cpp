@@ -34,6 +34,24 @@ static void DeallocateGameMapBuildData(game_map_build_data_t *BuildData)
     BuildData->PointLights.free();
 }
 
+
+constexpr u64 lightdata_serialize_start_marker = 0x6C69676874646174;
+static void SerializeMapLightData(game_map_build_data_t *BuildData)
+{
+    ByteBufferWrite(&BuildData->Output, u64, lightdata_serialize_start_marker);
+
+
+} 
+
+static void DeserializeMapLightData(ByteBuffer *Buf)
+{
+    u64 SerializeStartMarker;
+    ByteBufferRead(Buf, u64, &SerializeStartMarker);
+    ASSERT(SerializeStartMarker == lightdata_serialize_start_marker);
+
+
+}
+
 bool BuildGameMap(const char *path)
 {
     u32 TimeAtStartOfBuildGameMap = SDL_GetTicks();
@@ -77,6 +95,7 @@ bool BuildGameMap(const char *path)
     ByteBufferWrite(&BuildData.Output, vec3, BuildData.PlayerStartPosition);
     ByteBufferWrite(&BuildData.Output, vec3, BuildData.PlayerStartRotation);
 
+    // Lightmap
     lightmapper_t *Lightmapper = new lightmapper_t();
     Lightmapper->BakeStaticLighting(BuildData);
     float *LightmapAtlas;
@@ -89,10 +108,13 @@ bool BuildGameMap(const char *path)
     Lightmapper->FreeLightmap();
     delete Lightmapper;
 
+    // Light cache volume
     lc_volume_baker_t *LightCacheVolumeBaker = new lc_volume_baker_t();
     LightCacheVolumeBaker->BakeLightCubes(BuildData);
     LightCacheVolumeBaker->LightCubeVolume.Serialize(&BuildData.Output);
     delete LightCacheVolumeBaker;
+
+    SerializeMapLightData(&BuildData);
 
     // colliders
     size_t numColliderPoints = ColliderWorldPoints.size();
@@ -144,6 +166,7 @@ map_load_result_t LoadGameMap(const char *path)
     ByteBufferRead(&mapbuf, vec3, &Result.PlayerStartPosition);
     ByteBufferRead(&mapbuf, vec3, &Result.PlayerStartRotation);
 
+    // Lightmap
     i32 lmw, lmh;
     ByteBufferRead(&mapbuf, i32, &lmw);
     ByteBufferRead(&mapbuf, i32, &lmh);
@@ -159,8 +182,11 @@ map_load_result_t LoadGameMap(const char *path)
     //                            GL_R32F, GL_RED, GL_NEAREST, GL_NEAREST, GL_FLOAT);
     arrfree(lightMapData);
 
+    // Light cache volume
     Result.LightCacheVolume = new_InLevelMemory(lc_volume_t)();
     Result.LightCacheVolume->Deserialize(&mapbuf, MemoryType::StaticLevel);
+
+    DeserializeMapLightData(&mapbuf);
 
     // colliders
     size_t numColliderPoints, numColliderSpans;
