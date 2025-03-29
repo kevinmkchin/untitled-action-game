@@ -21,6 +21,7 @@ out vec3 WorldNormal;
 void main()
 {
     vec4 TotalPosition = vec4(0.0f);
+    vec3 TotalNormal = vec3(0.0f);
     for (int i = 0; i < MAX_BONE_INFLUENCE; ++i)
     {
         if(BoneIds[i] == -1) 
@@ -33,10 +34,12 @@ void main()
         vec4 LocalPosition = FinalBonesMatrices[BoneIds[i]] * vec4(Pos,1.0f);
         TotalPosition += LocalPosition * Weights[i];
         vec3 LocalNormal = mat3(FinalBonesMatrices[BoneIds[i]]) * Norm;
+         // is this right? seems right so far
+        TotalNormal += LocalNormal * Weights[i];
     }
 
     WorldPos = (Model * TotalPosition).xyz;
-    WorldNormal = transpose(inverse(mat3(Model))) * Norm;
+    WorldNormal = transpose(inverse(mat3(Model))) * TotalNormal;
 
     mat4 ViewModel = View * Model;
     gl_Position =  Projection * ViewModel * TotalPosition;
