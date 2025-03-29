@@ -40,7 +40,7 @@ struct bake_lm_params_t
     float3 DirectionToSun;
     float3 SkyboxColor;
     float SkyboxBrightness;
-    int CountOfPointLights;
+    unsigned int CountOfPointLights;
     cu_pointlight_t *PointLights;
 
     // Traversable handle to the geometry acceleration structure
