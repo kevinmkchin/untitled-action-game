@@ -14,7 +14,7 @@ bool DebugShowGameMemoryUsage = false;
 #endif
 bool DebugDrawNavMeshFlag = false;
 bool DebugDrawEnemyPathingFlag = false;
-bool DebugEnemyBehaviourActive = false;
+bool DebugEnemyBehaviourActive = true;
 bool FlyCamActive = false;
 
 static void DebugMenu_SwitchToLevelEditor()

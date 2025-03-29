@@ -31,16 +31,20 @@ float AmbientLight(vec3 WorldNormal)
 // world pos normal -> direct light contribution
 float DiffuseLight(vec3 WorldPos, vec3 WorldNormal)
 {
+    /* Half-Lambertian Diffuse Shading Model */
+
     float DirectLight = 0.f;
 
     if (DoSunLight != 0)
     {
         // TODO(Kevin): Intensity multiplier should be configured in map editor
         float SunIntensity = 1.f;
-        float CosTheta = dot(DirectionToSun, WorldNormal);
-        if (CosTheta > 0.f)
+        float Lambertian = dot(DirectionToSun, WorldNormal);
+        float ModifiedLambertian = (Lambertian * 0.5f + 0.5f);
+        Lambertian = ModifiedLambertian * ModifiedLambertian;
+        if (Lambertian > 0.f)
         {
-            DirectLight += CosTheta * SunIntensity;
+            DirectLight += Lambertian * SunIntensity;
         }
     }
 
@@ -48,15 +52,16 @@ float DiffuseLight(vec3 WorldPos, vec3 WorldNormal)
     {
         vec3 PointLightPos = PointLightsPos[i];
         vec3 ToPointLight = PointLightPos - WorldPos;
-        float CosTheta = dot(normalize(ToPointLight), WorldNormal);
-        if (CosTheta > 0.f)
+        float Lambertian = dot(normalize(ToPointLight), WorldNormal);
+        float ModifiedLambertian = (Lambertian * 0.5f + 0.5f);
+        Lambertian = ModifiedLambertian * ModifiedLambertian;
+        if (Lambertian > 0.f)
         {
             float DistToLight = length(ToPointLight);
             float AttLin = PointLightsAttLin[i];
             float AttQuad = PointLightsAttQuad[i];
             float Attenuation = 1.f / (1.f + AttLin * DistToLight + AttQuad * DistToLight * DistToLight);
-            float PointLightContribution = CosTheta * Attenuation;
-            DirectLight += PointLightContribution;
+            DirectLight += Lambertian * Attenuation;
         }
     }
 
