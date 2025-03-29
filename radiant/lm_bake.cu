@@ -80,7 +80,7 @@ static __device__ float CalculateDirectionalLight(float3 Position, float3 Surfac
 {
     float LightValue = 0.f;
 
-    if (Params.DoDirectionalLight)
+    if (Params.DoSunLight)
     {
         float CosTheta = dot(SurfaceNormal, Params.DirectionToSun);
         if (CosTheta > 0.f)
@@ -154,7 +154,7 @@ static __device__ float CalculateDirectionalLight(float3 Position, float3 Surfac
     return LightValue;
 }
 
-extern "C" __global__ void __raygen__rg()
+static __device__ void ProcBakeLightmap()
 {
     // Lookup our location within the launch grid
     const uint3 idx = optixGetLaunchIndex();
@@ -261,9 +261,23 @@ extern "C" __global__ void __raygen__rg()
     float IrradianceAtThisPoint = AccumulatedRadiance.x / float(NumSamples);
 
     Params.OutputLightmap[idx.x] = DirectLightValue + IrradianceAtThisPoint;
-    // Params.OutputLightmap[idx.x] = IrradianceAtThisPoint;
-    //Params.OutputLightmap[idx.x] = TexelPosition.z;
+}
 
+static __device__ void ProcCacheDirectLightInfo()
+{
+
+}
+
+extern "C" __global__ void __raygen__rg()
+{
+    if (Params.Procedure == BAKE_LIGHTMAP)
+    {
+        ProcBakeLightmap();
+    }
+    else if (Params.Procedure == BAKE_DIRECTLIGHTINFO)
+    {
+        ProcCacheDirectLightInfo();
+    }
 }
 
 extern "C" __global__ void __miss__HemisphereSample()

@@ -619,7 +619,7 @@ extern "C" RADIANT_API void __cdecl RadiantBake(radiant_bake_info_t BakeInfo)
     }
 
 
-    sutil::CUDAOutputBuffer<float> output_buffer(BakeInfo.OutputLightmapSize, 1);
+    // setting up input output buffers
 
     CUdeviceptr *d_world_positions;
     CUDA_CHECK(cudaMalloc(&d_world_positions, BakeInfo.OutputLightmapSize * sizeof(float3))); // Allocate memory on the device
@@ -653,31 +653,29 @@ extern "C" RADIANT_API void __cdecl RadiantBake(radiant_bake_info_t BakeInfo)
     float3 DirectionToSun = *((float3*)&BakeInfo.DirectionToSun);
     DirectionToSun = normalize(DirectionToSun);
 
-/*
-    bool CacheDirectLightIndices = false;
-    short *OutputDirectLightIndices;
-    size_t OutputDirectLightIndicesSize;
-    size_t OutputDirectLightIndicesPerSample;
-    radiant_vec3_t *DirectLightCachePositions;
-*/
 
     //
     // launch
     //
+
+    // 1. Lightmap baking
+    sutil::CUDAOutputBuffer<float> LightmapBuffer(BakeInfo.OutputLightmapSize, 1);
     {
         CUstream stream;
         CUDA_CHECK(cudaStreamCreate(&stream));
 
         bake_lm_params_t BakeParams;
-        BakeParams.OutputLightmap = output_buffer.map();
-        BakeParams.DoDirectionalLight = int(!NoSun);
+        BakeParams.Procedure = BAKE_LIGHTMAP;
+        BakeParams.OutputLightmap = LightmapBuffer.map();
+        BakeParams.TexelWorldPositions = (float3*)d_world_positions;
+        BakeParams.TexelWorldNormals = (float3*)d_world_normals;
+
+        BakeParams.DoSunLight = int(!NoSun);
         BakeParams.DirectionToSun = *((float3*)&DirectionToSun);
         BakeParams.SkyboxColor = *((float3*)&BakeInfo.SkyboxColor);
         BakeParams.SkyboxBrightness = BakeInfo.SkyboxBrightness;
         BakeParams.CountOfPointLights = PointLightsCount;
         BakeParams.PointLights = (cu_pointlight_t*)d_point_light_srcs;
-        BakeParams.TexelWorldPositions = (float3*)d_world_positions;
-        BakeParams.TexelWorldNormals = (float3*)d_world_normals;
         BakeParams.GASHandle = gas_handle;
         BakeParams.NumberOfSampleRaysPerTexel = BakeInfo.NumberOfSampleRaysPerTexel;
         BakeParams.NumberOfBounces = BakeInfo.NumberOfLightBounces;
@@ -694,15 +692,63 @@ extern "C" RADIANT_API void __cdecl RadiantBake(radiant_bake_info_t BakeInfo)
         OPTIX_CHECK(optixLaunch(pipeline, stream, d_param, sizeof(bake_lm_params_t), &sbt, BakeInfo.OutputLightmapSize, 1, /*depth=*/1));
         CUDA_SYNC_CHECK();
 
-        output_buffer.unmap();
+        LightmapBuffer.unmap();
         CUDA_CHECK(cudaFree(reinterpret_cast<void *>(d_param)));
+    }
+    memcpy(BakeInfo.OutputLightmap, LightmapBuffer.getHostPointer(), BakeInfo.OutputLightmapSize*sizeof(float));
+
+    // 2. Caching direct lights that pass through light caches
+    if (BakeInfo.CacheDirectLightIndices)
+    {
+        size_t NumLightCaches = BakeInfo.OutputDirectLightIndicesSize / BakeInfo.OutputDirectLightIndicesPerSample;
+        CUdeviceptr *d_lightcache_world_positions;
+        CUDA_CHECK(cudaMalloc(&d_lightcache_world_positions, NumLightCaches * sizeof(float3)));
+        CUDA_CHECK(cudaMemcpy(d_lightcache_world_positions, BakeInfo.DirectLightCachePositions,
+            NumLightCaches * sizeof(float3), cudaMemcpyHostToDevice));
+
+        sutil::CUDAOutputBuffer<short> LightIndicesBuffer(BakeInfo.OutputDirectLightIndicesSize, 1);
+        {
+            CUstream stream;
+            CUDA_CHECK(cudaStreamCreate(&stream));
+
+            bake_lm_params_t BakeParams;
+            BakeParams.Procedure = BAKE_DIRECTLIGHTINFO;
+            BakeParams.OutputDirectLightIndices = LightIndicesBuffer.map();
+            BakeParams.OutputDirectLightIndicesPerSample = BakeInfo.OutputDirectLightIndicesPerSample;
+            BakeParams.DirectLightCachePositions = (float3*)d_lightcache_world_positions;
+
+            BakeParams.DoSunLight = int(!NoSun);
+            BakeParams.DirectionToSun = *((float3*)&DirectionToSun);
+            BakeParams.SkyboxColor = *((float3*)&BakeInfo.SkyboxColor);
+            BakeParams.SkyboxBrightness = BakeInfo.SkyboxBrightness;
+            BakeParams.CountOfPointLights = PointLightsCount;
+            BakeParams.PointLights = (cu_pointlight_t*)d_point_light_srcs;
+            BakeParams.GASHandle = gas_handle;
+            BakeParams.NumberOfSampleRaysPerTexel = 0;
+            BakeParams.NumberOfBounces = 0;
+            BakeParams.BakeDirectLighting = 0;
+
+            CUdeviceptr d_param;
+            CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_param), sizeof(bake_lm_params_t)));
+            CUDA_CHECK(cudaMemcpy(
+                reinterpret_cast<void *>(d_param),
+                &BakeParams, sizeof(BakeParams),
+                cudaMemcpyHostToDevice
+            ));
+
+            OPTIX_CHECK(optixLaunch(pipeline, stream, d_param, sizeof(bake_lm_params_t), &sbt, BakeInfo.OutputLightmapSize, 1, /*depth=*/1));
+            CUDA_SYNC_CHECK();
+
+            LightIndicesBuffer.unmap();
+            CUDA_CHECK(cudaFree(reinterpret_cast<void *>(d_param)));
+        }
+        memcpy(BakeInfo.OutputDirectLightIndices, LightIndicesBuffer.getHostPointer(), BakeInfo.OutputDirectLightIndicesSize*sizeof(short));
     }
 
     CUDA_CHECK(cudaFree(reinterpret_cast<void *>(d_world_positions)));
     CUDA_CHECK(cudaFree(reinterpret_cast<void *>(d_world_normals)));
     CUDA_CHECK(cudaFree(reinterpret_cast<void *>(d_point_light_srcs)));
 
-    memcpy(BakeInfo.OutputLightmap, output_buffer.getHostPointer(), BakeInfo.OutputLightmapSize*sizeof(float));
 
     //
     // Cleanup
