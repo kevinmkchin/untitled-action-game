@@ -108,6 +108,8 @@ void RenderProjectiles(const mat4 &ProjFromView, const mat4 &ViewFromWorld)
             KillProjectile(&P);
             continue;
         }
+
+        BindUniformsForModelLighting(GameModelTexturedShader, RuntimeMapInfo, ProjectileRenderPos);
         mat4 WorldFromModel = TranslationMatrix(ProjectileRenderPos) 
                             * RotationMatrix(ProjectileRenderRot)
                             * ScaleMatrix(SI_UNITS_TO_GAME_UNITS);
