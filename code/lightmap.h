@@ -32,12 +32,11 @@ struct game_map_build_data_t
     std::vector<vec3> ColliderWorldPoints;
     std::vector<u32> ColliderSpans;
 
-    dynamic_array<static_point_light_t> PointLights;
-
     vec3 PlayerStartPosition = vec3();
     vec3 PlayerStartRotation = vec3();
 
     vec3 DirectionToSun = vec3();
+    dynamic_array<static_point_light_t> PointLights;
 };
 
 constexpr float LightMapTexelSize = 4.f; // in world units
