@@ -736,7 +736,7 @@ extern "C" RADIANT_API void __cdecl RadiantBake(radiant_bake_info_t BakeInfo)
                 cudaMemcpyHostToDevice
             ));
 
-            OPTIX_CHECK(optixLaunch(pipeline, stream, d_param, sizeof(bake_lm_params_t), &sbt, BakeInfo.OutputLightmapSize, 1, /*depth=*/1));
+            OPTIX_CHECK(optixLaunch(pipeline, stream, d_param, sizeof(bake_lm_params_t), &sbt, NumLightCaches, 1, /*depth=*/1));
             CUDA_SYNC_CHECK();
 
             LightIndicesBuffer.unmap();
