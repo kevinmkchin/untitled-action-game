@@ -151,10 +151,21 @@ void PostPhysicsTick()
 void LateNonPhysicsTick()
 {
 
+    //vec3 p = Player.Root;// +Player.CamOffsetFromRoot;
+    //size_t pi = LightCacheVolume->IndexByPosition(p);
     for (size_t i = 0; i < LightCacheVolume->CubePositions.lenu(); ++i)
     {
         const vec3 &CubePos = LightCacheVolume->CubePositions[i];
-        const lc_ambient_t &AmbientCube = LightCacheVolume->AmbientCubes[i];
+        lc_ambient_t &AmbientCube = LightCacheVolume->AmbientCubes[i];
+        //if (i == pi)
+        //{
+        //    AmbientCube.PosX = 1.f;
+        //    AmbientCube.NegX = 1.f;
+        //    AmbientCube.PosY = 1.f;
+        //    AmbientCube.NegY = 1.f;
+        //    AmbientCube.PosZ = 1.f;
+        //    AmbientCube.NegZ = 1.f;
+        //}
         SupportRenderer.DrawColoredCube(CubePos, 1.f, 
             vec4(AmbientCube.PosX,AmbientCube.PosX,AmbientCube.PosX,1),
             vec4(AmbientCube.NegX,AmbientCube.NegX,AmbientCube.NegX,1),
@@ -163,6 +174,12 @@ void LateNonPhysicsTick()
             vec4(AmbientCube.PosZ,AmbientCube.PosZ,AmbientCube.PosZ,1),
             vec4(AmbientCube.NegZ,AmbientCube.NegZ,AmbientCube.NegZ,1)
         );
+        //AmbientCube.PosX = 0.f;
+        //AmbientCube.NegX = 0.f;
+        //AmbientCube.PosY = 0.f;
+        //AmbientCube.NegY = 0.f;
+        //AmbientCube.PosZ = 0.f;
+        //AmbientCube.NegZ = 0.f;
     }
 
 #ifdef JPH_DEBUG_RENDERER

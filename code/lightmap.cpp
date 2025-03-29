@@ -5,8 +5,10 @@
 #include "lm_oct.cpp" // only needed by lightmap.cpp
 
 
-LevelPolygonOctree LightMapOcclusionTree;
-std::vector<FlatPolygonCollider> MapSurfaceColliders;
+static LevelPolygonOctree LightMapOcclusionTree;
+static std::vector<FlatPolygonCollider> MapSurfaceColliders;
+
+static radiant_bake_info_t RadiantBakeInfo;
 
 
 void lightmapper_t::BakeStaticLighting(game_map_build_data_t& BuildData)
@@ -31,8 +33,9 @@ void lightmapper_t::BakeStaticLighting(game_map_build_data_t& BuildData)
     // The Big Lightmap Atlas
     arrsetcap(LIGHTMAPATLAS, lightMapAtlasW*lightMapAtlasH);
 
-    // World geometry in triangles world positions only
-    dynamic_array<vec3> WorldGeometryVertices;
+
+    dynamic_array<vec3> WorldGeometryVertices; // World geometry in triangles world positions only
+    dynamic_array<radiant_pointlight_t> PointLightInfos;
     for (auto& vbpair : BuildDataShared->VertexBuffers)
     {
         const std::vector<float>& vb = vbpair.second;
@@ -42,15 +45,12 @@ void lightmapper_t::BakeStaticLighting(game_map_build_data_t& BuildData)
             WorldGeometryVertices.put(vec3(vb[i+0], vb[i+1], vb[i+2]));
         }
     }
-
-    radiant_bake_info_t BakeInfo;
-    BakeInfo.OutputLightmap = all_light_global;
-    BakeInfo.OutputLightmapSize = UsedLightmapTexelCount;
-    BakeInfo.LightMapTexelPositions = (radiant_vec3_t*)all_lm_pos;
-    BakeInfo.LightMapTexelNormals = (radiant_vec3_t*)all_lm_norm;
-    BakeInfo.WorldGeometryVertices = (radiant_vec3_t*)WorldGeometryVertices.data;
-    BakeInfo.WorldGeometryVerticesCount = WorldGeometryVertices.lenu();
-    dynamic_array<radiant_pointlight_t> PointLightInfos;
+    RadiantBakeInfo.OutputLightmap = all_light_global;
+    RadiantBakeInfo.OutputLightmapSize = UsedLightmapTexelCount;
+    RadiantBakeInfo.LightMapTexelPositions = (radiant_vec3_t*)all_lm_pos;
+    RadiantBakeInfo.LightMapTexelNormals = (radiant_vec3_t*)all_lm_norm;
+    RadiantBakeInfo.WorldGeometryVertices = (radiant_vec3_t*)WorldGeometryVertices.data;
+    RadiantBakeInfo.WorldGeometryVerticesCount = WorldGeometryVertices.lenu();
     for (int i = 0; i < BuildDataShared->PointLights.lenu(); ++i)
     {
         static_point_light_t PLight = BuildDataShared->PointLights[i];
@@ -60,16 +60,12 @@ void lightmapper_t::BakeStaticLighting(game_map_build_data_t& BuildData)
         PointLightInfo.AttenuationQuadratic = PLight.AttenuationQuadratic;
         PointLightInfos.put(PointLightInfo);
     }
-    BakeInfo.PointLights = PointLightInfos.data;
-    BakeInfo.PointLightsCount = BuildDataShared->PointLights.lenu();
-    BakeInfo.DirectionToSun = *((radiant_vec3_t*)&BuildDataShared->DirectionToSun);
-    BakeInfo.NumberOfSampleRaysPerTexel = 4096;
-    BakeInfo.NumberOfLightBounces = 3;
-    RadiantBake(BakeInfo);
-
-
-    PointLightInfos.free();
-    WorldGeometryVertices.free();
+    RadiantBakeInfo.PointLights = PointLightInfos.data;
+    RadiantBakeInfo.PointLightsCount = BuildDataShared->PointLights.lenu();
+    RadiantBakeInfo.DirectionToSun = *((radiant_vec3_t*)&BuildDataShared->DirectionToSun);
+    RadiantBakeInfo.NumberOfSampleRaysPerTexel = 4096;
+    RadiantBakeInfo.NumberOfLightBounces = 3;
+    RadiantBake(RadiantBakeInfo);
 
 
 #if 0
@@ -840,25 +836,6 @@ void lc_volume_baker_t::BakeLightCubes(game_map_build_data_t& BuildData)
 
     PlaceLightCubes();
 
-    // struct radiant_bake_info_t
-    // {
-    //     // The array of light values at each texel. This gets set when baking.
-    //     float *OutputLightmap;
-    //     size_t OutputLightmapSize;
-
-    //     radiant_vec3_t *LightMapTexelPositions; // this must be OutputLightmapSize long
-    //     radiant_vec3_t *LightMapTexelNormals;   // this must be OutputLightmapSize long
-
-    //     radiant_vec3_t *WorldGeometryVertices;
-    //     size_t WorldGeometryVerticesCount;
-
-    //     radiant_pointlight_t *PointLights;
-    //     size_t PointLightsCount;
-
-    //     radiant_vec3_t DirectionToSun; // if set to { 0.f, 0.f, 0.f } then no sun
-
-    //     int NumberOfSampleRaysPerTexel;
-    //     int NumberOfLightBounces;
 
     //     // add
     //     bool BakeDirectLighting = false;
@@ -875,14 +852,43 @@ void lc_volume_baker_t::BakeLightCubes(game_map_build_data_t& BuildData)
     //         short Index3;
     //     };
 
-    // };
+    size_t NumSamples = LightCubeVolume.AmbientCubes.lenu() * 6; // num cubes * 6
+    fixed_array<vec3> CubePositionsRepeated = fixed_array<vec3>(NumSamples, MemoryType::DefaultMalloc);
+    fixed_array<vec3> CubeNormalsRepeated = fixed_array<vec3>(NumSamples, MemoryType::DefaultMalloc);
+    CubePositionsRepeated.setlen(NumSamples);
+    CubeNormalsRepeated.setlen(NumSamples);
+    for (size_t i = 0; i < LightCubeVolume.AmbientCubes.lenu(); ++i)
+    {
+        vec3 CubePos = LightCubeVolume.CubePositions[i];
+        CubePositionsRepeated[i*6+0] = CubePos;
+        CubeNormalsRepeated[  i*6+0] = GM_FORWARD_VECTOR;
+        CubePositionsRepeated[i*6+1] = CubePos;
+        CubeNormalsRepeated[  i*6+1] = -GM_FORWARD_VECTOR;
+        CubePositionsRepeated[i*6+2] = CubePos;
+        CubeNormalsRepeated[  i*6+2] = GM_UP_VECTOR;
+        CubePositionsRepeated[i*6+3] = CubePos;
+        CubeNormalsRepeated[  i*6+3] = -GM_UP_VECTOR;
+        CubePositionsRepeated[i*6+4] = CubePos;
+        CubeNormalsRepeated[  i*6+4] = GM_RIGHT_VECTOR;
+        CubePositionsRepeated[i*6+5] = CubePos;
+        CubeNormalsRepeated[  i*6+5] = -GM_RIGHT_VECTOR;
+    }
 
-    // BakeInfo.OutputLightmap = all_light_global;
-    // BakeInfo.OutputLightmapSize = UsedLightmapTexelCount;
-    // BakeInfo.LightMapTexelPositions = (radiant_vec3_t*)all_lm_pos;
-    // BakeInfo.LightMapTexelNormals = (radiant_vec3_t*)all_lm_norm;
-    // BakeInfo.NumberOfSampleRaysPerTexel = 1024;
-    // BakeInfo.NumberOfLightBounces = 2;
+    RadiantBakeInfo.OutputLightmap = (float*)LightCubeVolume.AmbientCubes.data;
+    RadiantBakeInfo.OutputLightmapSize = NumSamples;
+    RadiantBakeInfo.LightMapTexelPositions = (radiant_vec3_t *)CubePositionsRepeated.data;
+    RadiantBakeInfo.LightMapTexelNormals = (radiant_vec3_t *)CubeNormalsRepeated.data;
+    RadiantBakeInfo.NumberOfSampleRaysPerTexel = 1024;
+    RadiantBakeInfo.NumberOfLightBounces = 3;
+    //RadiantBakeInfo.BakeDirectLighting = false;
+    //RadiantBakeInfo.DirectLightCachePositions = (radiant_vec3_t *)LightCubeVolume.CubePositions.data;
+    //RadiantBakeInfo.OutputDirectLightIndices = ( *) LightCubeVolume.SignificantLightIndices;
+    RadiantBake(RadiantBakeInfo);
+
+    CubePositionsRepeated.free();
+    CubeNormalsRepeated.free();
+    arrfree(RadiantBakeInfo.WorldGeometryVertices);
+    arrfree(RadiantBakeInfo.PointLights);
 
     // either pass a flag to not calculate direct lighting
     // or separate the output array into direct and indirect lighting arrays
@@ -1026,14 +1032,6 @@ void lc_volume_baker_t::PlaceLightCubes()
     LightCubeVolume.CubePositions.setlen(TotalNumberOfCubes);
     LightCubeVolume.AmbientCubes.setlen(TotalNumberOfCubes);
     LightCubeVolume.SignificantLightIndices.setlen(TotalNumberOfCubes);
-
-    // int CubeIndexTest0 = LightCubeVolume.IndexByPosition(vec3(-839, -84, -308)); // should give third index (2)
-    // int CubeIndexTest1 = LightCubeVolume.IndexByPosition(vec3(407, 276, 932)); // should give third last index (total - 3)
-    // int CubeIndexTest2 = LightCubeVolume.IndexByPosition(vec3(500, 276, 932)); // should give last index (total - 1)
-    // int CubeIndexTest3 = LightCubeVolume.IndexByPosition(vec3(452, 276, 932)); // should give second last index (total - 2)
-    // int CubeIndexTest4 = LightCubeVolume.IndexByPosition(vec3(409, 276, 932)); // should give second last index (total - 2)
-    // int CubeIndexTest5 = LightCubeVolume.IndexByPosition(vec3(-1400, -84, -308));
-    // int CubeIndexTest6 = LightCubeVolume.IndexByPosition(vec3(1400, 276, 932));
 
     const float ErrorTolerance = 0.1f;
     for (float y = LightCubeVolume.Start.y; y <= LightCubeVolume.End.y + ErrorTolerance; y += (float)LightCubeVolume.LightCubePlacementInterval.y)
