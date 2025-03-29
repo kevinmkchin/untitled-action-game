@@ -6,12 +6,12 @@ fixed_array<animator_t> AnimatorPool;
 // extern
 std::vector<face_batch_t> GameLevelFaceBatches;
 bool GameLoopCanRun = true;
+map_info_t RuntimeMapInfo;
 
 // internal
 static bool LevelLoaded = false;
 static player_t Player;
 static JPH::BodyID LevelColliderBodyId;
-static map_info_t RuntimeMapInfo;
 
 
 enum ske_humanoid_clips : u32
@@ -148,36 +148,22 @@ void PostPhysicsTick()
 void LateNonPhysicsTick()
 {
 
+
     //vec3 p = Player.Root;// +Player.CamOffsetFromRoot;
-    //size_t pi = LightCacheVolume->IndexByPosition(p);
-    for (size_t i = 0; i < RuntimeMapInfo.LightCacheVolume->CubePositions.lenu(); ++i)
-    {
-        const vec3 &CubePos = RuntimeMapInfo.LightCacheVolume->CubePositions[i];
-        lc_ambient_t &AmbientCube = RuntimeMapInfo.LightCacheVolume->AmbientCubes[i];
-        //if (i == pi)
-        //{
-        //    AmbientCube.PosX = 1.f;
-        //    AmbientCube.NegX = 1.f;
-        //    AmbientCube.PosY = 1.f;
-        //    AmbientCube.NegY = 1.f;
-        //    AmbientCube.PosZ = 1.f;
-        //    AmbientCube.NegZ = 1.f;
-        //}
-        SupportRenderer.DrawColoredCube(CubePos, 1.f, 
-            vec4(AmbientCube.PosX,AmbientCube.PosX,AmbientCube.PosX,1),
-            vec4(AmbientCube.NegX,AmbientCube.NegX,AmbientCube.NegX,1),
-            vec4(AmbientCube.PosY,AmbientCube.PosY,AmbientCube.PosY,1),
-            vec4(AmbientCube.NegY,AmbientCube.NegY,AmbientCube.NegY,1),
-            vec4(AmbientCube.PosZ,AmbientCube.PosZ,AmbientCube.PosZ,1),
-            vec4(AmbientCube.NegZ,AmbientCube.NegZ,AmbientCube.NegZ,1)
-        );
-        //AmbientCube.PosX = 0.f;
-        //AmbientCube.NegX = 0.f;
-        //AmbientCube.PosY = 0.f;
-        //AmbientCube.NegY = 0.f;
-        //AmbientCube.PosZ = 0.f;
-        //AmbientCube.NegZ = 0.f;
-    }
+    // size_t pi = LightCacheVolume->IndexByPosition(p);
+    // for (size_t i = 0; i < RuntimeMapInfo.LightCacheVolume->CubePositions.lenu(); ++i)
+    // {
+    //     const vec3 &CubePos = RuntimeMapInfo.LightCacheVolume->CubePositions[i];
+    //     lc_ambient_t &AmbientCube = RuntimeMapInfo.LightCacheVolume->AmbientCubes[i];
+    //     SupportRenderer.DrawColoredCube(CubePos, 1.f, 
+    //         vec4(AmbientCube.PosX,AmbientCube.PosX,AmbientCube.PosX,1),
+    //         vec4(AmbientCube.NegX,AmbientCube.NegX,AmbientCube.NegX,1),
+    //         vec4(AmbientCube.PosY,AmbientCube.PosY,AmbientCube.PosY,1),
+    //         vec4(AmbientCube.NegY,AmbientCube.NegY,AmbientCube.NegY,1),
+    //         vec4(AmbientCube.PosZ,AmbientCube.PosZ,AmbientCube.PosZ,1),
+    //         vec4(AmbientCube.NegZ,AmbientCube.NegZ,AmbientCube.NegZ,1)
+    //     );
+    // }
 
 #ifdef JPH_DEBUG_RENDERER
     JoltDebugDrawer->Ready();

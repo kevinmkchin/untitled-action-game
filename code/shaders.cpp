@@ -182,6 +182,13 @@ bool GLHasErrors()
 void GLCreateShaderProgram(GPUShader& shader, const char* vertexShaderStr, const char* fragmentShaderStr);
 void GLCreateShaderProgram(GPUShader& shader, const char* vertexShaderStr, const char* geometryShaderStr, const char* fragmentShaderStr);
 
+void warningUniformNotFound(const GPUShader &shader, const char *uniformName)
+{
+    if (shader.bPrintWarnings)
+    {
+        printf("Warning: Uniform '%s' doesn't exist or isn't active on shader %d.\n", uniformName, shader.idShaderProgram);
+    }
+}
 
 i32 GetCachedUniformLocation(const GPUShader& shader, const char* uniformName)
 {
@@ -190,15 +197,8 @@ i32 GetCachedUniformLocation(const GPUShader& shader, const char* uniformName)
     {
         return location_iter->second;
     }
+    warningUniformNotFound(shader, uniformName);
     return -1;
-}
-
-void warningUniformNotFound(const GPUShader& shader, const char* uniformName)
-{
-    if (shader.bPrintWarnings)
-    {
-        printf("Warning: Uniform '%s' doesn't exist or isn't active on shader %d.\n", uniformName, shader.idShaderProgram);
-    }
 }
 
 void cacheUniformLocation(GPUShader& shader, const char* uniformName)
@@ -408,10 +408,6 @@ void GLBind1i(const GPUShader& shader, const char* uniformName, GLint v0)
     {
         glUniform1i(location, v0);
     }
-    else
-    {
-        warningUniformNotFound(shader, uniformName);
-    }
 }
 
 void GLBind2i(const GPUShader& shader, const char* uniformName, GLint v0, GLint v1)
@@ -420,10 +416,6 @@ void GLBind2i(const GPUShader& shader, const char* uniformName, GLint v0, GLint 
     if (location >= 0)
     {
         glUniform2i(location, v0, v1);
-    }
-    else
-    {
-        warningUniformNotFound(shader, uniformName);
     }
 }
 
@@ -447,10 +439,6 @@ void GLBind4i(const GPUShader& shader, const char* uniformName, GLint v0, GLint 
     {
         glUniform4i(location, v0, v1, v2, v3);
     }
-    else
-    {
-        warningUniformNotFound(shader, uniformName);
-    }
 }
 
 void GLBind1f(const GPUShader& shader, const char* uniformName, GLfloat v0)
@@ -459,10 +447,6 @@ void GLBind1f(const GPUShader& shader, const char* uniformName, GLfloat v0)
     if (location >= 0)
     {
         glUniform1f(location, v0);
-    }
-    else
-    {
-        warningUniformNotFound(shader, uniformName);
     }
 }
 
@@ -473,10 +457,6 @@ void GLBind2f(const GPUShader& shader, const char* uniformName, GLfloat v0, GLfl
     {
         glUniform2f(location, v0, v1);
     }
-    else
-    {
-        warningUniformNotFound(shader, uniformName);
-    }
 }
 
 void GLBind3f(const GPUShader& shader, const char* uniformName, GLfloat v0, GLfloat v1, GLfloat v2)
@@ -485,10 +465,6 @@ void GLBind3f(const GPUShader& shader, const char* uniformName, GLfloat v0, GLfl
     if (location >= 0)
     {
         glUniform3f(location, v0, v1, v2);
-    }
-    else
-    {
-        warningUniformNotFound(shader, uniformName);
     }
 }
 
@@ -499,10 +475,6 @@ void GLBind4f(const GPUShader& shader, const char* uniformName, GLfloat v0, GLfl
     {
         glUniform4f(location, v0, v1, v2, v3);
     }
-    else
-    {
-        warningUniformNotFound(shader, uniformName);
-    }
 }
 
 void GLBindMatrix3fv(const GPUShader& shader, const char* uniformName, GLsizei count, const GLfloat* value)
@@ -512,10 +484,6 @@ void GLBindMatrix3fv(const GPUShader& shader, const char* uniformName, GLsizei c
     {
         glUniformMatrix3fv(location, count, GL_FALSE, value);
     }
-    else
-    {
-        warningUniformNotFound(shader, uniformName);
-    }
 }
 
 void GLBindMatrix4fv(const GPUShader& shader, const char* uniformName, GLsizei count, const GLfloat* value)
@@ -524,9 +492,5 @@ void GLBindMatrix4fv(const GPUShader& shader, const char* uniformName, GLsizei c
     if (location >= 0)
     {
         glUniformMatrix4fv(location, count, GL_FALSE, value);
-    }
-    else
-    {
-        warningUniformNotFound(shader, uniformName);
     }
 }

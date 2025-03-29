@@ -102,11 +102,14 @@ struct lc_ambient_t
 
 struct lc_light_indices_t
 {
-    short Index0 = -1; // i think corresponds to short2 in CUDA https://docs.nvidia.com/cuda/cuda-math-api/cuda_math_api/group__CUDA__MATH__INTRINSIC__INT.html
+    // short Indices[4] = { -1, -1, -1, -1 };
+    short Index0 = -1;
     short Index1 = -1;
     short Index2 = -1;
-    short Index3 = -1; // maybe use the last one to indicate if its a sun idk
+    short Index3 = -1;
 };
+
+constexpr short SUNLIGHTINDEX = SHRT_MAX;
 
 struct lc_volume_t
 {

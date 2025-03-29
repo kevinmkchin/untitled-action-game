@@ -30,3 +30,4 @@ void RenderGameLayer();
 
 extern std::vector<face_batch_t> GameLevelFaceBatches;
 extern bool GameLoopCanRun;
+extern map_info_t RuntimeMapInfo;
