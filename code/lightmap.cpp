@@ -852,7 +852,7 @@ void lc_volume_baker_t::BakeLightCubes(game_map_build_data_t& BuildData)
     //         short Index3;
     //     };
 
-    size_t NumSamples = LightCubeVolume.AmbientCubes.lenu() * 6; // num cubes * 6
+    u32 NumSamples = LightCubeVolume.AmbientCubes.lenu() * 6; // num cubes * 6
     fixed_array<vec3> CubePositionsRepeated = fixed_array<vec3>(NumSamples, MemoryType::DefaultMalloc);
     fixed_array<vec3> CubeNormalsRepeated = fixed_array<vec3>(NumSamples, MemoryType::DefaultMalloc);
     CubePositionsRepeated.setlen(NumSamples);
