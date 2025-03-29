@@ -75,7 +75,7 @@ set(DLL_FILES
         ${CMAKE_SOURCE_DIR}/radiant/Release/radiant.dll
 )
 add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+    COMMAND ${CMAKE_COMMAND} -E copy
         ${DLL_FILES}
         $<TARGET_FILE_DIR:${PROJECT_NAME}>
     COMMENT "Copying DLLs to output directory"

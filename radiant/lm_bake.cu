@@ -162,7 +162,11 @@ extern "C" __global__ void __raygen__rg()
     float3 TexelPosition = Params.TexelWorldPositions[idx.x];
     float3 TexelNormal = Params.TexelWorldNormals[idx.x];
 
-    float DirectLightValue = CalculateDirectionalLight(TexelPosition, TexelNormal);
+    float DirectLightValue = 0.f;
+    if (Params.BakeDirectLighting)
+    {
+        DirectLightValue = CalculateDirectionalLight(TexelPosition, TexelNormal);
+    }
 
     // Instead of recursively casting rays, maybe it would be faster if
     // all the texels did monte carlo sampling once, update the light buffer
@@ -245,11 +249,11 @@ extern "C" __global__ void __raygen__rg()
             Attenuation.y = __uint_as_float(r12);
             Attenuation.z = __uint_as_float(r13);
 
-            if (DoneFlag)
-                break;
-
             float3 AttenuatedRadiance = Radiance * Attenuation;
             AccumulatedRadiance += AttenuatedRadiance;
+
+            if (DoneFlag)
+                break;
         }
 
     } while (--i);
@@ -264,12 +268,20 @@ extern "C" __global__ void __raygen__rg()
 
 extern "C" __global__ void __miss__HemisphereSample()
 {
-    // TODO(Kevin): this miss should contribute indirect lighting from the skybox
+    // NOTE(Kevin): this miss should contribute indirect lighting from the skybox
     //              even a constant background/sky color.
     //              rays that miss geometry and hit the sky should contribute indirect 
     //              lighting, but only if the sky is emitting light. If the background 
     //              is black and not emitting, they contribute nothing.
     optixSetPayload_7(true);
+    // the radiance works as the brightness multiplier
+    optixSetPayload_8(__float_as_uint(Params.SkyboxBrightness));
+    optixSetPayload_9(__float_as_uint(Params.SkyboxBrightness));
+    optixSetPayload_10(__float_as_uint(Params.SkyboxBrightness));
+    // and albedo works as the environment/skybox color here
+    optixSetPayload_11(__float_as_uint(Params.SkyboxColor.x));
+    optixSetPayload_12(__float_as_uint(Params.SkyboxColor.y));
+    optixSetPayload_13(__float_as_uint(Params.SkyboxColor.z));
 }
 
 extern "C" __global__ void __closesthit__HemisphereSample()
@@ -292,6 +304,12 @@ extern "C" __global__ void __closesthit__HemisphereSample()
     {
         // if the hemisphere sampling ray hits a backface, then this point is inside a wall
         optixSetPayload_7(true);
+        optixSetPayload_8(__float_as_uint(0.f));
+        optixSetPayload_9(__float_as_uint(0.f));
+        optixSetPayload_10(__float_as_uint(0.f));
+        optixSetPayload_11(__float_as_uint(0.f));
+        optixSetPayload_12(__float_as_uint(0.f));
+        optixSetPayload_13(__float_as_uint(0.f));
     }
     else
     {

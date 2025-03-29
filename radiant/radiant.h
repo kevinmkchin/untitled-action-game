@@ -31,8 +31,20 @@ struct radiant_bake_info_t
 
     radiant_vec3_t DirectionToSun; // if set to { 0.f, 0.f, 0.f } then no sun
 
+    radiant_vec3_t SkyboxColor = { 0.53f, 0.81f, 0.92f };
+    float SkyboxBrightness = 0.4f;
+
     int NumberOfSampleRaysPerTexel;
     int NumberOfLightBounces;
+
+    bool BakeDirectLighting = false;
+
+    bool CacheDirectLightIndices = false;
+    short *OutputDirectLightIndices;
+    size_t OutputDirectLightIndicesSize;
+    size_t OutputDirectLightIndicesPerSample;
+    radiant_vec3_t *DirectLightCachePositions;
+
 };
 
 #ifdef RADIANT_EXPORTS

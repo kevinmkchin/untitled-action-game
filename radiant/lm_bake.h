@@ -22,6 +22,9 @@ struct bake_lm_params_t
     int DoDirectionalLight;
     float3 DirectionToSun;
 
+    float3 SkyboxColor;
+    float SkyboxBrightness;
+
     int CountOfPointLights;
     cu_pointlight_t *PointLights;
 
@@ -33,6 +36,8 @@ struct bake_lm_params_t
 
     int NumberOfSampleRaysPerTexel;
     int NumberOfBounces;
+
+    int BakeDirectLighting;
 };
 
 
