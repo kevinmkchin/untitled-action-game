@@ -78,6 +78,7 @@ vec3 ShadeDynamicModel(vec3 Color, vec3 WorldPos, vec3 WorldNormal)
 void main()
 {
     vec3 FinalColor = texture(ColorTexture, TexCoords).xyz;
+    // FinalColor = vec3(1.0);
 
     FinalColor = ShadeDynamicModel(FinalColor, WorldPos, normalize(WorldNormal));
 

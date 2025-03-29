@@ -14,6 +14,7 @@ uniform vec4 MuzzleFlash;
 void main()
 {
     vec3 ColorAlbedo = texture(ColorTexture, uv1).rgb;
+    // ColorAlbedo = vec3(1.0);
     float LinearLight = texture(LightMap, uv2).r;
     vec3 FinalColor = ColorAlbedo * LinearLight;
 

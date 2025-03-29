@@ -303,6 +303,8 @@ void RenderEnemies(const mat4 &ProjFromView, const mat4 &ViewFromWorld)
     // TODO(Kevin): Instanced drawing for corpses
     for (size_t i = 0; i < EnemySystem.Corpses.length; ++i)
     {
+        // CENTROID instead of root
+        BindUniformsForModelLighting(GameModelTexturedShader, RuntimeMapInfo, EnemySystem.Corpses[i].Pos);
         mat4 ModelMatrix = TranslationMatrix(EnemySystem.Corpses[i].Pos) * 
             RotationMatrix(EnemySystem.Corpses[i].Rot) * ScaleMatrix(SI_UNITS_TO_GAME_UNITS);
         GLBindMatrix4fv(GameModelTexturedShader, "WorldFromModel", 1, ModelMatrix.ptr());
