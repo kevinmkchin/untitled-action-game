@@ -924,6 +924,8 @@ size_t lc_volume_t::IndexByPosition(vec3 WorldPosition)
 
 void lc_volume_t::Serialize(ByteBuffer *Buf)
 {
+    ByteBufferWrite(Buf, u64, lc_volume_t_serialize_start_marker);
+
     ByteBufferWrite(Buf, vec3, Start);
     ByteBufferWrite(Buf, vec3, End);
     ByteBufferWrite(Buf, int, CountX);
@@ -940,12 +942,14 @@ void lc_volume_t::Serialize(ByteBuffer *Buf)
     ByteBufferWriteBulk(Buf, CubePositions.data, sizeof(vec3) * TotalCubeCount);
     ByteBufferWriteBulk(Buf, AmbientCubes.data, sizeof(lc_ambient_t) * TotalCubeCount);
     ByteBufferWriteBulk(Buf, SignificantLightIndices.data, sizeof(lc_light_indices_t) * TotalCubeCount);
-
-    ByteBufferWrite(Buf, u64, lc_volume_t_serialize_end_marker);
 }
 
 void lc_volume_t::Deserialize(ByteBuffer *Buf, MemoryType VolumeStorageType)
 {
+    u64 SerializeStartMarker;
+    ByteBufferRead(Buf, u64, &SerializeStartMarker);
+    ASSERT(SerializeStartMarker == lc_volume_t_serialize_start_marker);
+
     ByteBufferRead(Buf, vec3, &Start);
     ByteBufferRead(Buf, vec3, &End);
     ByteBufferRead(Buf, int, &CountX);
@@ -966,10 +970,6 @@ void lc_volume_t::Deserialize(ByteBuffer *Buf, MemoryType VolumeStorageType)
     ByteBufferReadBulk(Buf, CubePositions.data, sizeof(vec3) * TotalCubeCount);
     ByteBufferReadBulk(Buf, AmbientCubes.data, sizeof(lc_ambient_t) * TotalCubeCount);
     ByteBufferReadBulk(Buf, SignificantLightIndices.data, sizeof(lc_light_indices_t) * TotalCubeCount);
-
-    u64 SerializeEndMarker;
-    ByteBufferRead(Buf, u64, &SerializeEndMarker);
-    ASSERT(SerializeEndMarker == lc_volume_t_serialize_end_marker);
 }
 
 void lc_volume_baker_t::PlaceLightCubes()
