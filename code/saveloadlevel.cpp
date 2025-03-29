@@ -40,16 +40,23 @@ static void SerializeMapLightData(game_map_build_data_t *BuildData)
 {
     ByteBufferWrite(&BuildData->Output, u64, lightdata_serialize_start_marker);
 
+    ByteBufferWrite(&BuildData->Output, vec3, BuildData->DirectionToSun);
+    ByteBufferWrite(&BuildData->Output, u32, (u32)BuildData->PointLights.lenu());
+    ByteBufferWriteBulk(&BuildData->Output, BuildData->PointLights.data, sizeof(static_point_light_t) * BuildData->PointLights.lenu());
+}
 
-} 
-
-static void DeserializeMapLightData(ByteBuffer *Buf)
+static void DeserializeMapLightData(ByteBuffer *Buf, map_info_t *MapInfo)
 {
     u64 SerializeStartMarker;
     ByteBufferRead(Buf, u64, &SerializeStartMarker);
     ASSERT(SerializeStartMarker == lightdata_serialize_start_marker);
 
-
+    ByteBufferRead(Buf, vec3, &MapInfo->DirectionToSun);
+    u32 PointLightsCount;
+    ByteBufferRead(Buf, u32, &PointLightsCount);
+    MapInfo->PointLights = fixed_array<static_point_light_t>(PointLightsCount, MemoryType::StaticLevel);
+    MapInfo->PointLights.setlen(PointLightsCount);
+    ByteBufferReadBulk(Buf, MapInfo->PointLights.data, sizeof(static_point_light_t) * PointLightsCount);
 }
 
 bool BuildGameMap(const char *path)
@@ -149,22 +156,16 @@ bool BuildGameMap(const char *path)
     return writtenToFile;
 }
 
-map_load_result_t LoadGameMap(const char *path)
+bool LoadGameMap(map_info_t *MapInfo, const char *path)
 {
-    map_load_result_t Result;
-
     std::unordered_map<u32, void*> DeserElemIdToElem;
 
-    // deserialize
     ByteBuffer mapbuf;
     if (ByteBufferReadFromFile(&mapbuf, path) == 0)
-    {
-        Result.Success = false;
-        return Result;
-    }
+        return false;
 
-    ByteBufferRead(&mapbuf, vec3, &Result.PlayerStartPosition);
-    ByteBufferRead(&mapbuf, vec3, &Result.PlayerStartRotation);
+    ByteBufferRead(&mapbuf, vec3, &MapInfo->PlayerStartPosition);
+    ByteBufferRead(&mapbuf, vec3, &MapInfo->PlayerStartRotation);
 
     // Lightmap
     i32 lmw, lmh;
@@ -183,10 +184,10 @@ map_load_result_t LoadGameMap(const char *path)
     arrfree(lightMapData);
 
     // Light cache volume
-    Result.LightCacheVolume = new_InLevelMemory(lc_volume_t)();
-    Result.LightCacheVolume->Deserialize(&mapbuf, MemoryType::StaticLevel);
+    MapInfo->LightCacheVolume = new_InLevelMemory(lc_volume_t)();
+    MapInfo->LightCacheVolume->Deserialize(&mapbuf, MemoryType::StaticLevel);
 
-    DeserializeMapLightData(&mapbuf);
+    DeserializeMapLightData(&mapbuf, MapInfo);
 
     // colliders
     size_t numColliderPoints, numColliderSpans;
@@ -227,8 +228,5 @@ map_load_result_t LoadGameMap(const char *path)
     }
 
     ByteBufferFree(&mapbuf);
-
-    Result.Success = true;
-
-    return Result;
+    return true;
 }

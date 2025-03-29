@@ -8,11 +8,10 @@ std::vector<face_batch_t> GameLevelFaceBatches;
 bool GameLoopCanRun = true;
 
 // internal
-bool LevelLoaded = false;
-player_t Player;
-JPH::BodyID LevelColliderBodyId;
-
-lc_volume_t *LightCacheVolume;
+static bool LevelLoaded = false;
+static player_t Player;
+static JPH::BodyID LevelColliderBodyId;
+static map_info_t RuntimeMapInfo;
 
 
 enum ske_humanoid_clips : u32
@@ -71,21 +70,19 @@ void LoadLevel(const char *MapPath)
     if (LevelLoaded)
         UnloadPreviousLevel();
 
-    map_load_result_t MapLoadResult = LoadGameMap(MapPath);
-    if (MapLoadResult.Success == false)
+    if (LoadGameMap(&RuntimeMapInfo, MapPath) == false)
     {
-        LogError("failed to load game map");
+        LogError("Failed to load game map: %s", MapPath);
         return;
     }
-    LightCacheVolume = MapLoadResult.LightCacheVolume;
 
     ASSERT(Physics.PhysicsSystem);
     CreateAndRegisterLevelCollider();
     ASSERT(CreateRecastNavMesh());
 
-    Player.CharacterController->SetPosition(ToJoltVector(MapLoadResult.PlayerStartPosition));
+    Player.CharacterController->SetPosition(ToJoltVector(RuntimeMapInfo.PlayerStartPosition));
     // TODO Apply rotation to camera rotation instead
-    // Player.mCharacter->SetRotation(ToJoltQuat(EulerToQuat(MapLoadResult.PlayerStartRotation)));
+    // Player.mCharacter->SetRotation(ToJoltQuat(EulerToQuat(RuntimeMapInfo.PlayerStartRotation)));
 
 
     LevelLoaded = true;
@@ -153,10 +150,10 @@ void LateNonPhysicsTick()
 
     //vec3 p = Player.Root;// +Player.CamOffsetFromRoot;
     //size_t pi = LightCacheVolume->IndexByPosition(p);
-    for (size_t i = 0; i < LightCacheVolume->CubePositions.lenu(); ++i)
+    for (size_t i = 0; i < RuntimeMapInfo.LightCacheVolume->CubePositions.lenu(); ++i)
     {
-        const vec3 &CubePos = LightCacheVolume->CubePositions[i];
-        lc_ambient_t &AmbientCube = LightCacheVolume->AmbientCubes[i];
+        const vec3 &CubePos = RuntimeMapInfo.LightCacheVolume->CubePositions[i];
+        lc_ambient_t &AmbientCube = RuntimeMapInfo.LightCacheVolume->AmbientCubes[i];
         //if (i == pi)
         //{
         //    AmbientCube.PosX = 1.f;
