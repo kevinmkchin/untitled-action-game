@@ -48,8 +48,10 @@ void SwitchToLevelEditor()
 {
     // todo clean up game memory
     // todo close game
+
     LevelEditor.Open();
 
+    SDL_SetRelativeMouseMode(SDL_FALSE);
     GameLoopCanRun = false;
     // CurrentDebugMode = DEBUG_MODE_OFF;
 }
@@ -325,7 +327,8 @@ void ShowDebugConsole()
     switch (CurrentDebugMode)
     {
     case DEBUG_MODE_OFF:
-        SDL_SetRelativeMouseMode(SDL_TRUE);
+        if (!LevelEditor.IsActive)
+            SDL_SetRelativeMouseMode(SDL_TRUE);
         break;
     case DEBUG_MODE_MENU:
         SDL_SetRelativeMouseMode(SDL_FALSE);
