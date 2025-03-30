@@ -12,6 +12,8 @@ struct db_tex_t
 
 enum GODFLESH_MODELS_TEXTURED : u16
 {
+    MT_INVALID,
+
     MT_WPN_TYPE1,
     MT_PRJ_NAIL,
 

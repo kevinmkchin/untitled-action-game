@@ -365,7 +365,7 @@ u32 fixed_array<T>::lenu() const
 }
 
 template<typename T> 
-u32 fixed_array<T>::cap()
+u32 fixed_array<T>::cap() const
 {
     return capacity;
 }

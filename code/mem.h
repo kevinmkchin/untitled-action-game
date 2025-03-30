@@ -217,7 +217,7 @@ public:
     // Returns the number of elements in the array as an unsigned type.
     u32 lenu() const;
     // Returns the number of total elements the array can contain.
-    u32 cap();
+    u32 cap() const;
     // Removes the final element of the array and returns it.
     T pop();
     // Appends the item to the end of array. Returns item.
@@ -247,7 +247,12 @@ public:
     T& operator[](size_t index) { ASSERT(index <= (size_t)length); return data[index]; }
     const T& operator[](int index) const { ASSERT(0 <= index && index <= (int)length); return data[index]; }
     const T& operator[](unsigned int index) const { ASSERT(index <= (unsigned int)length); return data[index]; }
-    const T& operator[](size_t index) const { ASSERT(index <= (size_t)length); return data[index]; }    
+    const T& operator[](size_t index) const { ASSERT(index <= (size_t)length); return data[index]; }
+
+    T* begin() { return data; }
+    T* end() { return data + length; }
+    const T* begin() const { return data; }
+    const T* end() const { return data + length; }
 };
 
 template<typename T> struct mem_indexer

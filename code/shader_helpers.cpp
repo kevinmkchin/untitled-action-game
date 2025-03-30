@@ -26,13 +26,16 @@ void BindUniformsForModelLighting(GPUShader &Shader, map_info_t &MapInfo, vec3 M
         PointLightsAttQuad.put(PointLight.AttenuationQuadratic);
     }
 
-    i32 loc0 = GetCachedUniformLocation(Shader, "AmbientCube[0]");
-    i32 loc1 = GetCachedUniformLocation(Shader, "DoSunLight");
-    i32 loc2 = GetCachedUniformLocation(Shader, "DirectionToSun");
-    i32 loc3 = GetCachedUniformLocation(Shader, "PointLightsCount");
-    i32 loc4 = GetCachedUniformLocation(Shader, "PointLightsPos[0]");
-    i32 loc5 = GetCachedUniformLocation(Shader, "PointLightsAttLin[0]");
-    i32 loc6 = GetCachedUniformLocation(Shader, "PointLightsAttQuad[0]");
+    // I could keep global point light and sun light info on the GPU and index into it
+    // What about ambient cube? that's a lot of data. Nah, that should be passed as uniform per instance
+
+    i32 loc0 = GetCachedUniformLocation(Shader, "ModelLighting.AmbientCube[0]");
+    i32 loc1 = GetCachedUniformLocation(Shader, "ModelLighting.DoSunLight");
+    i32 loc2 = GetCachedUniformLocation(Shader, "ModelLighting.DirectionToSun");
+    i32 loc3 = GetCachedUniformLocation(Shader, "ModelLighting.PointLightsCount");
+    i32 loc4 = GetCachedUniformLocation(Shader, "ModelLighting.PointLightsPos[0]");
+    i32 loc5 = GetCachedUniformLocation(Shader, "ModelLighting.PointLightsAttLin[0]");
+    i32 loc6 = GetCachedUniformLocation(Shader, "ModelLighting.PointLightsAttQuad[0]");
     glUniform1fv(loc0, 6, (float*)&AmbientCube);
     glUniform1i(loc1, DoSunLight);
     glUniform3fv(loc2, 1, (float*)&MapInfo.DirectionToSun);

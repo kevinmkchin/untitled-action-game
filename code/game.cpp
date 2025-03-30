@@ -7,6 +7,7 @@ fixed_array<animator_t> AnimatorPool;
 std::vector<face_batch_t> GameLevelFaceBatches;
 bool GameLoopCanRun = true;
 map_info_t RuntimeMapInfo;
+fixed_array<corpse_t> GlobalCorpses;
 
 // internal
 static bool LevelLoaded = false;
@@ -63,7 +64,7 @@ void DestroyGame()
 void LoadLevel(const char *MapPath)
 {
     StaticLevelMemory.ArenaOffset = 0;
-    EnemySystem.Corpses = fixed_array<corpse_t>(EnemySystem.MaxCorpses, MemoryType::StaticLevel);
+    GlobalCorpses = fixed_array<corpse_t>(EnemySystem.MaxCorpses, MemoryType::StaticLevel);
 
     SDL_SetRelativeMouseMode(SDL_TRUE);
 
@@ -83,7 +84,6 @@ void LoadLevel(const char *MapPath)
     Player.CharacterController->SetPosition(ToJoltVector(RuntimeMapInfo.PlayerStartPosition));
     // TODO Apply rotation to camera rotation instead
     // Player.mCharacter->SetRotation(ToJoltQuat(EulerToQuat(RuntimeMapInfo.PlayerStartRotation)));
-
 
     LevelLoaded = true;
 }
@@ -287,9 +287,9 @@ void RenderGameLayer()
     }
 
     RenderEnemies(perspectiveMatrix, viewMatrix);
-
     RenderWeapon(&Player.Weapon, perspectiveMatrix.ptr(), viewMatrix.GetInverse().ptr());
     RenderProjectiles(perspectiveMatrix, viewMatrix);
+    SortAndDrawCorpses(RuntimeMapInfo, GlobalCorpses, perspectiveMatrix, viewMatrix);
 
     // PRIMITIVES    
     glEnable(GL_DEPTH_TEST);

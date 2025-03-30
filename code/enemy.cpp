@@ -169,7 +169,7 @@ void NonPhysicsTickAllEnemies()
                 Corpse.Pos = Enemy.Position;
                 Corpse.Rot = Enemy.Orientation;
                 Corpse.CorpseModel = &Assets.ModelsTextured[MT_ATTACKER_CORPSE];
-                EnemySystem.Corpses.put(Corpse);
+                GlobalCorpses.put(Corpse);
                 EnemySystem.RemoveEnemy(Enemy.Index);
                 continue;
             }
@@ -288,27 +288,6 @@ void RenderEnemies(const mat4 &ProjFromView, const mat4 &ViewFromWorld)
             glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
             glBindVertexArray(0);
         }
-    }
-
-    UseShader(GameModelTexturedShader);
-    glEnable(GL_DEPTH_TEST);
-    GLBind4f(GameModelTexturedShader, "MuzzleFlash", 
-        Player.Weapon.MuzzleFlash.x, 
-        Player.Weapon.MuzzleFlash.y, 
-        Player.Weapon.MuzzleFlash.z, 
-        Player.Weapon.MuzzleFlash.w);
-    GLBindMatrix4fv(GameModelTexturedShader, "ProjFromView", 1, ProjFromView.ptr());
-    GLBindMatrix4fv(GameModelTexturedShader, "ViewFromWorld", 1, ViewFromWorld.ptr());
-
-    // TODO(Kevin): Instanced drawing for corpses
-    for (size_t i = 0; i < EnemySystem.Corpses.length; ++i)
-    {
-        // CENTROID instead of root
-        BindUniformsForModelLighting(GameModelTexturedShader, RuntimeMapInfo, EnemySystem.Corpses[i].Pos);
-        mat4 ModelMatrix = TranslationMatrix(EnemySystem.Corpses[i].Pos) * 
-            RotationMatrix(EnemySystem.Corpses[i].Rot) * ScaleMatrix(SI_UNITS_TO_GAME_UNITS);
-        GLBindMatrix4fv(GameModelTexturedShader, "WorldFromModel", 1, ModelMatrix.ptr());
-        RenderModelGLTF(*EnemySystem.Corpses[i].CorpseModel);
     }
 }
 
