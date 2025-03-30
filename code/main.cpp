@@ -552,8 +552,8 @@ int main(int argc, char* argv[])
     // BuildGameMap(wd_path("buildtest.map").c_str());
     // LoadLevel(wd_path("buildtest.map").c_str());
 
-    LoadLevel(wd_path("buildtest.map").c_str());
-    // LevelEditor.Open();
+    // LoadLevel(wd_path("buildtest.map").c_str());
+    SwitchToLevelEditor();
 
     while (!ProgramShutdownRequested)
     {
