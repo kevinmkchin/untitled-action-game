@@ -1550,7 +1550,7 @@ namespace GUI
             {
                 SDL_KeyboardEvent keyevent = event.key;
                 SDL_Keycode keycodeASCII = keyevent.keysym.sym;
-                keycodeASCII = ModifyASCIIBasedOnModifiers(keycodeASCII, keyevent.keysym.mod & (KMOD_LSHIFT | KMOD_RSHIFT));
+                keycodeASCII = ShiftASCII(keycodeASCII, keyevent.keysym.mod & (KMOD_LSHIFT | KMOD_RSHIFT));
                 keyboardInputASCIIKeycodeThisFrame.put(keycodeASCII);
             }break;
         }
