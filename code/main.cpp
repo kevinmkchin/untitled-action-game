@@ -175,6 +175,7 @@ inline std::string entity_icons_path(const std::string& name) { return wd_path()
 #include "gui.h"
 #include "weapons.h"
 #include "player.h"
+#include "corpses.h"
 #include "game.h"
 #include "enemy.h"
 #include "nav.h"
@@ -250,6 +251,7 @@ float GAMEPROJECTION_FARCLIP = 32000.f;
 #include "cam.cpp"
 #include "player.cpp"
 #include "weapons.cpp"
+#include "corpses.cpp"
 #include "debugmenu.cpp"
 
 
@@ -552,8 +554,8 @@ int main(int argc, char* argv[])
     // BuildGameMap(wd_path("buildtest.map").c_str());
     // LoadLevel(wd_path("buildtest.map").c_str());
 
-    // LoadLevel(wd_path("buildtest.map").c_str());
-    SwitchToLevelEditor();
+    LoadLevel(wd_path("buildtest.map").c_str());
+    // SwitchToLevelEditor();
 
     while (!ProgramShutdownRequested)
     {

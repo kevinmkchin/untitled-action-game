@@ -9,22 +9,27 @@ in vec3 WorldNormal;
 uniform sampler2D ColorTexture;
 uniform vec4 MuzzleFlash;
 
-uniform float AmbientCube[6];
-uniform int DoSunLight;
-uniform vec3 DirectionToSun;
-uniform int PointLightsCount;
-uniform vec3 PointLightsPos[4];
-uniform float PointLightsAttLin[4];
-uniform float PointLightsAttQuad[4];
+struct model_lighting_data_t
+{
+    float AmbientCube[6];
+    int DoSunLight;
+    vec3 DirectionToSun;
+    int PointLightsCount;
+    vec3 PointLightsPos[4];
+    float PointLightsAttLin[4];
+    float PointLightsAttQuad[4];
+};
+
+uniform model_lighting_data_t ModelLighting;
 
 // world normal -> directional ambient contribution
 float AmbientLight(vec3 WorldNormal)
 {
     vec3 NSquared = WorldNormal * WorldNormal;
     ivec3 IsNegative = ivec3(WorldNormal.x < 0.0, WorldNormal.y < 0.0, WorldNormal.z < 0.0);
-    float LinearColor = NSquared.x * AmbientCube[IsNegative.x] 
-                      + NSquared.y * AmbientCube[IsNegative.y+2] 
-                      + NSquared.z * AmbientCube[IsNegative.z+4];
+    float LinearColor = NSquared.x * ModelLighting.AmbientCube[IsNegative.x] 
+                      + NSquared.y * ModelLighting.AmbientCube[IsNegative.y+2] 
+                      + NSquared.z * ModelLighting.AmbientCube[IsNegative.z+4];
     return LinearColor;
 }
 
@@ -35,11 +40,11 @@ float DiffuseLight(vec3 WorldPos, vec3 WorldNormal)
 
     float DirectLight = 0.f;
 
-    if (DoSunLight != 0)
+    if (ModelLighting.DoSunLight != 0)
     {
         // TODO(Kevin): Intensity multiplier should be configured in map editor
         float SunIntensity = 1.f;
-        float Lambertian = dot(DirectionToSun, WorldNormal);
+        float Lambertian = dot(ModelLighting.DirectionToSun, WorldNormal);
         float ModifiedLambertian = (Lambertian * 0.5f + 0.5f);
         Lambertian = ModifiedLambertian * ModifiedLambertian;
         if (Lambertian > 0.f)
@@ -48,9 +53,9 @@ float DiffuseLight(vec3 WorldPos, vec3 WorldNormal)
         }
     }
 
-    for (int i = 0; i < PointLightsCount; ++i)
+    for (int i = 0; i < ModelLighting.PointLightsCount; ++i)
     {
-        vec3 PointLightPos = PointLightsPos[i];
+        vec3 PointLightPos = ModelLighting.PointLightsPos[i];
         vec3 ToPointLight = PointLightPos - WorldPos;
         float Lambertian = dot(normalize(ToPointLight), WorldNormal);
         float ModifiedLambertian = (Lambertian * 0.5f + 0.5f);
@@ -58,8 +63,8 @@ float DiffuseLight(vec3 WorldPos, vec3 WorldNormal)
         if (Lambertian > 0.f)
         {
             float DistToLight = length(ToPointLight);
-            float AttLin = PointLightsAttLin[i];
-            float AttQuad = PointLightsAttQuad[i];
+            float AttLin = ModelLighting.PointLightsAttLin[i];
+            float AttQuad = ModelLighting.PointLightsAttQuad[i];
             float Attenuation = 1.f / (1.f + AttLin * DistToLight + AttQuad * DistToLight * DistToLight);
             DirectLight += Lambertian * Attenuation;
         }

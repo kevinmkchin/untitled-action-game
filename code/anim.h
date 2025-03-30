@@ -279,6 +279,7 @@ struct animator_t
 
 struct ModelGLTF
 {
+    u16 MT_ID = 0;
     fixed_array<GPUMeshIndexed> meshes;
     fixed_array<GPUTexture> color;
 };

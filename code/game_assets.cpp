@@ -151,6 +151,8 @@ void asset_db_t::LoadAllResources()
     // == Textured models
     ModelsTextured = fixed_array<ModelGLTF>(MT_COUNT, MemoryType::StaticGame);
     ModelsTextured.setlen(MT_COUNT);
+    for (u16 i = 0; i < MT_COUNT; ++i)
+        ModelsTextured[i].MT_ID = i;
     ASSERT(LoadModelGLTF2Bin(&ModelsTextured[MT_WPN_TYPE1], model_path("wpn_type1.glb").c_str()));
     ASSERT(LoadModelGLTF2Bin(&ModelsTextured[MT_PRJ_NAIL], model_path("prj_nail.glb").c_str()));
     ASSERT(LoadModelGLTF2Bin(&ModelsTextured[MT_ATTACKER_CORPSE], model_path("attacker_corpse.glb").c_str()));

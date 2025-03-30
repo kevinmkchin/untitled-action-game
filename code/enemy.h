@@ -51,13 +51,6 @@ void DebugDrawEnemyColliders();
 void HurtEnemy(u32 EnemyIndex, float Damage);
 void KillEnemy(u32 EnemyIndex);
 
-struct corpse_t
-{
-    vec3 Pos;
-    quat Rot;
-    ModelGLTF *CorpseModel;
-};
-
 struct global_enemy_state_t
 {
     static constexpr int MaxEnemies = 64;
