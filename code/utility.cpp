@@ -119,7 +119,7 @@ void BlitRect(u8 *A, int AW, int AH, u8 *B, int BW, int BH, int x, int y, size_t
     }
 }
 
-i32 ModifyASCIIBasedOnModifiers(i32 keycodeASCII, bool shift)
+i32 ShiftASCII(i32 keycodeASCII, bool shift)
 {
     i32 keycode = keycodeASCII;
 

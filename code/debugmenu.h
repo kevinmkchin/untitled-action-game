@@ -1,7 +1,24 @@
 #pragma once
 
+// debug console/menu api
+enum DEBUG_MODES : u32
+{
+    DEBUG_MODE_OFF,
+    DEBUG_MODE_MENU,
+    DEBUG_MODE_CONSOLE,
+};
 
-extern bool DebugMenuActive;
+// procedures
+void SwitchToLevelEditor();
+void BuildLevelAndPlay();
+void SetDebugMode(DEBUG_MODES Mode);
+
+// interface
+void RegisterConsoleCommands();
+void SendInputToConsole(const SDL_Event event);
+void ShowDebugConsole();
+
+extern DEBUG_MODES CurrentDebugMode;
 extern bool DebugDrawLevelColliderFlag;
 extern bool DebugDrawEnemyCollidersFlag;
 extern bool DebugDrawProjectileCollidersFlag;
@@ -11,6 +28,3 @@ extern bool DebugDrawNavMeshFlag;
 extern bool DebugDrawEnemyPathingFlag;
 extern bool DebugEnemyBehaviourActive;
 extern bool FlyCamActive;
-
-void DisplayDebugMenu();
-

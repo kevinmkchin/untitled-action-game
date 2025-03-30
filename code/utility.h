@@ -47,7 +47,7 @@ inline float frand01()
     return (float)rand()/RAND_MAX;
 }
 
-i32 ModifyASCIIBasedOnModifiers(i32 keycodeASCII, bool shift);
+i32 ShiftASCII(i32 keycodeASCII, bool shift);
 
 std::string& RemoveCharactersFromEndOfString(std::string& str, char c);
 

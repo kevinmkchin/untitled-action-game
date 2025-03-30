@@ -62,6 +62,7 @@ Handcrafted with love.
 
 #define VERTEXT_IMPLEMENTATION
 #include <vertext.h>
+#include <noclip.h>
 #include <gmath.h>
 #if INTERNAL_BUILD
 #include <renderdoc_app.h>
@@ -419,8 +420,8 @@ static bool InitializeApplication()
 
     SDLMainWindow = SDL_CreateWindow("game",
                                      SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-                                     2560,
-                                     1440,
+                                     1920,
+                                     1080,
                                      SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
 
     SDLGLContext = SDL_GL_CreateContext(SDLMainWindow);
@@ -522,30 +523,11 @@ static void ProcessSDLEvents()
         }
 
         GUI::ProcessSDLEvent(event);
+
+        if (CurrentDebugMode == DEBUG_MODE_CONSOLE)
+            SendInputToConsole(event);
+
     }
-}
-
-static void ApplicationLoop()
-{
-    if (KeysPressed[SDL_SCANCODE_GRAVE]) 
-    {
-        DebugMenuActive = !DebugMenuActive;
-        if (DebugMenuActive)
-            SDL_SetRelativeMouseMode(SDL_FALSE);
-        else
-            SDL_SetRelativeMouseMode(SDL_TRUE);
-    }
-
-    DisplayDebugMenu();
-}
-
-static void ApplicationEnd()
-{
-    SupportRenderer.Destroy();
-
-    SDL_DestroyWindow(SDLMainWindow);
-    SDL_GL_DeleteContext(SDLGLContext);
-    SDL_Quit();
 }
 
 int main(int argc, char* argv[])
@@ -561,25 +543,27 @@ int main(int argc, char* argv[])
 
     Assets.LoadAllResources();
 
-    // RDOCAPI->LaunchReplayUI(1, "");
-
     srand(100);
 
     InitializeGame();
+    RegisterConsoleCommands();
 
-    LevelEditor.LoadMap(wd_path("testing.emf").c_str());
-    BuildGameMap(wd_path("buildtest.map").c_str());
-    LoadLevel(wd_path("buildtest.map").c_str());
-
+    // LevelEditor.LoadMap(wd_path("testing.emf").c_str());
+    // BuildGameMap(wd_path("buildtest.map").c_str());
     // LoadLevel(wd_path("buildtest.map").c_str());
+
+    LoadLevel(wd_path("buildtest.map").c_str());
     // LevelEditor.Open();
 
     while (!ProgramShutdownRequested)
     {
+        // Prepare for next frame
         FrameMemory.ArenaOffset = 0;
         TickTime();
         GUI::NewFrame();
         SupportRenderer.NewFrame();
+
+        // Poll and process events
         ProcessSDLEvents();
 
 #if INTERNAL_BUILD
@@ -588,8 +572,10 @@ int main(int argc, char* argv[])
                 RDOCAPI->LaunchReplayUI(1, "");
 #endif // INTERNAL_BUILD
 
-        ApplicationLoop();
+        // Process console commands
+        ShowDebugConsole();
 
+        // Game logic
         if (LevelEditor.IsActive)
         {
             LevelEditor.Tick();
@@ -600,19 +586,25 @@ int main(int argc, char* argv[])
             DoGameLoop();
         }
 
+        // Draw calls
         RenderGUILayer();
         FinalRenderToBackBuffer();
 
+        // Swap buffers
         SDL_GL_SwapWindow(SDLMainWindow);
     }
 
     LevelEditor.Close();
     DestroyGame();
 
-    ApplicationEnd();
+    SupportRenderer.Destroy();
 
     free(StaticGameMemory.Arena);
     free(StaticLevelMemory.Arena);
+
+    SDL_DestroyWindow(SDLMainWindow);
+    SDL_GL_DeleteContext(SDLGLContext);
+    SDL_Quit();
 
     return 0;
 }
