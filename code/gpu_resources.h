@@ -101,7 +101,7 @@ private:
     GLuint BufferObject = 0;
     void *MappedPtr = nullptr;
 
-    static constexpr size_t NumFrames = 10;
+    static constexpr size_t NumFrames = 5;
     size_t FrameChunkSize = 0;
     size_t TotalSize = 0;
     u32 CurrentFrame = 0;

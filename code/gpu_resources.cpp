@@ -373,13 +373,14 @@ void TripleBufferedSSBO::BeginFrame()
 {
     CurrentFrame = (CurrentFrame + 1) % NumFrames;
 
-    // When a fence becomes signaled, you can be certain that the GPU has completed all 
-    // OpenGL commands issued before the fence was created.
-    GLenum Status = GL_UNSIGNALED;
-    while (Status != GL_ALREADY_SIGNALED && Status != GL_CONDITION_SATISFIED && FrameSyncObjects[CurrentFrame] != nullptr)
-    {
-        Status = glClientWaitSync(FrameSyncObjects[CurrentFrame], GL_SYNC_FLUSH_COMMANDS_BIT, 1);
-    }
+    // See note in EndFrame
+    // // When a fence becomes signaled, you can be certain that the GPU has completed all 
+    // // OpenGL commands issued before the fence was created.
+    // GLenum Status = GL_UNSIGNALED;
+    // while (Status != GL_ALREADY_SIGNALED && Status != GL_CONDITION_SATISFIED && FrameSyncObjects[CurrentFrame] != nullptr)
+    // {
+    //     Status = glClientWaitSync(FrameSyncObjects[CurrentFrame], GL_SYNC_FLUSH_COMMANDS_BIT, 1);
+    // }
 }
 
 std::pair<void *, GLintptr> TripleBufferedSSBO::Alloc()
@@ -398,8 +399,11 @@ void TripleBufferedSSBO::Bind(GLuint BindingPoint) const
 
 void TripleBufferedSSBO::EndFrame()
 {
-    if (FrameSyncObjects[CurrentFrame] != nullptr)
-        glDeleteSync(FrameSyncObjects[CurrentFrame]);
-    FrameSyncObjects[CurrentFrame] = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+    // NOTE(Kevin) 2025-03-31: Maybe this is a bug on my GPU, but calling glFenceSync
+    //      is leaking memory. In Task Manager and Visual Studio can observe memory rising
+    //      every frame this is called even if glDeleteSync is also called...
+    //      hopefully this issue doesn't persist when I port to Vulkan.
+    // glDeleteSync(FrameSyncObjects[CurrentFrame]);
+    // FrameSyncObjects[CurrentFrame] = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
 }
 
