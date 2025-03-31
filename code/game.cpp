@@ -28,7 +28,7 @@ enum ske_humanoid_clips : u32
 
 void InitializeGame()
 {
-    Corpses_AcquireGPUResources();
+    InstanceDrawing_AcquireGPUResources();
 
     AnimatorPool = fixed_array<animator_t>(64, MemoryType::Game);
     AnimatorPool.setlen(64);
@@ -58,7 +58,7 @@ void DestroyGame()
     EnemySystem.Destroy();
     Physics.Destroy();
 
-    Corpses_ReleaseGPUResources();
+    InstancedDrawing_ReleaseGPUResources();
 
 #if INTERNAL_BUILD
     RecastDebugDrawer.Destroy();
@@ -301,7 +301,7 @@ void RenderGameLayer()
     RenderEnemies(perspectiveMatrix, viewMatrix);
     RenderWeapon(&Player.Weapon, perspectiveMatrix.ptr(), viewMatrix.GetInverse().ptr());
     RenderProjectiles(perspectiveMatrix, viewMatrix);
-    SortAndDrawCorpses(RuntimeMapInfo, GlobalStaticInstances, GlobalDynamicInstances, 
+    SortAndDrawInstancedModels(RuntimeMapInfo, GlobalStaticInstances, GlobalDynamicInstances, 
         perspectiveMatrix, viewMatrix);
 
     // PRIMITIVES    

@@ -2,6 +2,8 @@
 
 // Game Assets Database
 
+Mix_Chunk *Mixer_LoadChunk(const char *filepath);
+
 struct db_tex_t
 {
     u32 persistId = 0;

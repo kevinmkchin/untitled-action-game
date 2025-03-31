@@ -176,7 +176,7 @@ inline std::string entity_icons_path(const std::string& name) { return wd_path()
 #include "gui.h"
 #include "weapons.h"
 #include "player.h"
-#include "corpses.h"
+#include "instanced.h"
 #include "game.h"
 #include "enemy.h"
 #include "nav.h"
@@ -254,7 +254,7 @@ float GAMEPROJECTION_FARCLIP = 32000.f;
 #include "cam.cpp"
 #include "player.cpp"
 #include "weapons.cpp"
-#include "corpses.cpp"
+#include "instanced.cpp"
 #include "debugmenu.cpp"
 
 

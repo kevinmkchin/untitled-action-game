@@ -16,7 +16,6 @@ struct BitmapHandle : BinaryFileHandle
     u8  bitDepth = 0;   // bit depth of bitmap in bytes (e.g. bit depth = 3 means there are 3 bytes in the bitmap per pixel)
 };
 
-
 /** Allocates memory, stores the binary file data in memory, makes binary_file_handle_t.memory
     point to it. Pass along a binary_file_handle_t to receive the pointer to the file data in
     memory and the size in bytes. */
@@ -32,8 +31,4 @@ std::string ReadFileString(const char* file_path);
     bitmap information. */
 void ReadImage(BitmapHandle& image_handle, const char* image_file_path);
 void FreeImage(BitmapHandle& image_handle);
-
-
-// MIXER
-Mix_Chunk *Mixer_LoadChunk(const char *filepath);
 

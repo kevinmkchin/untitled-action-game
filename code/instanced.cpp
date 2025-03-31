@@ -1,16 +1,16 @@
-#include "corpses.h"
+#include "instanced.h"
 
 
-static TripleBufferedSSBO CorpsesSSBO;
+static TripleBufferedSSBO InstanceDataSSBO;
 
-void Corpses_AcquireGPUResources()
+void InstanceDrawing_AcquireGPUResources()
 {
-    CorpsesSSBO.Init(sizeof(model_instance_data_t) * (MaxStaticInstances + MaxDynamicInstances));
+    InstanceDataSSBO.Init(sizeof(model_instance_data_t) * (MaxStaticInstances + MaxDynamicInstances));
 }
 
-void Corpses_ReleaseGPUResources()
+void InstancedDrawing_ReleaseGPUResources()
 {
-    CorpsesSSBO.Destroy();
+    InstanceDataSSBO.Destroy();
 }
 
 void FillModelInstanceData(model_instance_data_t *InstanceData, vec3 ModelCentroid, 
@@ -48,7 +48,7 @@ void FillModelInstanceData(model_instance_data_t *InstanceData, vec3 ModelCentro
     InstanceData->CorpseModel = InstanceModel;
 }
 
-void SortAndDrawCorpses(map_info_t &RuntimeMap,
+void SortAndDrawInstancedModels(map_info_t &RuntimeMap,
     fixed_array<model_instance_data_t> &StaticInstances,
     fixed_array<model_instance_data_t> &DynamicInstances,
     const mat4 &ProjFromView, const mat4 &ViewFromWorld)
@@ -82,12 +82,12 @@ void SortAndDrawCorpses(map_info_t &RuntimeMap,
     GLBind3f(Sha_ModelInstancedLit, "DirectionToSun", RuntimeMap.DirectionToSun.x,
         RuntimeMap.DirectionToSun.y, RuntimeMap.DirectionToSun.z);
 
-    CorpsesSSBO.BeginFrame();
+    InstanceDataSSBO.BeginFrame();
 
-    auto [MappedPtr, GPUOffset] = CorpsesSSBO.Alloc();
+    auto [MappedPtr, GPUOffset] = InstanceDataSSBO.Alloc();
     memcpy(MappedPtr, InstancesCopy.data, InstancesCopy.lenu() * sizeof(model_instance_data_t));
 
-    CorpsesSSBO.Bind(0);
+    InstanceDataSSBO.Bind(0);
 
     size_t BaseInstanceIndex = GPUOffset / sizeof(model_instance_data_t);
 
@@ -113,7 +113,7 @@ void SortAndDrawCorpses(map_info_t &RuntimeMap,
         ++CurrentModelCount;
     }
 
-    CorpsesSSBO.EndFrame();
+    InstanceDataSSBO.EndFrame();
 }
 
 
