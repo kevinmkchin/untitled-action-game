@@ -345,19 +345,18 @@ bool LoadSkinnedModel_GLTF2Bin(const char* InFilePath, skinned_model_t *OutSkinn
                 i32 width = texture->mWidth; // Width is stored in mWidth for uncompressed
                 i32 height = texture->mHeight; // Height is stored in mHeight for uncompressed
 
+                i32 channelsInFile = 4;
                 // Uncompress if compressed format (e.g. PNG / JPG)
                 if (compressed)
                 {
                     u8 *compressedImageData = (u8*)texture->pcData;
-                    i32 channelsInFile;
                     rawPixelData = (void*)stbi_load_from_memory(compressedImageData, texture->mWidth, &width, &height, &channelsInFile, 0);
-                    ASSERT(channelsInFile == 4);
                 }
 
                 ASSERT(rawPixelData);
 
                 CreateGPUTextureFromBitmap(&gputex, rawPixelData, width, height,
-                    GL_SRGB, GL_RGBA, GL_NEAREST, GL_NEAREST);
+                    GL_SRGB, channelsInFile == 3 ? GL_RGB : GL_RGBA, GL_NEAREST, GL_NEAREST);
 
                 if (compressed)
                 {
@@ -689,19 +688,18 @@ bool LoadModelGLTF2Bin(ModelGLTF *model, const char *filepath)
                 i32 width = texture->mWidth; // Width is stored in mWidth for uncompressed
                 i32 height = texture->mHeight; // Height is stored in mHeight for uncompressed
 
+                i32 channelsInFile = 4;
                 // Uncompress if compressed format (e.g. PNG / JPG)
                 if (compressed)
                 {
                     u8 *compressedImageData = (u8*)texture->pcData;
-                    i32 channelsInFile;
                     rawPixelData = (void*)stbi_load_from_memory(compressedImageData, texture->mWidth, &width, &height, &channelsInFile, 0);
-                    ASSERT(channelsInFile == 4);
                 }
 
                 ASSERT(rawPixelData);
 
                 CreateGPUTextureFromBitmap(&gputex, rawPixelData, width, height,
-                    GL_SRGB, GL_RGBA, GL_NEAREST, GL_NEAREST);
+                    GL_SRGB, channelsInFile == 3 ? GL_RGB : GL_RGBA, GL_NEAREST, GL_NEAREST);
 
                 if (compressed)
                 {
