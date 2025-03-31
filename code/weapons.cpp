@@ -109,13 +109,17 @@ void RenderProjectiles(const mat4 &ProjFromView, const mat4 &ViewFromWorld)
             continue;
         }
 
-        BindUniformsForModelLighting(Sha_ModelTexturedLit, RuntimeMapInfo, ProjectileRenderPos);
-        mat4 WorldFromModel = TranslationMatrix(ProjectileRenderPos) 
-                            * RotationMatrix(ProjectileRenderRot)
-                            * ScaleMatrix(SI_UNITS_TO_GAME_UNITS);
-        GLBindMatrix4fv(Sha_ModelTexturedLit, "WorldFromModel", 1, WorldFromModel.ptr());
+        ++GlobalDynamicInstances.length;        
+        FillModelInstanceData(GlobalDynamicInstances.end()-1, ProjectileRenderPos,
+            ProjectileRenderPos, ProjectileRenderRot, P.Type->TexturedModel);
 
-        RenderModelGLTF(*(P.Type->TexturedModel));
+        // BindUniformsForModelLighting(Sha_ModelTexturedLit, RuntimeMapInfo, ProjectileRenderPos);
+        // mat4 WorldFromModel = TranslationMatrix(ProjectileRenderPos) 
+        //                     * RotationMatrix(ProjectileRenderRot)
+        //                     * ScaleMatrix(SI_UNITS_TO_GAME_UNITS);
+        // GLBindMatrix4fv(Sha_ModelTexturedLit, "WorldFromModel", 1, WorldFromModel.ptr());
+
+        // RenderModelGLTF(*());
     }
 }
 
@@ -229,8 +233,8 @@ void KillProjectile(projectile_t *ProjectileToKill)
         vec3 CorpsePosition = FromJoltVector(Physics.BodyInterface->GetPosition(ProjectileToKill->BodyId));
         quat CorpseRotation = FromJoltQuat(Physics.BodyInterface->GetRotation(ProjectileToKill->BodyId));
         ModelGLTF *CorpseModel = ProjectileToKill->Type->TexturedModel;
-        ++GlobalCorpses.length;
-        FillModelInstanceData(&GlobalCorpses[GlobalCorpses.length-1], 
+        ++GlobalStaticInstances.length;
+        FillModelInstanceData(&GlobalStaticInstances[GlobalStaticInstances.length-1], 
             CorpsePosition, CorpsePosition, CorpseRotation, CorpseModel);
     }
 }

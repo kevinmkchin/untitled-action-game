@@ -7,7 +7,9 @@ fixed_array<animator_t> AnimatorPool;
 std::vector<face_batch_t> GameLevelFaceBatches;
 bool GameLoopCanRun = true;
 map_info_t RuntimeMapInfo;
-fixed_array<model_instance_data_t> GlobalCorpses;
+fixed_array<model_instance_data_t> GlobalStaticInstances;
+fixed_array<model_instance_data_t> GlobalDynamicInstances;
+
 int KillEnemyCounter = 0;
 
 // internal
@@ -70,7 +72,7 @@ void DestroyGame()
 void LoadLevel(const char *MapPath)
 {
     StaticLevelMemory.ArenaOffset = 0;
-    GlobalCorpses = fixed_array<model_instance_data_t>(MaxCorpsesInLevel, MemoryType::Level);
+    GlobalStaticInstances = fixed_array<model_instance_data_t>(MaxStaticInstances, MemoryType::Level);
 
     SDL_SetRelativeMouseMode(SDL_TRUE);
 
@@ -202,18 +204,6 @@ void LateNonPhysicsTick()
             "JPH NumActiveBodies: %d", Physics.PhysicsSystem->GetNumActiveBodies(JPH::EBodyType::RigidBody));
     }
 #endif // JPH_DEBUG_RENDERER
-    if (DebugShowGameMemoryUsage)
-    {
-        GUI::PrimitiveTextFmt(8, 58, GUI::GetFontSize(), GUI::Align::LEFT, 
-            "Game Memory usage  [%zd/%zd KB]", 
-            StaticGameMemory.ArenaOffset/1000, StaticGameMemory.ArenaSize/1000);
-        GUI::PrimitiveTextFmt(8, 68, GUI::GetFontSize(), GUI::Align::LEFT, 
-            "Level Memory usage [%zd/%zd KB]", 
-            StaticLevelMemory.ArenaOffset/1000, StaticLevelMemory.ArenaSize/1000);
-        GUI::PrimitiveTextFmt(8, 78, GUI::GetFontSize(), GUI::Align::LEFT, 
-            "Frame Memory usage [%zd/%zd KB]", 
-            FrameMemory.ArenaOffset/1000, FrameMemory.ArenaSize/1000);
-    }
 
     Player.LateNonPhysicsTick();
 }
@@ -222,6 +212,8 @@ void DoGameLoop()
 {
     if (!GameLoopCanRun) 
         return;
+
+    GlobalDynamicInstances = fixed_array<model_instance_data_t>(MaxDynamicInstances, MemoryType::Frame);
 
     NonPhysicsTick();
 
@@ -250,6 +242,19 @@ void DoGameLoop()
     RenderGameLayer();
 
     UpdateGameGUI();
+
+    if (DebugShowGameMemoryUsage)
+    {
+        GUI::PrimitiveTextFmt(8, 58, GUI::GetFontSize(), GUI::Align::LEFT, 
+            "Game Memory usage  [%zd/%zd KB]", 
+            StaticGameMemory.ArenaOffset/1000, StaticGameMemory.ArenaSize/1000);
+        GUI::PrimitiveTextFmt(8, 68, GUI::GetFontSize(), GUI::Align::LEFT, 
+            "Level Memory usage [%zd/%zd KB]", 
+            StaticLevelMemory.ArenaOffset/1000, StaticLevelMemory.ArenaSize/1000);
+        GUI::PrimitiveTextFmt(8, 78, GUI::GetFontSize(), GUI::Align::LEFT, 
+            "Frame Memory usage [%zd/%zd KB]", 
+            FrameMemory.ArenaOffset/1000, FrameMemory.ArenaSize/1000);
+    }
 }
 
 void UpdateGameGUI()
@@ -296,7 +301,8 @@ void RenderGameLayer()
     RenderEnemies(perspectiveMatrix, viewMatrix);
     RenderWeapon(&Player.Weapon, perspectiveMatrix.ptr(), viewMatrix.GetInverse().ptr());
     RenderProjectiles(perspectiveMatrix, viewMatrix);
-    SortAndDrawCorpses(RuntimeMapInfo, GlobalCorpses, perspectiveMatrix, viewMatrix);
+    SortAndDrawCorpses(RuntimeMapInfo, GlobalStaticInstances, GlobalDynamicInstances, 
+        perspectiveMatrix, viewMatrix);
 
     // PRIMITIVES    
     glEnable(GL_DEPTH_TEST);
