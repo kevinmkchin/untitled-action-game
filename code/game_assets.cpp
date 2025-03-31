@@ -3,6 +3,14 @@
 // external
 asset_db_t Assets;
 
+Mix_Chunk *Mixer_LoadChunk(const char *filepath)
+{
+    Mix_Chunk *chunk = Mix_LoadWAV(filepath);
+    if (chunk == NULL)
+        printf("Failed to load sound effect! SDL_mixer error: %s\n", Mix_GetError());
+    return chunk;
+}
+
 db_tex_t asset_db_t::GetTextureById(u32 persistId)
 {
     auto textureiter = Textures.find(persistId);

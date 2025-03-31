@@ -107,11 +107,4 @@ void ReadImage(BitmapHandle& image_handle, const char* image_file_path)
     }
 }
 
-Mix_Chunk *Mixer_LoadChunk(const char *filepath)
-{
-    Mix_Chunk *chunk = Mix_LoadWAV(filepath);
-    if (chunk == NULL)
-        printf("Failed to load sound effect! SDL_mixer error: %s\n", Mix_GetError());
-    return chunk;
-}
 
