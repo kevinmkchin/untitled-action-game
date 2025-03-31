@@ -212,15 +212,15 @@ RENDERDOC_API_1_6_0 *RDOCAPI = NULL;
 #endif
 
 
-GPUShader GameLevelShader;
-GPUShader GameModelTexturedShader;
-GPUShader GameModelSkinnedShader;
+GPUShader Sha_GameLevel;
+GPUShader Sha_ModelTexturedLit;
+GPUShader Sha_ModelSkinnedLit;
 GPUShader Sha_ModelInstancedLit;
-GPUShader GunShader;
-GPUShader PatchesIDShader;
-GPUShader EditorShader_Scene;
-GPUShader EditorShader_Wireframe;
-GPUShader EditorShader_FaceSelected;
+GPUShader Sha_Gun;
+GPUShader Sha_Hemicube;
+GPUShader Sha_EditorScene;
+GPUShader Sha_EditorWireframe;
+GPUShader Sha_EditorFaceSelected;
 GPUShader FinalPassShader;
 GPUFrameBuffer RenderTargetGame;
 GPUFrameBuffer RenderTargetGUI;
@@ -323,31 +323,31 @@ static void InitGameRenderer()
     CreateGPUFrameBuffer(&RenderTargetGUI);
 
 
-    GLLoadShaderProgramFromFile(GameLevelShader, 
+    GLLoadShaderProgramFromFile(Sha_GameLevel, 
         shader_path("__game_level.vert").c_str(), 
         shader_path("__game_level.frag").c_str());
-    GLLoadShaderProgramFromFile(GameModelTexturedShader, 
+    GLLoadShaderProgramFromFile(Sha_ModelTexturedLit, 
         shader_path("model_textured.vert").c_str(), 
         shader_path("model_textured_skinned.frag").c_str());
-    GLLoadShaderProgramFromFile(GameModelSkinnedShader, 
+    GLLoadShaderProgramFromFile(Sha_ModelSkinnedLit, 
         shader_path("model_skinned.vert").c_str(), 
         shader_path("model_textured_skinned.frag").c_str());
     GLLoadShaderProgramFromFile(Sha_ModelInstancedLit, 
         shader_path("model_instanced_lit.vert").c_str(), 
         shader_path("model_instanced_lit.frag").c_str());
-    GLLoadShaderProgramFromFile(GunShader, 
+    GLLoadShaderProgramFromFile(Sha_Gun, 
         shader_path("guns.vert").c_str(), 
         shader_path("guns.frag").c_str());
-    GLLoadShaderProgramFromFile(PatchesIDShader, 
+    GLLoadShaderProgramFromFile(Sha_Hemicube, 
         shader_path("__patches_id.vert").c_str(), 
         shader_path("__patches_id.frag").c_str());
-    GLCreateShaderProgram(EditorShader_Scene, 
+    GLCreateShaderProgram(Sha_EditorScene, 
         __editor_scene_shader_vs, 
         __editor_scene_shader_fs);
-    GLCreateShaderProgram(EditorShader_Wireframe, 
+    GLCreateShaderProgram(Sha_EditorWireframe, 
         __editor_scene_wireframe_shader_vs, 
         __editor_scene_wireframe_shader_fs);
-    GLCreateShaderProgram(EditorShader_FaceSelected, 
+    GLCreateShaderProgram(Sha_EditorFaceSelected, 
         __editor_shader_face_selected_vs, 
         __editor_shader_face_selected_fs);
     GLCreateShaderProgram(FinalPassShader, 

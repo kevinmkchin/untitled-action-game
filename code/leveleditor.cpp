@@ -1085,15 +1085,15 @@ void level_editor_t::Draw()
     mat4 perspectiveMatrix = ActivePerspectiveMatrix;
     mat4 viewMatrix = ActiveViewMatrix;
 
-    UseShader(EditorShader_Scene);
+    UseShader(Sha_EditorScene);
     glEnable(GL_CULL_FACE);
 
-    GLBindMatrix4fv(EditorShader_Scene, "projMatrix", 1, perspectiveMatrix.ptr());
-    GLBindMatrix4fv(EditorShader_Scene, "viewMatrix", 1, viewMatrix.ptr());
+    GLBindMatrix4fv(Sha_EditorScene, "projMatrix", 1, perspectiveMatrix.ptr());
+    GLBindMatrix4fv(Sha_EditorScene, "viewMatrix", 1, viewMatrix.ptr());
 
     mat4 modelMatrix = mat4();
 
-    GLBindMatrix4fv(EditorShader_Scene, "modelMatrix", 1, modelMatrix.ptr());
+    GLBindMatrix4fv(Sha_EditorScene, "modelMatrix", 1, modelMatrix.ptr());
 
     MapEdit::Face *selectedFace = NULL;
     MapEdit::Face *hoveredFace = NULL;
@@ -1124,26 +1124,26 @@ void level_editor_t::Draw()
     {
         if (selectedFace)
         {
-            UseShader(EditorShader_FaceSelected);
+            UseShader(Sha_EditorFaceSelected);
             float sf = (sinf(TimeSinceStart * 2.7f) + 1.f) / 2.f;
             sf *= 0.1f;
-            GLBind3f(EditorShader_FaceSelected, "tint", 1.0f, 1.0f - sf, 1.0f - sf);
-            GLBindMatrix4fv(EditorShader_FaceSelected, "projMatrix", 1, perspectiveMatrix.ptr());
-            GLBindMatrix4fv(EditorShader_FaceSelected, "viewMatrix", 1, viewMatrix.ptr());
+            GLBind3f(Sha_EditorFaceSelected, "tint", 1.0f, 1.0f - sf, 1.0f - sf);
+            GLBindMatrix4fv(Sha_EditorFaceSelected, "projMatrix", 1, perspectiveMatrix.ptr());
+            GLBindMatrix4fv(Sha_EditorFaceSelected, "viewMatrix", 1, viewMatrix.ptr());
             modelMatrix = mat4();
-            GLBindMatrix4fv(EditorShader_FaceSelected, "modelMatrix", 1, modelMatrix.ptr());
+            GLBindMatrix4fv(Sha_EditorFaceSelected, "modelMatrix", 1, modelMatrix.ptr());
             const GPUTexture ftex = selectedFace->texture.gputex;
             const GPUMesh fm = selectedFace->facemesh;
             RenderGPUMesh(fm.idVAO, fm.idVBO, fm.vertexCount, &ftex);
         }
         // else if (hoveredFace)
         // {
-        //     UseShader(EditorShader_FaceSelected);
-        //     GLBind3f(EditorShader_FaceSelected, "tint", 0.9f, 0.9f, 0.0f);
-        //     GLBindMatrix4fv(EditorShader_FaceSelected, "projMatrix", 1, perspectiveMatrix.ptr());
-        //     GLBindMatrix4fv(EditorShader_FaceSelected, "viewMatrix", 1, viewMatrix.ptr());
+        //     UseShader(Sha_EditorFaceSelected);
+        //     GLBind3f(Sha_EditorFaceSelected, "tint", 0.9f, 0.9f, 0.0f);
+        //     GLBindMatrix4fv(Sha_EditorFaceSelected, "projMatrix", 1, perspectiveMatrix.ptr());
+        //     GLBindMatrix4fv(Sha_EditorFaceSelected, "viewMatrix", 1, viewMatrix.ptr());
         //     modelMatrix = mat4();
-        //     GLBindMatrix4fv(EditorShader_FaceSelected, "modelMatrix", 1, modelMatrix.ptr());
+        //     GLBindMatrix4fv(Sha_EditorFaceSelected, "modelMatrix", 1, modelMatrix.ptr());
         //     const GPUTexture ftex = hoveredFace->texture.gputex;
         //     const GPUMesh fm = hoveredFace->facemesh;
         //     RenderGPUMesh(fm.idVAO, fm.idVBO, fm.vertexCount, &ftex);

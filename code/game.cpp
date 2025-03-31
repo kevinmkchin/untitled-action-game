@@ -276,21 +276,21 @@ void RenderGameLayer()
     mat4 perspectiveMatrix = ProjectionMatrixPerspective(fovy, aspectratio, GAMEPROJECTION_NEARCLIP, GAMEPROJECTION_FARCLIP);
     mat4 viewMatrix = Player.PlayerCam.ViewFromWorldMatrix();
 
-    UseShader(GameLevelShader);
+    UseShader(Sha_GameLevel);
     glEnable(GL_CULL_FACE);
 
-    GLBind4f(GameLevelShader, "MuzzleFlash", 
+    GLBind4f(Sha_GameLevel, "MuzzleFlash", 
         Player.Weapon.MuzzleFlash.x, 
         Player.Weapon.MuzzleFlash.y, 
         Player.Weapon.MuzzleFlash.z, 
         Player.Weapon.MuzzleFlash.w);
-    GLBindMatrix4fv(GameLevelShader, "projMatrix", 1, perspectiveMatrix.ptr());
-    GLBindMatrix4fv(GameLevelShader, "viewMatrix", 1, viewMatrix.ptr());
+    GLBindMatrix4fv(Sha_GameLevel, "projMatrix", 1, perspectiveMatrix.ptr());
+    GLBindMatrix4fv(Sha_GameLevel, "viewMatrix", 1, viewMatrix.ptr());
 
     for (size_t i = 0; i < GameLevelFaceBatches.size(); ++i)
     {
         face_batch_t fb = GameLevelFaceBatches.at(i);
-        RenderFaceBatch(&GameLevelShader, &fb);
+        RenderFaceBatch(&Sha_GameLevel, &fb);
     }
 
     RenderEnemies(perspectiveMatrix, viewMatrix);
