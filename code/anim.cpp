@@ -536,6 +536,27 @@ mat4 joint_pose_sampler_t::InterpolateScale(float AnimationTime)
 
 
 
+void DrawModelInstanced(ModelGLTF& Model, int Count)
+{
+    for (u32 i = 0; i < Model.meshes.lenu(); ++i)
+    {
+        GPUMeshIndexed &m = Model.meshes[i];
+        GPUTexture &t = Model.color[i];
+
+        glActiveTexture(GL_TEXTURE0);
+        if (t.id)
+            glBindTexture(GL_TEXTURE_2D, t.id);
+        else
+            glBindTexture(GL_TEXTURE_2D, Assets.DefaultMissingTexture.id);
+
+        glBindVertexArray(m.idVAO);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m.idIBO);
+        glDrawElementsInstanced(GL_TRIANGLES, m.indicesCount, GL_UNSIGNED_INT, 0, Count);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+        glBindVertexArray(0);
+    }
+}
+
 void FreeModelGLTF(ModelGLTF& model)
 {
     ASSERT(0);

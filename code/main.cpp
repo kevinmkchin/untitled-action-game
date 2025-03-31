@@ -157,10 +157,11 @@ inline std::string entity_icons_path(const std::string& name) { return wd_path()
 
 #include "mem.h"
 #include "utility.h"
+#include "gpu_resources.h"
+#include "shaders.h"
 #include "resources.h"
 #include "anim.h"
 #include "game_assets.h"
-#include "shaders.h"
 #include "facebatch.h"
 #include "filedialog.h"
 #include "physics.h"
@@ -214,6 +215,7 @@ RENDERDOC_API_1_6_0 *RDOCAPI = NULL;
 GPUShader GameLevelShader;
 GPUShader GameModelTexturedShader;
 GPUShader GameModelSkinnedShader;
+GPUShader Sha_ModelInstancedLit;
 GPUShader GunShader;
 GPUShader PatchesIDShader;
 GPUShader EditorShader_Scene;
@@ -230,10 +232,11 @@ float GAMEPROJECTION_FARCLIP = 32000.f;
 #include "mem.cpp"
 #include "utility.cpp"
 #include "anim.cpp"
+#include "gpu_resources.cpp"
+#include "shaders.cpp"
 #include "resources.cpp"
 #include "game_assets.cpp"
 #include "physics_debug.cpp"
-#include "shaders.cpp"
 #include "shader_helpers.cpp"
 #include "facebatch.cpp"
 #include "filedialog.cpp"
@@ -329,6 +332,9 @@ static void InitGameRenderer()
     GLLoadShaderProgramFromFile(GameModelSkinnedShader, 
         shader_path("model_skinned.vert").c_str(), 
         shader_path("model_textured_skinned.frag").c_str());
+    GLLoadShaderProgramFromFile(Sha_ModelInstancedLit, 
+        shader_path("model_instanced_lit.vert").c_str(), 
+        shader_path("model_instanced_lit.frag").c_str());
     GLLoadShaderProgramFromFile(GunShader, 
         shader_path("guns.vert").c_str(), 
         shader_path("guns.frag").c_str());

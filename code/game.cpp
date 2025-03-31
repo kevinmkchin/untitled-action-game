@@ -7,7 +7,8 @@ fixed_array<animator_t> AnimatorPool;
 std::vector<face_batch_t> GameLevelFaceBatches;
 bool GameLoopCanRun = true;
 map_info_t RuntimeMapInfo;
-fixed_array<corpse_t> GlobalCorpses;
+fixed_array<model_instance_data_t> GlobalCorpses;
+int KillEnemyCounter = 0;
 
 // internal
 static bool LevelLoaded = false;
@@ -25,12 +26,15 @@ enum ske_humanoid_clips : u32
 
 void InitializeGame()
 {
+    Corpses_AcquireGPUResources();
+
     AnimatorPool = fixed_array<animator_t>(64, MemoryType::StaticGame);
     AnimatorPool.setlen(64);
     for (size_t i = 0; i < AnimatorPool.length; ++i)
         AnimatorPool[i] = animator_t();
 
     Physics.Initialize();
+
 
     SetupProjectilesDataAndAllocateMemory();
 
@@ -52,6 +56,8 @@ void DestroyGame()
     EnemySystem.Destroy();
     Physics.Destroy();
 
+    Corpses_ReleaseGPUResources();
+
 #if INTERNAL_BUILD
     RecastDebugDrawer.Destroy();
 #endif // INTERNAL_BUILD
@@ -64,7 +70,7 @@ void DestroyGame()
 void LoadLevel(const char *MapPath)
 {
     StaticLevelMemory.ArenaOffset = 0;
-    GlobalCorpses = fixed_array<corpse_t>(EnemySystem.MaxCorpses, MemoryType::StaticLevel);
+    GlobalCorpses = fixed_array<model_instance_data_t>(MaxCorpsesInLevel, MemoryType::StaticLevel);
 
     SDL_SetRelativeMouseMode(SDL_TRUE);
 
@@ -124,7 +130,8 @@ void NonPhysicsTick()
     {
         // ASSERT(0);
     }
-    GUI::PrimitiveTextFmt(180, 650, 54, GUI::Align::RIGHT, "%d", (int)ceilf(Player.Health));
+    GUI::PrimitiveTextFmt(20, 180, 9, GUI::Align::LEFT, "kills %d", KillEnemyCounter);
+    GUI::PrimitiveTextFmt(180, 650, 18, GUI::Align::RIGHT, "%d", (int)ceilf(Player.Health));
 }
 
 void PrePhysicsTick()
@@ -198,14 +205,14 @@ void LateNonPhysicsTick()
     if (DebugShowGameMemoryUsage)
     {
         GUI::PrimitiveTextFmt(8, 58, GUI::GetFontSize(), GUI::Align::LEFT, 
-            "Game Memory usage  [%zd/%zd bytes]", 
-            StaticGameMemory.ArenaOffset, StaticGameMemory.ArenaSize);
+            "Game Memory usage  [%zd/%zd KB]", 
+            StaticGameMemory.ArenaOffset/1000, StaticGameMemory.ArenaSize/1000);
         GUI::PrimitiveTextFmt(8, 68, GUI::GetFontSize(), GUI::Align::LEFT, 
-            "Level Memory usage [%zd/%zd bytes]", 
-            StaticLevelMemory.ArenaOffset, StaticLevelMemory.ArenaSize);
+            "Level Memory usage [%zd/%zd KB]", 
+            StaticLevelMemory.ArenaOffset/1000, StaticLevelMemory.ArenaSize/1000);
         GUI::PrimitiveTextFmt(8, 78, GUI::GetFontSize(), GUI::Align::LEFT, 
-            "Frame Memory usage [%zd/%zd bytes]", 
-            FrameMemory.ArenaOffset, FrameMemory.ArenaSize);
+            "Frame Memory usage [%zd/%zd KB]", 
+            FrameMemory.ArenaOffset/1000, FrameMemory.ArenaSize/1000);
     }
 
     Player.LateNonPhysicsTick();

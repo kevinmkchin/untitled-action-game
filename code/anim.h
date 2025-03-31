@@ -284,6 +284,7 @@ struct ModelGLTF
     fixed_array<GPUTexture> color;
 };
 
+void DrawModelInstanced(ModelGLTF& Model, int Count);
 void FreeModelGLTF(ModelGLTF& model);
 void RenderModelGLTF(ModelGLTF& model);
 bool LoadModelGLTF2Bin(ModelGLTF *model, const char *filepath);

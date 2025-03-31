@@ -248,7 +248,7 @@ support_renderer_t SupportRenderer;
 
 void support_renderer_t::NewFrame()
 {
-    PRIMITIVE_TRIS_VB = fixed_array<float>(2000000, MemoryType::Frame);
+    PRIMITIVE_TRIS_VB = fixed_array<float>(1000000, MemoryType::Frame);
     PRIMITIVE_FATLINES_VB = fixed_array<float>(250000, MemoryType::Frame);
     PRIMITIVE_LINES_VB = fixed_array<float>(250000, MemoryType::Frame);
     HANDLES_VB = fixed_array<float>(250000, MemoryType::Frame);
