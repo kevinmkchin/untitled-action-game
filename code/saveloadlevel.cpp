@@ -55,7 +55,7 @@ static void DeserializeMapLightData(ByteBuffer *Buf, map_info_t *MapInfo)
     MapInfo->DirectionToSun = Normalize(MapInfo->DirectionToSun);
     u32 PointLightsCount;
     ByteBufferRead(Buf, u32, &PointLightsCount);
-    MapInfo->PointLights = fixed_array<static_point_light_t>(PointLightsCount, MemoryType::StaticLevel);
+    MapInfo->PointLights = fixed_array<static_point_light_t>(PointLightsCount, MemoryType::Level);
     MapInfo->PointLights.setlen(PointLightsCount);
     ByteBufferReadBulk(Buf, MapInfo->PointLights.data, sizeof(static_point_light_t) * PointLightsCount);
 }
@@ -186,7 +186,7 @@ bool LoadGameMap(map_info_t *MapInfo, const char *path)
 
     // Light cache volume
     MapInfo->LightCacheVolume = new_InLevelMemory(lc_volume_t)();
-    MapInfo->LightCacheVolume->Deserialize(&mapbuf, MemoryType::StaticLevel);
+    MapInfo->LightCacheVolume->Deserialize(&mapbuf, MemoryType::Level);
 
     DeserializeMapLightData(&mapbuf, MapInfo);
 

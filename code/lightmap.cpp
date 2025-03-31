@@ -842,8 +842,8 @@ void lc_volume_baker_t::BakeLightCubes(game_map_build_data_t& BuildData)
     PlaceLightCubes();
 
     u32 NumSamples = LightCubeVolume.AmbientCubes.lenu() * 6; // num cubes * 6
-    fixed_array<vec3> CubePositionsRepeated = fixed_array<vec3>(NumSamples, MemoryType::DefaultMalloc);
-    fixed_array<vec3> CubeNormalsRepeated = fixed_array<vec3>(NumSamples, MemoryType::DefaultMalloc);
+    fixed_array<vec3> CubePositionsRepeated = fixed_array<vec3>(NumSamples, MemoryType::Malloc);
+    fixed_array<vec3> CubeNormalsRepeated = fixed_array<vec3>(NumSamples, MemoryType::Malloc);
     CubePositionsRepeated.setlen(NumSamples);
     CubeNormalsRepeated.setlen(NumSamples);
     for (size_t i = 0; i < LightCubeVolume.AmbientCubes.lenu(); ++i)
@@ -1013,9 +1013,9 @@ void lc_volume_baker_t::PlaceLightCubes()
     ASSERT(TotalNumberOfCubes >= 0);
     ASSERT(TotalNumberOfCubes <= 1000000);
 
-    LightCubeVolume.CubePositions = fixed_array<vec3>(TotalNumberOfCubes, MemoryType::DefaultMalloc);
-    LightCubeVolume.AmbientCubes = fixed_array<lc_ambient_t>(TotalNumberOfCubes, MemoryType::DefaultMalloc);
-    LightCubeVolume.SignificantLightIndices = fixed_array<lc_light_indices_t>(TotalNumberOfCubes, MemoryType::DefaultMalloc);
+    LightCubeVolume.CubePositions = fixed_array<vec3>(TotalNumberOfCubes, MemoryType::Malloc);
+    LightCubeVolume.AmbientCubes = fixed_array<lc_ambient_t>(TotalNumberOfCubes, MemoryType::Malloc);
+    LightCubeVolume.SignificantLightIndices = fixed_array<lc_light_indices_t>(TotalNumberOfCubes, MemoryType::Malloc);
     LightCubeVolume.CubePositions.setlen(TotalNumberOfCubes);
     LightCubeVolume.AmbientCubes.setlen(TotalNumberOfCubes);
     LightCubeVolume.SignificantLightIndices.setlen(TotalNumberOfCubes);

@@ -151,7 +151,7 @@ void asset_db_t::LoadAllResources()
     ASSERT(LoadSkinnedModel_GLTF2Bin(model_path("attacker.glb").c_str(), Model_Attacker));
 
     // == Textured models
-    ModelsTextured = fixed_array<ModelGLTF>(MT_COUNT, MemoryType::StaticGame);
+    ModelsTextured = fixed_array<ModelGLTF>(MT_COUNT, MemoryType::Game);
     ModelsTextured.setlen(MT_COUNT);
     for (u16 i = 0; i < MT_COUNT; ++i)
         ModelsTextured[i].MT_ID = i;

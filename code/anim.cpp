@@ -200,7 +200,7 @@ static void ReadAnimationClip(const aiAnimation *AssimpAnim, animation_clip_t *O
     OutClip->TicksPerSecond = TEMPFLAG_IsGLB ? 1000.f : (float)AssimpAnim->mTicksPerSecond;
     // The number of bone animation channels. Each channel affects a single node.
     u32 NumChannels = AssimpAnim->mNumChannels;
-    OutClip->JointPoseSamplers = fixed_array<joint_pose_sampler_t>(NumChannels, MemoryType::StaticGame);
+    OutClip->JointPoseSamplers = fixed_array<joint_pose_sampler_t>(NumChannels, MemoryType::Game);
     OutClip->JointPoseSamplers.setlen(NumChannels);
     ASSERT(NumChannels == (u32)OutClip->GetSkeleton()->Joints.count);
     for (size_t i = 0; i < OutClip->JointPoseSamplers.length; ++i)
@@ -371,9 +371,9 @@ bool LoadSkinnedModel_GLTF2Bin(const char* InFilePath, skinned_model_t *OutSkinn
     ASSERT(Scene->mNumMeshes > 0);
     ASSERT(OutSkinnedModel->Meshes.data == NULL);
     ASSERT(OutSkinnedModel->Textures.data == NULL);
-    OutSkinnedModel->Meshes = fixed_array<skinned_mesh_t>(Scene->mNumMeshes, MemoryType::StaticGame);
+    OutSkinnedModel->Meshes = fixed_array<skinned_mesh_t>(Scene->mNumMeshes, MemoryType::Game);
     OutSkinnedModel->Meshes.setlen(Scene->mNumMeshes);
-    OutSkinnedModel->Textures = fixed_array<GPUTexture>(Scene->mNumMeshes, MemoryType::StaticGame);
+    OutSkinnedModel->Textures = fixed_array<GPUTexture>(Scene->mNumMeshes, MemoryType::Game);
     OutSkinnedModel->Textures.setlen(Scene->mNumMeshes);
 
     for (u32 MeshIndex = 0; MeshIndex < Scene->mNumMeshes; ++MeshIndex)
@@ -397,11 +397,11 @@ void joint_pose_sampler_t::Create(const aiNodeAnim *InChannel)
     ASSERT(InChannel->mNumPositionKeys >= 2);
     ASSERT(InChannel->mNumRotationKeys >= 2);
     ASSERT(InChannel->mNumScalingKeys >= 2);
-    Positions = fixed_array<keyframe_position_t>(InChannel->mNumPositionKeys, MemoryType::StaticGame);
+    Positions = fixed_array<keyframe_position_t>(InChannel->mNumPositionKeys, MemoryType::Game);
     Positions.setlen(InChannel->mNumPositionKeys);
-    Rotations = fixed_array<keyframe_rotation_t>(InChannel->mNumRotationKeys, MemoryType::StaticGame);
+    Rotations = fixed_array<keyframe_rotation_t>(InChannel->mNumRotationKeys, MemoryType::Game);
     Rotations.setlen(InChannel->mNumRotationKeys);
-    Scales = fixed_array<keyframe_scale_t>(InChannel->mNumScalingKeys, MemoryType::StaticGame);
+    Scales = fixed_array<keyframe_scale_t>(InChannel->mNumScalingKeys, MemoryType::Game);
     Scales.setlen(InChannel->mNumScalingKeys);
 
     for (u32 i = 0; i < InChannel->mNumPositionKeys; ++i)
@@ -715,9 +715,9 @@ bool LoadModelGLTF2Bin(ModelGLTF *model, const char *filepath)
     ASSERT(scene->mNumMeshes > 0);
     ASSERT(model->meshes.data == NULL);
     ASSERT(model->color.data == NULL);
-    model->meshes = fixed_array<GPUMeshIndexed>(scene->mNumMeshes, MemoryType::StaticGame);
+    model->meshes = fixed_array<GPUMeshIndexed>(scene->mNumMeshes, MemoryType::Game);
     model->meshes.setlen(scene->mNumMeshes);
-    model->color = fixed_array<GPUTexture>(scene->mNumMeshes, MemoryType::StaticGame);
+    model->color = fixed_array<GPUTexture>(scene->mNumMeshes, MemoryType::Game);
     model->color.setlen(scene->mNumMeshes);
 
     for (u32 meshIndex = 0; meshIndex < scene->mNumMeshes; ++meshIndex)

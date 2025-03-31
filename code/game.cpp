@@ -28,7 +28,7 @@ void InitializeGame()
 {
     Corpses_AcquireGPUResources();
 
-    AnimatorPool = fixed_array<animator_t>(64, MemoryType::StaticGame);
+    AnimatorPool = fixed_array<animator_t>(64, MemoryType::Game);
     AnimatorPool.setlen(64);
     for (size_t i = 0; i < AnimatorPool.length; ++i)
         AnimatorPool[i] = animator_t();
@@ -70,7 +70,7 @@ void DestroyGame()
 void LoadLevel(const char *MapPath)
 {
     StaticLevelMemory.ArenaOffset = 0;
-    GlobalCorpses = fixed_array<model_instance_data_t>(MaxCorpsesInLevel, MemoryType::StaticLevel);
+    GlobalCorpses = fixed_array<model_instance_data_t>(MaxCorpsesInLevel, MemoryType::Level);
 
     SDL_SetRelativeMouseMode(SDL_TRUE);
 

@@ -122,7 +122,7 @@ struct lc_volume_t
 
     static constexpr u64 lc_volume_t_serialize_start_marker = 0x6C63766F6C736572;
     void Serialize(ByteBuffer *Buf);
-    void Deserialize(ByteBuffer *Buf, MemoryType VolumeStorageType = MemoryType::StaticLevel);
+    void Deserialize(ByteBuffer *Buf, MemoryType VolumeStorageType = MemoryType::Level);
 
 
     vec3 Start;
