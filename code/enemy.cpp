@@ -249,15 +249,15 @@ void PostPhysicsTickAllEnemies()
 
 void RenderEnemies(const mat4 &ProjFromView, const mat4 &ViewFromWorld)
 {
-    UseShader(GameModelSkinnedShader);
+    UseShader(Sha_ModelSkinnedLit);
     glEnable(GL_DEPTH_TEST);
-    GLBind4f(GameModelSkinnedShader, "MuzzleFlash", 
+    GLBind4f(Sha_ModelSkinnedLit, "MuzzleFlash", 
         Player.Weapon.MuzzleFlash.x, 
         Player.Weapon.MuzzleFlash.y, 
         Player.Weapon.MuzzleFlash.z, 
         Player.Weapon.MuzzleFlash.w);
-    GLBindMatrix4fv(GameModelSkinnedShader, "Projection", 1, ProjFromView.ptr());
-    GLBindMatrix4fv(GameModelSkinnedShader, "View", 1, ViewFromWorld.ptr());
+    GLBindMatrix4fv(Sha_ModelSkinnedLit, "Projection", 1, ProjFromView.ptr());
+    GLBindMatrix4fv(Sha_ModelSkinnedLit, "View", 1, ViewFromWorld.ptr());
 
     for (int i = 0; i < EnemySystem.MaxEnemies; ++i)
     {
@@ -266,14 +266,14 @@ void RenderEnemies(const mat4 &ProjFromView, const mat4 &ViewFromWorld)
             continue;
 
         // TODO(Kevin): should use centroid instead of root
-        BindUniformsForModelLighting(GameModelSkinnedShader, RuntimeMapInfo, Enemy.Position);
+        BindUniformsForModelLighting(Sha_ModelSkinnedLit, RuntimeMapInfo, Enemy.Position);
 
         mat4 ModelMatrix = TranslationMatrix(Enemy.Position) * 
             RotationMatrix(Enemy.Orientation) * ScaleMatrix(SI_UNITS_TO_GAME_UNITS);
 
-        GLBindMatrix4fv(GameModelSkinnedShader, "Model", 1, ModelMatrix.ptr());
+        GLBindMatrix4fv(Sha_ModelSkinnedLit, "Model", 1, ModelMatrix.ptr());
 
-        GLBindMatrix4fv(GameModelSkinnedShader, "FinalBonesMatrices[0]", MAX_BONES, 
+        GLBindMatrix4fv(Sha_ModelSkinnedLit, "FinalBonesMatrices[0]", MAX_BONES, 
             Enemy.Animator->SkinningMatrixPalette[0].ptr());
 
         for (size_t i = 0; i < Assets.Model_Attacker->Meshes.length; ++i)

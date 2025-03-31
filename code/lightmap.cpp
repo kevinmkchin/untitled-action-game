@@ -141,11 +141,11 @@ void lightmapper_t::BakeStaticLighting(game_map_build_data_t& BuildData)
     // Without explictly disabling, hemicube rendering won't work properly after rendering the level
     // editor because it enables blending there.
     glDisable(GL_BLEND); 
-    UseShader(PatchesIDShader);
+    UseShader(Sha_Hemicube);
 
     float HEMICUBE_NEARCLIP = 1.f;
     mat4 HemicubePerspectiveMatrix = ProjectionMatrixPerspective(90.f*GM_DEG2RAD, 1.f, HEMICUBE_NEARCLIP, GAMEPROJECTION_FARCLIP);
-    GLBindMatrix4fv(PatchesIDShader, "projMatrix", 1, HemicubePerspectiveMatrix.ptr());
+    GLBindMatrix4fv(Sha_Hemicube, "projMatrix", 1, HemicubePerspectiveMatrix.ptr());
 
     glBindFramebuffer(GL_FRAMEBUFFER, HemicubeFBO.fbo);
     glReadBuffer(GL_COLOR_ATTACHMENT0); // Asynchronously read pixel data into the PBO
@@ -560,30 +560,30 @@ void lightmapper_t::CalcBounceLightForTexel(const lm_face_t& FaceLightmap,
 
     glViewport(0, 0, HemicubeFaceW, HemicubeFaceH);
     mat4 HemicubeViewMatrix = ViewMatrixLookAt(patch_i_pos, patch_i_pos + patch_i_normal, patch_i_basisV);
-    GLBindMatrix4fv(PatchesIDShader, "viewMatrix", 1, HemicubeViewMatrix.ptr());
-    RenderFaceBatch(&PatchesIDShader, &SceneLightingModel);
+    GLBindMatrix4fv(Sha_Hemicube, "viewMatrix", 1, HemicubeViewMatrix.ptr());
+    RenderFaceBatch(&Sha_Hemicube, &SceneLightingModel);
 
     // if top face is "front", then 
     // up face
     glViewport(HemicubeFaceW*1, 0, HemicubeFaceW, HemicubeFaceH);
     HemicubeViewMatrix = ViewMatrixLookAt(patch_i_pos, patch_i_pos + patch_i_basisV, patch_i_normal);
-    GLBindMatrix4fv(PatchesIDShader, "viewMatrix", 1, HemicubeViewMatrix.ptr());
-    RenderFaceBatch(&PatchesIDShader, &SceneLightingModel);
+    GLBindMatrix4fv(Sha_Hemicube, "viewMatrix", 1, HemicubeViewMatrix.ptr());
+    RenderFaceBatch(&Sha_Hemicube, &SceneLightingModel);
     // down face
     glViewport(HemicubeFaceW*2, 0, HemicubeFaceW, HemicubeFaceH);
     HemicubeViewMatrix = ViewMatrixLookAt(patch_i_pos, patch_i_pos - patch_i_basisV, patch_i_normal);
-    GLBindMatrix4fv(PatchesIDShader, "viewMatrix", 1, HemicubeViewMatrix.ptr());
-    RenderFaceBatch(&PatchesIDShader, &SceneLightingModel);
+    GLBindMatrix4fv(Sha_Hemicube, "viewMatrix", 1, HemicubeViewMatrix.ptr());
+    RenderFaceBatch(&Sha_Hemicube, &SceneLightingModel);
     // left face
     glViewport(HemicubeFaceW*3, 0, HemicubeFaceW, HemicubeFaceH);
     HemicubeViewMatrix = ViewMatrixLookAt(patch_i_pos, patch_i_pos + patch_i_basisU, patch_i_normal);
-    GLBindMatrix4fv(PatchesIDShader, "viewMatrix", 1, HemicubeViewMatrix.ptr());
-    RenderFaceBatch(&PatchesIDShader, &SceneLightingModel);
+    GLBindMatrix4fv(Sha_Hemicube, "viewMatrix", 1, HemicubeViewMatrix.ptr());
+    RenderFaceBatch(&Sha_Hemicube, &SceneLightingModel);
     // right face
     glViewport(HemicubeFaceW*4, 0, HemicubeFaceW, HemicubeFaceH);
     HemicubeViewMatrix = ViewMatrixLookAt(patch_i_pos, patch_i_pos - patch_i_basisU, patch_i_normal);
-    GLBindMatrix4fv(PatchesIDShader, "viewMatrix", 1, HemicubeViewMatrix.ptr());
-    RenderFaceBatch(&PatchesIDShader, &SceneLightingModel);
+    GLBindMatrix4fv(Sha_Hemicube, "viewMatrix", 1, HemicubeViewMatrix.ptr());
+    RenderFaceBatch(&Sha_Hemicube, &SceneLightingModel);
 
     // if (RDOCAPI) RDOCAPI->EndFrameCapture(NULL, NULL);
 

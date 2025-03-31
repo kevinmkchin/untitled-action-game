@@ -50,15 +50,15 @@ void TickWeapon(weapon_state_t *State, bool LMB, bool RMB)
 
 void RenderWeapon(weapon_state_t *State, float *ProjFromView, float *WorldFromView)
 {
-    UseShader(GunShader);
+    UseShader(Sha_Gun);
     glEnable(GL_DEPTH_TEST);
-    GLBindMatrix4fv(GunShader, "WorldFromView", 1, WorldFromView);
-    GLBindMatrix4fv(GunShader, "ProjFromView", 1, ProjFromView);
+    GLBindMatrix4fv(Sha_Gun, "WorldFromView", 1, WorldFromView);
+    GLBindMatrix4fv(Sha_Gun, "ProjFromView", 1, ProjFromView);
 
     GPUMeshIndexed m;
     GPUTexture t;
     mat4 GunOffsetAndScale = TranslationMatrix(0,-4,GunRecoil) * ScaleMatrix(SI_UNITS_TO_GAME_UNITS);
-    GLBindMatrix4fv(GunShader, "ViewFromModel", 1, GunOffsetAndScale.ptr());
+    GLBindMatrix4fv(Sha_Gun, "ViewFromModel", 1, GunOffsetAndScale.ptr());
     m = Assets.ModelsTextured[MT_WPN_TYPE1].meshes[0];
     t = Assets.ModelsTextured[MT_WPN_TYPE1].color[0];
     // glActiveTexture(GL_TEXTURE0);
@@ -77,7 +77,7 @@ void RenderWeapon(weapon_state_t *State, float *ProjFromView, float *WorldFromVi
     GunOffsetAndScale = TranslationMatrix(0,-4,GunRecoil) 
         * RotationMatrix(EulerToQuat(0,0,State->NailgunRotation)) 
         * ScaleMatrix(SI_UNITS_TO_GAME_UNITS);
-    GLBindMatrix4fv(GunShader, "ViewFromModel", 1, GunOffsetAndScale.ptr());
+    GLBindMatrix4fv(Sha_Gun, "ViewFromModel", 1, GunOffsetAndScale.ptr());
     m = Assets.ModelsTextured[MT_WPN_TYPE1].meshes[1];
     t = Assets.ModelsTextured[MT_WPN_TYPE1].color[1];
     // glActiveTexture(GL_TEXTURE0);
@@ -87,15 +87,15 @@ void RenderWeapon(weapon_state_t *State, float *ProjFromView, float *WorldFromVi
 
 void RenderProjectiles(const mat4 &ProjFromView, const mat4 &ViewFromWorld)
 {
-    UseShader(GameModelTexturedShader);
+    UseShader(Sha_ModelTexturedLit);
     glEnable(GL_DEPTH_TEST);
-    GLBind4f(GameModelTexturedShader, "MuzzleFlash", 
+    GLBind4f(Sha_ModelTexturedLit, "MuzzleFlash", 
         Player.Weapon.MuzzleFlash.x, 
         Player.Weapon.MuzzleFlash.y, 
         Player.Weapon.MuzzleFlash.z, 
         Player.Weapon.MuzzleFlash.w);
-    GLBindMatrix4fv(GameModelTexturedShader, "ProjFromView", 1, ProjFromView.ptr());
-    GLBindMatrix4fv(GameModelTexturedShader, "ViewFromWorld", 1, ViewFromWorld.ptr());
+    GLBindMatrix4fv(Sha_ModelTexturedLit, "ProjFromView", 1, ProjFromView.ptr());
+    GLBindMatrix4fv(Sha_ModelTexturedLit, "ViewFromWorld", 1, ViewFromWorld.ptr());
 
     for (size_t i = 0; i < LiveProjectiles.lenu(); ++i)
     {
@@ -109,11 +109,11 @@ void RenderProjectiles(const mat4 &ProjFromView, const mat4 &ViewFromWorld)
             continue;
         }
 
-        BindUniformsForModelLighting(GameModelTexturedShader, RuntimeMapInfo, ProjectileRenderPos);
+        BindUniformsForModelLighting(Sha_ModelTexturedLit, RuntimeMapInfo, ProjectileRenderPos);
         mat4 WorldFromModel = TranslationMatrix(ProjectileRenderPos) 
                             * RotationMatrix(ProjectileRenderRot)
                             * ScaleMatrix(SI_UNITS_TO_GAME_UNITS);
-        GLBindMatrix4fv(GameModelTexturedShader, "WorldFromModel", 1, WorldFromModel.ptr());
+        GLBindMatrix4fv(Sha_ModelTexturedLit, "WorldFromModel", 1, WorldFromModel.ptr());
 
         RenderModelGLTF(*(P.Type->TexturedModel));
     }
