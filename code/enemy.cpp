@@ -168,8 +168,8 @@ void NonPhysicsTickAllEnemies()
                 if (Enemy.RemainAfterDead)
                 {
                     ModelGLTF *CorpseModel = &Assets.ModelsTextured[MT_ATTACKER_CORPSE];
-                    ++GlobalCorpses.length;
-                    FillModelInstanceData(&GlobalCorpses[GlobalCorpses.length - 1],
+                    ++GlobalStaticInstances.length;
+                    FillModelInstanceData(&GlobalStaticInstances[GlobalStaticInstances.length - 1],
                         Enemy.Position, Enemy.Position, Enemy.Orientation, CorpseModel);
                 }
 

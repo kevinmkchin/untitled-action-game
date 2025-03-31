@@ -30,13 +30,15 @@ struct alignas(16) model_instance_data_t
     }
 };
 
+constexpr u32 MaxStaticInstances = 2000;
+constexpr u32 MaxDynamicInstances = 1000;
+
 void FillModelInstanceData(model_instance_data_t *InstanceData, vec3 ModelCentroid, 
     vec3 RenderPosition, quat RenderRotation, ModelGLTF *InstanceModel);
-
-constexpr u32 MaxCorpsesInLevel = 4000;
 
 void Corpses_AcquireGPUResources();
 void Corpses_ReleaseGPUResources();
 void SortAndDrawCorpses(map_info_t &RuntimeMap, 
-    fixed_array<model_instance_data_t> &Corpses, 
+    fixed_array<model_instance_data_t> &StaticInstances,
+    fixed_array<model_instance_data_t> &DynamicInstances,
     const mat4 &ProjFromView, const mat4 &ViewFromWorld);

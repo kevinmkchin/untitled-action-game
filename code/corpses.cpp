@@ -5,7 +5,7 @@ static TripleBufferedSSBO CorpsesSSBO;
 
 void Corpses_AcquireGPUResources()
 {
-    CorpsesSSBO.Init(sizeof(model_instance_data_t) * MaxCorpsesInLevel);
+    CorpsesSSBO.Init(sizeof(model_instance_data_t) * (MaxStaticInstances + MaxDynamicInstances));
 }
 
 void Corpses_ReleaseGPUResources()
@@ -48,16 +48,27 @@ void FillModelInstanceData(model_instance_data_t *InstanceData, vec3 ModelCentro
     InstanceData->CorpseModel = InstanceModel;
 }
 
-void SortAndDrawCorpses(map_info_t &RuntimeMap, 
-    fixed_array<model_instance_data_t> &Corpses,
+void SortAndDrawCorpses(map_info_t &RuntimeMap,
+    fixed_array<model_instance_data_t> &StaticInstances,
+    fixed_array<model_instance_data_t> &DynamicInstances,
     const mat4 &ProjFromView, const mat4 &ViewFromWorld)
 {
-    if (Corpses.lenu() == 0)
+    if (StaticInstances.lenu() == 0 && DynamicInstances.lenu() == 0)
         return;
 
     // NOTE(Kevin): We only ever insert into this array so it should remain sorted
     //              with only the new entries from this frame requiring sorting.
-    std::sort(Corpses.begin(), Corpses.end());
+    std::sort(StaticInstances.begin(), StaticInstances.end());
+
+    u32 InstancesCount = StaticInstances.lenu() + DynamicInstances.lenu();
+    fixed_array<model_instance_data_t> InstancesCopy(InstancesCount, MemoryType::Frame); 
+    InstancesCopy.setlen(InstancesCount);
+    memcpy(InstancesCopy.data, StaticInstances.data, 
+        StaticInstances.length * sizeof(model_instance_data_t));
+    memcpy(InstancesCopy.data + StaticInstances.length, DynamicInstances.data, 
+        DynamicInstances.length * sizeof(model_instance_data_t));
+
+    std::sort(InstancesCopy.begin(), InstancesCopy.end());
 
     UseShader(Sha_ModelInstancedLit);
     glEnable(GL_DEPTH_TEST);
@@ -74,29 +85,29 @@ void SortAndDrawCorpses(map_info_t &RuntimeMap,
     CorpsesSSBO.BeginFrame();
 
     auto [MappedPtr, GPUOffset] = CorpsesSSBO.Alloc();
-    memcpy(MappedPtr, Corpses.data, Corpses.lenu() * sizeof(model_instance_data_t));
+    memcpy(MappedPtr, InstancesCopy.data, InstancesCopy.lenu() * sizeof(model_instance_data_t));
 
     CorpsesSSBO.Bind(0);
 
     size_t BaseInstanceIndex = GPUOffset / sizeof(model_instance_data_t);
 
-    u16 CurrentModelId = Corpses[0].CorpseModel->MT_ID;
+    u16 CurrentModelId = InstancesCopy[0].CorpseModel->MT_ID;
     u32 CurrentModelCount = 0;
     u32 CurrentOffsetFromBase = 0;
-    for (u32 i = 0; i <= Corpses.lenu(); ++i)
+    for (u32 i = 0; i <= InstancesCopy.lenu(); ++i)
     {
-        if (i == Corpses.lenu() || Corpses[i].CorpseModel->MT_ID != CurrentModelId)
+        if (i == InstancesCopy.lenu() || InstancesCopy[i].CorpseModel->MT_ID != CurrentModelId)
         {
             // flush
             GLBind1i(Sha_ModelInstancedLit, "BaseInstanceIndex", 
                 (GLint)BaseInstanceIndex + CurrentOffsetFromBase);
             DrawModelInstanced(Assets.ModelsTextured[CurrentModelId], CurrentModelCount);
 
-            if (i == Corpses.lenu())
+            if (i == InstancesCopy.lenu())
                 break;
 
             CurrentOffsetFromBase += CurrentModelCount;
-            CurrentModelId = Corpses[i].CorpseModel->MT_ID;
+            CurrentModelId = InstancesCopy[i].CorpseModel->MT_ID;
             CurrentModelCount = 0;
         }
         ++CurrentModelCount;
