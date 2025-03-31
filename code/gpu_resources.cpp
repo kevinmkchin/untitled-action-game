@@ -403,6 +403,10 @@ void TripleBufferedSSBO::EndFrame()
     //      is leaking memory. In Task Manager and Visual Studio can observe memory rising
     //      every frame this is called even if glDeleteSync is also called...
     //      hopefully this issue doesn't persist when I port to Vulkan.
+    //      ACTUALLY when VSYNC is ON it does not leak memory. Which makes me think it's something
+    //      to do with the CPU submitting jobs too quickly maybe. ChatGPT says this is expected on
+    //      NVIDIA cards it is a backpressure problem. Hopefully the issue goes away when the CPU
+    //      is taking longer to complete the frame and CPU GPU work is more balanced.
     // glDeleteSync(FrameSyncObjects[CurrentFrame]);
     // FrameSyncObjects[CurrentFrame] = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
 }
