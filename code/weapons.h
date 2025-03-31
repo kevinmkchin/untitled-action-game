@@ -49,6 +49,7 @@ struct projectile_breed_t
     float GravityFactor;
     float KillAfterTimer;
     bool KillAfterSlowingDown;
+    bool RemainAfterDead;
     // Death callback? e.g. gib adds itself as a "corpse" or rocket does splash damage?
 };
 

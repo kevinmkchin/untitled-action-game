@@ -165,11 +165,14 @@ void NonPhysicsTickAllEnemies()
             Enemy.DeadTimer -= DeltaTime;
             if (Enemy.DeadTimer <= 0.f)
             {
-                corpse_t Corpse;
-                Corpse.Pos = Enemy.Position;
-                Corpse.Rot = Enemy.Orientation;
-                Corpse.CorpseModel = &Assets.ModelsTextured[MT_ATTACKER_CORPSE];
-                GlobalCorpses.put(Corpse);
+                if (Enemy.RemainAfterDead)
+                {
+                    ModelGLTF *CorpseModel = &Assets.ModelsTextured[MT_ATTACKER_CORPSE];
+                    ++GlobalCorpses.length;
+                    FillModelInstanceData(&GlobalCorpses[GlobalCorpses.length - 1],
+                        Enemy.Position, Enemy.Position, Enemy.Orientation, CorpseModel);
+                }
+
                 EnemySystem.RemoveEnemy(Enemy.Index);
                 continue;
             }
@@ -332,18 +335,22 @@ void HurtEnemy(u32 EnemyIndex, float Damage)
 
 void KillEnemy(u32 EnemyIndex)
 {
+    ++KillEnemyCounter;
+
     enemy_t &Target = EnemySystem.Enemies[EnemyIndex];
 
     Target.Flags |= EnemyFlag_Dead;
 
-    if (false)
+    if (frand01() < 0.75f)
     {
         Target.DeadTimer = 1.f;
+        Target.RemainAfterDead = true;
         Target.Animator->PlayAnimation(Assets.Skeleton_Humanoid->Clips[SKE_HUMANOID_DEATH], false);
     }
     else
     {
         Target.DeadTimer = 0.f;
+        Target.RemainAfterDead = false;
 
         // maybe randomize num of gibs
         for (int i = 0; i < 4; ++i)

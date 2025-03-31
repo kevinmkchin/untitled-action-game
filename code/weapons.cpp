@@ -142,6 +142,7 @@ void SetupProjectilesDataAndAllocateMemory()
     ProjectilesData[PROJECTILE_NAIL].GravityFactor = 0.f;
     ProjectilesData[PROJECTILE_NAIL].KillAfterTimer = 8.f;
     ProjectilesData[PROJECTILE_NAIL].KillAfterSlowingDown = false;
+    ProjectilesData[PROJECTILE_NAIL].RemainAfterDead = false;
 
     ProjectilesData[PROJECTILE_GENERIC_GIB_0].BulletDamage = 0.f;
     ProjectilesData[PROJECTILE_GENERIC_GIB_0].LinearVelocity = 0.f;
@@ -155,6 +156,7 @@ void SetupProjectilesDataAndAllocateMemory()
     ProjectilesData[PROJECTILE_GENERIC_GIB_0].GravityFactor = 1.f;
     ProjectilesData[PROJECTILE_GENERIC_GIB_0].KillAfterTimer = 10.f;
     ProjectilesData[PROJECTILE_GENERIC_GIB_0].KillAfterSlowingDown = true;
+    ProjectilesData[PROJECTILE_GENERIC_GIB_0].RemainAfterDead = true;
 
     ProjectilesData[PROJECTILE_GENERIC_GIB_1].BulletDamage = 0.f;
     ProjectilesData[PROJECTILE_GENERIC_GIB_1].LinearVelocity = 0.f;
@@ -168,6 +170,7 @@ void SetupProjectilesDataAndAllocateMemory()
     ProjectilesData[PROJECTILE_GENERIC_GIB_1].GravityFactor = 1.f;
     ProjectilesData[PROJECTILE_GENERIC_GIB_1].KillAfterTimer = 10.f;
     ProjectilesData[PROJECTILE_GENERIC_GIB_1].KillAfterSlowingDown = true;
+    ProjectilesData[PROJECTILE_GENERIC_GIB_1].RemainAfterDead = true;
 }
 
 // The quality of projectiles is that a lot of them get created in bursts and they die quickly
@@ -220,6 +223,16 @@ void SpawnProjectile(projectile_type_enum Type, vec3 Pos, vec3 Dir,
 void KillProjectile(projectile_t *ProjectileToKill)
 {
     ProjectileToKill->IsDead = true;
+
+    if (ProjectileToKill->Type->RemainAfterDead)
+    {
+        vec3 CorpsePosition = FromJoltVector(Physics.BodyInterface->GetPosition(ProjectileToKill->BodyId));
+        quat CorpseRotation = FromJoltQuat(Physics.BodyInterface->GetRotation(ProjectileToKill->BodyId));
+        ModelGLTF *CorpseModel = ProjectileToKill->Type->TexturedModel;
+        ++GlobalCorpses.length;
+        FillModelInstanceData(&GlobalCorpses[GlobalCorpses.length-1], 
+            CorpsePosition, CorpsePosition, CorpseRotation, CorpseModel);
+    }
 }
 
 void NonPhysicsUpdateProjectiles()
@@ -235,8 +248,7 @@ void NonPhysicsUpdateProjectiles()
             {
                 KillProjectile(&Projectile);
             }
-
-            if (Projectile.Type->KillAfterSlowingDown && Projectile.BeenAliveTimer > 3.f)
+            else if (Projectile.Type->KillAfterSlowingDown && Projectile.BeenAliveTimer > 3.f)
             {
                 vec3 LinVel = FromJoltVector(Physics.BodyInterface->GetLinearVelocity(Projectile.BodyId));
                 if (Magnitude(LinVel) < 32.f)

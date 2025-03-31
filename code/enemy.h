@@ -27,6 +27,7 @@ struct enemy_t
 
     float Health;
     float DeadTimer;
+    bool RemainAfterDead;
 
     animator_t *Animator;
 
@@ -55,7 +56,6 @@ struct global_enemy_state_t
 {
     static constexpr int MaxEnemies = 64;
     static constexpr int MaxCharacterBodies = 32;
-    static constexpr int MaxCorpses = 256;
 
     fixed_array<enemy_t> Enemies;
     fixed_array<JPH::Character *> CharacterBodies;
@@ -71,8 +71,6 @@ struct global_enemy_state_t
 
     JPH::Character *NextAvailableCharacterBody();
     void RemoveCharacterBodyFromSimulation(JPH::Character *CharacterBody);
-
-    fixed_array<corpse_t> Corpses;
 
 private:
     static constexpr float AttackerHeightStanding = 1.7f;

@@ -1,5 +1,7 @@
 #include "game_assets.h"
 
+// external
+asset_db_t Assets;
 
 db_tex_t asset_db_t::GetTextureById(u32 persistId)
 {
