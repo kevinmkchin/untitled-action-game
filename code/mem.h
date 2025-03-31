@@ -2,9 +2,9 @@
 
 enum class MemoryType
 {
-    DefaultMalloc,
-    StaticGame,
-    StaticLevel,
+    Malloc,
+    Game,
+    Level,
     Frame
 };
 
@@ -187,7 +187,7 @@ template<typename T> struct fixed_array
 private:
     MemoryType mem;
 public:
-    fixed_array() : data(0), length(0), capacity(0), mem(MemoryType::DefaultMalloc) {}
+    fixed_array() : data(0), length(0), capacity(0), mem(MemoryType::Malloc) {}
     fixed_array(u32 Capacity, MemoryType Mem) 
         : length(0)
         , capacity(Capacity)
@@ -195,13 +195,13 @@ public:
     {
         switch (Mem)
         {
-            case MemoryType::DefaultMalloc:
+            case MemoryType::Malloc:
                 data = (T*)std::malloc(sizeof(T)*Capacity);
                 break;
-            case MemoryType::StaticGame:
+            case MemoryType::Game:
                 data = (T*)StaticGameMemory.Alloc(sizeof(T)*Capacity, alignof(T));
                 break;
-            case MemoryType::StaticLevel:
+            case MemoryType::Level:
                 data = (T*)StaticLevelMemory.Alloc(sizeof(T)*Capacity, alignof(T));
                 break;
             case MemoryType::Frame:

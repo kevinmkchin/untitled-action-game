@@ -121,10 +121,10 @@ void RenderProjectiles(const mat4 &ProjFromView, const mat4 &ViewFromWorld)
 
 void SetupProjectilesDataAndAllocateMemory()
 {
-    ProjectilesData = fixed_array<projectile_breed_t>(PROJECTILE_TYPE_COUNT, MemoryType::StaticGame);
+    ProjectilesData = fixed_array<projectile_breed_t>(PROJECTILE_TYPE_COUNT, MemoryType::Game);
     ProjectilesData.setlen(PROJECTILE_TYPE_COUNT);
-    LiveProjectiles = fixed_array<projectile_t>(512, MemoryType::StaticGame);
-    ProjectileHitInfos = fixed_array<projectile_hit_info_t>(128, MemoryType::StaticGame);
+    LiveProjectiles = fixed_array<projectile_t>(512, MemoryType::Game);
+    ProjectileHitInfos = fixed_array<projectile_hit_info_t>(128, MemoryType::Game);
 
     // Jolt is annoying I can't really not allocate these on the heap...
     JPH::Shape *PhysicsShape_Sphere4 = new JPH::SphereShape(ToJoltUnit(4));

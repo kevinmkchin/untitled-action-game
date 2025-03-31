@@ -5,9 +5,9 @@ global_enemy_state_t EnemySystem;
 
 void global_enemy_state_t::Init()
 {
-    Enemies = fixed_array<enemy_t>(MaxEnemies, MemoryType::StaticGame);
+    Enemies = fixed_array<enemy_t>(MaxEnemies, MemoryType::Game);
     Enemies.setlen(MaxEnemies);
-    CharacterBodies = fixed_array<JPH::Character *>(MaxCharacterBodies, MemoryType::StaticGame);
+    CharacterBodies = fixed_array<JPH::Character *>(MaxCharacterBodies, MemoryType::Game);
     CharacterBodies.setlen(MaxCharacterBodies);
 
     // TODO are these Shapes and Settings deleted properly? when ref 0

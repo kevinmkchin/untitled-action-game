@@ -89,7 +89,7 @@ void SetDebugMode(DEBUG_MODES Mode)
 
 void RegisterConsoleCommands()
 {
-    ConsoleInputBuf = fixed_array<char>(ConsoleInputBufMax, MemoryType::StaticGame);
+    ConsoleInputBuf = fixed_array<char>(ConsoleInputBufMax, MemoryType::Game);
     ConsoleInputBuf.put(0);
     ConsoleInputBufCursor = 0;
 }
