@@ -77,6 +77,7 @@ Handcrafted with love.
 #include <utility>
 #include <thread>
 #include <mutex>
+#include <random>
 
 
 typedef uint8_t       u8;

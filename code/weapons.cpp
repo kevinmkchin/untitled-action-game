@@ -23,7 +23,7 @@ void TickWeapon(weapon_state_t *State, bool LMB, bool RMB)
     {
         // shoot
         static int ChannelIndex = 0;
-        Mix_VolumeChunk(Assets.Sfx_Shoot0, 24 + RandomInt(-2, 2)); // Volume variation
+        Mix_VolumeChunk(Assets.Sfx_Shoot0, 24 + SOUNDRNG.NextInt(-2, 2)); // Volume variation
         Mix_PlayChannel(ChannelIndex++%3, Assets.Sfx_Shoot0, 0);
         State->Cooldown = 0.180f;
         // State->Cooldown = 0.080f;
@@ -350,10 +350,10 @@ static void ProcessProjectileHitInfos()
         }
         else if (SecondBodyLayer == Layers::STATIC)
         {
-            if (RandomInt(0,2) < 1)
+            if (SOUNDRNG.NextInt(0,2) < 1)
             {
-                Mix_Chunk *RicochetSnd = Assets.Sfx_Ricochet[RandomInt(0,2)];
-                Mix_VolumeChunk(RicochetSnd, 24 + RandomInt(-2, 2));
+                Mix_Chunk *RicochetSnd = Assets.Sfx_Ricochet[SOUNDRNG.NextInt(0,2)];
+                Mix_VolumeChunk(RicochetSnd, 24 + SOUNDRNG.NextInt(-2, 2));
                 Mix_PlayChannel(-1, RicochetSnd, 0);
             }
 

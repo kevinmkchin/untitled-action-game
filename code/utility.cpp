@@ -1,4 +1,9 @@
 
+// external
+rng_t RNG;
+rng_t ENEMYRNG;
+rng_t SOUNDRNG;
+
 vec3 ScreenPointToWorldRay(ivec2 screenspaceCoords)
 {
     // https://antongerdelan.net/opengl/raycasting.html
@@ -84,12 +89,6 @@ inline bool IsOneOfArray(T v, T* array, int count)
     for (int i = 0; i < count; ++i)
         if (v == *(array + i)) return true;
     return false;
-}
-
-int RandomInt(int min, int max)
-{
-    int retval = min + (rand() % static_cast<int>(max - min + 1));
-    return retval;
 }
 
 void BlitRect(u8 *A, int AW, int AH, u8 *B, int BW, int BH, int x, int y, size_t pixelsz)

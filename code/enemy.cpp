@@ -341,7 +341,9 @@ void KillEnemy(u32 EnemyIndex)
 
     Target.Flags |= EnemyFlag_Dead;
 
-    if (frand01() < 0.75f)
+    // float f = ENEMYRNG.frand01();
+    // LogMessage("%f",f);
+    if (ENEMYRNG.frand01() < 0.75f)
     {
         Target.DeadTimer = 1.f;
         Target.RemainAfterDead = true;
@@ -359,15 +361,15 @@ void KillEnemy(u32 EnemyIndex)
             // important to how they feel. some of the explosions feel much nicer
             // to look at than others currently. maybe they should all sort of arc
             // upwards then shower down
-            vec3 GibDirection = RandomDirection();
+            vec3 GibDirection = RNG.Direction();
             GibDirection.y = fabsf(GibDirection.y)*2.f;
             GibDirection = Normalize(GibDirection);
-            SpawnProjectile(projectile_type_enum(PROJECTILE_GENERIC_GIB_0 + RandomInt(0, 1)),
+            SpawnProjectile(projectile_type_enum(PROJECTILE_GENERIC_GIB_0 + RNG.NextInt(0, 1)),
                 FromJoltVector(Target.RigidBody->GetCenterOfMassPosition()), 
                 vec3(),
                 quat(),
-                GibDirection * (540.f + frand() * 100.f),
-                RandomDirection() * 5.0f);
+                GibDirection * (540.f + RNG.frand() * 100.f),
+                RNG.Direction() * 5.0f);
         }
     }
 
