@@ -62,7 +62,7 @@ static void DeserializeMapLightData(ByteBuffer *Buf, map_info_t *MapInfo)
 
 bool BuildGameMap(const char *path)
 {
-    u32 TimeAtStartOfBuildGameMap = SDL_GetTicks();
+    u64 TimeAtStartOfBuildGameMap = SDL_GetTicks();
 
     LogMessage("Building game map data to %s", path);
     LogMessage("Light baking will take some time...");
@@ -148,7 +148,7 @@ bool BuildGameMap(const char *path)
     bool writtenToFile = ByteBufferWriteToFile(&BuildData.Output, path) == 1;
     ByteBufferFree(&BuildData.Output);
 
-    u32 TimeAtEndOfBuildGameMap = SDL_GetTicks();
+    u64 TimeAtEndOfBuildGameMap = SDL_GetTicks();
     float TimeElapsedToBuildGameMapInSeconds = (TimeAtEndOfBuildGameMap - TimeAtStartOfBuildGameMap)/1000.f;
     LogMessage("Took %fs to build.", TimeElapsedToBuildGameMapInSeconds);
 

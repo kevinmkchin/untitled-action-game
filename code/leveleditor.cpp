@@ -95,11 +95,11 @@ void level_editor_t::Tick()
     IsActive = true;
     EnterNextState();
 
-    SDL_SetRelativeMouseMode(MouseCurrent & SDL_BUTTON(SDL_BUTTON_RIGHT) ? SDL_TRUE : SDL_FALSE);
+    SDL_SetWindowRelativeMouseMode(SDLMainWindow, MouseCurrent & SDL_BUTTON_MASK(SDL_BUTTON_RIGHT) ? true : false);
 
     // EDITOR CAMERA MOVE
-    EditorCam.Update(MouseCurrent & SDL_BUTTON(SDL_BUTTON_RIGHT), 0.1f);
-    if (MouseCurrent & SDL_BUTTON(SDL_BUTTON_RIGHT))
+    EditorCam.Update(MouseCurrent & SDL_BUTTON_MASK(SDL_BUTTON_RIGHT), 0.1f);
+    if (MouseCurrent & SDL_BUTTON_MASK(SDL_BUTTON_RIGHT))
     {
         float MoveSpeed = 250.f;
         if (KeysCurrent[SDL_SCANCODE_LSHIFT])
@@ -124,9 +124,9 @@ void level_editor_t::Tick()
 
     ResetGridOriginAndOrientation();
 
-    LMBPressedThisFrame = MousePressed & SDL_BUTTON(SDL_BUTTON_LEFT);
-    LMBReleasedThisFrame = MouseReleased & SDL_BUTTON(SDL_BUTTON_LEFT);
-    LMBIsPressed = MouseCurrent & SDL_BUTTON(SDL_BUTTON_LEFT);
+    LMBPressedThisFrame = MousePressed & SDL_BUTTON_MASK(SDL_BUTTON_LEFT);
+    LMBReleasedThisFrame = MouseReleased & SDL_BUTTON_MASK(SDL_BUTTON_LEFT);
+    LMBIsPressed = MouseCurrent & SDL_BUTTON_MASK(SDL_BUTTON_LEFT);
 
 
     // === Volume picking ===

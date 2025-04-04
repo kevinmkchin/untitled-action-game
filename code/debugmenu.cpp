@@ -1,6 +1,6 @@
 #include "debugmenu.h"
 #include "game.h"
-#include <SDL_clipboard.h>
+#include <SDL3/SDL_clipboard.h>
 
 // todo
 // - paste from clipboard
@@ -51,7 +51,7 @@ void SwitchToLevelEditor()
 
     LevelEditor.Open();
 
-    SDL_SetRelativeMouseMode(SDL_FALSE);
+    SDL_SetWindowRelativeMouseMode(SDLMainWindow, false);
     GameLoopCanRun = false;
     // CurrentDebugMode = DEBUG_MODE_OFF;
 }
@@ -101,10 +101,10 @@ void SendInputToConsole(const SDL_Event event)
 
     switch (event.type)
     {
-        case SDL_KEYDOWN:
+        case SDL_EVENT_KEY_DOWN:
         {
             SDL_KeyboardEvent keyevent = event.key;
-            SDL_Keycode keycode = keyevent.keysym.sym;
+            SDL_Keycode keycode = keyevent.key;
 
             switch(keycode)
             {
@@ -118,7 +118,7 @@ void SendInputToConsole(const SDL_Event event)
                 }
                 case SDLK_BACKSPACE:
                 {
-                    if (keyevent.keysym.mod & (KMOD_CTRL) && ConsoleInputBufCursor > 0)
+                    if (keyevent.mod & (SDL_KMOD_CTRL) && ConsoleInputBufCursor > 0)
                     {
                         do {
                             --ConsoleInputBufCursor;
@@ -166,11 +166,11 @@ void SendInputToConsole(const SDL_Event event)
                 }
             }
 
-            if (!(keyevent.keysym.mod & (KMOD_CTRL | KMOD_ALT)))
+            if (!(keyevent.mod & (SDL_KMOD_CTRL | SDL_KMOD_ALT)))
             {
                 const int ASCII_SPACE = 32;
                 const int ASCII_TILDE = 126;
-                keycode = ShiftASCII(keycode, keyevent.keysym.mod & KMOD_SHIFT);
+                keycode = ShiftASCII(keycode, keyevent.mod & SDL_KMOD_SHIFT);
                 if((ASCII_SPACE <= keycode && keycode < ASCII_TILDE) && keycode != '`')
                 {
                     if(ConsoleInputBuf.lenu() < ConsoleInputBuf.cap())
@@ -328,10 +328,10 @@ void ShowDebugConsole()
     {
     case DEBUG_MODE_OFF:
         if (!LevelEditor.IsActive)
-            SDL_SetRelativeMouseMode(SDL_TRUE);
+            SDL_SetWindowRelativeMouseMode(SDLMainWindow, true);
         break;
     case DEBUG_MODE_MENU:
-        SDL_SetRelativeMouseMode(SDL_FALSE);
+        SDL_SetWindowRelativeMouseMode(SDLMainWindow, false);
         DisplayDebugMenu();
         break;
     case DEBUG_MODE_CONSOLE:

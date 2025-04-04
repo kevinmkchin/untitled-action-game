@@ -36,7 +36,7 @@ void player_t::Destroy()
 void player_t::HandleInput()
 {
     // CALCULATE PLAYER FACING DIRECTION
-    bool DoMouseLook = SDL_GetRelativeMouseMode();
+    bool DoMouseLook = SDL_GetWindowRelativeMouseMode(SDLMainWindow);
     PlayerCam.Update(DoMouseLook, 0.085f);
     WalkDirectionRight = PlayerCam.Right;
     WalkDirectionForward = Normalize(Cross(GM_UP_VECTOR, PlayerCam.Right));
@@ -59,8 +59,8 @@ void player_t::HandleInput()
         JumpRequested = true;
 
     // SHOOT
-    bool LMBPressed = MouseCurrent & SDL_BUTTON(SDL_BUTTON_LEFT);
-    bool RMBPressed = MouseCurrent & SDL_BUTTON(SDL_BUTTON_RIGHT);
+    bool LMBPressed = MouseCurrent & SDL_BUTTON_MASK(SDL_BUTTON_LEFT);
+    bool RMBPressed = MouseCurrent & SDL_BUTTON_MASK(SDL_BUTTON_RIGHT);
     Weapon.Owner = this;
     TickWeapon(&Weapon, LMBPressed, RMBPressed);
 }

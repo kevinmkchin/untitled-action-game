@@ -179,12 +179,12 @@ namespace GUI
 
     bool MouseWentUp()
     {
-        return MouseReleased & SDL_BUTTON(SDL_BUTTON_LEFT);
+        return MouseReleased & SDL_BUTTON_MASK(SDL_BUTTON_LEFT);
     }
 
     bool MouseWentDown()
     {
-        return MousePressed & SDL_BUTTON(SDL_BUTTON_LEFT);
+        return MousePressed & SDL_BUTTON_MASK(SDL_BUTTON_LEFT);
     }
 
     bool MouseInside(const UIRect& rect)
@@ -1539,18 +1539,18 @@ namespace GUI
     {
         switch (event.type)
         {
-            case SDL_MOUSEMOTION:
+            case SDL_EVENT_MOUSE_MOTION:
             {
                 // NOTE(Kevin): For game GUI where window aspect ratio does not match game aspect ratio, must
                 //              map from window mouse pos to gui canvas mouse pos
                 MouseXInGUI = int(float(MousePos.x) * (float(RenderTargetGUI.width) / float(BackbufferWidth)));
                 MouseYInGUI = int(float(MousePos.y) * (float(RenderTargetGUI.height) / float(BackbufferHeight)));
             }break;
-            case SDL_KEYDOWN:
+            case SDL_EVENT_KEY_DOWN:
             {
                 SDL_KeyboardEvent keyevent = event.key;
-                SDL_Keycode keycodeASCII = keyevent.keysym.sym;
-                keycodeASCII = ShiftASCII(keycodeASCII, keyevent.keysym.mod & (KMOD_LSHIFT | KMOD_RSHIFT));
+                SDL_Keycode keycodeASCII = keyevent.key;
+                keycodeASCII = ShiftASCII(keycodeASCII, keyevent.mod & (SDL_KMOD_LSHIFT | SDL_KMOD_RSHIFT));
                 keyboardInputASCIIKeycodeThisFrame.put(keycodeASCII);
             }break;
         }

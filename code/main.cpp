@@ -44,8 +44,9 @@ Handcrafted with love.
 #define MESA_USING_GL3W
 #define GL_VERSION_4_3_OR_HIGHER
 
-#include <SDL.h>
-#include <SDL_mixer.h>
+#include <SDL3/SDL.h>
+#include <SDL3/SDL_main.h>
+#include <SDL3_mixer/SDL_mixer.h>
 
 #define STB_SPRINTF_IMPLEMENTATION
 #include <stb_sprintf.h>
@@ -199,9 +200,9 @@ u32 MousePressed;
 u32 MouseReleased;
 vec2 MouseDelta;
 ivec2 MousePos;
-u8 KeysCurrent[256] = {0};
-u8 KeysPressed[256] = {0};
-u8 KeysReleased[256] = {0};
+bool KeysCurrent[256] = {0};
+bool KeysPressed[256] = {0};
+bool KeysReleased[256] = {0};
 
 i32 BackbufferWidth = -1;
 i32 BackbufferHeight = -1;
@@ -315,7 +316,7 @@ static void InitGameRenderer()
     glFrontFace(GL_CCW); // OpenGL default is GL_CCW
 
 
-    SDL_GL_GetDrawableSize(SDLMainWindow, &BackbufferWidth, &BackbufferHeight);
+    SDL_GetWindowSizeInPixels(SDLMainWindow, &BackbufferWidth, &BackbufferHeight);
     RenderTargetGame.width = BackbufferWidth;
     RenderTargetGame.height = BackbufferHeight;
     CreateGPUFrameBuffer(&RenderTargetGame);
@@ -414,10 +415,7 @@ static bool InitializeApplication()
 
     ProgramShutdownRequested = false;
 
-    SDL_SetHint(SDL_HINT_WINDOWS_DPI_AWARENESS, "system"); // https://github.com/MicrosoftDocs/win32/blob/docs/desktop-src/LearnWin32/dpi-and-device-independent-pixels.md#dwm-scaling
-    SDL_SetHint(SDL_HINT_WINDOWS_DPI_SCALING, "0"); // https://github.com/libsdl-org/SDL/commit/ab81a559f43abc0858c96788f8e00bbb352287e8
-
-    if (SDL_Init(SDL_INIT_EVERYTHING) < 0) return false;
+    if (SDL_Init(SDL_INIT_AUDIO | SDL_INIT_VIDEO | SDL_INIT_EVENTS) == false) return false;
 
     // OpenGL 4.6
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
@@ -428,10 +426,9 @@ static bool InitializeApplication()
     SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
 
     SDLMainWindow = SDL_CreateWindow("game",
-                                     SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
                                      1920,
                                      1080,
-                                     SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
+                                     SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE);
 
     SDLGLContext = SDL_GL_CreateContext(SDLMainWindow);
 
@@ -447,14 +444,19 @@ static bool InitializeApplication()
 #endif
 
     SDL_SetWindowMinimumSize(SDLMainWindow, 200, 100);
-    SDL_GL_SetSwapInterval(0);
+    SDL_GL_SetSwapInterval(1);
     // if (SDL_GL_SetSwapInterval(-1) == -1)
     // {
     //     LogWarning("Hardware does not support adaptive vsync.");
     //     SDL_GL_SetSwapInterval(1);
     // }
 
-    if (Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 2, 2048) < 0 || Mix_Init(MIX_INIT_OGG) < 0)
+    SDL_AudioDeviceID AudioDeviceID = SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK;
+    SDL_AudioSpec AudioSpec;
+    AudioSpec.format = SDL_AUDIO_S16LE; /**< Audio data format */
+    AudioSpec.channels = 2; /**< Number of channels: 1 mono, 2 stereo, etc */
+    AudioSpec.freq = 44100; /**< sample rate: sample frames per second */
+    if (Mix_OpenAudio(AudioDeviceID, &AudioSpec) == false || Mix_Init(MIX_INIT_OGG) == 0)
         return false;
 
     GUI::Init();
@@ -465,20 +467,19 @@ static bool InitializeApplication()
 static void ProcessSDLEvents()
 {
     // MOUSE
-    ivec2 prevmp = MousePos;
-    u32 mousestate = SDL_GetMouseState(&MousePos.x, &MousePos.y); // mousepos only valid when mouse not relative mode
+    float mx, my;
+    u32 mousestate = SDL_GetMouseState(&mx, &my); // mousepos only valid when mouse not relative mode
+    MousePos.x = (int)mx;
+    MousePos.y = (int)my;
     u32 mousechanged = MouseCurrent ^ mousestate;
     MousePressed = mousechanged & mousestate;
     MouseReleased = mousechanged & MouseCurrent;
     MouseCurrent = mousestate;
-    ivec2 md;
-    SDL_GetRelativeMouseState(&md.x, &md.y);
-    MouseDelta.x = (float)md.x;
-    MouseDelta.y = (float)md.y;
+    SDL_GetRelativeMouseState(&MouseDelta.x, &MouseDelta.y);
 
     // KEYBOARD
-    const u8 *keystate = SDL_GetKeyboardState(NULL);
-    u8 keyschanged[256];
+    const bool *keystate = SDL_GetKeyboardState(NULL);
+    bool keyschanged[256];
     for (int i=0;i<256;++i)
     {
         keyschanged[i] = KeysCurrent[i] ^ keystate[i];
@@ -493,38 +494,31 @@ static void ProcessSDLEvents()
     {
         switch (event.type)
         {
-            case SDL_WINDOWEVENT:
+            case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
             {
-                switch (event.window.event) 
-                {
-                    case SDL_WINDOWEVENT_SIZE_CHANGED:
-                    case SDL_WINDOWEVENT_RESIZED:
-                    {
-                        SDL_GL_GetDrawableSize(SDLMainWindow, &BackbufferWidth, &BackbufferHeight);
-                        UpdateGPUFrameBufferSize(&RenderTargetGame, BackbufferWidth, BackbufferHeight);
-                        UpdateGPUFrameBufferSize(&RenderTargetGUI, BackbufferWidth / 2, BackbufferHeight / 2);
-                        break;
-                    }
-                }
+                SDL_GetWindowSizeInPixels(SDLMainWindow, &BackbufferWidth, &BackbufferHeight);
+                UpdateGPUFrameBufferSize(&RenderTargetGame, BackbufferWidth, BackbufferHeight);
+                UpdateGPUFrameBufferSize(&RenderTargetGUI, BackbufferWidth / 2, BackbufferHeight / 2);
                 break;
             }
 
-            case SDL_QUIT:
+            case SDL_EVENT_QUIT:
             {
                 ProgramShutdownRequested = true;
                 break;
             }
 
-            case SDL_KEYDOWN:
+            case SDL_EVENT_KEY_DOWN:
             {
-                SDL_Keycode sdlkey = event.key.keysym.sym;
+                SDL_Keycode sdlkey = event.key.key;
 
-                if (sdlkey == SDLK_RETURN && SDL_GetModState() & KMOD_LALT)
+                if (sdlkey == SDLK_RETURN && SDL_GetModState() & SDL_KMOD_LALT)
                 {
-                    if (SDL_GetWindowFlags(SDLMainWindow) & SDL_WINDOW_FULLSCREEN_DESKTOP)
-                        SDL_SetWindowFullscreen(SDLMainWindow, 0);
+                    // SDL_GetFullscreenDisplayModes();
+                    if (SDL_GetWindowFlags(SDLMainWindow) & SDL_WINDOW_FULLSCREEN)
+                        SDL_SetWindowFullscreen(SDLMainWindow, false);
                     else
-                        SDL_SetWindowFullscreen(SDLMainWindow, SDL_WINDOW_FULLSCREEN_DESKTOP);
+                        SDL_SetWindowFullscreen(SDLMainWindow, true);
                     event.type = 0;
                 }
                 break;
@@ -601,6 +595,9 @@ int main(int argc, char* argv[])
 
         // Swap buffers
         SDL_GL_SwapWindow(SDLMainWindow);
+        // NOTE(Kevin) 2025-04-02: Even on SDL3 there's microstutters with Windowed VSYNC
+        //                         Still feels much better with DwmFlush after SwapBuffers
+        DwmFlush();
     }
 
     LevelEditor.Close();
@@ -612,7 +609,7 @@ int main(int argc, char* argv[])
     free(StaticLevelMemory.Arena);
 
     SDL_DestroyWindow(SDLMainWindow);
-    SDL_GL_DeleteContext(SDLGLContext);
+    SDL_GL_DestroyContext(SDLGLContext);
     SDL_Quit();
 
     return 0;
