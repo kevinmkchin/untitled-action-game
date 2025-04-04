@@ -549,7 +549,7 @@ int main(int argc, char* argv[])
     srand(100);
 
     InitializeGame();
-    RegisterConsoleCommands();
+    SetupConsoleAndBindProcedures();
 
     // LevelEditor.LoadMap(wd_path("testing.emf").c_str());
     // BuildGameMap(wd_path("buildtest.map").c_str());
