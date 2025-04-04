@@ -226,7 +226,8 @@ public:
     // moving the rest of the array over. Returns item.
     T ins(u32 p, T item);
     // Inserts n uninitialized items into array starting at array[p],
-    // moving the rest of the array over.
+    // moving the rest of the array over. If exceeds capacity, the items
+    // moved past the end are removed.
     void insn(u32 p, u32 n);
     // Appends n uninitialized items onto array at the end.
     // Returns a pointer to the first uninitialized item added.

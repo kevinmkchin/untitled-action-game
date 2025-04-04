@@ -87,7 +87,7 @@ namespace GUI
     void PrimitivePanel(UIRect rect, u32 glTextureId);
     void PrimitivePanel(UIRect rect, int cornerRadius, u32 glTextureId = 0, float normalizedCornerSizeInUV = 0.3f);
     bool PrimitiveButton(ui_id id, UIRect rect, vec4 normalColor, vec4 hoveredColor, vec4 activeColor, bool activeColorOnClickReleaseFrame = false);
-    void PrimitiveText(int x, int y, int size, Align alignment, const char* text);
+    void PrimitiveText(int x, int y, int size, Align alignment, bool newLinesAbove, const char* text);
     void PrimitiveTextFmt(int x, int y, int size, Align alignment, const char* textFmt, ...);
     void PrimitiveTextMasked(int x, int y, int size, Align alignment, const char* text, UIRect mask, int maskCornerRadius);
     void PrimitiveIntegerInputField(ui_id id, UIRect rect, int* v);
@@ -253,6 +253,7 @@ namespace GUI {
         int x = 0;
         int y = 0;
         Align alignment = Align::LEFT;
+        bool newLinesAbove = false;
         Font font;
 
         UIRect rectMask = UIRect(0, 0, 9999, 9999);

@@ -369,13 +369,15 @@ namespace GUI
         drawRequest->x = x;
         drawRequest->y = y;
         drawRequest->alignment = alignment;
+        drawRequest->newLinesAbove = false;
         drawRequest->font = style_textFont;
         drawRequest->color = style_textColor;
 
         AppendToCurrentDrawRequestsCollection(drawRequest);
     }
 
-    void PrimitiveText(int x, int y, int size, Align alignment, const char* text)
+    void PrimitiveText(int x, int y, int size, Align alignment, bool newLinesAbove, 
+        const char* text)
     {
         if (text == NULL) return;
 
@@ -399,6 +401,7 @@ namespace GUI
         drawRequest->x = x;
         drawRequest->y = y;
         drawRequest->alignment = alignment;
+        drawRequest->newLinesAbove = newLinesAbove;
         drawRequest->font = style_textFont;
         drawRequest->color = style_textColor;
 
@@ -429,6 +432,7 @@ namespace GUI
         drawRequest->x = x;
         drawRequest->y = y;
         drawRequest->alignment = alignment;
+        drawRequest->newLinesAbove = false;
         drawRequest->font = style_textFont;
         drawRequest->color = style_textColor;
         drawRequest->rectMask = mask;
@@ -522,12 +526,12 @@ namespace GUI
         {
             if (activeTextInputBuffer.count > 0)
             {
-                PrimitiveText(rect.x + rect.w, rect.y + rect.h, GetFontSize(), Align::RIGHT, activeTextInputBuffer.data);
+                PrimitiveText(rect.x + rect.w, rect.y + rect.h, GetFontSize(), Align::RIGHT, false, activeTextInputBuffer.data);
             }
         }
         else
         {
-            PrimitiveText(rect.x + rect.w, rect.y + rect.h, GetFontSize(), Align::RIGHT, std::to_string(*v).c_str());
+            PrimitiveText(rect.x + rect.w, rect.y + rect.h, GetFontSize(), Align::RIGHT, false, std::to_string(*v).c_str());
         }
     }
 
@@ -625,14 +629,14 @@ namespace GUI
         {
             if (activeTextInputBuffer.count > 0)
             {
-                PrimitiveText(rect.x + rect.w, rect.y + rect.h, GetFontSize(), Align::RIGHT, activeTextInputBuffer.data);
+                PrimitiveText(rect.x + rect.w, rect.y + rect.h, GetFontSize(), Align::RIGHT, false, activeTextInputBuffer.data);
             }
         }
         else
         {
             char cbuf[32];
             stbsp_sprintf(cbuf, "%.2f", *v);
-            PrimitiveText(rect.x + rect.w, rect.y + rect.h, GetFontSize(), Align::RIGHT, cbuf);
+            PrimitiveText(rect.x + rect.w, rect.y + rect.h, GetFontSize(), Align::RIGHT, false, cbuf);
         }
     }
 
@@ -665,7 +669,7 @@ namespace GUI
         }
 
         bool buttonValue = PrimitiveButton(FreshID(), rect, style_buttonNormalColor, style_buttonHoveredColor, style_buttonActiveColor);
-        PrimitiveText(textX, rect.y + rect.h - textPadding.y, ascenderTextSize, textAlignment, label);
+        PrimitiveText(textX, rect.y + rect.h - textPadding.y, ascenderTextSize, textAlignment, false, label);
         return buttonValue;
     }
 
@@ -754,7 +758,7 @@ namespace GUI
 
         int sz = GetFontSize();
 
-        PrimitiveText(x + style_paddingLeft, y + sz + style_paddingTop, sz, Align::LEFT, text);
+        PrimitiveText(x + style_paddingLeft, y + sz + style_paddingTop, sz, Align::LEFT, false, text);
 
         float textW;
         float textH;
@@ -855,7 +859,7 @@ namespace GUI
         {
             (*v) -= increment;
         }
-        PrimitiveText(x + w + 12, y + h, GetFontSize(), Align::LEFT, label);
+        PrimitiveText(x + w + 12, y + h, GetFontSize(), Align::LEFT, false, label);
 
         // TODO stage width
         Window_StageLastElementDimension(0, style_paddingTop + h + style_paddingBottom);
@@ -881,7 +885,7 @@ namespace GUI
         {
             (*v) -= increment;
         }
-        PrimitiveText(x + w + 12, y + h, GetFontSize(), Align::LEFT, label);
+        PrimitiveText(x + w + 12, y + h, GetFontSize(), Align::LEFT, false, label);
 
         // TODO stage width
         Window_StageLastElementDimension(0, style_paddingTop + h + style_paddingBottom);
@@ -905,7 +909,7 @@ namespace GUI
         // Element 1: text
         w += style_paddingLeft;
         int sz = GetFontSize();
-        PrimitiveText(x+w, y+h-style_paddingBottom, sz, Align::LEFT, label);
+        PrimitiveText(x+w, y+h-style_paddingBottom, sz, Align::LEFT, false, label);
         float textW;
         float textH;
         vtxt_get_text_bounding_box_info(&textW, &textH, label, style_textFont.ptr, sz);
@@ -937,14 +941,14 @@ namespace GUI
         if (*selected)
         {
             PrimitivePanel(selectableRegion, style_buttonActiveColor);
-            PrimitiveText(x + 1, y + 10, GetFontSize(), Align::LEFT, label);
+            PrimitiveText(x + 1, y + 10, GetFontSize(), Align::LEFT, false, label);
             Window_StageLastElementDimension(selectableRegion.w, selectableRegion.h);
         }
         else
         {
             *selected = PrimitiveButton(FreshID(), selectableRegion, 
                 style_buttonNormalColor, style_buttonHoveredColor, style_buttonActiveColor, true);
-            PrimitiveText(x + 1, y + 10, GetFontSize(), Align::LEFT, label);
+            PrimitiveText(x + 1, y + 10, GetFontSize(), Align::LEFT, false, label);
             Window_StageLastElementDimension(selectableRegion.w, selectableRegion.h);
             if (*selected)
             {
@@ -969,14 +973,14 @@ namespace GUI
         if (*selected)
         {
             PrimitivePanel(selectableRegion, vec4(0.7f,0.7f,0.7f,1.0f));
-            PrimitiveText(x + 2, y + h - 2, labelTextSize, Align::LEFT, label);
+            PrimitiveText(x + 2, y + h - 2, labelTextSize, Align::LEFT, false, label);
             Window_StageLastElementDimension(selectableRegion.w, selectableRegion.h);
         }
         else
         {
             *selected = PrimitiveButton(FreshID(), selectableRegion, 
                 style_buttonNormalColor, vec4(0.4f,0.4f,0.4f,1.0f), vec4(0.7f,0.7f,0.7f,1.0f), true);
-            PrimitiveText(x + 2, y + h - 2, labelTextSize, Align::LEFT, label);
+            PrimitiveText(x + 2, y + h - 2, labelTextSize, Align::LEFT, false, label);
             Window_StageLastElementDimension(selectableRegion.w, selectableRegion.h);
             if (*selected)
             {
@@ -2028,7 +2032,10 @@ namespace GUI
 
     void TextDrawRequest::Draw()
     {
-        vtxt_setflags(VTXT_CREATE_INDEX_BUFFER);
+        int flags = VTXT_CREATE_INDEX_BUFFER;
+        if (newLinesAbove)
+            flags |= VTXT_NEWLINE_ABOVE;
+        vtxt_setflags(flags);
         vtxt_clear_buffer();
         vtxt_move_cursor(x, y);
         switch (alignment)

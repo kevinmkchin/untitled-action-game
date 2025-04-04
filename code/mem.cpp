@@ -410,14 +410,8 @@ T fixed_array<T>::ins(u32 p, T item)
 template<typename T> 
 void fixed_array<T>::insn(u32 p, u32 n)
 {
-    if (length + n > capacity)
-    {
-        LogError("fixed array is at capacity and cannot insert additional items");
-        ASSERT(0);
-    }
-
-    memcpy(data+p+n, data+p, length-p);
-    length += n;
+    memcpy(data+p+n, data+p, std::min(length-p, capacity-p-n));
+    length = std::min(length + n, capacity);
 }
 
 template<typename T> 
