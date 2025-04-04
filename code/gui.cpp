@@ -2044,8 +2044,12 @@ namespace GUI
             }break;
         }
         vtxt_vertex_buffer _txt = vtxt_grab_buffer();
-        if (_txt.vertices_array_count > 0)
-            RebindGPUMeshIndexedData(&s_text_mesh, _txt.vertex_buffer, _txt.index_buffer, _txt.vertices_array_count, _txt.indices_array_count, GL_DYNAMIC_DRAW);
+        if (_txt.vertices_array_count <= 0)
+        {
+            vtxt_clear_buffer();
+            return;
+        }
+        RebindGPUMeshIndexedData(&s_text_mesh, _txt.vertex_buffer, _txt.index_buffer, _txt.vertices_array_count, _txt.indices_array_count, GL_DYNAMIC_DRAW);
         vtxt_clear_buffer();
 
         mat4 matrixModel = mat4();
