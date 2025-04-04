@@ -43,7 +43,8 @@ static fixed_array<char> ConsoleInputBuf;
 static constexpr int ConsoleInputBufMax = 4000;
 static u32 ConsoleInputBufCursor = 0;
 static bool FlushConsoleCommands = false;
-
+static fixed_array<char> ConsoleOutputBuf;
+static constexpr int ConsoleOutputBufMax = 4000;
 
 // these are self-contained valid procedures that 
 // run immediately after rendering
@@ -145,6 +146,9 @@ void SetupConsoleAndBindProcedures()
     ConsoleInputBuf.put(0);
     ConsoleInputBufCursor = 0;
 
+    ConsoleOutputBuf = fixed_array<char>(ConsoleOutputBufMax, MemoryType::Game);
+    ConsoleOutputBuf.setlen(ConsoleOutputBufMax);
+
     ConsoleBackend.bind_cmd("debug", SetDebugMode);
     ConsoleBackend.bind_cmd("dd_col_level", dd_col_level);
     ConsoleBackend.bind_cmd("dd_col_monsters", dd_col_monsters);
@@ -174,6 +178,11 @@ void SendInputToConsole(const SDL_Event event)
                 case SDLK_RETURN:
                 {
                     FlushConsoleCommands = true;
+                    if(ConsoleInputBuf.lenu() < ConsoleInputBuf.cap())
+                    {
+                        ConsoleInputBuf.ins(ConsoleInputBufCursor, '\n');
+                        ++ConsoleInputBufCursor;
+                    }
                     break;
                 }
                 case SDLK_BACKSPACE:
@@ -253,7 +262,12 @@ static void DisplayDebugConsole()
     if (ConsoleInputBuf.lenu() > 1)
     {
         GUI::PrimitiveText(GUI::GetFontSize(), int(ConsoleY) - (GUI::GetFontSize() / 2),
-            GUI::GetFontSize(), GUI::Align::LEFT, ConsoleInputBuf.data);
+            GUI::GetFontSize(), GUI::Align::LEFT, false, ConsoleInputBuf.data);
+    }
+    if (ConsoleOutputBuf.lenu() > 1)
+    {
+        GUI::PrimitiveText(GUI::GetFontSize(), int(ConsoleY) - 5*(GUI::GetFontSize() / 2),
+            GUI::GetFontSize(), GUI::Align::LEFT, true, ConsoleOutputBuf.data);
     }
 
     if (u32(TimeSinceStart / 0.85f) % 2 == 1)
@@ -262,6 +276,7 @@ static void DisplayDebugConsole()
             int(ConsoleY) - (GUI::GetFontSize() / 2) - GUI::GetFontSize() - 4, 2, GUI::GetFontSize() + 3);
         GUI::PrimitivePanel(CursorRect, vec4(1.f, 1.f, 1.f, 1.f));
     }
+
 }
 
 static void DisplayDebugMenu()
@@ -399,8 +414,11 @@ void ShowDebugConsole()
         {
             FlushConsoleCommands = false;
             ConsoleBackend.execute(ConsoleInputBuf.data, std::cout);
+            ConsoleOutputBuf.insn(0, ConsoleInputBuf.lenu()-1);
+            memcpy(ConsoleOutputBuf.data, ConsoleInputBuf.data, ConsoleInputBuf.lenu()-1);
+            memset(ConsoleInputBuf.data, 0, ConsoleInputBuf.lenu()-1);
+            ConsoleInputBuf.setlen(1);
             ConsoleInputBufCursor = 0;
-            ConsoleInputBuf.deln(0, ConsoleInputBuf.lenu()-1);
         }
         break;
     }
