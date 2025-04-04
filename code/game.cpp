@@ -74,7 +74,7 @@ void LoadLevel(const char *MapPath)
     StaticLevelMemory.ArenaOffset = 0;
     GlobalStaticInstances = fixed_array<model_instance_data_t>(MaxStaticInstances, MemoryType::Level);
 
-    SDL_SetRelativeMouseMode(SDL_TRUE);
+    SDL_SetWindowRelativeMouseMode(SDLMainWindow, true);
 
     if (LevelLoaded)
         UnloadPreviousLevel();

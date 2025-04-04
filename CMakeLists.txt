@@ -32,8 +32,8 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
 target_include_directories(${PROJECT_NAME} PRIVATE
         ${CMAKE_SOURCE_DIR}/ext
         ${CMAKE_SOURCE_DIR}/ext/gl3w
-        ${CMAKE_SOURCE_DIR}/ext/sdl/include
-        ${CMAKE_SOURCE_DIR}/ext/sdl2_mixer/include
+        ${CMAKE_SOURCE_DIR}/ext/SDL3/include
+        ${CMAKE_SOURCE_DIR}/ext/SDL3_mixer/include
         ${CMAKE_SOURCE_DIR}/ext/assimp/include
         ${CMAKE_SOURCE_DIR}/jolt
         ${CMAKE_SOURCE_DIR}/recast/Recast/Include
@@ -52,15 +52,17 @@ target_compile_options(${PROJECT_NAME} PRIVATE $<$<CONFIG:Distribution>:${MSVC_C
 
 set(MSVC_LINKER_OPTIONS
         /incremental:no /opt:ref /subsystem:console shell32.lib opengl32.lib dwmapi.lib ole32.lib
-        /LIBPATH:"${CMAKE_SOURCE_DIR}/ext/sdl/lib/x64" SDL2.lib SDL2main.lib
-        /LIBPATH:"${CMAKE_SOURCE_DIR}/ext/sdl2_mixer/lib/x64" SDL2_mixer.lib
         /LIBPATH:"${CMAKE_SOURCE_DIR}/ext/assimp/lib" assimp-vc142-mt.lib
         /LIBPATH:"${CMAKE_SOURCE_DIR}/radiant/Release" radiant.lib
 )
 set(MSVC_LINKER_DEBUG_OPTIONS ${MSVC_LINKER_OPTIONS}
+        /LIBPATH:"${CMAKE_SOURCE_DIR}/ext/SDL3/Debug" SDL3.lib
+        /LIBPATH:"${CMAKE_SOURCE_DIR}/ext/SDL3_mixer/Debug" SDL3_mixer.lib
 )
 set(MSVC_LINKER_RELEASE_OPTIONS ${MSVC_LINKER_OPTIONS}
         /LTCG
+        /LIBPATH:"${CMAKE_SOURCE_DIR}/ext/SDL3/Release" SDL3.lib
+        /LIBPATH:"${CMAKE_SOURCE_DIR}/ext/SDL3_mixer/Release" SDL3_mixer.lib
 )
 target_link_options(${PROJECT_NAME} PRIVATE $<$<CONFIG:Debug>:${MSVC_LINKER_DEBUG_OPTIONS}>)
 target_link_options(${PROJECT_NAME} PRIVATE $<$<CONFIG:Release>:${MSVC_LINKER_RELEASE_OPTIONS}>)
@@ -68,8 +70,8 @@ target_link_options(${PROJECT_NAME} PRIVATE $<$<CONFIG:Distribution>:${MSVC_LINK
 
 # Copy DLLs after build
 set(DLL_FILES
-        ${CMAKE_SOURCE_DIR}/ext/sdl/lib/x64/SDL2.dll
-        ${CMAKE_SOURCE_DIR}/ext/sdl2_mixer/lib/x64/SDL2_mixer.dll
+        ${CMAKE_SOURCE_DIR}/ext/SDL3/Release/SDL3.dll
+        ${CMAKE_SOURCE_DIR}/ext/SDL3_mixer/Release/SDL3_mixer.dll
         ${CMAKE_SOURCE_DIR}/ext/assimp/lib/assimp-vc142-mt.dll
         ${CMAKE_SOURCE_DIR}/ext/renderdoc.dll
         ${CMAKE_SOURCE_DIR}/radiant/Release/radiant.dll

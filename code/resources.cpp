@@ -13,19 +13,19 @@ void FreeFileBinary(BinaryFileHandle& binary_file_to_free)
 
 void ReadFileBinary(BinaryFileHandle& mem_to_read_to, const char* file_path)
 {
-    if(mem_to_read_to.memory)
+    if (mem_to_read_to.memory)
     {
         printf("WARNING: Binary File Handle already points to allocated memory. Freeing memory first...\n");
         FreeFileBinary(mem_to_read_to);
     }
 
-    SDL_RWops* binary_file_rw = SDL_RWFromFile(file_path, "rb");
-    if(binary_file_rw)
+    SDL_IOStream *binary_file_rw = SDL_IOFromFile(file_path, "rb");
+    if (binary_file_rw)
     {
-        mem_to_read_to.size = (u32) SDL_RWsize(binary_file_rw); // total size in bytes
+        mem_to_read_to.size = (u32) SDL_GetIOSize(binary_file_rw); // total size in bytes
         mem_to_read_to.memory = malloc((size_t) mem_to_read_to.size);
-        SDL_RWread(binary_file_rw, mem_to_read_to.memory, (size_t) mem_to_read_to.size, 1);
-        SDL_RWclose(binary_file_rw);
+        SDL_ReadIO(binary_file_rw, mem_to_read_to.memory, (size_t) mem_to_read_to.size);
+        SDL_CloseIO(binary_file_rw);
     }
     else
     {
@@ -42,11 +42,11 @@ bool WriteFileBinary(const BinaryFileHandle& bin, const char* file_path)
         return false;
     }
 
-    SDL_RWops* bin_w = SDL_RWFromFile(file_path, "wb");
+    SDL_IOStream *bin_w = SDL_IOFromFile(file_path, "wb");
     if(bin_w)
     {
-        SDL_RWwrite(bin_w, bin.memory, bin.size, 1);
-        SDL_RWclose(bin_w);
+        SDL_WriteIO(bin_w, bin.memory, bin.size);
+        SDL_CloseIO(bin_w);
         return true;
     }
 
