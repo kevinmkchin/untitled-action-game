@@ -23,15 +23,18 @@ bool DebugDrawEnemyPathingFlag = false;
 bool DebugEnemyBehaviourActive = true;
 bool FlyCamActive = false;
 
+noclip::console ConsoleBackend;
+
 // internal
 enum CONSOLE_SHOWING_STATES
 {
-    DEBUG_CONSOLE_NOTMOVING,
+    DEBUG_CONSOLE_HIDDEN,
     DEBUG_CONSOLE_SHOWING,
+    DEBUG_CONSOLE_SHOWN,
     DEBUG_CONSOLE_HIDING
 };
 
-static CONSOLE_SHOWING_STATES ConsoleShowingState = DEBUG_CONSOLE_NOTMOVING;
+static CONSOLE_SHOWING_STATES ConsoleShowingState = DEBUG_CONSOLE_HIDDEN;
 static constexpr float ConsoleHDefault = 400.f;
 static float ConsoleY = 0.f;
 static float ConsoleH = ConsoleHDefault;
@@ -39,6 +42,7 @@ static constexpr float ConsoleScrollSpd = 2400.f;
 static fixed_array<char> ConsoleInputBuf;
 static constexpr int ConsoleInputBufMax = 4000;
 static u32 ConsoleInputBufCursor = 0;
+static bool FlushConsoleCommands = false;
 
 
 // these are self-contained valid procedures that 
@@ -82,16 +86,75 @@ void BuildLevelAndPlay()
     // CurrentDebugMode = DEBUG_MODE_OFF;
 }
 
-void SetDebugMode(DEBUG_MODES Mode)
+void SetDebugMode(int Mode)
 {
     CurrentDebugMode = (DEBUG_MODES)GM_max(0, GM_min(u32(Mode), 2));
+    if (CurrentDebugMode != DEBUG_MODE_CONSOLE)
+        ConsoleShowingState = DEBUG_CONSOLE_HIDDEN;
 }
 
-void RegisterConsoleCommands()
+void dd_col_level(int v)
 {
+    DebugDrawLevelColliderFlag = v != 0;
+}
+
+void dd_col_monsters(int v)
+{
+    DebugDrawEnemyCollidersFlag = v != 0;
+}
+
+void dd_col_projectiles(int v)
+{
+    DebugDrawProjectileCollidersFlag = v != 0;
+}
+
+void show_num_bodies(int v)
+{
+    DebugShowNumberOfPhysicsBodies = v != 0;
+}
+
+void show_memory(int v)
+{
+    DebugShowGameMemoryUsage = v != 0;
+}
+
+void dd_navmesh(int v)
+{
+    DebugDrawNavMeshFlag = v != 0;
+}
+
+void dd_navpath(int v)
+{
+    DebugDrawEnemyPathingFlag = v != 0;
+}
+
+void monsters_chase(int v)
+{
+    DebugEnemyBehaviourActive = v != 0;
+}
+
+void proc_noclip()
+{
+    FlyCamActive = !FlyCamActive;
+}
+
+void SetupConsoleAndBindProcedures()
+{
+    // Prepare input buffer
     ConsoleInputBuf = fixed_array<char>(ConsoleInputBufMax, MemoryType::Game);
     ConsoleInputBuf.put(0);
     ConsoleInputBufCursor = 0;
+
+    ConsoleBackend.bind_cmd("debug", SetDebugMode);
+    ConsoleBackend.bind_cmd("dd_col_level", dd_col_level);
+    ConsoleBackend.bind_cmd("dd_col_monsters", dd_col_monsters);
+    ConsoleBackend.bind_cmd("dd_col_projectiles", dd_col_projectiles);
+    ConsoleBackend.bind_cmd("show_num_bodies", show_num_bodies);
+    ConsoleBackend.bind_cmd("show_memory", show_memory);
+    ConsoleBackend.bind_cmd("dd_navmesh", dd_navmesh);
+    ConsoleBackend.bind_cmd("dd_navpath", dd_navpath);
+    ConsoleBackend.bind_cmd("monsters_chase", monsters_chase);
+    ConsoleBackend.bind_cmd("noclip", proc_noclip);
 }
 
 void SendInputToConsole(const SDL_Event event)
@@ -110,10 +173,7 @@ void SendInputToConsole(const SDL_Event event)
             {
                 case SDLK_RETURN:
                 {
-                    // console_command(console_input_buffer);
-                    // memset(console_input_buffer, 0, console_input_buffer_count);
-                    ConsoleInputBufCursor = 0;
-                    ConsoleInputBuf.deln(0, ConsoleInputBuf.lenu()-1);
+                    FlushConsoleCommands = true;
                     break;
                 }
                 case SDLK_BACKSPACE:
@@ -170,7 +230,7 @@ void SendInputToConsole(const SDL_Event event)
             {
                 const int ASCII_SPACE = 32;
                 const int ASCII_TILDE = 126;
-                keycode = ShiftASCII(keycode, keyevent.mod & SDL_KMOD_SHIFT);
+                keycode = ShiftASCII(keycode, KeysCurrent[SDL_SCANCODE_LSHIFT] | KeysCurrent[SDL_SCANCODE_RSHIFT]);
                 if((ASCII_SPACE <= keycode && keycode < ASCII_TILDE) && keycode != '`')
                 {
                     if(ConsoleInputBuf.lenu() < ConsoleInputBuf.cap())
@@ -184,11 +244,6 @@ void SendInputToConsole(const SDL_Event event)
             break;
         }
     }
-}
-
-static void ProcessConsoleCommands()
-{
-
 }
 
 static void DisplayDebugConsole()
@@ -266,12 +321,14 @@ void ShowDebugConsole()
         switch (CurrentDebugMode)
         {
         case DEBUG_MODE_OFF:
+            if (KeysCurrent[SDL_SCANCODE_LCTRL])
+                LastDebugMode = DEBUG_MODE_CONSOLE;
             if (LastDebugMode == DEBUG_MODE_MENU)
             {
                 CurrentDebugMode = DEBUG_MODE_MENU;
                 LastDebugMode = DEBUG_MODE_OFF;
             }
-            else if (LastDebugMode == DEBUG_MODE_CONSOLE)
+            else if (LastDebugMode == DEBUG_MODE_CONSOLE || LastDebugMode == DEBUG_MODE_OFF)
             {
                 GameLoopCanRun = false;
                 ConsoleShowingState = DEBUG_CONSOLE_SHOWING;
@@ -294,6 +351,9 @@ void ShowDebugConsole()
     ConsoleH = fminf(ConsoleHDefault, (float)RenderTargetGUI.height-60);
     switch (ConsoleShowingState)
     {
+    case DEBUG_CONSOLE_HIDDEN:
+        ConsoleY = 0.f;
+        break;
     case DEBUG_CONSOLE_SHOWING:
         if (ConsoleY < 0.f)
         {
@@ -306,10 +366,10 @@ void ShowDebugConsole()
         if (ConsoleY >= ConsoleH)
         {
             ConsoleY = ConsoleH;
-            ConsoleShowingState = DEBUG_CONSOLE_NOTMOVING;
+            ConsoleShowingState = DEBUG_CONSOLE_SHOWN;
         }
         break;
-    case DEBUG_CONSOLE_NOTMOVING:
+    case DEBUG_CONSOLE_SHOWN:
         break;
     case DEBUG_CONSOLE_HIDING:
         if (ConsoleY > 0.f)
@@ -319,7 +379,7 @@ void ShowDebugConsole()
         }
         if (ConsoleY <= 0.f)
         {
-            ConsoleShowingState = DEBUG_CONSOLE_NOTMOVING;
+            ConsoleShowingState = DEBUG_CONSOLE_HIDDEN;
         }
         break;
     }
@@ -335,7 +395,13 @@ void ShowDebugConsole()
         DisplayDebugMenu();
         break;
     case DEBUG_MODE_CONSOLE:
-        ProcessConsoleCommands();
+        if (FlushConsoleCommands)
+        {
+            FlushConsoleCommands = false;
+            ConsoleBackend.execute(ConsoleInputBuf.data, std::cout);
+            ConsoleInputBufCursor = 0;
+            ConsoleInputBuf.deln(0, ConsoleInputBuf.lenu()-1);
+        }
         break;
     }
 

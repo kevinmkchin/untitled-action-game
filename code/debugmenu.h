@@ -11,10 +11,9 @@ enum DEBUG_MODES : u32
 // procedures
 void SwitchToLevelEditor();
 void BuildLevelAndPlay();
-void SetDebugMode(DEBUG_MODES Mode);
 
 // interface
-void RegisterConsoleCommands();
+void SetupConsoleAndBindProcedures();
 void SendInputToConsole(const SDL_Event event);
 void ShowDebugConsole();
 
