@@ -134,6 +134,12 @@ void NonPhysicsTick()
     }
     GUI::PrimitiveTextFmt(20, 180, 9, GUI::Align::LEFT, "kills %d", KillEnemyCounter);
     GUI::PrimitiveTextFmt(180, 650, 18, GUI::Align::RIGHT, "%d", (int)ceilf(Player.Health));
+
+    if (DebugShowNumberOfPhysicsBodies)
+    {
+        GUI::PrimitiveTextFmt(8, 48, GUI::GetFontSize(), GUI::Align::LEFT, 
+            "JPH NumActiveBodies: %d", Physics.PhysicsSystem->GetNumActiveBodies(JPH::EBodyType::RigidBody));
+    }
 }
 
 void PrePhysicsTick()
@@ -156,8 +162,11 @@ void PostPhysicsTick()
 
 void LateNonPhysicsTick()
 {
+    Player.LateNonPhysicsTick();
+}
 
-
+void DebugDrawGame()
+{
     //vec3 p = Player.Root;// +Player.CamOffsetFromRoot;
     // size_t pi = LightCacheVolume->IndexByPosition(p);
     // for (size_t i = 0; i < RuntimeMapInfo.LightCacheVolume->CubePositions.lenu(); ++i)
@@ -197,51 +206,55 @@ void LateNonPhysicsTick()
                 JPH::Vec3::sReplicate(1.0f), JPH::Color(255,0,0,255), false, true);
         }
     }
-
-    if (DebugShowNumberOfPhysicsBodies)
-    {
-        GUI::PrimitiveTextFmt(8, 48, GUI::GetFontSize(), GUI::Align::LEFT, 
-            "JPH NumActiveBodies: %d", Physics.PhysicsSystem->GetNumActiveBodies(JPH::EBodyType::RigidBody));
-    }
 #endif // JPH_DEBUG_RENDERER
-
-    Player.LateNonPhysicsTick();
 }
 
 void DoGameLoop()
 {
-    if (!GameLoopCanRun) 
-        return;
-
     GlobalDynamicInstances = fixed_array<model_instance_data_t>(MaxDynamicInstances, MemoryType::Frame);
 
-    NonPhysicsTick();
-
-    static float Accumulator = 0.f;
-    Accumulator += DeltaTime;
-    while (Accumulator >= FixedDeltaTime)
+    if (GameLoopCanRun) 
     {
-        PrePhysicsTick();
-        Physics.Tick();
-        PostPhysicsTick();
+        NonPhysicsTick();
 
-        Accumulator -= FixedDeltaTime;
-    }
-
-    LateNonPhysicsTick();
-
-    for (size_t i = 0; i < AnimatorPool.length; ++i)
-    {
-        if (AnimatorPool[i].HasOwner)
+        static float Accumulator = 0.f;
+        Accumulator += DeltaTime;
+        while (Accumulator >= FixedDeltaTime)
         {
-            AnimatorPool[i].UpdateGlobalPoses(DeltaTime);
-            AnimatorPool[i].CalculateSkinningMatrixPalette();
+            PrePhysicsTick();
+            Physics.Tick();
+            PostPhysicsTick();
+
+            Accumulator -= FixedDeltaTime;
+        }
+
+        LateNonPhysicsTick();
+
+        for (size_t i = 0; i < AnimatorPool.length; ++i)
+        {
+            if (AnimatorPool[i].HasOwner)
+            {
+                AnimatorPool[i].UpdateGlobalPoses(DeltaTime);
+                AnimatorPool[i].CalculateSkinningMatrixPalette();
+            }
         }
     }
 
+    DebugDrawGame();
     RenderGameLayer();
 
-    UpdateGameGUI();
+    if (GameLoopCanRun) 
+    {
+        UpdateGameGUI();
+    }
+}
+
+void UpdateGameGUI()
+{
+    // temp crosshair
+    ivec2 guiwh = ivec2(RenderTargetGUI.width, RenderTargetGUI.height);
+    GUI::PrimitivePanel(GUI::UIRect(guiwh.x / 2 - 3, guiwh.y / 2 - 3, 6, 6), vec4(0, 0, 0, 1));
+    GUI::PrimitivePanel(GUI::UIRect(guiwh.x / 2 - 2, guiwh.y / 2 - 2, 4, 4), vec4(1, 1, 1, 1));
 
     if (DebugShowGameMemoryUsage)
     {
@@ -255,14 +268,6 @@ void DoGameLoop()
             "Frame Memory usage [%zd/%zd KB]", 
             FrameMemory.ArenaOffset/1000, FrameMemory.ArenaSize/1000);
     }
-}
-
-void UpdateGameGUI()
-{
-    // temp crosshair
-    ivec2 guiwh = ivec2(RenderTargetGUI.width, RenderTargetGUI.height);
-    GUI::PrimitivePanel(GUI::UIRect(guiwh.x / 2 - 3, guiwh.y / 2 - 3, 6, 6), vec4(0, 0, 0, 1));
-    GUI::PrimitivePanel(GUI::UIRect(guiwh.x / 2 - 2, guiwh.y / 2 - 2, 4, 4), vec4(1, 1, 1, 1));
 }
 
 void RenderGameLayer()
