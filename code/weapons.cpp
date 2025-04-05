@@ -46,6 +46,17 @@ void TickWeapon(weapon_state_t *State, bool LMB, bool RMB)
     {
         State->NailgunRotationVelocity = State->NailgunRotationMaxVelocity;
     }
+
+    State->NailgunRotation += State->NailgunRotationVelocity * DeltaTime;
+    State->NailgunRotationVelocity = fmax(0.f, State->NailgunRotationVelocity + State->NailgunRotationAcceleration * DeltaTime);
+    if (State->NailgunRotationVelocity > 0.1f && State->NailgunRotationVelocity <= 3.f)
+    {
+        State->NailgunRotationVelocity = fmax(3.f, State->NailgunRotationVelocity);
+        if (abs(fmodf(State->NailgunRotation, GM_PI) - GM_HALFPI) < 0.01f)
+        {
+            State->NailgunRotationVelocity = 0.f;
+        }
+    }
 }
 
 void RenderWeapon(weapon_state_t *State, float *ProjFromView, float *WorldFromView)
@@ -64,16 +75,6 @@ void RenderWeapon(weapon_state_t *State, float *ProjFromView, float *WorldFromVi
     // glActiveTexture(GL_TEXTURE0);
     // glBindTexture(GL_TEXTURE_2D, t.id);
     RenderGPUMeshIndexed(m);
-    State->NailgunRotation += State->NailgunRotationVelocity * DeltaTime;
-    State->NailgunRotationVelocity = fmax(0.f, State->NailgunRotationVelocity + State->NailgunRotationAcceleration * DeltaTime);
-    if (State->NailgunRotationVelocity > 0.1f && State->NailgunRotationVelocity <= 3.f)
-    {
-        State->NailgunRotationVelocity = fmax(3.f, State->NailgunRotationVelocity);
-        if (abs(fmodf(State->NailgunRotation, GM_PI) - GM_HALFPI) < 0.01f)
-        {
-            State->NailgunRotationVelocity = 0.f;
-        }
-    }
     GunOffsetAndScale = TranslationMatrix(0,-4,GunRecoil) 
         * RotationMatrix(EulerToQuat(0,0,State->NailgunRotation)) 
         * ScaleMatrix(SI_UNITS_TO_GAME_UNITS);
