@@ -125,28 +125,59 @@ inline std::string entity_icons_path(const std::string& name) { return wd_path()
 
 #define ARRAY_COUNT(a) (sizeof(a) / (sizeof(a[0])))
 
-// fflush this shit for CLion
-#define LogMessage(...)                        \
-    do {                                       \
-        fprintf(stdout, __VA_ARGS__);          \
-        fprintf(stdout, "\n");                 \
-        fflush(stdout);                        \
-    } while (false)
-#define LogWarning(...)                        \
-    do {                                       \
-        fprintf(stderr, __VA_ARGS__);          \
-        fprintf(stderr, "\n");                 \
-        fflush(stderr);                        \
-    } while (false)
-#define LogError(...)                          \
-    do {                                       \
-        fprintf(stderr, __VA_ARGS__);          \
-        fprintf(stderr, "\n");                 \
-        fflush(stderr);                        \
-    } while (false)
+#include "debugmenu.h"
+#define PRINT_TO_INGAME_CONSOLE
+inline u32 CharBufLen(char *Buf)
+{
+    u32 Len = 0;
+    while(*Buf++ != '\0')
+        ++Len;
+    return Len;
+}
+void LogMessage(const char *fmt, ...)
+{
+    va_list ArgPtr;
+    static char Message[1024];
+    va_start(ArgPtr, fmt);
+    stbsp_vsnprintf(Message, 1024, fmt, ArgPtr);
+    va_end(ArgPtr);
+#ifdef PRINT_TO_INGAME_CONSOLE
+    AppendToConsoleOutputBuf(Message, CharBufLen(Message), true);
+#endif // PRINT_TO_INGAME_CONSOLE
+    fprintf(stdout, Message);
+    fprintf(stdout, "\n");
+    fflush(stdout);
+}
+void LogWarning(const char *fmt, ...)
+{
+    va_list ArgPtr;
+    static char Message[1024];
+    va_start(ArgPtr, fmt);
+    stbsp_vsnprintf(Message, 1024, fmt, ArgPtr);
+    va_end(ArgPtr);
+#ifdef PRINT_TO_INGAME_CONSOLE
+    AppendToConsoleOutputBuf(Message, CharBufLen(Message), true);
+#endif // PRINT_TO_INGAME_CONSOLE
+    fprintf(stderr, Message);
+    fprintf(stderr, "\n");
+    fflush(stderr);
+}
+void LogError(const char *fmt, ...)
+{
+    va_list ArgPtr;
+    static char Message[1024];
+    va_start(ArgPtr, fmt);
+    stbsp_vsnprintf(Message, 1024, fmt, ArgPtr);
+    va_end(ArgPtr);
+#ifdef PRINT_TO_INGAME_CONSOLE
+    AppendToConsoleOutputBuf(Message, CharBufLen(Message), true);
+#endif // PRINT_TO_INGAME_CONSOLE
+    fprintf(stderr, Message);
+    fprintf(stderr, "\n");
+    fflush(stderr);
+}
 
 
-// HMMM TODO i should just do 32 units = 1 metre. 
 // let 1 unit = 1 inch, this approximates 32 units to 0.82 metres
 #define STANDARD_LENGTH_IN_GAME_UNITS 32
 #define GAME_UNIT_TO_SI_UNITS 0.0254f // 0.8128m / 32 units
@@ -182,7 +213,6 @@ inline std::string entity_icons_path(const std::string& name) { return wd_path()
 #include "game.h"
 #include "enemy.h"
 #include "nav.h"
-#include "debugmenu.h"
 #include "shader_helpers.h"
 
 
@@ -535,21 +565,20 @@ static void ProcessSDLEvents()
 
 int main(int argc, char* argv[])
 {
-    if (!InitializeApplication()) return -1;
-
-    InitGameRenderer();
-
     StaticGameMemory.Init(128000000);
     StaticLevelMemory.Init(32000000);
     FrameMemory.Init(32000000);
     JoltPhysicsMemory.Init(128000000);
 
+    SetupConsoleAndBindProcedures();
+
+    if (!InitializeApplication()) return -1;
+
+    InitGameRenderer();
+
     Assets.LoadAllResources();
 
-    srand(100);
-
     InitializeGame();
-    SetupConsoleAndBindProcedures();
 
     // LevelEditor.LoadMap(wd_path("testing.emf").c_str());
     // BuildGameMap(wd_path("buildtest.map").c_str());

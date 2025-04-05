@@ -25,8 +25,8 @@ void TickWeapon(weapon_state_t *State, bool LMB, bool RMB)
         static int ChannelIndex = 0;
         Mix_VolumeChunk(Assets.Sfx_Shoot0, 24 + SOUNDRNG.NextInt(-2, 2)); // Volume variation
         Mix_PlayChannel(ChannelIndex++%3, Assets.Sfx_Shoot0, 0);
-        State->Cooldown = 0.180f;
-        // State->Cooldown = 0.080f;
+        // State->Cooldown = RMB ? 0.080f : 0.150f;
+        State->Cooldown = 0.080f;
 
         GunRecoil = 0.9f;
 
