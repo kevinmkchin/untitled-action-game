@@ -138,6 +138,10 @@ void monsters_chase(int v)
 void proc_noclip()
 {
     FlyCamActive = !FlyCamActive;
+    if (FlyCamActive)
+        LogMessage("noclip on");
+    else
+        LogMessage("noclip off");
 }
 
 void SetupConsoleAndBindProcedures()
@@ -260,8 +264,20 @@ void AppendToConsoleOutputBuf(const char *Text, size_t Length, bool NewLine)
         ConsoleOutputBuf.insn(0, 1);
         ConsoleOutputBuf[0] = '\n';
     }
-    ConsoleOutputBuf.insn(0, (u32)Length);
-    memcpy(ConsoleOutputBuf.data, Text, Length);
+
+    int BeginningOfLine = 0;
+    for (int i = 0; i < Length; ++i)
+    {
+        if (Text[i+1] == '\0' || Text[i] == '\n')
+        {
+            u32 LineLength = (u32)i - BeginningOfLine + 1;
+            ConsoleOutputBuf.insn(0, LineLength);
+            memcpy(ConsoleOutputBuf.data, Text+BeginningOfLine, LineLength);
+            BeginningOfLine = i+1;
+            if (Text[i+1] == '\0')
+                return;
+        }
+    }
 }
 
 static void DisplayDebugConsole()
@@ -425,11 +441,12 @@ void ShowDebugConsole()
         if (FlushConsoleCommands)
         {
             FlushConsoleCommands = false;
+
+            AppendToConsoleOutputBuf(ConsoleInputBuf.data, ConsoleInputBuf.lenu()-1, true);
+
             std::ostringstream ConsoleBackendOutStream;
             ConsoleBackend.execute(ConsoleInputBuf.data, ConsoleBackendOutStream);
-
             std::string CmdExecOutput = ConsoleBackendOutStream.str();
-            AppendToConsoleOutputBuf(ConsoleInputBuf.data, ConsoleInputBuf.lenu()-1, true);
             AppendToConsoleOutputBuf(CmdExecOutput.c_str(), CmdExecOutput.size(), false);
 
             memset(ConsoleInputBuf.data, 0, ConsoleInputBuf.lenu()-1);
