@@ -15,6 +15,7 @@ void BuildLevelAndPlay();
 // interface
 void SetupConsoleAndBindProcedures();
 void SendInputToConsole(const SDL_Event event);
+void AppendToConsoleOutputBuf(const char *Text, size_t Length, bool NewLine);
 void ShowDebugConsole();
 
 extern DEBUG_MODES CurrentDebugMode;

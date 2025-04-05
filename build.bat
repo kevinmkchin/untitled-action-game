@@ -4,6 +4,8 @@ set DebugConfig=0
 set ReleaseConfig=0
 set DistributionConfig=0
 
+if [%1] == [] set DebugConfig=1
+
 :ParamCheck :: Loop through all parameters
 if [%1] == [] goto EndParamCheck
 if /I "%1" == "Debug"           (set DebugConfig=1)

@@ -43,6 +43,7 @@ static fixed_array<char> ConsoleInputBuf;
 static constexpr int ConsoleInputBufMax = 4000;
 static u32 ConsoleInputBufCursor = 0;
 static bool FlushConsoleCommands = false;
+static float CursorBlinkTimer = 0.f;
 static fixed_array<char> ConsoleOutputBuf;
 static constexpr int ConsoleOutputBufMax = 4000;
 
@@ -173,16 +174,13 @@ void SendInputToConsole(const SDL_Event event)
             SDL_KeyboardEvent keyevent = event.key;
             SDL_Keycode keycode = keyevent.key;
 
+            CursorBlinkTimer = 0.f;
+
             switch(keycode)
             {
                 case SDLK_RETURN:
                 {
                     FlushConsoleCommands = true;
-                    if(ConsoleInputBuf.lenu() < ConsoleInputBuf.cap())
-                    {
-                        ConsoleInputBuf.ins(ConsoleInputBufCursor, '\n');
-                        ++ConsoleInputBufCursor;
-                    }
                     break;
                 }
                 case SDLK_BACKSPACE:
@@ -255,6 +253,17 @@ void SendInputToConsole(const SDL_Event event)
     }
 }
 
+void AppendToConsoleOutputBuf(const char *Text, size_t Length, bool NewLine)
+{
+    if (NewLine)
+    {
+        ConsoleOutputBuf.insn(0, 1);
+        ConsoleOutputBuf[0] = '\n';
+    }
+    ConsoleOutputBuf.insn(0, (u32)Length);
+    memcpy(ConsoleOutputBuf.data, Text, Length);
+}
+
 static void DisplayDebugConsole()
 {
     GUI::PrimitivePanel(GUI::UIRect(0, (int)floorf(-ConsoleH+ConsoleY), 4000, (int)ConsoleH), 
@@ -270,11 +279,14 @@ static void DisplayDebugConsole()
             GUI::GetFontSize(), GUI::Align::LEFT, true, ConsoleOutputBuf.data);
     }
 
-    if (u32(TimeSinceStart / 0.85f) % 2 == 1)
+    if (u32(CursorBlinkTimer / 0.85f) % 2 == 0)
     {
-        GUI::UIRect CursorRect = GUI::UIRect(GUI::GetFontSize() + 1 + ConsoleInputBufCursor * 6,
-            int(ConsoleY) - (GUI::GetFontSize() / 2) - GUI::GetFontSize() - 4, 2, GUI::GetFontSize() + 3);
-        GUI::PrimitivePanel(CursorRect, vec4(1.f, 1.f, 1.f, 1.f));
+        GUI::UIRect CursorRect = GUI::UIRect(
+            GUI::GetFontSize() + (-1) + ConsoleInputBufCursor * 6,
+            int(ConsoleY) - (GUI::GetFontSize() / 2) - GUI::GetFontSize() - 4, 
+            6, 
+            GUI::GetFontSize() + 3);
+        GUI::PrimitivePanel(CursorRect, vec4(1.f, 1.f, 1.f, 0.4f));
     }
 
 }
@@ -413,9 +425,13 @@ void ShowDebugConsole()
         if (FlushConsoleCommands)
         {
             FlushConsoleCommands = false;
-            ConsoleBackend.execute(ConsoleInputBuf.data, std::cout);
-            ConsoleOutputBuf.insn(0, ConsoleInputBuf.lenu()-1);
-            memcpy(ConsoleOutputBuf.data, ConsoleInputBuf.data, ConsoleInputBuf.lenu()-1);
+            std::ostringstream ConsoleBackendOutStream;
+            ConsoleBackend.execute(ConsoleInputBuf.data, ConsoleBackendOutStream);
+
+            std::string CmdExecOutput = ConsoleBackendOutStream.str();
+            AppendToConsoleOutputBuf(ConsoleInputBuf.data, ConsoleInputBuf.lenu()-1, true);
+            AppendToConsoleOutputBuf(CmdExecOutput.c_str(), CmdExecOutput.size(), false);
+
             memset(ConsoleInputBuf.data, 0, ConsoleInputBuf.lenu()-1);
             ConsoleInputBuf.setlen(1);
             ConsoleInputBufCursor = 0;
@@ -426,4 +442,5 @@ void ShowDebugConsole()
     if (ConsoleY > 0.f)
         DisplayDebugConsole();
 
+    CursorBlinkTimer += RealDeltaTime;
 }
