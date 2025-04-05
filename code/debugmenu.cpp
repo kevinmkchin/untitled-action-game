@@ -135,15 +135,6 @@ void monsters_chase(int v)
     DebugEnemyBehaviourActive = v != 0;
 }
 
-void proc_noclip()
-{
-    FlyCamActive = !FlyCamActive;
-    if (FlyCamActive)
-        LogMessage("noclip on");
-    else
-        LogMessage("noclip off");
-}
-
 void SetupConsoleAndBindProcedures()
 {
     // Prepare input buffer
@@ -163,6 +154,15 @@ void SetupConsoleAndBindProcedures()
     ConsoleBackend.bind_cmd("dd_navmesh", dd_navmesh);
     ConsoleBackend.bind_cmd("dd_navpath", dd_navpath);
     ConsoleBackend.bind_cmd("monsters_chase", monsters_chase);
+
+    noclip::console_function_t proc_noclip = [](std::istream &is, std::ostream &os)
+        {
+            FlyCamActive = !FlyCamActive;
+            if (FlyCamActive)
+                os << "noclip on" << std::endl;
+            else
+                os << "noclip off" << std::endl;
+        };
     ConsoleBackend.bind_cmd("noclip", proc_noclip);
 }
 
@@ -443,6 +443,7 @@ void ShowDebugConsole()
             FlushConsoleCommands = false;
 
             AppendToConsoleOutputBuf(ConsoleInputBuf.data, ConsoleInputBuf.lenu()-1, true);
+            AppendToConsoleOutputBuf(">", 1, false);
 
             std::ostringstream ConsoleBackendOutStream;
             ConsoleBackend.execute(ConsoleInputBuf.data, ConsoleBackendOutStream);
