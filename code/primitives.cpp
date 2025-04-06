@@ -370,8 +370,11 @@ void support_renderer_t::FlushPrimitives(const mat4 *projectionMatrix, const mat
         GLBind1f(LINES_SHADER, "occludedOpacity", 0.5f);
         glBindVertexArray(PRIM_VERTEX_POS_AND_COLOR_VAO);
         glBindBuffer(GL_ARRAY_BUFFER, PRIM_VERTEX_POS_AND_COLOR_VBO);
-        glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr) sizeof(float) * PRIMITIVE_LINES_VB.lenu(), PRIMITIVE_LINES_VB.data,
-                     GL_DYNAMIC_DRAW);
+
+        GLsizeiptr SizeInBytes = (GLsizeiptr) sizeof(float) * PRIMITIVE_LINES_VB.lenu();
+        glBufferData(GL_ARRAY_BUFFER, SizeInBytes, nullptr, GL_DYNAMIC_DRAW);
+        glBufferSubData(GL_ARRAY_BUFFER, 0, SizeInBytes, PRIMITIVE_LINES_VB.data);
+
         glDrawArrays(GL_LINES, 0, PRIMITIVE_LINES_VB.lenu() / 7);
         glBindBuffer(GL_ARRAY_BUFFER, 0);
         glBindVertexArray(0);
@@ -393,8 +396,11 @@ void support_renderer_t::FlushPrimitives(const mat4 *projectionMatrix, const mat
         GLBind1f(FATLINES_SHADER, "occludedOpacity", 0.33f);
         glBindVertexArray(PRIM_VERTEX_POS_COLOR_LINEWIDTH_VAO);
         glBindBuffer(GL_ARRAY_BUFFER, PRIM_VERTEX_POS_COLOR_LINEWIDTH_VBO);
-        glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr) sizeof(float) * PRIMITIVE_FATLINES_VB.lenu(), PRIMITIVE_FATLINES_VB.data,
-                     GL_DYNAMIC_DRAW);
+
+        GLsizeiptr SizeInBytes = (GLsizeiptr) sizeof(float) * PRIMITIVE_FATLINES_VB.lenu();
+        glBufferData(GL_ARRAY_BUFFER, SizeInBytes, nullptr, GL_DYNAMIC_DRAW);
+        glBufferSubData(GL_ARRAY_BUFFER, 0, SizeInBytes, PRIMITIVE_FATLINES_VB.data);
+
         glDrawArrays(GL_LINES, 0, PRIMITIVE_FATLINES_VB.lenu() / 8);
         glBindBuffer(GL_ARRAY_BUFFER, 0);
         glBindVertexArray(0);
@@ -416,8 +422,11 @@ void support_renderer_t::FlushPrimitives(const mat4 *projectionMatrix, const mat
         GLBind1f(PRIMITIVES_TRIS_SHADER, "occludedOpacity", 0.5f);
         glBindVertexArray(PRIM_VERTEX_POS_AND_COLOR_VAO);
         glBindBuffer(GL_ARRAY_BUFFER, PRIM_VERTEX_POS_AND_COLOR_VBO);
-        glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr) sizeof(float) * PRIMITIVE_TRIS_VB.lenu(), PRIMITIVE_TRIS_VB.data,
-                     GL_DYNAMIC_DRAW);
+
+        GLsizeiptr SizeInBytes = (GLsizeiptr) sizeof(float) * PRIMITIVE_TRIS_VB.lenu();
+        glBufferData(GL_ARRAY_BUFFER, SizeInBytes, nullptr, GL_DYNAMIC_DRAW);
+        glBufferSubData(GL_ARRAY_BUFFER, 0, SizeInBytes, PRIMITIVE_TRIS_VB.data);
+
         glDrawArrays(GL_TRIANGLES, 0, PRIMITIVE_TRIS_VB.lenu() / 7);
         glBindBuffer(GL_ARRAY_BUFFER, 0);
         glBindVertexArray(0);
@@ -664,7 +673,11 @@ void support_renderer_t::DrawHandlesVertexArray_GL(float *VertexBuffer, u32 Vert
 
     glBindVertexArray(HANDLES_VAO);
     glBindBuffer(GL_ARRAY_BUFFER, HANDLES_VBO);
-    glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)sizeof(float)*VertexBufferCount, VertexBuffer, GL_DYNAMIC_DRAW);
+
+    GLsizeiptr SizeInBytes = (GLsizeiptr) sizeof(float) * VertexBufferCount;
+    glBufferData(GL_ARRAY_BUFFER, SizeInBytes, nullptr, GL_DYNAMIC_DRAW);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, SizeInBytes, VertexBuffer);
+
     glDrawArrays(GL_TRIANGLES, 0, VertexBufferCount / 6);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);

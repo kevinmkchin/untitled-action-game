@@ -96,7 +96,9 @@ void RebindGPUMesh(GPUMesh *mesh, size_t sizeInBytes, float *data, GLenum drawUs
 {
     glBindVertexArray(mesh->idVAO);
     glBindBuffer(GL_ARRAY_BUFFER, mesh->idVBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeInBytes, data, drawUsage);
+    // https://www.khronos.org/opengl/wiki/Buffer_Object_Streaming
+    glBufferData(GL_ARRAY_BUFFER, sizeInBytes, nullptr, drawUsage); // orphan old, alloc new buf
+    glBufferSubData(GL_ARRAY_BUFFER, 0, sizeInBytes, data);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
 
@@ -190,9 +192,12 @@ void RebindGPUMeshIndexedData(GPUMeshIndexed *mesh,
     mesh->indicesCount = indicesArrayCount;
     glBindVertexArray(mesh->idVAO);
     glBindBuffer(GL_ARRAY_BUFFER, mesh->idVBO);
-    glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr) 4 * verticesArrayCount, vertices, drawUsage);
+    // https://www.khronos.org/opengl/wiki/Buffer_Object_Streaming
+    glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr) 4 * verticesArrayCount, nullptr, drawUsage); // orphan old, alloc new buf
+    glBufferSubData(GL_ARRAY_BUFFER, 0, (GLsizeiptr) 4 * verticesArrayCount, vertices);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh->idIBO);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, (GLsizeiptr) 4 * indicesArrayCount, indices, drawUsage);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, (GLsizeiptr) 4 * indicesArrayCount, nullptr, drawUsage); // orphan old, alloc new buf
+    glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0, (GLsizeiptr) 4 * indicesArrayCount, indices);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
 }
