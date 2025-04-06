@@ -470,7 +470,7 @@ static bool InitializeApplication()
 #endif
 
     SDL_SetWindowMinimumSize(SDLMainWindow, 200, 100);
-    SDL_GL_SetSwapInterval(1);
+    SDL_GL_SetSwapInterval(0);
     // if (SDL_GL_SetSwapInterval(-1) == -1)
     // {
     //     LogWarning("Hardware does not support adaptive vsync.");
@@ -620,9 +620,13 @@ int main(int argc, char* argv[])
 
         // Swap buffers
         SDL_GL_SwapWindow(SDLMainWindow);
+
+        // TODO(Kevin): Don't DwmFlush if Fullscreen Exclusive (only on Windowed and Borderless) 
         // NOTE(Kevin) 2025-04-02: Even on SDL3 there's microstutters with Windowed VSYNC
         //                         Still feels much better with DwmFlush after SwapBuffers
-        DwmFlush();
+        int SwapInterval = 0;
+        if (SDL_GL_GetSwapInterval(&SwapInterval) && SwapInterval == 1)
+            DwmFlush();
     }
 
     LevelEditor.Close();

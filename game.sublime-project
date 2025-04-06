@@ -20,6 +20,7 @@
     {
       "name": "CMake",
       "cmd": ["cmake", "--build", "build"],
+      "file_regex": "^([A-Z]:\\\\.*)\\((\\d+),(\\d+)\\):",
       "working_dir": "${project_path:${folder}}",
       "shell": true,
       "variants": [

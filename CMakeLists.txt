@@ -44,23 +44,24 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 )
 
 set(MSVC_COMPILE_OPTIONS -nologo /std:c++17 /EHsc /W3 /we4239 /wd4996 /MP)
-set(MSVC_COMPILE_DEBUG_OPTIONS ${MSVC_COMPILE_OPTIONS} /Zi /MTd)
+set(MSVC_COMPILE_DEBUG_OPTIONS ${MSVC_COMPILE_OPTIONS} /ZI /MTd)
 set(MSVC_COMPILE_RELEASE_OPTIONS ${MSVC_COMPILE_OPTIONS} /O2 /MT /DNDEBUG)
 target_compile_options(${PROJECT_NAME} PRIVATE $<$<CONFIG:Debug>:${MSVC_COMPILE_DEBUG_OPTIONS}>)
 target_compile_options(${PROJECT_NAME} PRIVATE $<$<CONFIG:Release>:${MSVC_COMPILE_RELEASE_OPTIONS}>)
 target_compile_options(${PROJECT_NAME} PRIVATE $<$<CONFIG:Distribution>:${MSVC_COMPILE_RELEASE_OPTIONS}>)
 
 set(MSVC_LINKER_OPTIONS
-        /incremental:no /opt:ref /subsystem:console shell32.lib opengl32.lib dwmapi.lib ole32.lib
+        /subsystem:console shell32.lib opengl32.lib dwmapi.lib ole32.lib
         /LIBPATH:"${CMAKE_SOURCE_DIR}/ext/assimp/lib" assimp-vc142-mt.lib
         /LIBPATH:"${CMAKE_SOURCE_DIR}/radiant/Release" radiant.lib
 )
 set(MSVC_LINKER_DEBUG_OPTIONS ${MSVC_LINKER_OPTIONS}
+        /debug:full /opt:noicf
         /LIBPATH:"${CMAKE_SOURCE_DIR}/ext/SDL3/Debug" SDL3.lib
         /LIBPATH:"${CMAKE_SOURCE_DIR}/ext/SDL3_mixer/Debug" SDL3_mixer.lib
 )
 set(MSVC_LINKER_RELEASE_OPTIONS ${MSVC_LINKER_OPTIONS}
-        /LTCG
+        /incremental:no /opt:ref /LTCG
         /LIBPATH:"${CMAKE_SOURCE_DIR}/ext/SDL3/Release" SDL3.lib
         /LIBPATH:"${CMAKE_SOURCE_DIR}/ext/SDL3_mixer/Release" SDL3_mixer.lib
 )
