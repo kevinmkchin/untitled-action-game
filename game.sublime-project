@@ -15,5 +15,27 @@
                 "out"
             ]
         }
-    ]
+    ],
+    "build_systems": [
+    {
+      "name": "CMake",
+      "cmd": ["cmake", "--build", "build"],
+      "working_dir": "${project_path:${folder}}",
+      "shell": true,
+      "variants": [
+        {
+          "name": "Generate",
+          "cmd": ["cmake", "-S", ".", "-B", "build"]
+        },
+        {
+          "name": "Clean",
+          "cmd": ["cmake", "--build", "build", "--target", "clean"]
+        },
+        {
+          "name": "Release",
+          "cmd": ["cmake", "--build", "build", "--target", "clean"]
+        },
+      ]
+    }
+  ]
 }
