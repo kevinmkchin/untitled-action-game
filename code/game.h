@@ -4,15 +4,21 @@ struct game_state
 {
     random_series ParticlesRNG;
     particle_buffer BloodParticles;
-    // TODO
+
+    // Runtime map info
+    vec3 PlayerStartPosition;
+    vec3 PlayerStartRotation;
+    lc_volume_t *LightCacheVolume = nullptr;
+    vec3 DirectionToSun;
+    fixed_array<static_point_light_t> PointLights;
 };
 extern game_state GameState;
 
 extern std::vector<face_batch_t> GameLevelFaceBatches;
 extern bool GameLoopCanRun;
-extern map_info_t RuntimeMapInfo;
 extern fixed_array<model_instance_data_t> GlobalStaticInstances;
 extern fixed_array<model_instance_data_t> GlobalDynamicInstances;
+
 
 
 void InitializeGame();

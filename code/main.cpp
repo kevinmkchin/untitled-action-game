@@ -253,7 +253,7 @@ GPUFrameBuffer RenderTargetGame;
 GPUFrameBuffer RenderTargetGUI;
 GPUMeshIndexed FinalRenderOutputQuad;
 float GAMEPROJECTION_NEARCLIP = 4.f; // even 2 works fine to remove z fighting
-float GAMEPROJECTION_FARCLIP = 32000.f;
+float GAMEPROJECTION_FARCLIP = 3200.f;
 
 
 #include "mem.cpp"

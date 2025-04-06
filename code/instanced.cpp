@@ -16,8 +16,8 @@ void InstancedDrawing_ReleaseGPUResources()
 void FillModelInstanceData(model_instance_data_t *InstanceData, vec3 ModelCentroid, 
     vec3 RenderPosition, quat RenderRotation, ModelGLTF *InstanceModel)
 {
-    size_t LightCacheIndex = RuntimeMapInfo.LightCacheVolume->IndexByPosition(ModelCentroid);
-    lc_light_indices_t LightIndices = RuntimeMapInfo.LightCacheVolume->SignificantLightIndices[LightCacheIndex];
+    size_t LightCacheIndex = GameState.LightCacheVolume->IndexByPosition(ModelCentroid);
+    lc_light_indices_t LightIndices = GameState.LightCacheVolume->SignificantLightIndices[LightCacheIndex];
     int DoSunLight = 0;
     c_array<vec4, 4> PointLightsPos;
     c_array<float, 4> PointLightsAttLin;
@@ -33,14 +33,14 @@ void FillModelInstanceData(model_instance_data_t *InstanceData, vec3 ModelCentro
             continue;
         }
 
-        const static_point_light_t &PointLight = RuntimeMapInfo.PointLights[LightIndex];
+        const static_point_light_t &PointLight = GameState.PointLights[LightIndex];
         PointLightsPos.put(vec4(PointLight.Pos.x, PointLight.Pos.y, PointLight.Pos.z, 1.f));
         PointLightsAttLin.put(PointLight.AttenuationLinear);
         PointLightsAttQuad.put(PointLight.AttenuationQuadratic);
     }
     InstanceData->WorldFromModel = TranslationMatrix(RenderPosition) * RotationMatrix(RenderRotation) * ScaleMatrix(SI_UNITS_TO_GAME_UNITS);
     memcpy(InstanceData->PointLightsPos, PointLightsPos.data, sizeof(vec4)*4);
-    memcpy(InstanceData->AmbientCube, &RuntimeMapInfo.LightCacheVolume->AmbientCubes[LightCacheIndex], sizeof(float)*6);
+    memcpy(InstanceData->AmbientCube, &GameState.LightCacheVolume->AmbientCubes[LightCacheIndex], sizeof(float)*6);
     InstanceData->DoSunLight = DoSunLight;
     InstanceData->PointLightsCount = (i32)PointLightsPos.count;
     memcpy(InstanceData->PointLightsAttLin, PointLightsAttLin.data, sizeof(float)*4);
@@ -48,7 +48,7 @@ void FillModelInstanceData(model_instance_data_t *InstanceData, vec3 ModelCentro
     InstanceData->CorpseModel = InstanceModel;
 }
 
-void SortAndDrawInstancedModels(map_info_t &RuntimeMap,
+void SortAndDrawInstancedModels(game_state *RuntimeMap,
     fixed_array<model_instance_data_t> &StaticInstances,
     fixed_array<model_instance_data_t> &DynamicInstances,
     const mat4 &ProjFromView, const mat4 &ViewFromWorld)
@@ -79,8 +79,8 @@ void SortAndDrawInstancedModels(map_info_t &RuntimeMap,
         Player.Weapon.MuzzleFlash.w);
     GLBindMatrix4fv(Sha_ModelInstancedLit, "ProjFromView", 1, ProjFromView.ptr());
     GLBindMatrix4fv(Sha_ModelInstancedLit, "ViewFromWorld", 1, ViewFromWorld.ptr());
-    GLBind3f(Sha_ModelInstancedLit, "DirectionToSun", RuntimeMap.DirectionToSun.x,
-        RuntimeMap.DirectionToSun.y, RuntimeMap.DirectionToSun.z);
+    GLBind3f(Sha_ModelInstancedLit, "DirectionToSun", RuntimeMap->DirectionToSun.x,
+        RuntimeMap->DirectionToSun.y, RuntimeMap->DirectionToSun.z);
 
     InstanceDataSSBO.BeginFrame();
 

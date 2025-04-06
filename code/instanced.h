@@ -38,7 +38,7 @@ void FillModelInstanceData(model_instance_data_t *InstanceData, vec3 ModelCentro
 
 void InstanceDrawing_AcquireGPUResources();
 void InstancedDrawing_ReleaseGPUResources();
-void SortAndDrawInstancedModels(map_info_t &RuntimeMap, 
+void SortAndDrawInstancedModels(struct game_state *RuntimeMap, 
     fixed_array<model_instance_data_t> &StaticInstances,
     fixed_array<model_instance_data_t> &DynamicInstances,
     const mat4 &ProjFromView, const mat4 &ViewFromWorld);
