@@ -7,7 +7,7 @@ struct player_t
     void Destroy();
 
     void HandleInput();
-    void PrePhysicsUpdate();
+    void PrePhysicsUpdate(game_state *GameState);
     void PostPhysicsUpdate();
     void LateNonPhysicsTick();
 
@@ -34,7 +34,8 @@ struct player_t
 
 private:
 
-    void DoPhysicsMovement(vec3 MovementDirection, bool DoJump, bool DoSwitchStance);
+    void DoPhysicsMovement(JPH::BodyID LevelColliderBodyId, 
+        vec3 MovementDirection, bool DoJump, bool DoSwitchStance);
 
     static constexpr float PlayerHeightStanding = 1.7f;
     static constexpr float PlayerCapsuleRadiusStanding = 0.25f;

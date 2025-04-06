@@ -75,7 +75,7 @@ void global_enemy_state_t::RemoveAll()
     }
 }
 
-void global_enemy_state_t::SpawnEnemy()
+void global_enemy_state_t::SpawnEnemy(game_state *GameState)
 {
     enemy_t *NextAvailableEnemy = NULL;
     for (int i = 0; i < MaxEnemies; ++i)
@@ -108,11 +108,11 @@ void global_enemy_state_t::SpawnEnemy()
     Physics.BodyInterface->SetUserData(NextAvailableEnemy->RigidBody->GetBodyID(), 
         (u64)NextAvailableEnemy->Index);
 
-    for (size_t i = 0; i < AnimatorPool.length; ++i)
+    for (size_t i = 0; i < GameState->AnimatorPool.length; ++i)
     {
-        if (!AnimatorPool[i].HasOwner)
+        if (!GameState->AnimatorPool[i].HasOwner)
         {
-            NextAvailableEnemy->Animator = &AnimatorPool[i];
+            NextAvailableEnemy->Animator = &GameState->AnimatorPool[i];
             NextAvailableEnemy->Animator->HasOwner = true;
             NextAvailableEnemy->Animator->PlayAnimation(
                 Assets.Skeleton_Humanoid->Clips[SKE_HUMANOID_RUN], true);
@@ -152,7 +152,7 @@ void global_enemy_state_t::RemoveCharacterBodyFromSimulation(JPH::Character *Cha
     Physics.BodyInterface->SetUserData(CharacterBody->GetBodyID(), (u64)BAD_UINDEX);
 }
 
-void NonPhysicsTickAllEnemies()
+void NonPhysicsTickAllEnemies(game_state *GameState)
 {
     for (int i = 0; i < EnemySystem.MaxEnemies; ++i)
     {
@@ -168,8 +168,9 @@ void NonPhysicsTickAllEnemies()
                 if (Enemy.RemainAfterDead)
                 {
                     ModelGLTF *CorpseModel = &Assets.ModelsTextured[MT_ATTACKER_CORPSE];
-                    ++GlobalStaticInstances.length;
-                    FillModelInstanceData(&GlobalStaticInstances[GlobalStaticInstances.length - 1],
+                    ++GameState->StaticInstances.length;
+                    FillModelInstanceData(GameState,
+                        &GameState->StaticInstances[GameState->StaticInstances.length - 1],
                         Enemy.Position, Enemy.Position, Enemy.Orientation, CorpseModel);
                 }
 
@@ -180,7 +181,7 @@ void NonPhysicsTickAllEnemies()
     }
 }
 
-void PrePhysicsTickAllEnemies()
+void PrePhysicsTickAllEnemies(game_state *GameState)
 {
     for (int i = 0; i < EnemySystem.MaxEnemies; ++i)
     {
@@ -202,7 +203,7 @@ void PrePhysicsTickAllEnemies()
         if (Enemy.TimeSinceLastPathFind > 0.3f)
         {
             // TODO replace Player.Root with a target
-            if (FindSmoothPathTo(Enemy.Position, Player.Root, Enemy.SmoothPath.data, &Enemy.SmoothPathCount))
+            if (FindSmoothPathTo(Enemy.Position, GameState->Player.Root, Enemy.SmoothPath.data, &Enemy.SmoothPathCount))
             {
                 Enemy.TimeSinceLastPathFind = 0.f;
                 Enemy.SmoothPathIter = 1;
@@ -233,7 +234,7 @@ void PrePhysicsTickAllEnemies()
     }
 }
 
-void PostPhysicsTickAllEnemies()
+void PostPhysicsTickAllEnemies(game_state *GameState)
 {
     for (int i = 0; i < EnemySystem.MaxEnemies; ++i)
     {
@@ -247,15 +248,15 @@ void PostPhysicsTickAllEnemies()
     }
 }
 
-void RenderEnemies(const mat4 &ProjFromView, const mat4 &ViewFromWorld)
+void RenderEnemies(game_state *GameState, const mat4 &ProjFromView, const mat4 &ViewFromWorld)
 {
     UseShader(Sha_ModelSkinnedLit);
     glEnable(GL_DEPTH_TEST);
     GLBind4f(Sha_ModelSkinnedLit, "MuzzleFlash", 
-        Player.Weapon.MuzzleFlash.x, 
-        Player.Weapon.MuzzleFlash.y, 
-        Player.Weapon.MuzzleFlash.z, 
-        Player.Weapon.MuzzleFlash.w);
+        GameState->Player.Weapon.MuzzleFlash.x, 
+        GameState->Player.Weapon.MuzzleFlash.y, 
+        GameState->Player.Weapon.MuzzleFlash.z, 
+        GameState->Player.Weapon.MuzzleFlash.w);
     GLBindMatrix4fv(Sha_ModelSkinnedLit, "Projection", 1, ProjFromView.ptr());
     GLBindMatrix4fv(Sha_ModelSkinnedLit, "View", 1, ViewFromWorld.ptr());
 
@@ -321,7 +322,7 @@ void DebugDrawEnemyColliders()
 #endif // JPH_DEBUG_RENDERER
 }
 
-void HurtEnemy(u32 EnemyIndex, float Damage)
+void HurtEnemy(game_state *GameState, u32 EnemyIndex, float Damage)
 {
     enemy_t &Target = EnemySystem.Enemies[EnemyIndex];
 
@@ -329,13 +330,13 @@ void HurtEnemy(u32 EnemyIndex, float Damage)
 
     if (Target.Health <= 0.f && !(Target.Flags & EnemyFlag_Dead))
     {
-        KillEnemy(EnemyIndex);
+        KillEnemy(GameState, EnemyIndex);
     }
 }
 
-void KillEnemy(u32 EnemyIndex)
+void KillEnemy(game_state *GameState, u32 EnemyIndex)
 {
-    ++KillEnemyCounter;
+    ++GameState->KillEnemyCounter;
 
     enemy_t &Target = EnemySystem.Enemies[EnemyIndex];
 

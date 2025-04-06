@@ -3,10 +3,9 @@
 
 static void CreateParticleFromEmitter(
     particle_buffer &ParticleState, 
-    particle_emitter &Emitter)
+    particle_emitter &Emitter,
+    random_series &EmitterRNG)
 {
-    random_series &EmitterRNG = GameState.ParticlesRNG;
-
     particle &Particle = ParticleState.Particles[ParticleState.NextParticleIndex++];
     if (ParticleState.NextParticleIndex >= ParticleState.Particles.lenu())
         ParticleState.NextParticleIndex = 0;
@@ -28,7 +27,7 @@ static void CreateParticleFromEmitter(
     Particle.Life = Emitter.ParticleLifeTimer;
 }
 
-void UpdateParticles(particle_buffer &ParticleState)
+void UpdateParticles(particle_buffer &ParticleState, random_series &EmitterRNG)
 {
     // Update Emitters
     for (u32 EmitterIndex = 0; 
@@ -39,7 +38,7 @@ void UpdateParticles(particle_buffer &ParticleState)
 
         // if (ShouldEmitNewParticle(Emitter))
         // {
-            CreateParticleFromEmitter(ParticleState, Emitter);
+            CreateParticleFromEmitter(ParticleState, Emitter, EmitterRNG);
         // }
 
         Emitter.Timer -= DeltaTime;
