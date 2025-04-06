@@ -33,15 +33,15 @@ template<typename T>
 inline bool IsOneOfArray(T v, T* array, int count);
 
 
-struct rng_t // random_series
+struct random_series // random_series
 {
-    rng_t()
+    random_series()
     {
         std::random_device rd;
         rng = std::mt19937(rd());
     }
 
-    rng_t(u32 Seed)
+    random_series(u32 Seed)
         : rng(Seed)
     {}
 
@@ -101,9 +101,9 @@ struct rng_t // random_series
     }
 };
 
-extern rng_t RNG;
-extern rng_t ENEMYRNG;
-extern rng_t SOUNDRNG;
+extern random_series RNG;
+extern random_series ENEMYRNG;
+extern random_series SOUNDRNG;
 
 float frand01()
 {
