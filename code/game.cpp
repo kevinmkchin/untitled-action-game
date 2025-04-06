@@ -1,9 +1,9 @@
 
-
 fixed_array<animator_t> AnimatorPool;
 
 
 // extern
+game_state GameState;
 std::vector<face_batch_t> GameLevelFaceBatches;
 bool GameLoopCanRun = true;
 map_info_t RuntimeMapInfo;
@@ -39,6 +39,7 @@ void InitializeGame()
 
 
     SetupProjectilesDataAndAllocateMemory();
+    GameState.BloodParticles.Alloc(128, 32, MemoryType::Game);
 
     EnemySystem.Init();
 
@@ -94,9 +95,6 @@ void LoadLevel(const char *MapPath)
     // Player.mCharacter->SetRotation(ToJoltQuat(EulerToQuat(RuntimeMapInfo.PlayerStartRotation)));
 
     LevelLoaded = true;
-
-    Particles = fixed_array<particle>(128, MemoryType::Level);
-    Particles.setlen(128);
 }
 
 void UnloadPreviousLevel()
@@ -147,6 +145,18 @@ void NonPhysicsTick()
 
 void PrePhysicsTick()
 {
+    particle_emitter BloodBurst;
+    BloodBurst.WorldP = vec3(0.f, 4.f, 0.f);
+    BloodBurst.PSpread = vec3(-8.f,8.f,8.f);
+    BloodBurst.dP = vec3(0.f,32.f,0.f);
+    BloodBurst.dPSpread = vec3(0.f,0.f,32.f);
+    BloodBurst.Color = vec4(0,0,0,1.4f);
+    BloodBurst.ColorSpread = vec4(0,0,0,0.1f);
+    BloodBurst.dColor = vec4(0,0,0,-1.35f);
+    BloodBurst.Timer = 0.f;
+    BloodBurst.ParticleLifeTimer = 2.f;
+    GameState.BloodParticles.Emitters.put(BloodBurst);
+
     PrePhysicsTickAllEnemies();
 
     PrePhysicsUpdateProjectiles();
@@ -167,7 +177,7 @@ void LateNonPhysicsTick()
 {
     Player.LateNonPhysicsTick();
 
-    UpdateParticles();
+    UpdateParticles(GameState.BloodParticles);
 }
 
 void DebugDrawGame()

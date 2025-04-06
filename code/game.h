@@ -1,5 +1,19 @@
 #pragma once
 
+struct game_state
+{
+    random_series ParticlesRNG;
+    particle_buffer BloodParticles;
+    // TODO
+};
+extern game_state GameState;
+
+extern std::vector<face_batch_t> GameLevelFaceBatches;
+extern bool GameLoopCanRun;
+extern map_info_t RuntimeMapInfo;
+extern fixed_array<model_instance_data_t> GlobalStaticInstances;
+extern fixed_array<model_instance_data_t> GlobalDynamicInstances;
+
 
 void InitializeGame();
 void DestroyGame();
@@ -27,9 +41,3 @@ void PostPhysicsTick();
 
 void UpdateGameGUI();
 void RenderGameLayer();
-
-extern std::vector<face_batch_t> GameLevelFaceBatches;
-extern bool GameLoopCanRun;
-extern map_info_t RuntimeMapInfo;
-extern fixed_array<model_instance_data_t> GlobalStaticInstances;
-extern fixed_array<model_instance_data_t> GlobalDynamicInstances;

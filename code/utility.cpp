@@ -1,8 +1,8 @@
 
 // external
-rng_t RNG;
-rng_t ENEMYRNG;
-rng_t SOUNDRNG;
+random_series RNG;
+random_series ENEMYRNG;
+random_series SOUNDRNG;
 
 vec3 ScreenPointToWorldRay(ivec2 screenspaceCoords)
 {

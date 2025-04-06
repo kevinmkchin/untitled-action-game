@@ -459,6 +459,8 @@ void fixed_array<T>::deln(u32 p, u32 n)
 template<typename T> 
 void fixed_array<T>::delswap(u32 p)
 {
+    if (p >= length)
+        return;
     data[p] = data[length-1];
     length -= 1;
 }
