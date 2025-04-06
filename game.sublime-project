@@ -36,6 +36,18 @@
           "cmd": ["cmake", "--build", "build", "--target", "clean"]
         },
       ]
+    },
+    {
+      "name": "devenv",
+      "cmd": ["devenv", "."],
+      "working_dir": "${project_path:${folder}}",
+      "shell": true,
+    },
+    {
+      "name": "devenv build\\debug\\game",
+      "cmd": ["devenv", "build\\debug\\game.exe"],
+      "working_dir": "${project_path:${folder}}",
+      "shell": true,
     }
   ]
 }

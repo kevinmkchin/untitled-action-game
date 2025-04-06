@@ -204,6 +204,7 @@ void LogError(const char *fmt, ...)
 #include "weapons.h"
 #include "player.h"
 #include "instanced.h"
+#include "particles.h"
 #include "game.h"
 #include "enemy.h"
 #include "nav.h"
@@ -281,6 +282,7 @@ float GAMEPROJECTION_FARCLIP = 32000.f;
 #include "player.cpp"
 #include "weapons.cpp"
 #include "instanced.cpp"
+#include "particles.cpp"
 #include "debugmenu.cpp"
 
 
