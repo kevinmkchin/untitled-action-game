@@ -20,7 +20,7 @@ bool DebugShowGameMemoryUsage = false;
 #endif
 bool DebugDrawNavMeshFlag = false;
 bool DebugDrawEnemyPathingFlag = false;
-bool DebugEnemyBehaviourActive = true;
+bool DebugEnemyBehaviourActive = false;
 bool FlyCamActive = false;
 
 noclip::console ConsoleBackend;

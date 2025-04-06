@@ -33,7 +33,7 @@ template<typename T>
 inline bool IsOneOfArray(T v, T* array, int count);
 
 
-struct rng_t
+struct rng_t // random_series
 {
     rng_t()
     {

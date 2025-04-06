@@ -94,6 +94,9 @@ void LoadLevel(const char *MapPath)
     // Player.mCharacter->SetRotation(ToJoltQuat(EulerToQuat(RuntimeMapInfo.PlayerStartRotation)));
 
     LevelLoaded = true;
+
+    Particles = fixed_array<particle>(128, MemoryType::Level);
+    Particles.setlen(128);
 }
 
 void UnloadPreviousLevel()
@@ -163,6 +166,8 @@ void PostPhysicsTick()
 void LateNonPhysicsTick()
 {
     Player.LateNonPhysicsTick();
+
+    UpdateParticles();
 }
 
 void DebugDrawGame()
@@ -310,7 +315,8 @@ void RenderGameLayer()
         perspectiveMatrix, viewMatrix);
 
     // PRIMITIVES    
-    glEnable(GL_DEPTH_TEST);
+    glDisable(GL_DEPTH_TEST);
+    // glEnable(GL_DEPTH_TEST);
     glDisable(GL_CULL_FACE);
     SupportRenderer.FlushPrimitives(&perspectiveMatrix, &viewMatrix, RenderTargetGame.depthTexId, 
         vec2((float)RenderTargetGame.width, (float)RenderTargetGame.height));
