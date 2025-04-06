@@ -65,13 +65,13 @@ void player_t::HandleInput()
     TickWeapon(&Weapon, LMBPressed, RMBPressed);
 }
 
-void player_t::PrePhysicsUpdate()
+void player_t::PrePhysicsUpdate(game_state *GameState)
 {
     CharacterController->SetPosition(ToJoltVector(Root));
 
     if (!FlyCamActive)
     {
-        DoPhysicsMovement(DesiredMoveDirection, JumpRequested, false);
+        DoPhysicsMovement(GameState->LevelColliderBodyId, DesiredMoveDirection, JumpRequested, false);
 
 
         // Settings for our update function
@@ -115,7 +115,7 @@ void player_t::PostPhysicsUpdate()
         PlayerCam.Position = Root + CamOffsetFromRoot;
 }
 
-void player_t::DoPhysicsMovement(vec3 MovementDirection, bool inJump, bool inSwitchStance)
+void player_t::DoPhysicsMovement(JPH::BodyID LevelColliderBodyId, vec3 MovementDirection, bool inJump, bool inSwitchStance)
 {
     JPH::Vec3Arg inMovementDirection = ToJoltVectorNoConvert(MovementDirection);
     JPH::PhysicsSystem *mPhysicsSystem = Physics.PhysicsSystem;

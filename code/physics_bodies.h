@@ -68,6 +68,9 @@ public:
 // Does not need to be thread safe!
 class MyVirtualCharacterContactListener : public JPH::CharacterContactListener
 {
+public:
+    struct game_state *GameState = nullptr;
+
     /// Checks if a character can collide with specified body. Return true if the contact is valid.
     virtual bool OnContactValidate(const JPH::CharacterVirtual *inCharacter, 
         const JPH::BodyID &inBodyID2, const JPH::SubShapeID &inSubShapeID2) override;

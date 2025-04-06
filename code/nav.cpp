@@ -1077,7 +1077,7 @@ void GetRandomPointOnNavMesh(float *Point)
 //         // EnemyPosition = StartNearestPoint;
 
 //         Status = m_navQuery->findNearestPoly(
-//             (float*)&Player.Root, (float*)&SearchHalfExtents, &m_filter, 
+//             (float*)&g_GameState.Player.Root, (float*)&SearchHalfExtents, &m_filter, 
 //             &m_endRef, m_epos);
 //         ASSERT(dtStatusSucceed(Status));
 

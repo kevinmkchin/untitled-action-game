@@ -58,7 +58,7 @@ void SwitchToLevelEditor()
     LevelEditor.Open();
 
     SDL_SetWindowRelativeMouseMode(SDLMainWindow, false);
-    GameLoopCanRun = false;
+    g_GameState.GameLoopCanRun = false;
     // CurrentDebugMode = DEBUG_MODE_OFF;
 }
 
@@ -84,7 +84,7 @@ void BuildLevelAndPlay()
 
     LoadLevel(path.c_str());
 
-    GameLoopCanRun = true;
+    g_GameState.GameLoopCanRun = true;
     // CurrentDebugMode = DEBUG_MODE_OFF;
 }
 
@@ -316,9 +316,9 @@ static void DisplayDebugMenu()
     if (!LevelEditor.IsActive)
     {
         GUI::EditorText("-- Game --");
-        bool DebugPausedFlag = !GameLoopCanRun;
+        bool DebugPausedFlag = !g_GameState.GameLoopCanRun;
         GUI::EditorCheckbox("Paused", &DebugPausedFlag);
-        GameLoopCanRun = !DebugPausedFlag;
+        g_GameState.GameLoopCanRun = !DebugPausedFlag;
         GUI::EditorCheckbox("Noclip", &FlyCamActive);
         GUI::EditorCheckbox("Show memory usage", &DebugShowGameMemoryUsage);
         GUI::EditorCheckbox("Draw level collider", &DebugDrawLevelColliderFlag);
@@ -355,7 +355,7 @@ void ShowDebugConsole()
 {
     if (KeysCurrent[SDL_SCANCODE_LCTRL] && KeysPressed[SDL_SCANCODE_P])
     {
-        GameLoopCanRun = !GameLoopCanRun;
+        g_GameState.GameLoopCanRun = !g_GameState.GameLoopCanRun;
     }
 
     static DEBUG_MODES LastDebugMode = DEBUG_MODE_CONSOLE;
@@ -373,7 +373,7 @@ void ShowDebugConsole()
             }
             else if (LastDebugMode == DEBUG_MODE_CONSOLE || LastDebugMode == DEBUG_MODE_OFF)
             {
-                GameLoopCanRun = false;
+                g_GameState.GameLoopCanRun = false;
                 ConsoleShowingState = DEBUG_CONSOLE_SHOWING;
                 LastDebugMode = DEBUG_MODE_OFF;
                 CurrentDebugMode = DEBUG_MODE_CONSOLE;
@@ -417,7 +417,7 @@ void ShowDebugConsole()
     case DEBUG_CONSOLE_HIDING:
         if (ConsoleY > 0.f)
         {
-            GameLoopCanRun = true;
+            g_GameState.GameLoopCanRun = true;
             ConsoleY -= ConsoleScrollSpd * DeltaTime;
         }
         if (ConsoleY <= 0.f)

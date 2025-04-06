@@ -43,14 +43,14 @@ struct enemy_t
     // each instance should have their own animator_t
 };
 
-void NonPhysicsTickAllEnemies();
-void PrePhysicsTickAllEnemies();
-void PostPhysicsTickAllEnemies();
-void RenderEnemies(const mat4 &ProjFromView, const mat4 &ViewFromWorld);
+void NonPhysicsTickAllEnemies(game_state *GameState);
+void PrePhysicsTickAllEnemies(game_state *GameState);
+void PostPhysicsTickAllEnemies(game_state *GameState);
+void RenderEnemies(game_state *GameState, const mat4 &ProjFromView, const mat4 &ViewFromWorld);
 void DebugDrawEnemyColliders();
 
-void HurtEnemy(u32 EnemyIndex, float Damage);
-void KillEnemy(u32 EnemyIndex);
+void HurtEnemy(game_state *GameState, u32 EnemyIndex, float Damage);
+void KillEnemy(game_state *GameState, u32 EnemyIndex);
 
 struct global_enemy_state_t
 {
@@ -66,7 +66,7 @@ struct global_enemy_state_t
 
     void RemoveAll(); // Call before changing levels etc.
 
-    void SpawnEnemy();
+    void SpawnEnemy(game_state *GameState);
     void RemoveEnemy(u32 EnemyIndex);
 
     JPH::Character *NextAvailableCharacterBody();

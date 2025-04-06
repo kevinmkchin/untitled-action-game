@@ -1,9 +1,9 @@
 
-void BindUniformsForModelLighting(GPUShader &Shader, game_state &MapInfo, vec3 ModelPosition)
+void BindUniformsForModelLighting(GPUShader &Shader, game_state *MapInfo, vec3 ModelPosition)
 {
-    size_t LightCacheIndex = MapInfo.LightCacheVolume->IndexByPosition(ModelPosition);
-    lc_ambient_t AmbientCube = MapInfo.LightCacheVolume->AmbientCubes[LightCacheIndex];
-    lc_light_indices_t LightIndices = MapInfo.LightCacheVolume->SignificantLightIndices[LightCacheIndex];
+    size_t LightCacheIndex = MapInfo->LightCacheVolume->IndexByPosition(ModelPosition);
+    lc_ambient_t AmbientCube = MapInfo->LightCacheVolume->AmbientCubes[LightCacheIndex];
+    lc_light_indices_t LightIndices = MapInfo->LightCacheVolume->SignificantLightIndices[LightCacheIndex];
 
     int DoSunLight = 0;
     c_array<vec3, 4> PointLightsPos;
@@ -20,7 +20,7 @@ void BindUniformsForModelLighting(GPUShader &Shader, game_state &MapInfo, vec3 M
             continue;
         }
 
-        const static_point_light_t &PointLight = MapInfo.PointLights[LightIndex];
+        const static_point_light_t &PointLight = MapInfo->PointLights[LightIndex];
         PointLightsPos.put(PointLight.Pos);
         PointLightsAttLin.put(PointLight.AttenuationLinear);
         PointLightsAttQuad.put(PointLight.AttenuationQuadratic);
@@ -38,7 +38,7 @@ void BindUniformsForModelLighting(GPUShader &Shader, game_state &MapInfo, vec3 M
     i32 loc6 = GetCachedUniformLocation(Shader, "ModelLighting.PointLightsAttQuad[0]");
     glUniform1fv(loc0, 6, (float*)&AmbientCube);
     glUniform1i(loc1, DoSunLight);
-    glUniform3fv(loc2, 1, (float*)&MapInfo.DirectionToSun);
+    glUniform3fv(loc2, 1, (float*)&MapInfo->DirectionToSun);
     glUniform1i(loc3, PointLightsPos.count);
     glUniform3fv(loc4, 4, (float*)PointLightsPos.data);
     glUniform1fv(loc5, 4, (float*)PointLightsAttLin.data);

@@ -76,8 +76,8 @@ extern fixed_array<projectile_hit_info_t> ProjectileHitInfos;
 void SetupProjectilesDataAndAllocateMemory(); // Called once at start of game
 void SpawnProjectile(projectile_type_enum Type, vec3 Pos, vec3 Dir, 
     quat Orient, vec3 Impulse, vec3 AngularImpulse);
-void KillProjectile(projectile_t *ProjectileToKill);
-void NonPhysicsUpdateProjectiles();
+void KillProjectile(game_state *GameState, projectile_t *ProjectileToKill);
+void NonPhysicsUpdateProjectiles(game_state *GameState);
 void PrePhysicsUpdateProjectiles();
-void PostPhysicsUpdateProjectiles();
-void RenderProjectiles(const mat4 &ProjFromView, const mat4 &ViewFromWorld);
+void PostPhysicsUpdateProjectiles(game_state *GameState);
+void RenderProjectiles(game_state *GameState, const mat4 &ProjFromView, const mat4 &ViewFromWorld);

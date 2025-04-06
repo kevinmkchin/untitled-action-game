@@ -1,4 +1,4 @@
 #pragma once
 
-void BindUniformsForModelLighting(GPUShader &Shader, game_state &MapInfo, vec3 ModelPosition);
+void BindUniformsForModelLighting(GPUShader &Shader, game_state *MapInfo, vec3 ModelPosition);
 

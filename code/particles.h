@@ -56,4 +56,4 @@ struct particle_buffer
     fixed_array<particle_emitter> Emitters;
 };
 
-void UpdateParticles(particle_buffer &ParticleState);
+void UpdateParticles(particle_buffer &ParticleState, random_series &EmitterRNG);

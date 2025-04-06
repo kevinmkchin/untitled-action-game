@@ -126,7 +126,7 @@ void MyVirtualCharacterContactListener::OnContactAdded(
 {
     if (Physics.BodyInterface->GetObjectLayer(inBodyID2) == Layers::ENEMY)
     {
-        Player.Health -= 5.f;
+        GameState->Player.Health -= 5.f;
     }
 }
 
@@ -140,7 +140,7 @@ void MyVirtualCharacterContactListener::OnContactPersisted(
 {
     if (Physics.BodyInterface->GetObjectLayer(inBodyID2) == Layers::ENEMY)
     {
-        Player.Health -= 5.f;
+        GameState->Player.Health -= 5.f;
     }
 }
 

@@ -5,19 +5,29 @@ struct game_state
     random_series ParticlesRNG;
     particle_buffer BloodParticles;
 
+    player_t Player;
+
+    bool GameLoopCanRun = true;
+    bool LevelLoaded = false;
+    JPH::BodyID LevelColliderBodyId;
+
+    fixed_array<model_instance_data_t> StaticInstances;
+    fixed_array<model_instance_data_t> DynamicInstances;
+
+    fixed_array<animator_t> AnimatorPool;
+
     // Runtime map info
     vec3 PlayerStartPosition;
     vec3 PlayerStartRotation;
     lc_volume_t *LightCacheVolume = nullptr;
     vec3 DirectionToSun;
     fixed_array<static_point_light_t> PointLights;
-};
-extern game_state GameState;
+    std::vector<face_batch_t> GameLevelFaceBatches;
 
-extern std::vector<face_batch_t> GameLevelFaceBatches;
-extern bool GameLoopCanRun;
-extern fixed_array<model_instance_data_t> GlobalStaticInstances;
-extern fixed_array<model_instance_data_t> GlobalDynamicInstances;
+    // Testing
+    int KillEnemyCounter = 0;
+
+};
 
 
 

@@ -86,15 +86,15 @@ void RenderWeapon(weapon_state_t *State, float *ProjFromView, float *WorldFromVi
     RenderGPUMeshIndexed(m);
 }
 
-void RenderProjectiles(const mat4 &ProjFromView, const mat4 &ViewFromWorld)
+void RenderProjectiles(game_state *GameState, const mat4 &ProjFromView, const mat4 &ViewFromWorld)
 {
     UseShader(Sha_ModelTexturedLit);
     glEnable(GL_DEPTH_TEST);
     GLBind4f(Sha_ModelTexturedLit, "MuzzleFlash", 
-        Player.Weapon.MuzzleFlash.x, 
-        Player.Weapon.MuzzleFlash.y, 
-        Player.Weapon.MuzzleFlash.z, 
-        Player.Weapon.MuzzleFlash.w);
+        GameState->Player.Weapon.MuzzleFlash.x, 
+        GameState->Player.Weapon.MuzzleFlash.y, 
+        GameState->Player.Weapon.MuzzleFlash.z, 
+        GameState->Player.Weapon.MuzzleFlash.w);
     GLBindMatrix4fv(Sha_ModelTexturedLit, "ProjFromView", 1, ProjFromView.ptr());
     GLBindMatrix4fv(Sha_ModelTexturedLit, "ViewFromWorld", 1, ViewFromWorld.ptr());
 
@@ -106,12 +106,13 @@ void RenderProjectiles(const mat4 &ProjFromView, const mat4 &ViewFromWorld)
         // Putting out of world bound check here because we have position here
         if (Magnitude(ProjectileRenderPos) > WORLD_LIMIT_F)
         {
-            KillProjectile(&P);
+            KillProjectile(GameState, &P);
             continue;
         }
 
-        ++GlobalDynamicInstances.length;        
-        FillModelInstanceData(GlobalDynamicInstances.end()-1, ProjectileRenderPos,
+        ++GameState->DynamicInstances.length;        
+        FillModelInstanceData(GameState,
+            GameState->DynamicInstances.end()-1, ProjectileRenderPos,
             ProjectileRenderPos, ProjectileRenderRot, P.Type->TexturedModel);
 
         // BindUniformsForModelLighting(Sha_ModelTexturedLit, RuntimeMapInfo, ProjectileRenderPos);
@@ -225,7 +226,7 @@ void SpawnProjectile(projectile_type_enum Type, vec3 Pos, vec3 Dir,
     LiveProjectiles.put(Projectile);
 }
 
-void KillProjectile(projectile_t *ProjectileToKill)
+void KillProjectile(game_state *GameState, projectile_t *ProjectileToKill)
 {
     ProjectileToKill->IsDead = true;
 
@@ -234,13 +235,14 @@ void KillProjectile(projectile_t *ProjectileToKill)
         vec3 CorpsePosition = FromJoltVector(Physics.BodyInterface->GetPosition(ProjectileToKill->BodyId));
         quat CorpseRotation = FromJoltQuat(Physics.BodyInterface->GetRotation(ProjectileToKill->BodyId));
         ModelGLTF *CorpseModel = ProjectileToKill->Type->TexturedModel;
-        ++GlobalStaticInstances.length;
-        FillModelInstanceData(&GlobalStaticInstances[GlobalStaticInstances.length-1], 
+        ++GameState->StaticInstances.length;
+        FillModelInstanceData(GameState,
+            &GameState->StaticInstances[GameState->StaticInstances.length-1], 
             CorpsePosition, CorpsePosition, CorpseRotation, CorpseModel);
     }
 }
 
-void NonPhysicsUpdateProjectiles()
+void NonPhysicsUpdateProjectiles(game_state *GameState)
 {
     for (size_t i = 0; i < LiveProjectiles.lenu(); ++i)
     {
@@ -251,13 +253,13 @@ void NonPhysicsUpdateProjectiles()
 
             if (Projectile.Type->KillAfterTimer < Projectile.BeenAliveTimer)
             {
-                KillProjectile(&Projectile);
+                KillProjectile(GameState, &Projectile);
             }
             else if (Projectile.Type->KillAfterSlowingDown && Projectile.BeenAliveTimer > 3.f)
             {
                 vec3 LinVel = FromJoltVector(Physics.BodyInterface->GetLinearVelocity(Projectile.BodyId));
                 if (Magnitude(LinVel) < 32.f)
-                    KillProjectile(&Projectile);
+                    KillProjectile(GameState, &Projectile);
             }
         }
     }
@@ -301,7 +303,7 @@ static void RemoveDeadProjectiles()
     }
 }
 
-static void ProcessProjectileHitInfos()
+static void ProcessProjectileHitInfos(game_state *GameState)
 {
     // NOTE(Kevin): Physics threads could still be running as we process this.
     //              Any data that can be mutated from ContactListener must be
@@ -344,10 +346,10 @@ static void ProcessProjectileHitInfos()
             if (PrjInfo->BulletDamage > 0.f)
             {
                 u32 EnemyIndex = (u32)Info.Body2->GetUserData();
-                HurtEnemy(EnemyIndex, PrjInfo->BulletDamage);
+                HurtEnemy(GameState, EnemyIndex, PrjInfo->BulletDamage);
             }
 
-            KillProjectile(&LiveProjectiles[ProjectileIdx]);
+            KillProjectile(GameState, &LiveProjectiles[ProjectileIdx]);
         }
         else if (SecondBodyLayer == Layers::STATIC)
         {
@@ -358,16 +360,16 @@ static void ProcessProjectileHitInfos()
                 Mix_PlayChannel(-1, RicochetSnd, 0);
             }
 
-            KillProjectile(&LiveProjectiles[ProjectileIdx]);
+            KillProjectile(GameState, &LiveProjectiles[ProjectileIdx]);
         }
     }
 
     ProjectileHitInfos.setlen(0);
 }
 
-void PostPhysicsUpdateProjectiles()
+void PostPhysicsUpdateProjectiles(game_state *GameState)
 {
-    ProcessProjectileHitInfos();
+    ProcessProjectileHitInfos(GameState);
     RemoveDeadProjectiles();
 }
 

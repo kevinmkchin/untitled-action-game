@@ -225,7 +225,7 @@ bool LoadGameMap(game_state *MapInfo, const char *path)
         FaceBatch.LightMapTexture = LevelLightmapTexture;
         CreateFaceBatch(&FaceBatch);
         RebindFaceBatch(&FaceBatch, sizeof(float)*VertexCount, vb.data());
-        GameLevelFaceBatches.push_back(FaceBatch);
+        MapInfo->GameLevelFaceBatches.push_back(FaceBatch);
     }
 
     ByteBufferFree(&mapbuf);

@@ -1,20 +1,7 @@
 
-fixed_array<animator_t> AnimatorPool;
-
 
 // extern
-game_state GameState;
-std::vector<face_batch_t> GameLevelFaceBatches;
-bool GameLoopCanRun = true;
-fixed_array<model_instance_data_t> GlobalStaticInstances;
-fixed_array<model_instance_data_t> GlobalDynamicInstances;
-
-int KillEnemyCounter = 0;
-
-// internal
-static bool LevelLoaded = false;
-static player_t Player;
-static JPH::BodyID LevelColliderBodyId;
+game_state g_GameState;
 
 
 enum ske_humanoid_clips : u32
@@ -29,20 +16,20 @@ void InitializeGame()
 {
     InstanceDrawing_AcquireGPUResources();
 
-    AnimatorPool = fixed_array<animator_t>(64, MemoryType::Game);
-    AnimatorPool.setlen(64);
-    for (size_t i = 0; i < AnimatorPool.length; ++i)
-        AnimatorPool[i] = animator_t();
+    g_GameState.AnimatorPool = fixed_array<animator_t>(64, MemoryType::Game);
+    g_GameState.AnimatorPool.setlen(64);
+    for (size_t i = 0; i < g_GameState.AnimatorPool.length; ++i)
+        g_GameState.AnimatorPool[i] = animator_t();
 
     Physics.Initialize();
-
+    Physics.VirtualCharacterContactListener.GameState = &g_GameState;
 
     SetupProjectilesDataAndAllocateMemory();
-    GameState.BloodParticles.Alloc(128, 32, MemoryType::Game);
+    g_GameState.BloodParticles.Alloc(128, 32, MemoryType::Game);
 
     EnemySystem.Init();
 
-    Player.Init();
+    g_GameState.Player.Init();
 
 #if INTERNAL_BUILD
     RecastDebugDrawer.Init();
@@ -72,14 +59,14 @@ void DestroyGame()
 void LoadLevel(const char *MapPath)
 {
     StaticLevelMemory.ArenaOffset = 0;
-    GlobalStaticInstances = fixed_array<model_instance_data_t>(MaxStaticInstances, MemoryType::Level);
+    g_GameState.StaticInstances = fixed_array<model_instance_data_t>(MaxStaticInstances, MemoryType::Level);
 
     SDL_SetWindowRelativeMouseMode(SDLMainWindow, true);
 
-    if (LevelLoaded)
+    if (g_GameState.LevelLoaded)
         UnloadPreviousLevel();
 
-    if (LoadGameMap(&GameState, MapPath) == false)
+    if (LoadGameMap(&g_GameState, MapPath) == false)
     {
         LogError("Failed to load game map: %s", MapPath);
         return;
@@ -89,25 +76,25 @@ void LoadLevel(const char *MapPath)
     CreateAndRegisterLevelCollider();
     ASSERT(CreateRecastNavMesh());
 
-    Player.CharacterController->SetPosition(ToJoltVector(GameState.PlayerStartPosition));
+    g_GameState.Player.CharacterController->SetPosition(ToJoltVector(g_GameState.PlayerStartPosition));
     // TODO Apply rotation to camera rotation instead
-    // Player.mCharacter->SetRotation(ToJoltQuat(EulerToQuat(GameState.PlayerStartRotation)));
+    // g_GameState.Player.mCharacter->SetRotation(ToJoltQuat(EulerToQuat(g_GameState.PlayerStartRotation)));
 
-    LevelLoaded = true;
+    g_GameState.LevelLoaded = true;
 }
 
 void UnloadPreviousLevel()
 {
-    if (!LevelColliderBodyId.IsInvalid())
+    if (!g_GameState.LevelColliderBodyId.IsInvalid())
     {
-        Physics.BodyInterface->RemoveBody(LevelColliderBodyId);
-        Physics.BodyInterface->DestroyBody(LevelColliderBodyId);
+        Physics.BodyInterface->RemoveBody(g_GameState.LevelColliderBodyId);
+        Physics.BodyInterface->DestroyBody(g_GameState.LevelColliderBodyId);
     }
 
     EnemySystem.RemoveAll();
     DestroyRecastNavMesh();
 
-    LevelLoaded = false;
+    g_GameState.LevelLoaded = false;
     StaticLevelMemory.ArenaOffset = 0;
 }
 
@@ -115,25 +102,25 @@ void NonPhysicsTick()
 {
     if (!(EnemySystem.Enemies[0].Flags & EnemyFlag_Active))
     {
-        EnemySystem.SpawnEnemy();
+        EnemySystem.SpawnEnemy(&g_GameState);
         while (EnemySystem.Enemies[0].Position.y > 10.f)
         {
             GetRandomPointOnNavMesh((float*)&EnemySystem.Enemies[0].Position);
         }
     }
 
-    NonPhysicsTickAllEnemies();
+    NonPhysicsTickAllEnemies(&g_GameState);
 
-    NonPhysicsUpdateProjectiles();
+    NonPhysicsUpdateProjectiles(&g_GameState);
 
-    Player.HandleInput();
+    g_GameState.Player.HandleInput();
 
-    if (Player.Health <= 0.f)
+    if (g_GameState.Player.Health <= 0.f)
     {
         // ASSERT(0);
     }
-    GUI::PrimitiveTextFmt(20, 180, 9, GUI::Align::LEFT, "kills %d", KillEnemyCounter);
-    GUI::PrimitiveTextFmt(180, 650, 18, GUI::Align::RIGHT, "%d", (int)ceilf(Player.Health));
+    GUI::PrimitiveTextFmt(20, 180, 9, GUI::Align::LEFT, "kills %d", g_GameState.KillEnemyCounter);
+    GUI::PrimitiveTextFmt(180, 650, 18, GUI::Align::RIGHT, "%d", (int)ceilf(g_GameState.Player.Health));
 
     if (DebugShowNumberOfPhysicsBodies)
     {
@@ -154,39 +141,40 @@ void PrePhysicsTick()
     BloodBurst.dColor = vec4(0,0,0,-1.35f);
     BloodBurst.Timer = 0.f;
     BloodBurst.ParticleLifeTimer = 2.f;
-    GameState.BloodParticles.Emitters.put(BloodBurst);
+    g_GameState.BloodParticles.Emitters.put(BloodBurst);
 
-    PrePhysicsTickAllEnemies();
+    PrePhysicsTickAllEnemies(&g_GameState);
 
     PrePhysicsUpdateProjectiles();
 
-    Player.PrePhysicsUpdate();
+    g_GameState.Player.PrePhysicsUpdate(&g_GameState);
 }
 
 void PostPhysicsTick()
 {
-    PostPhysicsTickAllEnemies();
+    PostPhysicsTickAllEnemies(&g_GameState);
 
-    PostPhysicsUpdateProjectiles();
+    PostPhysicsUpdateProjectiles(&g_GameState);
 
-    Player.PostPhysicsUpdate();
+    g_GameState.Player.PostPhysicsUpdate();
 }
 
 void LateNonPhysicsTick()
 {
-    Player.LateNonPhysicsTick();
+    g_GameState.Player.LateNonPhysicsTick();
 
-    UpdateParticles(GameState.BloodParticles);
+    random_series &EmitterRNG = g_GameState.ParticlesRNG;
+    UpdateParticles(g_GameState.BloodParticles, EmitterRNG);
 }
 
 void DebugDrawGame()
 {
-    //vec3 p = Player.Root;// +Player.CamOffsetFromRoot;
+    //vec3 p = g_GameState.Player.Root;// +g_GameState.Player.CamOffsetFromRoot;
     // size_t pi = LightCacheVolume->IndexByPosition(p);
-    // for (size_t i = 0; i < GameState.LightCacheVolume->CubePositions.lenu(); ++i)
+    // for (size_t i = 0; i < g_GameState.LightCacheVolume->CubePositions.lenu(); ++i)
     // {
-    //     const vec3 &CubePos = GameState.LightCacheVolume->CubePositions[i];
-    //     lc_ambient_t &AmbientCube = GameState.LightCacheVolume->AmbientCubes[i];
+    //     const vec3 &CubePos = g_GameState.LightCacheVolume->CubePositions[i];
+    //     lc_ambient_t &AmbientCube = g_GameState.LightCacheVolume->AmbientCubes[i];
     //     SupportRenderer.DrawColoredCube(CubePos, 1.f, 
     //         vec4(AmbientCube.PosX,AmbientCube.PosX,AmbientCube.PosX,1),
     //         vec4(AmbientCube.NegX,AmbientCube.NegX,AmbientCube.NegX,1),
@@ -202,8 +190,8 @@ void DebugDrawGame()
 
     if (DebugDrawLevelColliderFlag)
     {        
-        Physics.BodyInterface->GetShape(LevelColliderBodyId)->Draw(JoltDebugDrawer,
-            Physics.BodyInterface->GetCenterOfMassTransform(LevelColliderBodyId),
+        Physics.BodyInterface->GetShape(g_GameState.LevelColliderBodyId)->Draw(JoltDebugDrawer,
+            Physics.BodyInterface->GetCenterOfMassTransform(g_GameState.LevelColliderBodyId),
             JPH::Vec3::sReplicate(1.0f), JPH::Color(0,255,0,60), true, false);
     }
 
@@ -225,9 +213,9 @@ void DebugDrawGame()
 
 void DoGameLoop()
 {
-    GlobalDynamicInstances = fixed_array<model_instance_data_t>(MaxDynamicInstances, MemoryType::Frame);
+    g_GameState.DynamicInstances = fixed_array<model_instance_data_t>(MaxDynamicInstances, MemoryType::Frame);
 
-    if (GameLoopCanRun) 
+    if (g_GameState.GameLoopCanRun) 
     {
         NonPhysicsTick();
 
@@ -244,12 +232,12 @@ void DoGameLoop()
 
         LateNonPhysicsTick();
 
-        for (size_t i = 0; i < AnimatorPool.length; ++i)
+        for (size_t i = 0; i < g_GameState.AnimatorPool.length; ++i)
         {
-            if (AnimatorPool[i].HasOwner)
+            if (g_GameState.AnimatorPool[i].HasOwner)
             {
-                AnimatorPool[i].UpdateGlobalPoses(DeltaTime);
-                AnimatorPool[i].CalculateSkinningMatrixPalette();
+                g_GameState.AnimatorPool[i].UpdateGlobalPoses(DeltaTime);
+                g_GameState.AnimatorPool[i].CalculateSkinningMatrixPalette();
             }
         }
     }
@@ -257,7 +245,7 @@ void DoGameLoop()
     DebugDrawGame();
     RenderGameLayer();
 
-    if (GameLoopCanRun) 
+    if (g_GameState.GameLoopCanRun) 
     {
         UpdateGameGUI();
     }
@@ -298,30 +286,30 @@ void RenderGameLayer()
     float aspectratio = float(BackbufferWidth) / float(BackbufferHeight);
     float fovy = HorizontalFOVToVerticalFOV_RadianToRadian(90.f*GM_DEG2RAD, aspectratio);
     mat4 perspectiveMatrix = ProjectionMatrixPerspective(fovy, aspectratio, GAMEPROJECTION_NEARCLIP, GAMEPROJECTION_FARCLIP);
-    mat4 viewMatrix = Player.PlayerCam.ViewFromWorldMatrix();
+    mat4 viewMatrix = g_GameState.Player.PlayerCam.ViewFromWorldMatrix();
 
     UseShader(Sha_GameLevel);
     glEnable(GL_CULL_FACE);
 
     GLBind4f(Sha_GameLevel, "MuzzleFlash", 
-        Player.Weapon.MuzzleFlash.x, 
-        Player.Weapon.MuzzleFlash.y, 
-        Player.Weapon.MuzzleFlash.z, 
-        Player.Weapon.MuzzleFlash.w);
+        g_GameState.Player.Weapon.MuzzleFlash.x, 
+        g_GameState.Player.Weapon.MuzzleFlash.y, 
+        g_GameState.Player.Weapon.MuzzleFlash.z, 
+        g_GameState.Player.Weapon.MuzzleFlash.w);
     GLBindMatrix4fv(Sha_GameLevel, "projMatrix", 1, perspectiveMatrix.ptr());
     GLBindMatrix4fv(Sha_GameLevel, "viewMatrix", 1, viewMatrix.ptr());
 
-    for (size_t i = 0; i < GameLevelFaceBatches.size(); ++i)
+    for (size_t i = 0; i < g_GameState.GameLevelFaceBatches.size(); ++i)
     {
-        face_batch_t fb = GameLevelFaceBatches.at(i);
+        face_batch_t fb = g_GameState.GameLevelFaceBatches.at(i);
         RenderFaceBatch(&Sha_GameLevel, &fb);
     }
 
-    RenderEnemies(perspectiveMatrix, viewMatrix);
+    RenderEnemies(&g_GameState, perspectiveMatrix, viewMatrix);
     // TODO draw particles here...probably
-    RenderWeapon(&Player.Weapon, perspectiveMatrix.ptr(), viewMatrix.GetInverse().ptr());
-    RenderProjectiles(perspectiveMatrix, viewMatrix);
-    SortAndDrawInstancedModels(&GameState, GlobalStaticInstances, GlobalDynamicInstances, 
+    RenderWeapon(&g_GameState.Player.Weapon, perspectiveMatrix.ptr(), viewMatrix.GetInverse().ptr());
+    RenderProjectiles(&g_GameState, perspectiveMatrix, viewMatrix);
+    SortAndDrawInstancedModels(&g_GameState, g_GameState.StaticInstances, g_GameState.DynamicInstances, 
         perspectiveMatrix, viewMatrix);
 
     // PRIMITIVES
@@ -396,7 +384,7 @@ void CreateAndRegisterLevelCollider()
     // Create the actual rigid body
     JPH::Body *LevelCollider = Physics.BodyInterface->CreateBody(LevelBodySettings); // Note that if we run out of bodies this can return nullptr
 
-    LevelColliderBodyId = LevelCollider->GetID();
+    g_GameState.LevelColliderBodyId = LevelCollider->GetID();
 
     // Add it to the world
     // NOTE(Kevin 2025-01-30): Why is this DontActivate?
