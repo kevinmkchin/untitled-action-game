@@ -6,7 +6,6 @@ fixed_array<animator_t> AnimatorPool;
 game_state GameState;
 std::vector<face_batch_t> GameLevelFaceBatches;
 bool GameLoopCanRun = true;
-map_info_t RuntimeMapInfo;
 fixed_array<model_instance_data_t> GlobalStaticInstances;
 fixed_array<model_instance_data_t> GlobalDynamicInstances;
 
@@ -80,7 +79,7 @@ void LoadLevel(const char *MapPath)
     if (LevelLoaded)
         UnloadPreviousLevel();
 
-    if (LoadGameMap(&RuntimeMapInfo, MapPath) == false)
+    if (LoadGameMap(&GameState, MapPath) == false)
     {
         LogError("Failed to load game map: %s", MapPath);
         return;
@@ -90,9 +89,9 @@ void LoadLevel(const char *MapPath)
     CreateAndRegisterLevelCollider();
     ASSERT(CreateRecastNavMesh());
 
-    Player.CharacterController->SetPosition(ToJoltVector(RuntimeMapInfo.PlayerStartPosition));
+    Player.CharacterController->SetPosition(ToJoltVector(GameState.PlayerStartPosition));
     // TODO Apply rotation to camera rotation instead
-    // Player.mCharacter->SetRotation(ToJoltQuat(EulerToQuat(RuntimeMapInfo.PlayerStartRotation)));
+    // Player.mCharacter->SetRotation(ToJoltQuat(EulerToQuat(GameState.PlayerStartRotation)));
 
     LevelLoaded = true;
 }
@@ -184,10 +183,10 @@ void DebugDrawGame()
 {
     //vec3 p = Player.Root;// +Player.CamOffsetFromRoot;
     // size_t pi = LightCacheVolume->IndexByPosition(p);
-    // for (size_t i = 0; i < RuntimeMapInfo.LightCacheVolume->CubePositions.lenu(); ++i)
+    // for (size_t i = 0; i < GameState.LightCacheVolume->CubePositions.lenu(); ++i)
     // {
-    //     const vec3 &CubePos = RuntimeMapInfo.LightCacheVolume->CubePositions[i];
-    //     lc_ambient_t &AmbientCube = RuntimeMapInfo.LightCacheVolume->AmbientCubes[i];
+    //     const vec3 &CubePos = GameState.LightCacheVolume->CubePositions[i];
+    //     lc_ambient_t &AmbientCube = GameState.LightCacheVolume->AmbientCubes[i];
     //     SupportRenderer.DrawColoredCube(CubePos, 1.f, 
     //         vec4(AmbientCube.PosX,AmbientCube.PosX,AmbientCube.PosX,1),
     //         vec4(AmbientCube.NegX,AmbientCube.NegX,AmbientCube.NegX,1),
@@ -319,17 +318,20 @@ void RenderGameLayer()
     }
 
     RenderEnemies(perspectiveMatrix, viewMatrix);
+    // TODO draw particles here...probably
     RenderWeapon(&Player.Weapon, perspectiveMatrix.ptr(), viewMatrix.GetInverse().ptr());
     RenderProjectiles(perspectiveMatrix, viewMatrix);
-    SortAndDrawInstancedModels(RuntimeMapInfo, GlobalStaticInstances, GlobalDynamicInstances, 
+    SortAndDrawInstancedModels(&GameState, GlobalStaticInstances, GlobalDynamicInstances, 
         perspectiveMatrix, viewMatrix);
 
-    // PRIMITIVES    
-    glDisable(GL_DEPTH_TEST);
-    // glEnable(GL_DEPTH_TEST);
+    // PRIMITIVES
+    glEnable(GL_DEPTH_TEST);
+    // TODO(Kevin): Move depthMask disable to particle system render code
+    glDepthMask(GL_FALSE); // Particles should depth test but not write to depth buffer
     glDisable(GL_CULL_FACE);
     SupportRenderer.FlushPrimitives(&perspectiveMatrix, &viewMatrix, RenderTargetGame.depthTexId, 
         vec2((float)RenderTargetGame.width, (float)RenderTargetGame.height));
+    glDepthMask(GL_TRUE);
 
 #if INTERNAL_BUILD
     if (DebugDrawNavMeshFlag || DebugDrawEnemyPathingFlag)

@@ -1,5 +1,5 @@
 
-void BindUniformsForModelLighting(GPUShader &Shader, map_info_t &MapInfo, vec3 ModelPosition)
+void BindUniformsForModelLighting(GPUShader &Shader, game_state &MapInfo, vec3 ModelPosition)
 {
     size_t LightCacheIndex = MapInfo.LightCacheVolume->IndexByPosition(ModelPosition);
     lc_ambient_t AmbientCube = MapInfo.LightCacheVolume->AmbientCubes[LightCacheIndex];

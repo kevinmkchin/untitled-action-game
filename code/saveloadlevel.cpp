@@ -45,7 +45,7 @@ static void SerializeMapLightData(game_map_build_data_t *BuildData)
     ByteBufferWriteBulk(&BuildData->Output, BuildData->PointLights.data, sizeof(static_point_light_t) * BuildData->PointLights.lenu());
 }
 
-static void DeserializeMapLightData(ByteBuffer *Buf, map_info_t *MapInfo)
+static void DeserializeMapLightData(ByteBuffer *Buf, game_state *MapInfo)
 {
     u64 SerializeStartMarker;
     ByteBufferRead(Buf, u64, &SerializeStartMarker);
@@ -157,7 +157,7 @@ bool BuildGameMap(const char *path)
     return writtenToFile;
 }
 
-bool LoadGameMap(map_info_t *MapInfo, const char *path)
+bool LoadGameMap(game_state *MapInfo, const char *path)
 {
     std::unordered_map<u32, void*> DeserElemIdToElem;
 

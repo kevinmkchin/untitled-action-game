@@ -266,7 +266,7 @@ void RenderEnemies(const mat4 &ProjFromView, const mat4 &ViewFromWorld)
             continue;
 
         // TODO(Kevin): should use centroid instead of root
-        BindUniformsForModelLighting(Sha_ModelSkinnedLit, RuntimeMapInfo, Enemy.Position);
+        BindUniformsForModelLighting(Sha_ModelSkinnedLit, GameState, Enemy.Position);
 
         mat4 ModelMatrix = TranslationMatrix(Enemy.Position) * 
             RotationMatrix(Enemy.Orientation) * ScaleMatrix(SI_UNITS_TO_GAME_UNITS);
