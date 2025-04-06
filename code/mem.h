@@ -32,7 +32,8 @@ struct linear_arena_t
 
 struct manualheap_arena_t
 {
-    // SIMD compatible thread-safe heap allocator for Jolt Physics library
+    // SIMD compatible thread-safe heap allocator
+    // Used for Jolt Physics library
 
     void Init(size_t size);
     void* alloc(size_t size, size_t alignment = 16);

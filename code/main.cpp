@@ -1,10 +1,5 @@
 /*
 
-Something fucking cool.
-Priorty #1 is building the game, not the engine/tech
-Handcrafted with love.
-
-
 == NOTES ==
 
     64x64 pixel texture for each 32x32 unit in game looks decent
@@ -16,7 +11,6 @@ Handcrafted with love.
     Ultimately, the game will very much have my identity. From some UI looking crusty,
     or enemy animations being janky, but that personal touch is part of the charm of 
     an indie game like this.
-
 
 */
 
