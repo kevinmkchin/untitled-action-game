@@ -18,6 +18,7 @@ static void CreateParticleFromEmitter(
         EmitterRNG.frand() * Emitter.dPSpread.x,
         EmitterRNG.frand() * Emitter.dPSpread.y,
         EmitterRNG.frand() * Emitter.dPSpread.z);
+    Particle.ddP = Emitter.ddP;
     Particle.Color = Emitter.Color + vec4(
         EmitterRNG.frand() * Emitter.ColorSpread.x,
         EmitterRNG.frand() * Emitter.ColorSpread.y,
@@ -65,6 +66,7 @@ void UpdateParticles(particle_buffer &ParticleState, random_series &EmitterRNG)
         {
             // Simulate particles
             Particle->P += DeltaTime * Particle->dP;
+            Particle->dP += DeltaTime * Particle->ddP;
             Particle->Color += DeltaTime * Particle->dColor;
             vec4 Color;
             Color.x = GM_clamp(Particle->Color.x, 0.f, 1.f);

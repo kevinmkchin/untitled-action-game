@@ -102,6 +102,7 @@ struct particle
     vec4 Color;
     vec3 P;
     vec3 dP;
+    vec3 ddP;
     float Life;
     bool JustEmitted;
     u32 _pad_; // Enum of anim_sprite
@@ -117,6 +118,7 @@ struct particle_emitter
     vec3 PSpread;
     vec3 dP;
     vec3 dPSpread;
+    vec3 ddP;
     vec4 Color;
     vec4 ColorSpread;
     vec4 dColor;
