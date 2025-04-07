@@ -108,12 +108,12 @@ static inline void AssembleQuadForParticle(
 }
 
 void AssembleParticleQuads(
-    particle_buffer &Collection, 
+    particle_buffer &Collection,
+    vec3 QuadDirection,
     fixed_array<particle_vertex> &QuadAssemblyBuf)
 {
-    // TODO(Kevin): get Up and Right using player cam direction
-    vec3 Up = GM_UP_VECTOR;
-    vec3 Right = GM_RIGHT_VECTOR;
+    vec3 Right = CalculateTangent(QuadDirection);
+    vec3 Up = Normalize(Cross(QuadDirection, Right));
 
     for (u32 i = 0; i < Collection.Particles.lenu(); ++i)
     {

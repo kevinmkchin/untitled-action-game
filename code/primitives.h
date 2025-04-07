@@ -7,6 +7,8 @@
  * 
  * */
 
+inline vec3 CalculateTangent(vec3 Normal);
+
 struct support_renderer_t
 {
     void Initialize();

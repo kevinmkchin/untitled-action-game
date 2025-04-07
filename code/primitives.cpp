@@ -239,7 +239,7 @@ static const char* GRID_MESH_SHADER_FS =
     "    }\n"
     "}\n";
 
-static inline vec3 GetTangent(vec3 Normal)
+inline vec3 CalculateTangent(vec3 Normal)
 {
     return Normalize(Cross(fabsf(Dot(Normalize(Normal), GM_UP_VECTOR)) > 0.999f ? GM_RIGHT_VECTOR : GM_UP_VECTOR, Normal));
 }
@@ -437,7 +437,7 @@ void support_renderer_t::FlushPrimitives(const mat4 *projectionMatrix, const mat
 
 void support_renderer_t::DrawSolidDisc(vec3 center, vec3 normal, float radius, vec4 color)
 {
-    vec3 tangent = GetTangent(normal);
+    vec3 tangent = CalculateTangent(normal);
     quat q = quat(GM_DEG2RAD * 30.f, normal);
     for(int i = 0; i < 12; ++i)
     {
@@ -479,7 +479,7 @@ void support_renderer_t::DrawSolidDisc(vec3 center, vec3 normal, float radius)
 
 void support_renderer_t::DrawSolidRect(vec3 center, vec3 normal, float halfWidth, vec4 color)
 {
-    vec3 tangent = GetTangent(normal);
+    vec3 tangent = CalculateTangent(normal);
 
     vec3 right = tangent * halfWidth;
     vec3 up = Normalize(Cross(normal, tangent)) * halfWidth;
@@ -602,7 +602,7 @@ void support_renderer_t::DoDiscHandle(u32 Id, vec3 WorldPosition, vec3 WorldNorm
 {
     vec3 idrgb = HandleIdToRGB(Id);
 
-    vec3 tangent = GetTangent(WorldNormal);
+    vec3 tangent = CalculateTangent(WorldNormal);
     quat q = quat(GM_DEG2RAD * 30.f, WorldNormal);
     for(int i = 0; i < 12; ++i)
     {
@@ -637,7 +637,7 @@ void support_renderer_t::DoDiscHandle(u32 Id, vec3 WorldPosition, vec3 WorldNorm
 void support_renderer_t::DoPickableBillboard(u32 Id, vec3 WorldPos, vec3 Normal, int BillboardId)
 {
     vec3 idrgb = HandleIdToRGB(Id);
-    vec3 RightTangent = GetTangent(Normal);
+    vec3 RightTangent = CalculateTangent(Normal);
     vec3 UpTangent = Normalize(Cross(Normal, RightTangent));
 
     // Lets scale down billboard texture width by some factor
