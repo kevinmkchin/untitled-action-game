@@ -134,17 +134,18 @@ void NonPhysicsTick()
 
 void PrePhysicsTick()
 {
-    particle_emitter BloodBurst;
-    BloodBurst.WorldP = vec3(0.f, 4.f, 0.f);
-    BloodBurst.PSpread = vec3(-8.f,8.f,8.f);
-    BloodBurst.dP = vec3(0.f,32.f,0.f);
-    BloodBurst.dPSpread = vec3(0.f,0.f,32.f);
-    BloodBurst.Color = vec4(1,1,1,1.4f);
-    BloodBurst.ColorSpread = vec4(0,0,0,0.1f);
-    BloodBurst.dColor = vec4(0,0,0,-1.35f);
-    BloodBurst.Timer = 0.f;
-    BloodBurst.ParticleLifeTimer = 2.f;
-    g_GameState.BloodParticles.Emitters.put(BloodBurst);
+    particle_emitter FountainTest;
+    FountainTest.WorldP = vec3(0.f,0.f,0.f);
+    FountainTest.PSpread = vec3(0.f,0.f,0.f);
+    FountainTest.dP = vec3(0.f,220.f,0.f);
+    FountainTest.dPSpread = vec3(32.f,0.f,32.f);
+    FountainTest.ddP = vec3(0.f,FromJoltUnit(-9.8f),0.f);
+    FountainTest.Color = vec4(1,1,1,1.4f);
+    FountainTest.ColorSpread = vec4(0,0,0,0.1f);
+    FountainTest.dColor = vec4(0,0,0,-1.35f);
+    FountainTest.Timer = 0.f;
+    FountainTest.ParticleLifeTimer = 2.f;
+    g_GameState.BloodParticles.Emitters.put(FountainTest);
 
     PrePhysicsTickAllEnemies(&g_GameState);
 
