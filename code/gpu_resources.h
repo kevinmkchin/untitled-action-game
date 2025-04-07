@@ -108,14 +108,3 @@ private:
     GLsync FrameSyncObjects[NumFrames] = { nullptr, nullptr, nullptr };
 };
 
-struct TripleBufferedVBO
-{
-    void Init(size_t FrameChunkSizeBytes);
-    void Destroy();
-
-    void BeginFrame(); // wait for sync object
-    // -> (pointer to write to, index, gpu offset)
-    std::pair<void*, GLintptr> Alloc();
-    void Bind(GLuint BindingPoint) const;
-    void EndFrame(); // push new sync object
-};
