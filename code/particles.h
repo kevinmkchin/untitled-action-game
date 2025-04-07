@@ -155,6 +155,7 @@ struct particle_buffer
 void UpdateParticles(particle_buffer &ParticleState, random_series &EmitterRNG);
 void AssembleParticleQuads(
     particle_buffer &Collection, 
+    vec3 QuadDirection,
     fixed_array<particle_vertex> &QuadAssemblyBuf);
 
 

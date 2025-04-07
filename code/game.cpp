@@ -326,7 +326,8 @@ void RenderGameLayer()
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, Assets.DefaultMissingTexture.id);
     g_GameState.PQuadBuf.setlen(0);
-    AssembleParticleQuads(g_GameState.BloodParticles, g_GameState.PQuadBuf);
+    vec3 QuadDirection = -g_GameState.Player.PlayerCam.Direction;
+    AssembleParticleQuads(g_GameState.BloodParticles, QuadDirection, g_GameState.PQuadBuf);
     g_GameState.BloodParticlesVB.Draw(g_GameState.PQuadBuf.data, g_GameState.PQuadBuf.lenu());
     GLHasErrors();
     glDepthMask(GL_TRUE);
