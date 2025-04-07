@@ -26,6 +26,8 @@ void InitializeGame()
 
     SetupProjectilesDataAndAllocateMemory();
     g_GameState.BloodParticles.Alloc(128, 32, MemoryType::Game);
+    g_GameState.BloodParticlesVB.Alloc(128*6);
+    g_GameState.PQuadBuf = fixed_array<particle_vertex>(256*6, MemoryType::Game);
 
     EnemySystem.Init();
 
@@ -45,6 +47,7 @@ void DestroyGame()
     EnemySystem.Destroy();
     Physics.Destroy();
 
+    g_GameState.BloodParticlesVB.Free();
     InstancedDrawing_ReleaseGPUResources();
 
 #if INTERNAL_BUILD
@@ -136,7 +139,7 @@ void PrePhysicsTick()
     BloodBurst.PSpread = vec3(-8.f,8.f,8.f);
     BloodBurst.dP = vec3(0.f,32.f,0.f);
     BloodBurst.dPSpread = vec3(0.f,0.f,32.f);
-    BloodBurst.Color = vec4(0,0,0,1.4f);
+    BloodBurst.Color = vec4(1,1,1,1.4f);
     BloodBurst.ColorSpread = vec4(0,0,0,0.1f);
     BloodBurst.dColor = vec4(0,0,0,-1.35f);
     BloodBurst.Timer = 0.f;
@@ -287,6 +290,7 @@ void RenderGameLayer()
     float fovy = HorizontalFOVToVerticalFOV_RadianToRadian(90.f*GM_DEG2RAD, aspectratio);
     mat4 perspectiveMatrix = ProjectionMatrixPerspective(fovy, aspectratio, GAMEPROJECTION_NEARCLIP, GAMEPROJECTION_FARCLIP);
     mat4 viewMatrix = g_GameState.Player.PlayerCam.ViewFromWorldMatrix();
+    mat4 ClipFromWorld = perspectiveMatrix * viewMatrix;
 
     UseShader(Sha_GameLevel);
     glEnable(GL_CULL_FACE);
@@ -306,20 +310,32 @@ void RenderGameLayer()
     }
 
     RenderEnemies(&g_GameState, perspectiveMatrix, viewMatrix);
-    // TODO draw particles here...probably
+
     RenderWeapon(&g_GameState.Player.Weapon, perspectiveMatrix.ptr(), viewMatrix.GetInverse().ptr());
+
     RenderProjectiles(&g_GameState, perspectiveMatrix, viewMatrix);
+
     SortAndDrawInstancedModels(&g_GameState, g_GameState.StaticInstances, g_GameState.DynamicInstances, 
         perspectiveMatrix, viewMatrix);
 
+    UseShader(Sha_ParticlesDefault);
+    glEnable(GL_DEPTH_TEST);
+    glDisable(GL_CULL_FACE);
+    glDepthMask(GL_FALSE); // Particles should depth test but not write to depth buffer
+    GLBindMatrix4fv(Sha_ParticlesDefault, "ClipFromWorld", 1, ClipFromWorld.ptr());
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, Assets.DefaultMissingTexture.id);
+    g_GameState.PQuadBuf.setlen(0);
+    AssembleParticleQuads(g_GameState.BloodParticles, g_GameState.PQuadBuf);
+    g_GameState.BloodParticlesVB.Draw(g_GameState.PQuadBuf.data, g_GameState.PQuadBuf.lenu());
+    GLHasErrors();
+    glDepthMask(GL_TRUE);
+
     // PRIMITIVES
     glEnable(GL_DEPTH_TEST);
-    // TODO(Kevin): Move depthMask disable to particle system render code
-    glDepthMask(GL_FALSE); // Particles should depth test but not write to depth buffer
     glDisable(GL_CULL_FACE);
     SupportRenderer.FlushPrimitives(&perspectiveMatrix, &viewMatrix, RenderTargetGame.depthTexId, 
         vec2((float)RenderTargetGame.width, (float)RenderTargetGame.height));
-    glDepthMask(GL_TRUE);
 
 #if INTERNAL_BUILD
     if (DebugDrawNavMeshFlag || DebugDrawEnemyPathingFlag)

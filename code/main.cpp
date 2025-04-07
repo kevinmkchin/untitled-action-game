@@ -243,6 +243,7 @@ GPUShader Sha_GameLevel;
 GPUShader Sha_ModelTexturedLit;
 GPUShader Sha_ModelSkinnedLit;
 GPUShader Sha_ModelInstancedLit;
+GPUShader Sha_ParticlesDefault;
 GPUShader Sha_Gun;
 GPUShader Sha_Hemicube;
 GPUShader Sha_EditorScene;
@@ -363,6 +364,9 @@ static void InitGameRenderer()
     GLLoadShaderProgramFromFile(Sha_ModelInstancedLit, 
         shader_path("model_instanced_lit.vert").c_str(), 
         shader_path("model_instanced_lit.frag").c_str());
+    GLLoadShaderProgramFromFile(Sha_ParticlesDefault, 
+        shader_path("particles.vert").c_str(), 
+        shader_path("particles.frag").c_str());
     GLLoadShaderProgramFromFile(Sha_Gun, 
         shader_path("guns.vert").c_str(), 
         shader_path("guns.frag").c_str());

@@ -4,6 +4,8 @@ struct game_state
 {
     random_series ParticlesRNG;
     particle_buffer BloodParticles;
+    particle_vertex_stream BloodParticlesVB;
+    fixed_array<particle_vertex> PQuadBuf;
 
     player_t Player;
 
