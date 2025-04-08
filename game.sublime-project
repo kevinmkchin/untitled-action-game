@@ -18,6 +18,7 @@
     ],
     "build_systems": [
     {
+      // not sure when it uses Developer Command Prompt and when it uses regular cmd
       "name": "CMake",
       "cmd": ["cmake", "--build", "build"],
       "file_regex": "^([A-Z]:\\\\.*)\\((\\d+),(\\d+)\\):",
@@ -28,14 +29,14 @@
           "name": "Generate",
           "cmd": ["cmake", "-S", ".", "-B", "build"]
         },
-        {
-          "name": "Clean",
-          "cmd": ["cmake", "--build", "build", "--target", "clean"]
-        },
-        {
-          "name": "Release",
-          "cmd": ["cmake", "--build", "build", "--target", "clean"]
-        },
+      //   {
+      //     "name": "Clean",
+      //     "cmd": ["cmake", "--build", "build", "--target", "clean"]
+      //   },
+      //   {
+      //     "name": "Release",
+      //     "cmd": ["cmake", "--build", "build", "--target", "Release"]
+      //   },
       ]
     },
     {
@@ -44,11 +45,11 @@
       "working_dir": "${project_path:${folder}}",
       "shell": true,
     },
-    {
-      "name": "devenv build\\debug\\game",
-      "cmd": ["devenv", "build\\debug\\game.exe"],
-      "working_dir": "${project_path:${folder}}",
-      "shell": true,
-    }
+    // {
+    //   "name": "devenv build\\debug\\game",
+    //   "cmd": ["devenv", "build\\debug\\game.exe"],
+    //   "working_dir": "${project_path:${folder}}",
+    //   "shell": true,
+    // }
   ]
 }
