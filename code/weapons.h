@@ -50,7 +50,6 @@ struct projectile_breed_t
     float KillAfterTimer;
     bool KillAfterSlowingDown;
     bool RemainAfterDead;
-    // Death callback? e.g. gib adds itself as a "corpse" or rocket does splash damage?
 };
 
 struct projectile_t
@@ -64,9 +63,10 @@ struct projectile_t
 
 struct projectile_hit_info_t
 {
-    const JPH::Body *Body1;
-    const JPH::Body *Body2;
-    const JPH::ContactManifold *Manifold;
+    const JPH::Body *ProjBody;
+    const JPH::Body *OtherBody;
+    vec3 HitP;
+    vec3 HitN; // Direction to move projectile to resolve collision
 };
 
 extern fixed_array<projectile_breed_t> ProjectilesData;

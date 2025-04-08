@@ -73,11 +73,24 @@ void MyContactListener::OnContactAdded(const JPH::Body &inBody1, const JPH::Body
     {
         std::lock_guard Lock(ProjectileHitMutex);
 
-        projectile_hit_info_t PrjHitInfo;
-        PrjHitInfo.Body1 = &inBody1;
-        PrjHitInfo.Body2 = &inBody2;
-        PrjHitInfo.Manifold = &inManifold;
-        ProjectileHitInfos.put(PrjHitInfo);
+        if (inBody1.GetObjectLayer() == Layers::PROJECTILE)
+        {
+            projectile_hit_info_t PrjHitInfo;
+            PrjHitInfo.ProjBody = &inBody1;
+            PrjHitInfo.OtherBody = &inBody2;
+            PrjHitInfo.HitP = FromJoltVector(inManifold.GetWorldSpaceContactPointOn2(0));
+            PrjHitInfo.HitN = FromJoltVectorNoConvert(-inManifold.mWorldSpaceNormal);
+            ProjectileHitInfos.put(PrjHitInfo);
+        }
+        else
+        {
+            projectile_hit_info_t PrjHitInfo;
+            PrjHitInfo.ProjBody = &inBody2;
+            PrjHitInfo.OtherBody = &inBody1;
+            PrjHitInfo.HitP = FromJoltVector(inManifold.GetWorldSpaceContactPointOn1(0));
+            PrjHitInfo.HitN = FromJoltVectorNoConvert(inManifold.mWorldSpaceNormal);
+            ProjectileHitInfos.put(PrjHitInfo);
+        }
 
         // NOTE(Kevin): I can set the mass scales of each body to adjust
         //              how far one body knocks back the other. Or I can

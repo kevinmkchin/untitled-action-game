@@ -313,17 +313,19 @@ static void ProcessProjectileHitInfos(game_state *GameState)
     for (size_t i = 0; i < ProjectileHitInfos.lenu(); ++i)
     {
         projectile_hit_info_t Info = ProjectileHitInfos[i];
-        if (Info.Body1->GetObjectLayer() != Layers::PROJECTILE)
+        if (Info.ProjBody->GetObjectLayer() != Layers::PROJECTILE)
         {
-            ASSERT(Info.Body2->GetObjectLayer() == Layers::PROJECTILE);
-            std::swap(Info.Body1, Info.Body2);
+            LogWarning("projectile_hit_info_t's projectile body is not in Layers::PROJECTILE!");
+            if (Info.OtherBody->GetObjectLayer() == Layers::PROJECTILE)
+                std::swap(Info.ProjBody, Info.OtherBody);
+            else
+                continue;
         }
 
-        size_t ProjectileIdx = (size_t)Info.Body1->GetUserData();
+        size_t ProjectileIdx = (size_t)Info.ProjBody->GetUserData();
 
         if (ProjectileIdx >= LiveProjectiles.lenu())
         {
-            // LogError("GAME RUNTIME ERROR: There is no live projectile with collided Body ID...something went wrong!");
             LogError("GAME RUNTIME ERROR: Bad user data from projectile body...something went wrong!");
             continue;
         }
@@ -337,7 +339,7 @@ static void ProcessProjectileHitInfos(game_state *GameState)
             continue;
         }
 
-        JPH::ObjectLayer SecondBodyLayer = Info.Body2->GetObjectLayer();
+        JPH::ObjectLayer SecondBodyLayer = Info.OtherBody->GetObjectLayer();
 
         if (SecondBodyLayer == Layers::ENEMY)
         {
@@ -345,9 +347,36 @@ static void ProcessProjectileHitInfos(game_state *GameState)
 
             if (PrjInfo->BulletDamage > 0.f)
             {
-                u32 EnemyIndex = (u32)Info.Body2->GetUserData();
+                u32 EnemyIndex = (u32)Info.OtherBody->GetUserData();
                 HurtEnemy(GameState, EnemyIndex, PrjInfo->BulletDamage);
+
+                particle_emitter BloodBurst;
+                BloodBurst.WorldP = Info.HitP;
+                BloodBurst.PSpread = vec3(0.f,0.f,0.f);
+                BloodBurst.dP = Info.HitN * 128.f + vec3(0.f,70.f,0.f);
+                BloodBurst.dPSpread = BloodBurst.dP*(0.3f);
+                BloodBurst.ddP = vec3(0.f,FromJoltUnit(-9.8f),0.f);
+                BloodBurst.Color = vec4(1,1,1,1.4f);
+                BloodBurst.ColorSpread = vec4(0,0,0,0.1f);
+                BloodBurst.dColor = vec4(0,0,0,-1.35f);
+                BloodBurst.Timer = 0.f;
+                BloodBurst.ParticleLifeTimer = 2.f;
+                g_GameState.BloodParticles.Emitters.put(BloodBurst);
+
+                BloodBurst.WorldP = Info.HitP;
+                BloodBurst.PSpread = vec3(0.f,0.f,0.f);
+                BloodBurst.dP = Info.HitN * 6.f + vec3(0.f,96.f,0.f);
+                BloodBurst.dPSpread = BloodBurst.dP*(0.5f);
+                BloodBurst.ddP = vec3(0.f,FromJoltUnit(-9.8f),0.f);
+                BloodBurst.Color = vec4(1,1,1,1.4f);
+                BloodBurst.ColorSpread = vec4(0,0,0,0.1f);
+                BloodBurst.dColor = vec4(0,0,0,-1.35f);
+                BloodBurst.Timer = 0.f;
+                BloodBurst.ParticleLifeTimer = 2.f;
+                g_GameState.BloodParticles.Emitters.put(BloodBurst);
             }
+
+            // Rocket should do splash damage collider check
 
             KillProjectile(GameState, &LiveProjectiles[ProjectileIdx]);
         }
@@ -359,6 +388,8 @@ static void ProcessProjectileHitInfos(game_state *GameState)
                 Mix_VolumeChunk(RicochetSnd, 24 + SOUNDRNG.NextInt(-2, 2));
                 Mix_PlayChannel(-1, RicochetSnd, 0);
             }
+
+            // Rocket should do splash damage collider check
 
             KillProjectile(GameState, &LiveProjectiles[ProjectileIdx]);
         }
