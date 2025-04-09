@@ -202,7 +202,7 @@ void PrePhysicsTickAllEnemies(game_state *GameState)
 
         if (Enemy.TimeSinceLastPathFind > 0.3f)
         {
-            // TODO replace Player.Root with a target
+            // TODO(Kevin): Could I get away with straight path instead of smooth path?
             if (FindSmoothPathTo(Enemy.Position, GameState->Player.Root, Enemy.SmoothPath.data, &Enemy.SmoothPathCount))
             {
                 Enemy.TimeSinceLastPathFind = 0.f;

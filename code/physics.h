@@ -84,7 +84,9 @@ inline float ToJoltUnit(float GameUnit);
 inline float FromJoltUnit(float JoltUnit);
 inline JPH::RVec3 ToJoltVector(vec3 GMathVec3);
 inline vec3 FromJoltVector(JPH::RVec3 JoltVec3);
+inline vec4 FromJoltVector(JPH::Vec4 JoltVec4);
 inline JPH::RVec3 ToJoltVectorNoConvert(vec3 GMathVec3); // Directions should stay normalized
 inline vec3 FromJoltVectorNoConvert(JPH::RVec3 JoltVec3);
+inline vec4 FromJoltVectorNoConvert(JPH::Vec4 JoltVec4);
 inline JPH::Quat ToJoltQuat(quat GMathQuat);
 inline quat FromJoltQuat(JPH::Quat JoltQuat);

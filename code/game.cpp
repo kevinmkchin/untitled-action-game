@@ -37,8 +37,7 @@ void InitializeGame()
     RecastDebugDrawer.Init();
 #endif // INTERNAL_BUILD
 #ifdef JPH_DEBUG_RENDERER
-    JoltDebugDrawer = new jph_debug_draw_gl3_t();
-    JoltDebugDrawer->Init();
+    JoltDebugDrawer = new_InGameMemory(jph_debug_draw_gl3_t)();
 #endif // JPH_DEBUG_RENDERER
 }
 
@@ -53,10 +52,6 @@ void DestroyGame()
 #if INTERNAL_BUILD
     RecastDebugDrawer.Destroy();
 #endif // INTERNAL_BUILD
-#ifdef JPH_DEBUG_RENDERER
-    JoltDebugDrawer->Destroy();
-    delete JoltDebugDrawer;
-#endif // JPH_DEBUG_RENDERER
 }
 
 void LoadLevel(const char *MapPath)
@@ -340,21 +335,12 @@ void RenderGameLayer()
         vec2((float)RenderTargetGame.width, (float)RenderTargetGame.height));
 
 #if INTERNAL_BUILD
-    if (DebugDrawNavMeshFlag || DebugDrawEnemyPathingFlag)
-        RecastDebugDrawer.Ready(perspectiveMatrix.ptr(), viewMatrix.ptr());
-    if (DebugDrawNavMeshFlag)
-        DebugDrawRecast(DRAWMODE_NAVMESH);
-    if (DebugDrawEnemyPathingFlag)
-    {
-        DebugDrawFollowPath();
-        SupportRenderer.FlushPrimitives(&perspectiveMatrix, &viewMatrix, RenderTargetGame.depthTexId, 
-            vec2((float)RenderTargetGame.width, (float)RenderTargetGame.height));
-    }
+    DebugDrawGame();
+    glEnable(GL_BLEND);
+    glDisable(GL_DEPTH_TEST);
+    SupportRenderer.FlushPrimitives(&perspectiveMatrix, &viewMatrix, RenderTargetGame.depthTexId, 
+        vec2((float)RenderTargetGame.width, (float)RenderTargetGame.height));
 #endif // INTERNAL_BUILD
-#ifdef JPH_DEBUG_RENDERER
-    mat4 ViewProjectionMatrix = perspectiveMatrix * viewMatrix;
-    JoltDebugDrawer->Flush(ViewProjectionMatrix.ptr());
-#endif // JPH_DEBUG_RENDERER
 }
 
 void CreateAndRegisterLevelCollider()

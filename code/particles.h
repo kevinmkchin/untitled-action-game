@@ -25,17 +25,6 @@ struct particle_vertex_stream
         glGenVertexArrays(1, &VAO);
         glBindVertexArray(VAO);
 
-        glGenBuffers(1, &VBO);
-        glBindBuffer(GL_ARRAY_BUFFER, VBO);
-        glBufferStorage(GL_ARRAY_BUFFER, TotalSize, nullptr,
-            GL_MAP_WRITE_BIT |
-            GL_MAP_PERSISTENT_BIT |
-            GL_MAP_COHERENT_BIT);
-        MappedPtr = (char*) glMapBufferRange(GL_ARRAY_BUFFER, 0, TotalSize,
-            GL_MAP_WRITE_BIT |
-            GL_MAP_PERSISTENT_BIT |
-            GL_MAP_COHERENT_BIT);
-
         constexpr GLsizei StrideInBytes = sizeof(particle_vertex);
         glEnableVertexAttribArray(0);
         glVertexAttribFormat(0, 3, GL_FLOAT, GL_FALSE, 0);
@@ -47,11 +36,21 @@ struct particle_vertex_stream
         glVertexAttribFormat(2, 2, GL_FLOAT, GL_FALSE, offsetof(particle_vertex, UV));
         glVertexAttribBinding(2, BindingIndex);
 
+        glGenBuffers(1, &VBO);
+        glBindBuffer(GL_ARRAY_BUFFER, VBO);
+        glBufferStorage(GL_ARRAY_BUFFER, TotalSize, nullptr,
+            GL_MAP_WRITE_BIT |
+            GL_MAP_PERSISTENT_BIT |
+            GL_MAP_COHERENT_BIT);
+        MappedPtr = (char*) glMapBufferRange(GL_ARRAY_BUFFER, 0, TotalSize,
+            GL_MAP_WRITE_BIT |
+            GL_MAP_PERSISTENT_BIT |
+            GL_MAP_COHERENT_BIT);
         // Tell OpenGL how to interpret the vertex struct (binding index = 0)
         // Bind buffer to binding index 0 (no offset yet)
         glBindVertexBuffer(BindingIndex, VBO, 0, StrideInBytes);
-
         glBindBuffer(GL_ARRAY_BUFFER, 0);
+
         glBindVertexArray(0);
     }
 

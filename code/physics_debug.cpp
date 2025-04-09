@@ -38,121 +38,19 @@ void JoltDebugDrawCharacterState(jph_debug_draw_gl3_t *mDebugRenderer, const JPH
     mDebugRenderer->DrawText3D(inCharacterTransform.GetTranslation(), JPH::StringFormat("State: %s\nMat: %s\nHorizontal Vel: %.1f m/s\nVertical Vel: %.1f m/s", JPH::CharacterBase::sToString(ground_state), ground_material->GetDebugName(), (double)horizontal_velocity.Length(), (double)inCharacterVelocity.GetY()), JPH::Color::sWhite, 0.25f);
 }
 
-// jph_debug_draw_gl3_t::jph_debug_draw_gl3_t()
-// {
-//     Initialize();
-// }
-
-void jph_debug_draw_gl3_t::Init()
-{
-    GLCreateShaderProgram(JPH_DEBUG_GL3_SHADER, JPH_DEBUG_GL3_VS, JPH_DEBUG_GL3_FS);
-
-    // pos x y z, color r g b a
-    CreateGPUMesh(&DebugDrawMesh, 3, 4, 0, GL_DYNAMIC_DRAW);
-}
-
-void jph_debug_draw_gl3_t::Destroy()
-{
-    if (JPH_DEBUG_GL3_SHADER.idShaderProgram)
-        GLDeleteShader(JPH_DEBUG_GL3_SHADER);
-    if (DebugDrawMesh.idVAO)
-        DeleteGPUMesh(DebugDrawMesh.idVAO, DebugDrawMesh.idVBO);
-}
-
-void jph_debug_draw_gl3_t::Ready()
-{
-    LinesVertices.setlen(0);
-    TrisVertices.setlen(0);
-}
-
-void jph_debug_draw_gl3_t::Flush(float *ViewProjectionMatrix)
-{
-    glEnable(GL_BLEND);
-    glDisable(GL_DEPTH_TEST);
-
-    UseShader(JPH_DEBUG_GL3_SHADER);
-    GLBindMatrix4fv(JPH_DEBUG_GL3_SHADER, "ViewProjectionMatrix", 1, ViewProjectionMatrix);
-    //GLHasErrors();
-
-    if (LinesVertices.lenu() > 0)
-    {
-        RebindGPUMesh(&DebugDrawMesh, sizeof(float)*LinesVertices.lenu(), LinesVertices.data);
-        int VertexCount = (int)LinesVertices.lenu() / 7;
-        GLHasErrors();
-
-        glBindVertexArray(DebugDrawMesh.idVAO);
-        glBindBuffer(GL_ARRAY_BUFFER, DebugDrawMesh.idVBO);
-        glDrawArrays(GL_LINES, 0, VertexCount);
-        glBindBuffer(GL_ARRAY_BUFFER, 0);
-        glBindVertexArray(0);
-        GLHasErrors();
-    
-        LinesVertices.setlen(0);
-    }
-
-    if (TrisVertices.lenu() > 0)
-    {
-        RebindGPUMesh(&DebugDrawMesh, sizeof(float)*TrisVertices.lenu(), TrisVertices.data);
-        int VertexCount = (int)TrisVertices.lenu() / 7;
-        GLHasErrors();
-
-        glBindVertexArray(DebugDrawMesh.idVAO);
-        glBindBuffer(GL_ARRAY_BUFFER, DebugDrawMesh.idVBO);
-        glDrawArrays(GL_TRIANGLES, 0, VertexCount);
-        glBindBuffer(GL_ARRAY_BUFFER, 0);
-        glBindVertexArray(0);
-        GLHasErrors();
-
-        TrisVertices.setlen(0);
-    }
-}
-
 void jph_debug_draw_gl3_t::DrawLine(JPH::RVec3Arg inFrom, JPH::RVec3Arg inTo, JPH::ColorArg inColor)
 {
-    JPH::Vec4 Colorf = inColor.ToVec4();
-    LinesVertices.put(FromJoltUnit(inFrom.GetX()));
-    LinesVertices.put(FromJoltUnit(inFrom.GetY()));
-    LinesVertices.put(FromJoltUnit(inFrom.GetZ()));
-    LinesVertices.put(Colorf.GetX());
-    LinesVertices.put(Colorf.GetY());
-    LinesVertices.put(Colorf.GetZ());
-    LinesVertices.put(Colorf.GetW());
-
-    LinesVertices.put(FromJoltUnit(inTo.GetX()));
-    LinesVertices.put(FromJoltUnit(inTo.GetY()));
-    LinesVertices.put(FromJoltUnit(inTo.GetZ()));
-    LinesVertices.put(Colorf.GetX());
-    LinesVertices.put(Colorf.GetY());
-    LinesVertices.put(Colorf.GetZ());
-    LinesVertices.put(Colorf.GetW());
+    SupportRenderer.DrawLine(FromJoltVector(inFrom), FromJoltVector(inTo), 
+        FromJoltVectorNoConvert(inColor.ToVec4()));
 }
 
 void jph_debug_draw_gl3_t::DrawTriangle(JPH::RVec3Arg inV1, JPH::RVec3Arg inV2, JPH::RVec3Arg inV3, JPH::ColorArg inColor, ECastShadow inCastShadow)
 {
-    JPH::Vec4 Colorf = inColor.ToVec4();
-    TrisVertices.put(FromJoltUnit(inV1.GetX()));
-    TrisVertices.put(FromJoltUnit(inV1.GetY()));
-    TrisVertices.put(FromJoltUnit(inV1.GetZ()));
-    TrisVertices.put(Colorf.GetX());
-    TrisVertices.put(Colorf.GetY());
-    TrisVertices.put(Colorf.GetZ());
-    TrisVertices.put(Colorf.GetW());
-
-    TrisVertices.put(FromJoltUnit(inV2.GetX()));
-    TrisVertices.put(FromJoltUnit(inV2.GetY()));
-    TrisVertices.put(FromJoltUnit(inV2.GetZ()));
-    TrisVertices.put(Colorf.GetX());
-    TrisVertices.put(Colorf.GetY());
-    TrisVertices.put(Colorf.GetZ());
-    TrisVertices.put(Colorf.GetW());
-
-    TrisVertices.put(FromJoltUnit(inV3.GetX()));
-    TrisVertices.put(FromJoltUnit(inV3.GetY()));
-    TrisVertices.put(FromJoltUnit(inV3.GetZ()));
-    TrisVertices.put(Colorf.GetX());
-    TrisVertices.put(Colorf.GetY());
-    TrisVertices.put(Colorf.GetZ());
-    TrisVertices.put(Colorf.GetW());
+    SupportRenderer.DrawTri(
+        FromJoltVector(inV1),
+        FromJoltVector(inV2),
+        FromJoltVector(inV3),
+        FromJoltVectorNoConvert(inColor.ToVec4()));
 }
 
 void jph_debug_draw_gl3_t::DrawText3D(JPH::RVec3Arg inPosition, const std::string_view &inString, JPH::ColorArg inColor, float inHeight)
