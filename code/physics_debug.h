@@ -20,7 +20,5 @@ public:
 
 };
 
-extern jph_debug_draw_gl3_t *JoltDebugDrawer;
-
 #endif // JPH_DEBUG_RENDERER
 

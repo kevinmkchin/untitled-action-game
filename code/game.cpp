@@ -3,6 +3,12 @@
 // extern
 game_state g_GameState;
 
+#if INTERNAL_BUILD
+recast_debug_draw_gl3_t RecastDebugDrawer;
+#endif // INTERNAL_BUILD
+#ifdef JPH_DEBUG_RENDERER
+jph_debug_draw_gl3_t *JoltDebugDrawer;
+#endif // JPH_DEBUG_RENDERER
 
 enum ske_humanoid_clips : u32
 {
@@ -34,7 +40,7 @@ void InitializeGame()
     g_GameState.Player.Init();
 
 #if INTERNAL_BUILD
-    RecastDebugDrawer.Init();
+    RecastDebugDrawer.GameState = &g_GameState;
 #endif // INTERNAL_BUILD
 #ifdef JPH_DEBUG_RENDERER
     JoltDebugDrawer = new_InGameMemory(jph_debug_draw_gl3_t)();
@@ -48,10 +54,6 @@ void DestroyGame()
 
     g_GameState.BloodParticlesVB.Free();
     InstancedDrawing_ReleaseGPUResources();
-
-#if INTERNAL_BUILD
-    RecastDebugDrawer.Destroy();
-#endif // INTERNAL_BUILD
 }
 
 void LoadLevel(const char *MapPath)
@@ -184,11 +186,16 @@ void DebugDrawGame()
     //     );
     // }
 
-#ifdef JPH_DEBUG_RENDERER
-    JoltDebugDrawer->Ready();
+#if INTERNAL_BUILD
+    if (DebugDrawNavMeshFlag)
+        DebugDrawRecast(DRAWMODE_NAVMESH);
+    if (DebugDrawEnemyPathingFlag)
+        DebugDrawFollowPath();
+#endif // INTERNAL_BUILD
 
+#ifdef JPH_DEBUG_RENDERER
     if (DebugDrawLevelColliderFlag)
-    {        
+    {
         Physics.BodyInterface->GetShape(g_GameState.LevelColliderBodyId)->Draw(JoltDebugDrawer,
             Physics.BodyInterface->GetCenterOfMassTransform(g_GameState.LevelColliderBodyId),
             JPH::Vec3::sReplicate(1.0f), JPH::Color(0,255,0,60), true, false);
@@ -241,7 +248,6 @@ void DoGameLoop()
         }
     }
 
-    DebugDrawGame();
     RenderGameLayer();
 
     if (g_GameState.GameLoopCanRun) 
@@ -337,6 +343,7 @@ void RenderGameLayer()
 #if INTERNAL_BUILD
     DebugDrawGame();
     glEnable(GL_BLEND);
+    // Blanket disable depth test might be problematic but whatever its debug drawing
     glDisable(GL_DEPTH_TEST);
     SupportRenderer.FlushPrimitives(&perspectiveMatrix, &viewMatrix, RenderTargetGame.depthTexId, 
         vec2((float)RenderTargetGame.width, (float)RenderTargetGame.height));
