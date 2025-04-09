@@ -18,6 +18,10 @@ struct support_renderer_t
 
 public: // Primitives
 
+    fixed_array<float> PRIMITIVE_TRIS_VB;
+    fixed_array<float> PRIMITIVE_LINES_VB;
+    fixed_array<float> PRIMITIVE_FATLINES_VB;
+
     // Queue a solid disc to be drawn later
     void DrawSolidDisc(vec3 center, vec3 normal, float radius, vec4 color);
     void DrawSolidDisc(vec3 center, vec3 normal, float radius);
@@ -39,7 +43,20 @@ public: // Primitives
         const mat4 *projectionMatrix, const mat4 *viewMatrix, 
         GLuint sceneDepthTextureId, vec2 framebufferSize);
 
+private:
+    u32 PRIM_VERTEX_POS_AND_COLOR_VAO;
+    u32 PRIM_VERTEX_POS_AND_COLOR_VBO;
+    u32 PRIM_VERTEX_POS_COLOR_LINEWIDTH_VAO;
+    u32 PRIM_VERTEX_POS_COLOR_LINEWIDTH_VBO;
+
+    GPUShader PRIMITIVES_TRIS_SHADER;
+    GPUShader LINES_SHADER;
+    GPUShader FATLINES_SHADER;
+
 public: // Pickables
+
+    fixed_array<float> HANDLES_VB;
+    fixed_array<float> PICKABLE_BILLBOARDS_VB;
     
     // Get color id from u32
     vec3 HandleIdToRGB(u32 Id);
@@ -82,6 +99,17 @@ public:
         float HowFarAlongCameraDirection;
     };
     std::vector<entity_billboard_data_t> BillboardsRequested;
-};
 
-extern support_renderer_t SupportRenderer;
+private:
+    GPUFrameBuffer mousePickingRenderTarget;
+
+    u32 HANDLES_VAO = 0;
+    u32 HANDLES_VBO = 0;
+    GPUMesh PICKABLE_BILLBOARDS_MESH;
+    u32 GRID_MESH_VAO;
+    u32 GRID_MESH_VBO;
+
+    GPUShader HANDLES_SHADER;
+    GPUShader PICKABLE_BILLBOARDS_SHADER;
+    GPUShader GRID_MESH_SHADER;
+};

@@ -210,7 +210,7 @@ void LogError(const char *fmt, ...)
 #include "nav.h"
 #include "shader_helpers.h"
 
-
+// Application state
 SDL_Window *SDLMainWindow;
 SDL_GLContext SDLGLContext;
 bool ProgramShutdownRequested = false;
@@ -228,15 +228,14 @@ ivec2 MousePos;
 bool KeysCurrent[256] = {0};
 bool KeysPressed[256] = {0};
 bool KeysReleased[256] = {0};
-
 i32 BackbufferWidth = -1;
 i32 BackbufferHeight = -1;
-
 char CurrentWorkingDirectory[128];
+support_renderer_t SupportRenderer;
 
 #if INTERNAL_BUILD
 RENDERDOC_API_1_6_0 *RDOCAPI = NULL;
-#endif
+#endif // INTERNAL_BUILD
 
 
 GPUShader Sha_GameLevel;

@@ -2,8 +2,10 @@
 #include <DetourNavMesh.h>
 #include <DetourNavMeshBuilder.h>
 #include <DetourNavMeshQuery.h>
+#if INTERNAL_BUILD
 #include <RecastDebugDraw.h>
 #include <DetourDebugDraw.h>
+#endif // INTERNAL_BUILD
 #include <DetourCommon.h>
 
 #ifdef __GNUC__
@@ -195,10 +197,6 @@ static rcPolyMeshDetail* m_dmesh;
 
 static dtNavMesh* m_navMesh;
 static dtNavMeshQuery* m_navQuery;
-
-#if INTERNAL_BUILD
-recast_debug_draw_gl3_t RecastDebugDrawer;
-#endif // INTERNAL_BUILD
 
 enum SamplePartitionType
 {
@@ -1224,7 +1222,7 @@ static void DebugDrawAgent(const float* pos, float r, float h, float c, const un
 
 void DebugDrawFollowPath()
 {
-    duDebugDraw& dd = RecastDebugDrawer;
+    // duDebugDraw& dd = RecastDebugDrawer;
 
     // const unsigned int startCol = duRGBA(128,25,0,192);
     // const unsigned int endCol = duRGBA(51,102,0,129);
@@ -1281,79 +1279,29 @@ void DebugDrawFollowPath()
     }
 }
 
-void recast_debug_draw_gl3_t::Init()
+void recast_debug_draw_gl3_t::Ready()
 {
-    GLCreateShaderProgram(RECAST_DEBUG_GL3_SHADER, RECAST_DEBUG_GL3_VS, RECAST_DEBUG_GL3_FS);
 
-    // pos x y z, color r g b a, texture u v
-    CreateGPUMesh(&DebugDrawMesh, 3, 4, 2, GL_DYNAMIC_DRAW);
-}
-
-void recast_debug_draw_gl3_t::Destroy()
-{
-    if (RECAST_DEBUG_GL3_SHADER.idShaderProgram)
-        GLDeleteShader(RECAST_DEBUG_GL3_SHADER);
-    if (DebugDrawMesh.idVAO)
-        DeleteGPUMesh(DebugDrawMesh.idVAO, DebugDrawMesh.idVBO);
-}
-
-void recast_debug_draw_gl3_t::Ready(float *ProjMatrix, float *ViewMatrix)
-{
-    // assume that viewport and target framebuffer is already set up
-    // just use shader, set up render pipeline and uniforms
-
-    glEnable(GL_BLEND);
-    glEnable(GL_DEPTH_TEST);
-
-    UseShader(RECAST_DEBUG_GL3_SHADER);
-    GLBindMatrix4fv(RECAST_DEBUG_GL3_SHADER, "ProjMatrix", 1, ProjMatrix);
-    GLBindMatrix4fv(RECAST_DEBUG_GL3_SHADER, "ViewMatrix", 1, ViewMatrix);
-
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, Assets.DefaultEditorTexture.gputex.id);
-    GLBind1i(RECAST_DEBUG_GL3_SHADER, "Texture0", 0);
-
-    GLBind1i(RECAST_DEBUG_GL3_SHADER, "UseTexture", false);
-
-    GLHasErrors();
 }
 
 void recast_debug_draw_gl3_t::depthMask(bool state)
 {
-    if (state)
-        glEnable(GL_DEPTH_TEST);
-    else
-        glDisable(GL_DEPTH_TEST);
+    // if (state)
+    //     glEnable(GL_DEPTH_TEST);
+    // else
+    //     glDisable(GL_DEPTH_TEST);
 }
 
 void recast_debug_draw_gl3_t::texture(bool state)
 {
-    GLBind1i(RECAST_DEBUG_GL3_SHADER, "UseTexture", state);
+    // will not implement
 }
 
 void recast_debug_draw_gl3_t::begin(duDebugDrawPrimitives prim, float size)
 {
     CurrentPrimitiveDrawMode = prim;
-
-    switch (prim)
-    {
-        case DU_DRAW_POINTS:
-            glPointSize(size);
-            CurrentPrimitiveDrawMode = GL_POINTS;
-            break;
-        case DU_DRAW_LINES:
-            // glLineWidth(size); size of > 1.0 is not supported on my pc
-            CurrentPrimitiveDrawMode = GL_LINES;
-            break;
-        case DU_DRAW_TRIS:
-            CurrentPrimitiveDrawMode = GL_TRIANGLES;
-            break;
-        case DU_DRAW_QUADS:
-            CurrentPrimitiveDrawMode = GL_QUADS;
-            break;
-    };
-
-    // GLHasErrors();
+    CurrentSize = size;
+    VertexBuffer.setlen(0);
 }
 
 void recast_debug_draw_gl3_t::vertex(const float* pos, unsigned int color)
@@ -1364,15 +1312,57 @@ void recast_debug_draw_gl3_t::vertex(const float* pos, unsigned int color)
     float b = float(Colors[2]) / 255.f;
     float a = float(Colors[3]) / 255.f;
 
-    VertexBuffer.put(pos[0]);
-    VertexBuffer.put(pos[1]);
-    VertexBuffer.put(pos[2]);
-    VertexBuffer.put(r);
-    VertexBuffer.put(g);
-    VertexBuffer.put(b);
-    VertexBuffer.put(a);
-    VertexBuffer.put(0.f);
-    VertexBuffer.put(0.f);
+    if (CurrentPrimitiveDrawMode == DU_DRAW_TRIS)
+    {
+        if (SupportRenderer.PRIMITIVE_TRIS_VB.lenu() + 7 > SupportRenderer.PRIMITIVE_TRIS_VB.cap())
+        {
+            LogError("PRIMITIVE_TRIS_VB at capacity: cannot insert debug tris.");
+            return;
+        }
+
+        SupportRenderer.PRIMITIVE_TRIS_VB.put(pos[0]);
+        SupportRenderer.PRIMITIVE_TRIS_VB.put(pos[1]);
+        SupportRenderer.PRIMITIVE_TRIS_VB.put(pos[2]);
+        SupportRenderer.PRIMITIVE_TRIS_VB.put(r);
+        SupportRenderer.PRIMITIVE_TRIS_VB.put(g);
+        SupportRenderer.PRIMITIVE_TRIS_VB.put(b);
+        SupportRenderer.PRIMITIVE_TRIS_VB.put(a);
+    }
+    else if (CurrentPrimitiveDrawMode == DU_DRAW_LINES)
+    {
+        if (SupportRenderer.PRIMITIVE_LINES_VB.lenu() + 7 > SupportRenderer.PRIMITIVE_LINES_VB.cap())
+        {
+            LogError("PRIMITIVE_LINES_VB at capacity: cannot insert debug lines.");
+            return;
+        }
+
+        SupportRenderer.PRIMITIVE_LINES_VB.put(pos[0]);
+        SupportRenderer.PRIMITIVE_LINES_VB.put(pos[1]);
+        SupportRenderer.PRIMITIVE_LINES_VB.put(pos[2]);
+        SupportRenderer.PRIMITIVE_LINES_VB.put(r);
+        SupportRenderer.PRIMITIVE_LINES_VB.put(g);
+        SupportRenderer.PRIMITIVE_LINES_VB.put(b);
+        SupportRenderer.PRIMITIVE_LINES_VB.put(a);
+    }
+    else if (CurrentPrimitiveDrawMode == DU_DRAW_POINTS)
+    {
+        SupportRenderer.DrawSolidRect(
+            vec3(pos[0], pos[1], pos[2]),
+            -GameState->Player.PlayerCam.Direction,
+            CurrentSize,
+            vec4(r,g,b,a));
+    }
+    else if (CurrentPrimitiveDrawMode == DU_DRAW_QUADS)
+    {
+        // Quad processed later
+        VertexBuffer.put(pos[0]);
+        VertexBuffer.put(pos[1]);
+        VertexBuffer.put(pos[2]);
+        VertexBuffer.put(r);
+        VertexBuffer.put(g);
+        VertexBuffer.put(b);
+        VertexBuffer.put(a);
+    }
 }
 
 void recast_debug_draw_gl3_t::vertex(const float x, const float y, const float z, unsigned int color)
@@ -1383,53 +1373,69 @@ void recast_debug_draw_gl3_t::vertex(const float x, const float y, const float z
     float b = float(Colors[2]) / 255.f;
     float a = float(Colors[3]) / 255.f;
 
-    VertexBuffer.put(x);
-    VertexBuffer.put(y);
-    VertexBuffer.put(z);
-    VertexBuffer.put(r);
-    VertexBuffer.put(g);
-    VertexBuffer.put(b);
-    VertexBuffer.put(a);
-    VertexBuffer.put(0.f);
-    VertexBuffer.put(0.f);
+    if (CurrentPrimitiveDrawMode == DU_DRAW_TRIS)
+    {
+        if (SupportRenderer.PRIMITIVE_TRIS_VB.lenu() + 7 > SupportRenderer.PRIMITIVE_TRIS_VB.cap())
+        {
+            LogError("PRIMITIVE_TRIS_VB at capacity: cannot insert debug tris.");
+            return;
+        }
+
+        SupportRenderer.PRIMITIVE_TRIS_VB.put(x);
+        SupportRenderer.PRIMITIVE_TRIS_VB.put(y);
+        SupportRenderer.PRIMITIVE_TRIS_VB.put(z);
+        SupportRenderer.PRIMITIVE_TRIS_VB.put(r);
+        SupportRenderer.PRIMITIVE_TRIS_VB.put(g);
+        SupportRenderer.PRIMITIVE_TRIS_VB.put(b);
+        SupportRenderer.PRIMITIVE_TRIS_VB.put(a);
+    }
+    else if (CurrentPrimitiveDrawMode == DU_DRAW_LINES)
+    {
+        if (SupportRenderer.PRIMITIVE_LINES_VB.lenu() + 7 > SupportRenderer.PRIMITIVE_LINES_VB.cap())
+        {
+            LogError("PRIMITIVE_LINES_VB at capacity: cannot insert debug lines.");
+            return;
+        }
+
+        SupportRenderer.PRIMITIVE_LINES_VB.put(x);
+        SupportRenderer.PRIMITIVE_LINES_VB.put(y);
+        SupportRenderer.PRIMITIVE_LINES_VB.put(z);
+        SupportRenderer.PRIMITIVE_LINES_VB.put(r);
+        SupportRenderer.PRIMITIVE_LINES_VB.put(g);
+        SupportRenderer.PRIMITIVE_LINES_VB.put(b);
+        SupportRenderer.PRIMITIVE_LINES_VB.put(a);
+    }
+    else if (CurrentPrimitiveDrawMode == DU_DRAW_POINTS)
+    {
+        SupportRenderer.DrawSolidRect(
+            vec3(x,y,z),
+            -GameState->Player.PlayerCam.Direction,
+            CurrentSize,
+            vec4(r,g,b,a));
+    }
+    else if (CurrentPrimitiveDrawMode == DU_DRAW_QUADS)
+    {
+        // Quad processed later
+        VertexBuffer.put(x);
+        VertexBuffer.put(y);
+        VertexBuffer.put(z);
+        VertexBuffer.put(r);
+        VertexBuffer.put(g);
+        VertexBuffer.put(b);
+        VertexBuffer.put(a);
+    }
 }
 
 void recast_debug_draw_gl3_t::vertex(const float* pos, unsigned int color, const float* uv)
 {
-    u8* Colors = (u8*)&color;
-    float r = float(Colors[0]) / 255.f;
-    float g = float(Colors[1]) / 255.f;
-    float b = float(Colors[2]) / 255.f;
-    float a = float(Colors[3]) / 255.f;
-
-    VertexBuffer.put(pos[0]);
-    VertexBuffer.put(pos[1]);
-    VertexBuffer.put(pos[2]);
-    VertexBuffer.put(r);
-    VertexBuffer.put(g);
-    VertexBuffer.put(b);
-    VertexBuffer.put(a);
-    VertexBuffer.put(uv[0]);
-    VertexBuffer.put(uv[1]);
+    vertex(pos[0],pos[1],pos[2],color);
+    // fuck uv
 }
 
 void recast_debug_draw_gl3_t::vertex(const float x, const float y, const float z, unsigned int color, const float u, const float v)
 {
-    u8* Colors = (u8*)&color;
-    float r = float(Colors[0]) / 255.f;
-    float g = float(Colors[1]) / 255.f;
-    float b = float(Colors[2]) / 255.f;
-    float a = float(Colors[3]) / 255.f;
-
-    VertexBuffer.put(x);
-    VertexBuffer.put(y);
-    VertexBuffer.put(z);
-    VertexBuffer.put(r);
-    VertexBuffer.put(g);
-    VertexBuffer.put(b);
-    VertexBuffer.put(a);
-    VertexBuffer.put(u);
-    VertexBuffer.put(v);
+    vertex(x,y,z,color);
+    // fuck uv
 }
 
 void recast_debug_draw_gl3_t::end()
@@ -1437,49 +1443,30 @@ void recast_debug_draw_gl3_t::end()
     if (CurrentPrimitiveDrawMode == GL_QUADS)
     {
         // GL_QUAD not supported on my pc so I need to change this quad vb to tris vb
-        dynamic_array<float> VertexBufferCopy;
-        VertexBufferCopy.setlen((int)VertexBuffer.lenu());
-        memcpy(VertexBufferCopy.data, VertexBuffer.data, VertexBuffer.lenu()*sizeof(float));
-        VertexBuffer.setlen(size_t(VertexBuffer.lenu() * 1.5f));
+        if (SupportRenderer.PRIMITIVE_TRIS_VB.lenu() + VertexBuffer.lenu() > SupportRenderer.PRIMITIVE_TRIS_VB.cap())
+        {
+            LogError("PRIMITIVE_TRIS_VB at capacity: cannot insert debug quads.");
+            return;
+        }
+        float *copyptr = SupportRenderer.PRIMITIVE_TRIS_VB.addnptr(size_t(VertexBuffer.lenu() * 1.5f));
         size_t vbi = 0;
-        for (size_t i = 0; i < VertexBufferCopy.lenu(); i += 36) // 4*9*sizeof(float)
+        for (size_t i = 0; i < VertexBuffer.lenu(); i += 36) // 4*9*sizeof(float)
         {
             // TL -> BL -> BR -> TR
-            // i+0   i+9   i+18  i+27
-            float *TL = &VertexBufferCopy[i+0];
-            float *BL = &VertexBufferCopy[i+9];
-            float *BR = &VertexBufferCopy[i+18];
-            float *TR = &VertexBufferCopy[i+27];
-
-            memcpy(&VertexBuffer[vbi+0], TL, 9*sizeof(float));
-            memcpy(&VertexBuffer[vbi+9], BL, 9*sizeof(float));
-            memcpy(&VertexBuffer[vbi+18], BR, 9*sizeof(float));
-            memcpy(&VertexBuffer[vbi+27], TL, 9*sizeof(float));
-            memcpy(&VertexBuffer[vbi+36], BR, 9*sizeof(float));
-            memcpy(&VertexBuffer[vbi+45], TR, 9*sizeof(float));
-
-            vbi += 54; // 6*9*sizeof(float)
+            // i+0   i+7   i+14  i+21
+            float *TL = &VertexBuffer[i+0];
+            float *BL = &VertexBuffer[i+7];
+            float *BR = &VertexBuffer[i+14];
+            float *TR = &VertexBuffer[i+21];
+            memcpy(&copyptr[vbi+0], TL, 7*sizeof(float));
+            memcpy(&copyptr[vbi+7], BL, 7*sizeof(float));
+            memcpy(&copyptr[vbi+14], BR, 7*sizeof(float));
+            memcpy(&copyptr[vbi+21], TL, 7*sizeof(float));
+            memcpy(&copyptr[vbi+28], BR, 7*sizeof(float));
+            memcpy(&copyptr[vbi+35], TR, 7*sizeof(float));
+            vbi += 42; // 6*7*sizeof(float)
         }
-        VertexBufferCopy.free();
-        CurrentPrimitiveDrawMode = GL_TRIANGLES;
     }
-    // Could check here if draw mode is lines then modify the vertex buffer to replace
-    // the line vertices with triangles to form a thin quad.
-
-    RebindGPUMesh(&DebugDrawMesh, sizeof(float)*VertexBuffer.lenu(), VertexBuffer.data);
-    int VertexCount = (int)VertexBuffer.lenu() / 9;
-    GLHasErrors();
-
-    glBindVertexArray(DebugDrawMesh.idVAO);
-    glBindBuffer(GL_ARRAY_BUFFER, DebugDrawMesh.idVBO);
-    glDrawArrays(CurrentPrimitiveDrawMode, 0, VertexCount);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-    glBindVertexArray(0);
-    GLHasErrors();
-
-    glPointSize(1.0f);
-    GLHasErrors();
-
     VertexBuffer.setlen(0);
 }
 

@@ -1,11 +1,5 @@
 
 
-static u32 PRIM_VERTEX_POS_AND_COLOR_VAO;
-static u32 PRIM_VERTEX_POS_AND_COLOR_VBO;
-
-// these can go in frame memory
-static fixed_array<float> PRIMITIVE_TRIS_VB;
-static GPUShader PRIMITIVES_TRIS_SHADER;
 static const char* PRIMITIVES_TRIS_SHADER_VS =
     "#version 330 core\n"
     "layout (location = 0) in vec3 pos;\n"
@@ -34,11 +28,6 @@ static const char* PRIMITIVES_TRIS_SHADER_FS =
     "    }\n"
     "}\n";
 
-static u32 PRIM_VERTEX_POS_COLOR_LINEWIDTH_VAO;
-static u32 PRIM_VERTEX_POS_COLOR_LINEWIDTH_VBO;
-
-static fixed_array<float> PRIMITIVE_FATLINES_VB;
-static GPUShader FATLINES_SHADER;
 static const char* FATLINES_SHADER_VS =
     "#version 330 core\n"
     "layout (location = 0) in vec3 pos;\n"
@@ -112,8 +101,6 @@ static const char* FATLINES_SHADER_FS =
     "    }\n"
     "}\n";
 
-static fixed_array<float> PRIMITIVE_LINES_VB;
-static GPUShader LINES_SHADER;
 static const char* LINES_SHADER_VS =
     "#version 330 core\n"
     "layout (location = 0) in vec3 pos;\n"
@@ -146,14 +133,7 @@ static const char* LINES_SHADER_FS =
     "        colour = vec4(baseColour.xyz, baseColour.w * fadeMult);\n"
     "    }\n"
     "}\n";
-static bool DrawAxisLines = false;
 
-static GPUFrameBuffer mousePickingRenderTarget;
-static u32 HANDLES_VAO = 0;
-static u32 HANDLES_VBO = 0;
-static fixed_array<float> HANDLES_VB;
-
-static GPUShader HANDLES_SHADER;
 static const char* HANDLES_SHADER_VS =
     "#version 330 core\n"
     "layout (location = 0) in vec3 pos;\n"
@@ -173,9 +153,6 @@ static const char* HANDLES_SHADER_FS =
     "    colour = vec4(handlesIdRGB, 1.0);\n"
     "}\n";
 
-static GPUMesh PICKABLE_BILLBOARDS_MESH;
-static fixed_array<float> PICKABLE_BILLBOARDS_VB; 
-static GPUShader PICKABLE_BILLBOARDS_SHADER;
 static const char *PICKABLE_BILLBOARDS_SHADER_VS =
     "#version 330 core\n"
     "layout (location = 0) in vec3 pos;\n"
@@ -206,9 +183,6 @@ static const char *PICKABLE_BILLBOARDS_SHADER_FS =
     "    }\n"
     "}\n";
 
-static u32 GRID_MESH_VAO;
-static u32 GRID_MESH_VBO;
-static GPUShader GRID_MESH_SHADER;
 static const char* GRID_MESH_SHADER_VS =
     "#version 330 core\n"
     "layout (location = 0) in vec3 pos;\n"
@@ -244,13 +218,12 @@ inline vec3 CalculateTangent(vec3 Normal)
     return Normalize(Cross(fabsf(Dot(Normalize(Normal), GM_UP_VECTOR)) > 0.999f ? GM_RIGHT_VECTOR : GM_UP_VECTOR, Normal));
 }
 
-support_renderer_t SupportRenderer;
-
 void support_renderer_t::NewFrame()
 {
     PRIMITIVE_TRIS_VB = fixed_array<float>(1000000, MemoryType::Frame);
     PRIMITIVE_FATLINES_VB = fixed_array<float>(250000, MemoryType::Frame);
-    PRIMITIVE_LINES_VB = fixed_array<float>(250000, MemoryType::Frame);
+    PRIMITIVE_LINES_VB = fixed_array<float>(1000000, MemoryType::Frame);
+    // maybe this shouldn't be frame memory tbh just allocate in application memory!
     HANDLES_VB = fixed_array<float>(250000, MemoryType::Frame);
     PICKABLE_BILLBOARDS_VB = fixed_array<float>(1024 * 48, MemoryType::Frame);
 }
@@ -484,6 +457,12 @@ void support_renderer_t::DrawColoredCube(vec3 center, float halfWidth,
 
 void support_renderer_t::DrawLine(vec3 p1, vec3 p2, vec4 color)
 {
+    if (PRIMITIVE_LINES_VB.lenu() + 7 > PRIMITIVE_LINES_VB.cap())
+    {
+        LogError("PRIMITIVE_LINES_VB at capacity: cannot insert primitive lines.");
+        return;
+    }
+
     PRIMITIVE_LINES_VB.put(p1.x);
     PRIMITIVE_LINES_VB.put(p1.y);
     PRIMITIVE_LINES_VB.put(p1.z);
@@ -524,6 +503,12 @@ void support_renderer_t::DrawLine(vec3 p1, vec3 p2, vec4 color, float thickness)
 
 void support_renderer_t::DrawTri(vec3 p1, vec3 p2, vec3 p3, vec4 color)
 {
+    if (PRIMITIVE_TRIS_VB.lenu() + 7 > PRIMITIVE_TRIS_VB.cap())
+    {
+        LogError("PRIMITIVE_TRIS_VB at capacity: cannot insert primitive tris.");
+        return;
+    }
+
     PRIMITIVE_TRIS_VB.put(p1.x);
     PRIMITIVE_TRIS_VB.put(p1.y);
     PRIMITIVE_TRIS_VB.put(p1.z);
