@@ -446,29 +446,7 @@ void support_renderer_t::DrawSolidDisc(vec3 center, vec3 normal, float radius, v
         tangent = RotateVector(tangent, q);
         vec3 c = center + tangent * radius;
 
-        PRIMITIVE_TRIS_VB.put(a.x);
-        PRIMITIVE_TRIS_VB.put(a.y);
-        PRIMITIVE_TRIS_VB.put(a.z);
-        PRIMITIVE_TRIS_VB.put(color.x);
-        PRIMITIVE_TRIS_VB.put(color.y);
-        PRIMITIVE_TRIS_VB.put(color.z);
-        PRIMITIVE_TRIS_VB.put(color.w);
-
-        PRIMITIVE_TRIS_VB.put(b.x);
-        PRIMITIVE_TRIS_VB.put(b.y);
-        PRIMITIVE_TRIS_VB.put(b.z);
-        PRIMITIVE_TRIS_VB.put(color.x);
-        PRIMITIVE_TRIS_VB.put(color.y);
-        PRIMITIVE_TRIS_VB.put(color.z);
-        PRIMITIVE_TRIS_VB.put(color.w);
-
-        PRIMITIVE_TRIS_VB.put(c.x);
-        PRIMITIVE_TRIS_VB.put(c.y);
-        PRIMITIVE_TRIS_VB.put(c.z);
-        PRIMITIVE_TRIS_VB.put(color.x);
-        PRIMITIVE_TRIS_VB.put(color.y);
-        PRIMITIVE_TRIS_VB.put(color.z);
-        PRIMITIVE_TRIS_VB.put(color.w);
+        DrawTri(a,b,c,color);
     }
 }
 
@@ -489,53 +467,8 @@ void support_renderer_t::DrawSolidRect(vec3 center, vec3 normal, float halfWidth
     vec3 c = center + up - right;
     vec3 d = center + up + right;
 
-    PRIMITIVE_TRIS_VB.put(a.x);
-    PRIMITIVE_TRIS_VB.put(a.y);
-    PRIMITIVE_TRIS_VB.put(a.z);
-    PRIMITIVE_TRIS_VB.put(color.x);
-    PRIMITIVE_TRIS_VB.put(color.y);
-    PRIMITIVE_TRIS_VB.put(color.z);
-    PRIMITIVE_TRIS_VB.put(color.w);
-
-    PRIMITIVE_TRIS_VB.put(b.x);
-    PRIMITIVE_TRIS_VB.put(b.y);
-    PRIMITIVE_TRIS_VB.put(b.z);
-    PRIMITIVE_TRIS_VB.put(color.x);
-    PRIMITIVE_TRIS_VB.put(color.y);
-    PRIMITIVE_TRIS_VB.put(color.z);
-    PRIMITIVE_TRIS_VB.put(color.w);
-
-    PRIMITIVE_TRIS_VB.put(c.x);
-    PRIMITIVE_TRIS_VB.put(c.y);
-    PRIMITIVE_TRIS_VB.put(c.z);
-    PRIMITIVE_TRIS_VB.put(color.x);
-    PRIMITIVE_TRIS_VB.put(color.y);
-    PRIMITIVE_TRIS_VB.put(color.z);
-    PRIMITIVE_TRIS_VB.put(color.w);
-
-    PRIMITIVE_TRIS_VB.put(c.x);
-    PRIMITIVE_TRIS_VB.put(c.y);
-    PRIMITIVE_TRIS_VB.put(c.z);
-    PRIMITIVE_TRIS_VB.put(color.x);
-    PRIMITIVE_TRIS_VB.put(color.y);
-    PRIMITIVE_TRIS_VB.put(color.z);
-    PRIMITIVE_TRIS_VB.put(color.w);
-
-    PRIMITIVE_TRIS_VB.put(b.x);
-    PRIMITIVE_TRIS_VB.put(b.y);
-    PRIMITIVE_TRIS_VB.put(b.z);
-    PRIMITIVE_TRIS_VB.put(color.x);
-    PRIMITIVE_TRIS_VB.put(color.y);
-    PRIMITIVE_TRIS_VB.put(color.z);
-    PRIMITIVE_TRIS_VB.put(color.w);
-
-    PRIMITIVE_TRIS_VB.put(d.x);
-    PRIMITIVE_TRIS_VB.put(d.y);
-    PRIMITIVE_TRIS_VB.put(d.z);
-    PRIMITIVE_TRIS_VB.put(color.x);
-    PRIMITIVE_TRIS_VB.put(color.y);
-    PRIMITIVE_TRIS_VB.put(color.z);
-    PRIMITIVE_TRIS_VB.put(color.w);
+    DrawTri(a, b, c, color);
+    DrawTri(c, b, d, color);
 }
 
 void support_renderer_t::DrawColoredCube(vec3 center, float halfWidth,
@@ -589,6 +522,32 @@ void support_renderer_t::DrawLine(vec3 p1, vec3 p2, vec4 color, float thickness)
     PRIMITIVE_FATLINES_VB.put(thickness * 0.0025f);
 }
 
+void support_renderer_t::DrawTri(vec3 p1, vec3 p2, vec3 p3, vec4 color)
+{
+    PRIMITIVE_TRIS_VB.put(p1.x);
+    PRIMITIVE_TRIS_VB.put(p1.y);
+    PRIMITIVE_TRIS_VB.put(p1.z);
+    PRIMITIVE_TRIS_VB.put(color.x);
+    PRIMITIVE_TRIS_VB.put(color.y);
+    PRIMITIVE_TRIS_VB.put(color.z);
+    PRIMITIVE_TRIS_VB.put(color.w);
+
+    PRIMITIVE_TRIS_VB.put(p2.x);
+    PRIMITIVE_TRIS_VB.put(p2.y);
+    PRIMITIVE_TRIS_VB.put(p2.z);
+    PRIMITIVE_TRIS_VB.put(color.x);
+    PRIMITIVE_TRIS_VB.put(color.y);
+    PRIMITIVE_TRIS_VB.put(color.z);
+    PRIMITIVE_TRIS_VB.put(color.w);
+
+    PRIMITIVE_TRIS_VB.put(p3.x);
+    PRIMITIVE_TRIS_VB.put(p3.y);
+    PRIMITIVE_TRIS_VB.put(p3.z);
+    PRIMITIVE_TRIS_VB.put(color.x);
+    PRIMITIVE_TRIS_VB.put(color.y);
+    PRIMITIVE_TRIS_VB.put(color.z);
+    PRIMITIVE_TRIS_VB.put(color.w);    
+}
 
 vec3 support_renderer_t::HandleIdToRGB(u32 id)
 {

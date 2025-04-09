@@ -28,6 +28,7 @@ public: // Primitives
     // Queue a line to be drawn later
     void DrawLine(vec3 p1, vec3 p2, vec4 color);
     void DrawLine(vec3 p1, vec3 p2, vec4 color, float thickness);
+    void DrawTri(vec3 p1, vec3 p2, vec3 p3, vec4 color);
 
     // Immediately draw all queued primitive elements to the active 
     // frame buffer. Resets/empties all queued buffers.

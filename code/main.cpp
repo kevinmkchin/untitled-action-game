@@ -625,9 +625,12 @@ int main(int argc, char* argv[])
         // Swap buffers
         SDL_GL_SwapWindow(SDLMainWindow);
 
-        // TODO(Kevin): Don't DwmFlush if Fullscreen Exclusive (only on Windowed and Borderless) 
         // NOTE(Kevin) 2025-04-02: Even on SDL3 there's microstutters with Windowed VSYNC
         //                         Still feels much better with DwmFlush after SwapBuffers
+        // NOTE(Kevin) 2025-04-08: FullscreenEx VSYNC+DwmFlush feels the best. FullscreenEx VSYNC
+        //                         without DwmFlush seems to have more latency and stutter/lag.
+        //                         Windowed+vsync+dwmflush still Stutters after long stretches
+        //                         of no Stutter...
         int SwapInterval = 0;
         if (SDL_GL_GetSwapInterval(&SwapInterval) && SwapInterval == 1)
             DwmFlush();
