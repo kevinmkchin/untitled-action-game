@@ -473,7 +473,7 @@ static bool InitializeApplication()
 #endif
 
     SDL_SetWindowMinimumSize(SDLMainWindow, 200, 100);
-    SDL_GL_SetSwapInterval(0);
+    SDL_GL_SetSwapInterval(1);
     // if (SDL_GL_SetSwapInterval(-1) == -1)
     // {
     //     LogWarning("Hardware does not support adaptive vsync.");

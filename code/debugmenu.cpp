@@ -135,6 +135,12 @@ void monsters_chase(int v)
     DebugEnemyBehaviourActive = v != 0;
 }
 
+void set_vsync(int v)
+{
+    v = GM_clamp(v, 0, 1);
+    SDL_GL_SetSwapInterval(v);
+}
+
 void SetupConsoleAndBindProcedures()
 {
     // Prepare input buffer
@@ -154,22 +160,21 @@ void SetupConsoleAndBindProcedures()
     ConsoleBackend.bind_cmd("dd_navmesh", dd_navmesh);
     ConsoleBackend.bind_cmd("dd_navpath", dd_navpath);
     ConsoleBackend.bind_cmd("monsters_chase", monsters_chase);
-
-    noclip::console_function_t proc_noclip = LAMBDA_is_os {
+    ConsoleBackend.bind_cmd("noclip", LAMBDA_is_os {
         FlyCamActive = !FlyCamActive;
         if (FlyCamActive)
             os << "noclip on" << std::endl;
         else
             os << "noclip off" << std::endl;
-    };
-    ConsoleBackend.bind_cmd("noclip", proc_noclip);
-    ConsoleBackend.bind_cmd("movepos", [](std::istream& is, std::ostream& os) { 
+    });
+    ConsoleBackend.bind_cmd("movepos", LAMBDA_is_os { 
         GetRandomPointOnNavMesh((float*)&EnemySystem.Enemies[0].Position);
         while (EnemySystem.Enemies[0].Position.y > 10.f)
         {
             GetRandomPointOnNavMesh((float*)&EnemySystem.Enemies[0].Position);
         }
     });
+    ConsoleBackend.bind_cmd("vsync", set_vsync);
 
 }
 

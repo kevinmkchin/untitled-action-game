@@ -41,6 +41,11 @@ void player_t::HandleInput()
     WalkDirectionRight = PlayerCam.Right;
     WalkDirectionForward = Normalize(Cross(GM_UP_VECTOR, PlayerCam.Right));
 
+    if (KeysPressed[SDL_SCANCODE_1])
+        Weapon.ActiveType = NAILGUN;
+    if (KeysPressed[SDL_SCANCODE_2])
+        Weapon.ActiveType = ROCKETLAUNCHER;
+
     // PLAYER MOVE
     WASD = KeysCurrent[SDL_SCANCODE_W] || KeysCurrent[SDL_SCANCODE_A] ||
         KeysCurrent[SDL_SCANCODE_S] || KeysCurrent[SDL_SCANCODE_D];
