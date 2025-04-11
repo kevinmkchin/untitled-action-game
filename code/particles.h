@@ -102,6 +102,8 @@ struct particle
     vec3 P;
     vec3 dP;
     vec3 ddP;
+    float HalfWidth;
+    float dHalfWidth;
     float Life;
     bool JustEmitted;
     u32 _pad_; // Enum of anim_sprite
@@ -121,6 +123,9 @@ struct particle_emitter
     vec4 Color;
     vec4 ColorSpread;
     vec4 dColor;
+    float HalfWidth;
+    float HalfWidthSpread;
+    float dHalfWidth;
     float Timer = 0.f;
     float ParticleLifeTimer = 2.f;
     // holds info about what particles to create

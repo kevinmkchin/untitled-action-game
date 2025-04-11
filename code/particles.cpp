@@ -25,6 +25,9 @@ static void CreateParticleFromEmitter(
         EmitterRNG.frand() * Emitter.ColorSpread.z,
         EmitterRNG.frand() * Emitter.ColorSpread.w);
     Particle.dColor = Emitter.dColor;
+    Particle.HalfWidth = Emitter.HalfWidth +
+        EmitterRNG.frand() * Emitter.HalfWidthSpread;
+    Particle.dHalfWidth = Emitter.dHalfWidth;
     Particle.Life = Emitter.ParticleLifeTimer;
     Particle.JustEmitted = true;
 }
@@ -68,11 +71,7 @@ void UpdateParticles(particle_buffer &ParticleState, random_series &EmitterRNG)
             Particle->P += DeltaTime * Particle->dP;
             Particle->dP += DeltaTime * Particle->ddP;
             Particle->Color += DeltaTime * Particle->dColor;
-            vec4 Color;
-            Color.x = GM_clamp(Particle->Color.x, 0.f, 1.f);
-            Color.y = GM_clamp(Particle->Color.y, 0.f, 1.f);
-            Color.z = GM_clamp(Particle->Color.z, 0.f, 1.f);
-            Color.w = GM_clamp(Particle->Color.w, 0.f, 1.f);
+            Particle->HalfWidth += DeltaTime * Particle->dHalfWidth;
         }
     }
 }
@@ -91,10 +90,15 @@ static inline void AssembleQuadForParticle(
     TL.WorldPos = Particle->P + Up - Right;
     TR.WorldPos = Particle->P + Up + Right;
 
-    BL.Color = Particle->Color;
-    BR.Color = Particle->Color;
-    TL.Color = Particle->Color;
-    TR.Color = Particle->Color;
+    vec4 Color;
+    Color.x = GM_clamp(Particle->Color.x, 0.f, 1.f);
+    Color.y = GM_clamp(Particle->Color.y, 0.f, 1.f);
+    Color.z = GM_clamp(Particle->Color.z, 0.f, 1.f);
+    Color.w = GM_clamp(Particle->Color.w, 0.f, 1.f);
+    BL.Color = Color;
+    BR.Color = Color;
+    TL.Color = Color;
+    TR.Color = Color;
 
     BL.UV = vec2(0,0);
     BR.UV = vec2(1,0);
@@ -126,7 +130,7 @@ void AssembleParticleQuads(
             if (QuadAssemblyBuf.lenu() + 6 > QuadAssemblyBuf.cap())
                 break;
 
-            float ParticleHalfSize = 3.f;
+            float ParticleHalfSize = Particle->HalfWidth;
             AssembleQuadForParticle(QuadAssemblyBuf, Particle,
                 Up * ParticleHalfSize, Right * ParticleHalfSize);
             // vec4 ClipCoord = ClipFromWorldMatrix * vec4(Particle->P, 1.f);

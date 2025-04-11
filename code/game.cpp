@@ -131,22 +131,22 @@ void NonPhysicsTick()
 
 void PrePhysicsTick()
 {
-    particle_emitter FountainTest;
-    FountainTest.WorldP = vec3(0.f,0.f,0.f);
-    FountainTest.PSpread = vec3(0.f,0.f,0.f);
-    FountainTest.dP = vec3(0.f,220.f,0.f);
-    FountainTest.dPSpread = vec3(32.f,0.f,32.f);
-    FountainTest.ddP = vec3(0.f,FromJoltUnit(-9.8f),0.f);
-    FountainTest.Color = vec4(1,1,1,1.4f);
-    FountainTest.ColorSpread = vec4(0,0,0,0.1f);
-    FountainTest.dColor = vec4(0,0,0,-1.35f);
-    FountainTest.Timer = 0.f;
-    FountainTest.ParticleLifeTimer = 2.f;
-    g_GameState.BloodParticles.Emitters.put(FountainTest);
+    // particle_emitter FountainTest;
+    // FountainTest.WorldP = vec3(0.f,0.f,0.f);
+    // FountainTest.PSpread = vec3(0.f,0.f,0.f);
+    // FountainTest.dP = vec3(0.f,220.f,0.f);
+    // FountainTest.dPSpread = vec3(32.f,0.f,32.f);
+    // FountainTest.ddP = vec3(0.f,FromJoltUnit(-9.8f),0.f);
+    // FountainTest.Color = vec4(1,1,1,1.4f);
+    // FountainTest.ColorSpread = vec4(0,0,0,0.1f);
+    // FountainTest.dColor = vec4(0,0,0,-1.35f);
+    // FountainTest.Timer = 0.f;
+    // FountainTest.ParticleLifeTimer = 2.f;
+    // g_GameState.BloodParticles.Emitters.put(FountainTest);
 
     PrePhysicsTickAllEnemies(&g_GameState);
 
-    PrePhysicsUpdateProjectiles();
+    PrePhysicsUpdateProjectiles(&g_GameState);
 
     g_GameState.Player.PrePhysicsUpdate(&g_GameState);
 }

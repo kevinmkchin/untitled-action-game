@@ -29,10 +29,14 @@ void RenderWeapon(weapon_state_t *State, float *ProjFromView, float *WorldFromVi
 
 enum projectile_type_enum : u32
 {
-    PROJECTILE_NAIL = 0,
-    PROJECTILE_GENERIC_GIB_0 = 1,
-    PROJECTILE_GENERIC_GIB_1 = 2,
-    PROJECTILE_TYPE_COUNT = 3
+    // Sublime Text Arithmetic command is so nice for numbering enums!
+    PROJECTILE_INVALID       = 0,
+    PROJECTILE_NAIL          = 1,
+    PROJECTILE_GIBS_START    = 2,
+    PROJECTILE_GENERIC_GIB_0 = 3,
+    PROJECTILE_GENERIC_GIB_1 = 4,
+    PROJECTILE_GIBS_END      = 5,
+    PROJECTILE_TYPE_COUNT    = 6
 };
 
 struct projectile_breed_t
@@ -55,6 +59,7 @@ struct projectile_breed_t
 struct projectile_t
 {
     projectile_breed_t *Type = nullptr;
+    projectile_type_enum EType = PROJECTILE_INVALID;
     bool IsDead = false;
     JPH::BodyID BodyId;
 
@@ -78,6 +83,6 @@ void SpawnProjectile(projectile_type_enum Type, vec3 Pos, vec3 Dir,
     quat Orient, vec3 Impulse, vec3 AngularImpulse);
 void KillProjectile(game_state *GameState, projectile_t *ProjectileToKill);
 void NonPhysicsUpdateProjectiles(game_state *GameState);
-void PrePhysicsUpdateProjectiles();
+void PrePhysicsUpdateProjectiles(game_state *GameState);
 void PostPhysicsUpdateProjectiles(game_state *GameState);
 void RenderProjectiles(game_state *GameState, const mat4 &ProjFromView, const mat4 &ViewFromWorld);
