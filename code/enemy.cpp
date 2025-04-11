@@ -344,7 +344,7 @@ void KillEnemy(game_state *GameState, u32 EnemyIndex)
 
     // float f = ENEMYRNG.frand01();
     // LogMessage("%f",f);
-    if (ENEMYRNG.frand01() < 0.75f)
+    if (ENEMYRNG.frand01() < 0.00f)
     {
         Target.DeadTimer = 1.f;
         Target.RemainAfterDead = true;
@@ -356,7 +356,7 @@ void KillEnemy(game_state *GameState, u32 EnemyIndex)
         Target.RemainAfterDead = false;
 
         // maybe randomize num of gibs
-        for (int i = 0; i < 4; ++i)
+        for (int i = 0; i < RNG.NextInt(4,6); ++i)
         {
             // actually the directions in which the gibs explode is really
             // important to how they feel. some of the explosions feel much nicer
@@ -365,8 +365,10 @@ void KillEnemy(game_state *GameState, u32 EnemyIndex)
             vec3 GibDirection = RNG.Direction();
             GibDirection.y = fabsf(GibDirection.y)*2.f;
             GibDirection = Normalize(GibDirection);
-            SpawnProjectile(projectile_type_enum(PROJECTILE_GENERIC_GIB_0 + RNG.NextInt(0, 1)),
-                FromJoltVector(Target.RigidBody->GetCenterOfMassPosition()), 
+            vec3 GibP = FromJoltVector(Target.RigidBody->GetCenterOfMassPosition());
+            SpawnProjectile(
+                projectile_type_enum(RNG.NextInt(PROJECTILE_GIBS_START+1, PROJECTILE_GIBS_END-1)),
+                GibP,
                 vec3(),
                 quat(),
                 GibDirection * (540.f + RNG.frand() * 100.f),

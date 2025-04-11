@@ -219,6 +219,7 @@ void SpawnProjectile(projectile_type_enum Type, vec3 Pos, vec3 Dir,
 
     projectile_t Projectile;
     Projectile.Type = PrjInfo;
+    Projectile.EType = Type;
     Projectile.IsDead = false;
     Projectile.BodyId = ProjectileBodyId;
     Projectile.BeenAliveTimer = 0.f;
@@ -265,15 +266,39 @@ void NonPhysicsUpdateProjectiles(game_state *GameState)
     }
 }
 
-void PrePhysicsUpdateProjectiles()
+void PrePhysicsUpdateProjectiles(game_state *GameState)
 {
-    for (size_t IndexAtPrePhysicsTick = 0; IndexAtPrePhysicsTick < LiveProjectiles.lenu(); ++IndexAtPrePhysicsTick)
+    for (size_t IndexAtPrePhysicsTick = 0; 
+        IndexAtPrePhysicsTick < LiveProjectiles.lenu(); 
+        ++IndexAtPrePhysicsTick)
     {
         projectile_t& Projectile = LiveProjectiles[IndexAtPrePhysicsTick];
+
         if (!Projectile.IsDead && Projectile.Type->ObjectLayer == Layers::PROJECTILE)
         {
             u64 UserData = IndexAtPrePhysicsTick;
             Physics.BodyInterface->SetUserData(Projectile.BodyId, UserData);
+        }
+
+        if (!Projectile.IsDead &&
+            PROJECTILE_GIBS_START < Projectile.EType && Projectile.EType < PROJECTILE_GIBS_END)
+        {
+            vec3 GibP = FromJoltVector(Physics.BodyInterface->GetPosition(Projectile.BodyId));
+            particle_emitter GibTrail;
+            GibTrail.WorldP = GibP;
+            GibTrail.PSpread = vec3();
+            GibTrail.dP = vec3();
+            GibTrail.dPSpread = vec3();
+            GibTrail.ddP = vec3(0.f,FromJoltUnit(-4.5f),0.f);
+            GibTrail.Color = vec4(0.3f,0.02f,0.02f,1.4f);
+            GibTrail.ColorSpread = vec4(0,0,0,0.1f);
+            GibTrail.dColor = vec4(0,0,0,-1.8f);
+            GibTrail.HalfWidth = 3.f;
+            GibTrail.HalfWidthSpread = 0.0f;
+            GibTrail.dHalfWidth = -6.f;
+            GibTrail.Timer = 0.0f;
+            GibTrail.ParticleLifeTimer = 2.0f;
+            GameState->BloodParticles.Emitters.put(GibTrail);
         }
     }
 }
@@ -356,24 +381,30 @@ static void ProcessProjectileHitInfos(game_state *GameState)
                 BloodBurst.dP = Info.HitN * 128.f + vec3(0.f,70.f,0.f);
                 BloodBurst.dPSpread = BloodBurst.dP*(0.3f);
                 BloodBurst.ddP = vec3(0.f,FromJoltUnit(-9.8f),0.f);
-                BloodBurst.Color = vec4(1,1,1,1.4f);
+                BloodBurst.Color = vec4(0.3f,0.02f,0.02f,1.4f);
                 BloodBurst.ColorSpread = vec4(0,0,0,0.1f);
                 BloodBurst.dColor = vec4(0,0,0,-1.35f);
+                BloodBurst.HalfWidth = 3.f;
+                BloodBurst.HalfWidthSpread = 0.3f;
+                BloodBurst.dHalfWidth = 0.f;
                 BloodBurst.Timer = 0.f;
                 BloodBurst.ParticleLifeTimer = 2.f;
-                g_GameState.BloodParticles.Emitters.put(BloodBurst);
+                GameState->BloodParticles.Emitters.put(BloodBurst);
 
                 BloodBurst.WorldP = Info.HitP;
                 BloodBurst.PSpread = vec3(0.f,0.f,0.f);
                 BloodBurst.dP = Info.HitN * 6.f + vec3(0.f,96.f,0.f);
                 BloodBurst.dPSpread = BloodBurst.dP*(0.5f);
                 BloodBurst.ddP = vec3(0.f,FromJoltUnit(-9.8f),0.f);
-                BloodBurst.Color = vec4(1,1,1,1.4f);
+                BloodBurst.Color = vec4(0.3f,0.02f,0.02f,1.4f);
                 BloodBurst.ColorSpread = vec4(0,0,0,0.1f);
                 BloodBurst.dColor = vec4(0,0,0,-1.35f);
+                BloodBurst.HalfWidth = 3.f;
+                BloodBurst.HalfWidthSpread = 0.3f;
+                BloodBurst.dHalfWidth = 0.f;
                 BloodBurst.Timer = 0.f;
                 BloodBurst.ParticleLifeTimer = 2.f;
-                g_GameState.BloodParticles.Emitters.put(BloodBurst);
+                GameState->BloodParticles.Emitters.put(BloodBurst);
             }
 
             // Rocket should do splash damage collider check

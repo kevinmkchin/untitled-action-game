@@ -164,6 +164,11 @@ void SetupConsoleAndBindProcedures()
                 os << "noclip off" << std::endl;
         };
     ConsoleBackend.bind_cmd("noclip", proc_noclip);
+    ConsoleBackend.bind_cmd("movepos", [](std::istream& is, std::ostream& os)
+    { 
+        GetRandomPointOnNavMesh((float*)&EnemySystem.Enemies[0].Position);
+    });
+
 }
 
 void SendInputToConsole(const SDL_Event event)
