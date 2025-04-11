@@ -166,7 +166,7 @@ void asset_db_t::LoadAllResources()
     ASSERT(LoadModelGLTF2Bin(&ModelsTextured[MT_WPN_TYPE1], model_path("wpn_type1.glb").c_str()));
     ASSERT(LoadModelGLTF2Bin(&ModelsTextured[MT_WPN_ROCKETLAUNCHER], model_path("wpn_rocketlauncher.glb").c_str()));
     ASSERT(LoadModelGLTF2Bin(&ModelsTextured[MT_PRJ_NAIL], model_path("prj_nail.glb").c_str()));
-    ASSERT(LoadModelGLTF2Bin(&ModelsTextured[MT_PRJ_ROCKET], model_path("gib_generic_0.glb").c_str()));
+    ASSERT(LoadModelGLTF2Bin(&ModelsTextured[MT_PRJ_ROCKET], model_path("prj_rocket.glb").c_str()));
     ASSERT(LoadModelGLTF2Bin(&ModelsTextured[MT_ATTACKER_CORPSE], model_path("attacker_corpse.glb").c_str()));
     ASSERT(LoadModelGLTF2Bin(&ModelsTextured[MT_GENERIC_GIB_0], model_path("gib_generic_0.glb").c_str()));
     ASSERT(LoadModelGLTF2Bin(&ModelsTextured[MT_GENERIC_GIB_1], model_path("gib_generic_1.glb").c_str()));
