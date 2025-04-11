@@ -47,6 +47,8 @@ CREATING A CONSOLE:
 #define NOCLIP_MULTIPLE_COMMANDS_DELIMITER ';'
 #endif // NOCLIP_MULTIPLE_COMMANDS_DELIMITER
 
+#define LAMBDA_is_os [](std::istream& is, std::ostream& os)
+
 namespace noclip
 {
     typedef std::function<void(std::istream& is, std::ostream& os)> console_function_t;

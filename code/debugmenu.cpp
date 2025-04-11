@@ -155,17 +155,15 @@ void SetupConsoleAndBindProcedures()
     ConsoleBackend.bind_cmd("dd_navpath", dd_navpath);
     ConsoleBackend.bind_cmd("monsters_chase", monsters_chase);
 
-    noclip::console_function_t proc_noclip = [](std::istream &is, std::ostream &os)
-        {
-            FlyCamActive = !FlyCamActive;
-            if (FlyCamActive)
-                os << "noclip on" << std::endl;
-            else
-                os << "noclip off" << std::endl;
-        };
+    noclip::console_function_t proc_noclip = LAMBDA_is_os {
+        FlyCamActive = !FlyCamActive;
+        if (FlyCamActive)
+            os << "noclip on" << std::endl;
+        else
+            os << "noclip off" << std::endl;
+    };
     ConsoleBackend.bind_cmd("noclip", proc_noclip);
-    ConsoleBackend.bind_cmd("movepos", [](std::istream& is, std::ostream& os)
-    { 
+    ConsoleBackend.bind_cmd("movepos", [](std::istream& is, std::ostream& os) { 
         GetRandomPointOnNavMesh((float*)&EnemySystem.Enemies[0].Position);
     });
 
