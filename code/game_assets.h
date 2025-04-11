@@ -18,6 +18,7 @@ enum GODFLESH_MODELS_TEXTURED : u16
 
     MT_WPN_TYPE1,
     MT_PRJ_NAIL,
+    MT_PRJ_ROCKET,
 
     MT_ATTACKER_CORPSE,
 
@@ -26,6 +27,7 @@ enum GODFLESH_MODELS_TEXTURED : u16
     MT_GENERIC_GIB_2,
 
     MT_COUNT
+    // perhaps modders can add more models with u16 values > MT_COUNT
 };
 
 struct asset_db_t

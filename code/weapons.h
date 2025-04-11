@@ -1,14 +1,15 @@
 #pragma once
 
-enum weapon_types_t
+enum weapon_types_t : u16
 {
     NAILGUN,
+    ROCKETLAUNCHER,
     WEAPON_TYPES_COUNT
 };
 
 struct weapon_state_t
 {
-    weapon_types_t ActiveType = NAILGUN;
+    weapon_types_t ActiveType = ROCKETLAUNCHER;
 
     float Cooldown = 0.f;
 
@@ -27,7 +28,7 @@ void TickWeapon(weapon_state_t *State, bool LMB, bool RMB);
 void RenderWeapon(weapon_state_t *State, float *ProjFromView, float *WorldFromView);
 
 
-enum projectile_type_enum : u32
+enum projectile_type_enum : u16
 {
     // Sublime Text Arithmetic command is so nice for numbering enums!
     PROJECTILE_INVALID       = 0,
@@ -36,7 +37,9 @@ enum projectile_type_enum : u32
     PROJECTILE_GENERIC_GIB_0 = 3,
     PROJECTILE_GENERIC_GIB_1 = 4,
     PROJECTILE_GIBS_END      = 5,
-    PROJECTILE_TYPE_COUNT    = 6
+    PROJECTILE_ROCKET_0      = 6,
+    PROJECTILE_TYPE_COUNT    = 7
+    // perhaps modders can add more types with u16 values > TYPE_COUNT
 };
 
 struct projectile_breed_t
@@ -54,6 +57,9 @@ struct projectile_breed_t
     float KillAfterTimer;
     bool KillAfterSlowingDown;
     bool RemainAfterDead;
+    bool DoSplashDamageOnDead = false;
+    float SplashDamageRadius;
+    float SplashDamageBase;
 };
 
 struct projectile_t
@@ -74,9 +80,14 @@ struct projectile_hit_info_t
     vec3 HitN; // Direction to move projectile to resolve collision
 };
 
+// TODO(Kevin): move these to GameState
 extern fixed_array<projectile_breed_t> ProjectilesData;
 extern fixed_array<projectile_t> LiveProjectiles;
 extern fixed_array<projectile_hit_info_t> ProjectileHitInfos;
+extern JPH::Shape *PhysicsShape_Sphere1;
+extern JPH::Shape *PhysicsShape_Sphere4;
+extern JPH::Shape *PhysicsShape_Sphere8;
+extern JPH::Shape *PhysicsShape_Box8;
 
 void SetupProjectilesDataAndAllocateMemory(); // Called once at start of game
 void SpawnProjectile(projectile_type_enum Type, vec3 Pos, vec3 Dir, 
