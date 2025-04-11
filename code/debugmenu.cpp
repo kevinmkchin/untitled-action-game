@@ -165,6 +165,10 @@ void SetupConsoleAndBindProcedures()
     ConsoleBackend.bind_cmd("noclip", proc_noclip);
     ConsoleBackend.bind_cmd("movepos", [](std::istream& is, std::ostream& os) { 
         GetRandomPointOnNavMesh((float*)&EnemySystem.Enemies[0].Position);
+        while (EnemySystem.Enemies[0].Position.y > 10.f)
+        {
+            GetRandomPointOnNavMesh((float*)&EnemySystem.Enemies[0].Position);
+        }
     });
 
 }

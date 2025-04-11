@@ -4,6 +4,10 @@
 fixed_array<projectile_breed_t> ProjectilesData;
 fixed_array<projectile_t> LiveProjectiles;
 fixed_array<projectile_hit_info_t> ProjectileHitInfos;
+JPH::Shape *PhysicsShape_Sphere1 = nullptr;
+JPH::Shape *PhysicsShape_Sphere4 = nullptr;
+JPH::Shape *PhysicsShape_Sphere8 = nullptr;
+JPH::Shape *PhysicsShape_Box8 = nullptr;
 
 // internal
 static float GunRecoil = 0.f;
@@ -17,45 +21,77 @@ void TickWeapon(weapon_state_t *State, bool LMB, bool RMB)
         State->MuzzleFlash.w -= DeltaTime;
 
     // switch on State->ActiveType
-
-    GunRecoil = GM_max(0.f, GunRecoil-9.0f*DeltaTime);
-    if (LMB && State->Cooldown <= 0.f)
+    switch (State->ActiveType)
     {
-        // shoot
-        static int ChannelIndex = 0;
-        Mix_VolumeChunk(Assets.Sfx_Shoot0, 24 + SOUNDRNG.NextInt(-2, 2)); // Volume variation
-        Mix_PlayChannel(ChannelIndex++%3, Assets.Sfx_Shoot0, 0);
-        // State->Cooldown = RMB ? 0.080f : 0.150f;
-        State->Cooldown = 0.080f;
-
-        GunRecoil = 0.9f;
-
-        camera_t *Cam = &(State->Owner->PlayerCam);
-        Cam->ApplyKnockback(0.034f, 0.12f);
-        vec3 NailgunTip = Cam->Position + Cam->Direction * 32.f
-            + vec3(0.f,-8.f,0.f);
-        SpawnProjectile(PROJECTILE_NAIL, NailgunTip, Cam->Direction, 
-            Cam->Orientation, vec3(), vec3());
-
-        State->MuzzleFlash.w = 0.080f;
-        State->MuzzleFlash.x = NailgunTip.x;
-        State->MuzzleFlash.y = NailgunTip.y;
-        State->MuzzleFlash.z = NailgunTip.z;
-    }
-    if (LMB || RMB)
+    case NAILGUN:
     {
-        State->NailgunRotationVelocity = State->NailgunRotationMaxVelocity;
-    }
-
-    State->NailgunRotation += State->NailgunRotationVelocity * DeltaTime;
-    State->NailgunRotationVelocity = fmax(0.f, State->NailgunRotationVelocity + State->NailgunRotationAcceleration * DeltaTime);
-    if (State->NailgunRotationVelocity > 0.1f && State->NailgunRotationVelocity <= 3.f)
-    {
-        State->NailgunRotationVelocity = fmax(3.f, State->NailgunRotationVelocity);
-        if (abs(fmodf(State->NailgunRotation, GM_PI) - GM_HALFPI) < 0.01f)
+        GunRecoil = GM_max(0.f, GunRecoil-9.0f*DeltaTime);
+        if (LMB && State->Cooldown <= 0.f)
         {
-            State->NailgunRotationVelocity = 0.f;
+            // shoot
+            static int ChannelIndex = 0;
+            Mix_VolumeChunk(Assets.Sfx_Shoot0, 24 + SOUNDRNG.NextInt(-2, 2)); // Volume variation
+            Mix_PlayChannel(ChannelIndex++%3, Assets.Sfx_Shoot0, 0);
+            // State->Cooldown = RMB ? 0.080f : 0.150f;
+            State->Cooldown = 0.080f;
+
+            GunRecoil = 0.9f;
+
+            camera_t *Cam = &(State->Owner->PlayerCam);
+            Cam->ApplyKnockback(0.034f, 0.12f);
+            vec3 GunTip = Cam->Position + Cam->Direction * 32.f
+                + vec3(0.f,-5.f,0.f);
+            SpawnProjectile(PROJECTILE_NAIL, GunTip, Cam->Direction, 
+                Cam->Orientation, vec3(), vec3());
+
+            State->MuzzleFlash.w = 0.080f;
+            State->MuzzleFlash.x = GunTip.x;
+            State->MuzzleFlash.y = GunTip.y;
+            State->MuzzleFlash.z = GunTip.z;
         }
+        if (LMB || RMB)
+        {
+            State->NailgunRotationVelocity = State->NailgunRotationMaxVelocity;
+        }
+
+        State->NailgunRotation += State->NailgunRotationVelocity * DeltaTime;
+        State->NailgunRotationVelocity = fmax(0.f, State->NailgunRotationVelocity + State->NailgunRotationAcceleration * DeltaTime);
+        if (State->NailgunRotationVelocity > 0.1f && State->NailgunRotationVelocity <= 3.f)
+        {
+            State->NailgunRotationVelocity = fmax(3.f, State->NailgunRotationVelocity);
+            if (abs(fmodf(State->NailgunRotation, GM_PI) - GM_HALFPI) < 0.01f)
+            {
+                State->NailgunRotationVelocity = 0.f;
+            }
+        }
+        break;
+    }
+    case ROCKETLAUNCHER:
+    {
+        GunRecoil = GM_max(0.f, GunRecoil-2.0f*DeltaTime);
+        if (LMB && State->Cooldown <= 0.f)
+        {
+            static int ChannelIndex = 0;
+            Mix_VolumeChunk(Assets.Sfx_Shoot0, 24 + SOUNDRNG.NextInt(-2, 2));
+            Mix_PlayChannel(ChannelIndex++%3, Assets.Sfx_Shoot0, 0);
+            State->Cooldown = 0.90f;
+
+            GunRecoil = 0.9f;
+
+            camera_t *Cam = &(State->Owner->PlayerCam);
+            Cam->ApplyKnockback(0.034f, 0.12f);
+            vec3 GunTip = Cam->Position + Cam->Direction * 32.f
+                + vec3(0.f,0.f,0.f);
+            SpawnProjectile(PROJECTILE_ROCKET_0, GunTip, Cam->Direction, 
+                Cam->Orientation, vec3(), vec3());
+
+            State->MuzzleFlash.w = 0.080f;
+            State->MuzzleFlash.x = GunTip.x;
+            State->MuzzleFlash.y = GunTip.y;
+            State->MuzzleFlash.z = GunTip.z;
+        }
+        break;
+    }
     }
 }
 
@@ -133,8 +169,10 @@ void SetupProjectilesDataAndAllocateMemory()
     ProjectileHitInfos = fixed_array<projectile_hit_info_t>(128, MemoryType::Game);
 
     // Jolt is annoying I can't really not allocate these on the heap...
-    JPH::Shape *PhysicsShape_Sphere4 = new JPH::SphereShape(ToJoltUnit(4));
-    JPH::Shape *PhysicsShape_Box8 = new JPH::BoxShape(ToJoltVector(vec3(4.f,4.f,4.f)));
+    PhysicsShape_Sphere1 = new JPH::SphereShape(ToJoltUnit(1));
+    PhysicsShape_Sphere4 = new JPH::SphereShape(ToJoltUnit(4));
+    PhysicsShape_Sphere8 = new JPH::SphereShape(ToJoltUnit(8));
+    PhysicsShape_Box8 = new JPH::BoxShape(ToJoltVector(vec3(4.f,4.f,4.f)));
 
     ProjectilesData[PROJECTILE_NAIL].BulletDamage = 16.f;
     ProjectilesData[PROJECTILE_NAIL].LinearVelocity = 1650.f;
@@ -149,6 +187,24 @@ void SetupProjectilesDataAndAllocateMemory()
     ProjectilesData[PROJECTILE_NAIL].KillAfterTimer = 8.f;
     ProjectilesData[PROJECTILE_NAIL].KillAfterSlowingDown = false;
     ProjectilesData[PROJECTILE_NAIL].RemainAfterDead = false;
+    ProjectilesData[PROJECTILE_NAIL].DoSplashDamageOnDead = false;
+
+    ProjectilesData[PROJECTILE_ROCKET_0].BulletDamage = 50.f;
+    ProjectilesData[PROJECTILE_ROCKET_0].LinearVelocity = 650.f;
+    ProjectilesData[PROJECTILE_ROCKET_0].TexturedModel = &Assets.ModelsTextured[MT_PRJ_ROCKET];
+    ProjectilesData[PROJECTILE_ROCKET_0].ObjectLayer = Layers::PROJECTILE;
+    ProjectilesData[PROJECTILE_ROCKET_0].MotionQuality = JPH::EMotionQuality::LinearCast;
+    ProjectilesData[PROJECTILE_ROCKET_0].PhysicsShape = PhysicsShape_Sphere4;
+    ProjectilesData[PROJECTILE_ROCKET_0].Mass_kg = 0.08f;
+    ProjectilesData[PROJECTILE_ROCKET_0].SetFriction = false;
+    ProjectilesData[PROJECTILE_ROCKET_0].Friction = -1.f;
+    ProjectilesData[PROJECTILE_ROCKET_0].GravityFactor = 0.f;
+    ProjectilesData[PROJECTILE_ROCKET_0].KillAfterTimer = 10.f;
+    ProjectilesData[PROJECTILE_ROCKET_0].KillAfterSlowingDown = false;
+    ProjectilesData[PROJECTILE_ROCKET_0].RemainAfterDead = false;
+    ProjectilesData[PROJECTILE_ROCKET_0].DoSplashDamageOnDead = true;
+    ProjectilesData[PROJECTILE_ROCKET_0].SplashDamageRadius = 80.f;
+    ProjectilesData[PROJECTILE_ROCKET_0].SplashDamageBase = 60.f;
 
     ProjectilesData[PROJECTILE_GENERIC_GIB_0].BulletDamage = 0.f;
     ProjectilesData[PROJECTILE_GENERIC_GIB_0].LinearVelocity = 0.f;
@@ -163,6 +219,7 @@ void SetupProjectilesDataAndAllocateMemory()
     ProjectilesData[PROJECTILE_GENERIC_GIB_0].KillAfterTimer = 10.f;
     ProjectilesData[PROJECTILE_GENERIC_GIB_0].KillAfterSlowingDown = true;
     ProjectilesData[PROJECTILE_GENERIC_GIB_0].RemainAfterDead = true;
+    ProjectilesData[PROJECTILE_GENERIC_GIB_0].DoSplashDamageOnDead = false;
 
     ProjectilesData[PROJECTILE_GENERIC_GIB_1].BulletDamage = 0.f;
     ProjectilesData[PROJECTILE_GENERIC_GIB_1].LinearVelocity = 0.f;
@@ -177,6 +234,7 @@ void SetupProjectilesDataAndAllocateMemory()
     ProjectilesData[PROJECTILE_GENERIC_GIB_1].KillAfterTimer = 10.f;
     ProjectilesData[PROJECTILE_GENERIC_GIB_1].KillAfterSlowingDown = true;
     ProjectilesData[PROJECTILE_GENERIC_GIB_1].RemainAfterDead = true;
+    ProjectilesData[PROJECTILE_GENERIC_GIB_1].DoSplashDamageOnDead = false;
 }
 
 // The quality of projectiles is that a lot of them get created in bursts and they die quickly
@@ -240,6 +298,65 @@ void KillProjectile(game_state *GameState, projectile_t *ProjectileToKill)
         FillModelInstanceData(GameState,
             &GameState->StaticInstances[GameState->StaticInstances.length-1], 
             CorpsePosition, CorpsePosition, CorpseRotation, CorpseModel);
+    }
+
+    if (ProjectileToKill->Type->DoSplashDamageOnDead)
+    {
+        class splash_damage_collector : public JPH::CollideShapeCollector
+        {
+        public:
+            // JPH_OVERRIDE_NEW_DELETE
+
+            void AddHit(const JPH::CollideShapeResult &Result) override
+            {
+                JPH::BodyID bodyID = Result.mBodyID2;
+
+                JPH::Vec3 ResolutionDir = Result.mPenetrationAxis.Normalized();
+                float ResolutionDepth = Result.mPenetrationDepth;
+                // Scale damage by hit distance
+                // I like curve of y = (x)^(1/3)
+                float DistFromCenter10 = FromJoltUnit(ResolutionDepth)/SplashRadius; // 1 if close, 0 if out of radius
+                float DamageScale = powf(DistFromCenter10, 0.334f);
+                JPH::Vec3 KnockbackVector = DamageScale*(ResolutionDir*240.f+JPH::Vec3(0,200,0));
+                Physics.BodyInterface->AddImpulse(bodyID, KnockbackVector);
+                u32 EnemyIndex = (u32)Physics.BodyInterface->GetUserData(bodyID);
+                if (EnemyIndex != BAD_UINDEX)
+                {
+                    HurtEnemy(GameState, EnemyIndex, BaseDamage*DamageScale);
+                }
+            }
+
+            game_state *GameState = nullptr;
+            float BaseDamage = 0.f;
+            float SplashRadius = 0.f;
+        };
+
+        // static splash_damage_collector *SplashDamageCollector = 0;
+        // if (SplashDamageCollector == 0)
+            // SplashDamageCollector = new splash_damage_collector();
+
+        splash_damage_collector SplashDamageCollector;
+
+        SplashDamageCollector.GameState = GameState;
+        SplashDamageCollector.BaseDamage = ProjectileToKill->Type->SplashDamageBase;
+        SplashDamageCollector.SplashRadius = ProjectileToKill->Type->SplashDamageRadius;
+
+        JPH::Vec3 ProjectilePosSI = Physics.BodyInterface->GetPosition(ProjectileToKill->BodyId);
+        Physics.PhysicsSystem->GetNarrowPhaseQuery().CollideShape(
+            // TODO access these shapes through some interface
+            PhysicsShape_Sphere1,
+            JPH::Vec3(
+                ProjectileToKill->Type->SplashDamageRadius,
+                ProjectileToKill->Type->SplashDamageRadius,
+                ProjectileToKill->Type->SplashDamageRadius),
+            JPH::Mat44::sTranslation(ProjectilePosSI),
+            { },
+            ProjectilePosSI, // hit results returned as offset from this
+            SplashDamageCollector,
+            JPH::SpecifiedBroadPhaseLayerFilter(BroadPhaseLayers::MOVING),
+            JPH::SpecifiedObjectLayerFilter(Layers::ENEMY),
+            { },
+            { });
     }
 }
 
@@ -355,7 +472,9 @@ static void ProcessProjectileHitInfos(game_state *GameState)
             continue;
         }
 
-        if (LiveProjectiles[ProjectileIdx].IsDead)
+        projectile_t *Projectile = &LiveProjectiles[ProjectileIdx];
+
+        if (Projectile->IsDead)
         {
             // the projectile is already dead/used.
             // NOTE(Kevin): sometimes I get duplicate projectile hit infos.
@@ -368,12 +487,10 @@ static void ProcessProjectileHitInfos(game_state *GameState)
 
         if (SecondBodyLayer == Layers::ENEMY)
         {
-            projectile_breed_t *PrjInfo = LiveProjectiles[ProjectileIdx].Type;
-
-            if (PrjInfo->BulletDamage > 0.f)
+            if (Projectile->Type->BulletDamage > 0.f)
             {
                 u32 EnemyIndex = (u32)Info.OtherBody->GetUserData();
-                HurtEnemy(GameState, EnemyIndex, PrjInfo->BulletDamage);
+                HurtEnemy(GameState, EnemyIndex, Projectile->Type->BulletDamage);
 
                 particle_emitter BloodBurst;
                 BloodBurst.WorldP = Info.HitP;
