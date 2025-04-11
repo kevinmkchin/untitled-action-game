@@ -20,7 +20,6 @@ void TickWeapon(weapon_state_t *State, bool LMB, bool RMB)
     if (State->MuzzleFlash.w > 0.f)
         State->MuzzleFlash.w -= DeltaTime;
 
-    // switch on State->ActiveType
     switch (State->ActiveType)
     {
     case NAILGUN:
@@ -68,7 +67,7 @@ void TickWeapon(weapon_state_t *State, bool LMB, bool RMB)
     }
     case ROCKETLAUNCHER:
     {
-        GunRecoil = GM_max(0.f, GunRecoil-2.0f*DeltaTime);
+        GunRecoil = GM_max(0.f, GunRecoil-9.0f*DeltaTime);
         if (LMB && State->Cooldown <= 0.f)
         {
             static int ChannelIndex = 0;
@@ -76,10 +75,10 @@ void TickWeapon(weapon_state_t *State, bool LMB, bool RMB)
             Mix_PlayChannel(ChannelIndex++%3, Assets.Sfx_Shoot0, 0);
             State->Cooldown = 0.90f;
 
-            GunRecoil = 0.9f;
+            GunRecoil = 4.9f;
 
             camera_t *Cam = &(State->Owner->PlayerCam);
-            Cam->ApplyKnockback(0.034f, 0.12f);
+            Cam->ApplyKnockback(0.050f, 0.12f);
             vec3 GunTip = Cam->Position + Cam->Direction * 32.f
                 + vec3(0.f,0.f,0.f);
             SpawnProjectile(PROJECTILE_ROCKET_0, GunTip, Cam->Direction, 
@@ -102,24 +101,45 @@ void RenderWeapon(weapon_state_t *State, float *ProjFromView, float *WorldFromVi
     GLBindMatrix4fv(Sha_Gun, "WorldFromView", 1, WorldFromView);
     GLBindMatrix4fv(Sha_Gun, "ProjFromView", 1, ProjFromView);
 
-    GPUMeshIndexed m;
-    GPUTexture t;
-    mat4 GunOffsetAndScale = TranslationMatrix(0,-4,GunRecoil) * ScaleMatrix(SI_UNITS_TO_GAME_UNITS);
-    GLBindMatrix4fv(Sha_Gun, "ViewFromModel", 1, GunOffsetAndScale.ptr());
-    m = Assets.ModelsTextured[MT_WPN_TYPE1].meshes[0];
-    t = Assets.ModelsTextured[MT_WPN_TYPE1].color[0];
-    // glActiveTexture(GL_TEXTURE0);
-    // glBindTexture(GL_TEXTURE_2D, t.id);
-    RenderGPUMeshIndexed(m);
-    GunOffsetAndScale = TranslationMatrix(0,-4,GunRecoil) 
-        * RotationMatrix(EulerToQuat(0,0,State->NailgunRotation)) 
-        * ScaleMatrix(SI_UNITS_TO_GAME_UNITS);
-    GLBindMatrix4fv(Sha_Gun, "ViewFromModel", 1, GunOffsetAndScale.ptr());
-    m = Assets.ModelsTextured[MT_WPN_TYPE1].meshes[1];
-    t = Assets.ModelsTextured[MT_WPN_TYPE1].color[1];
-    // glActiveTexture(GL_TEXTURE0);
-    // glBindTexture(GL_TEXTURE_2D, t.id);
-    RenderGPUMeshIndexed(m);
+    switch (State->ActiveType)
+    {
+        case NAILGUN:
+        {
+            GPUMeshIndexed m;
+            GPUTexture t;
+            mat4 GunOffsetAndScale = TranslationMatrix(0,-4,GunRecoil) * ScaleMatrix(SI_UNITS_TO_GAME_UNITS);
+            GLBindMatrix4fv(Sha_Gun, "ViewFromModel", 1, GunOffsetAndScale.ptr());
+            m = Assets.ModelsTextured[MT_WPN_TYPE1].meshes[0];
+            t = Assets.ModelsTextured[MT_WPN_TYPE1].color[0];
+            // glActiveTexture(GL_TEXTURE0);
+            // glBindTexture(GL_TEXTURE_2D, t.id);
+            RenderGPUMeshIndexed(m);
+            GunOffsetAndScale = TranslationMatrix(0,-4,GunRecoil) 
+                * RotationMatrix(EulerToQuat(0,0,State->NailgunRotation)) 
+                * ScaleMatrix(SI_UNITS_TO_GAME_UNITS);
+            GLBindMatrix4fv(Sha_Gun, "ViewFromModel", 1, GunOffsetAndScale.ptr());
+            m = Assets.ModelsTextured[MT_WPN_TYPE1].meshes[1];
+            t = Assets.ModelsTextured[MT_WPN_TYPE1].color[1];
+            // glActiveTexture(GL_TEXTURE0);
+            // glBindTexture(GL_TEXTURE_2D, t.id);
+            RenderGPUMeshIndexed(m);
+        } break;
+        case ROCKETLAUNCHER:
+        {
+            GPUMeshIndexed m;
+            GPUTexture t;
+            mat4 GunOffsetAndScale = TranslationMatrix(1.8f,-3.8f,GunRecoil) * ScaleMatrix(SI_UNITS_TO_GAME_UNITS);
+            GLBindMatrix4fv(Sha_Gun, "ViewFromModel", 1, GunOffsetAndScale.ptr());
+            m = Assets.ModelsTextured[MT_WPN_ROCKETLAUNCHER].meshes[0];
+            t = Assets.ModelsTextured[MT_WPN_ROCKETLAUNCHER].color[0];
+            // glActiveTexture(GL_TEXTURE0);
+            // glBindTexture(GL_TEXTURE_2D, t.id);
+            RenderGPUMeshIndexed(m);
+            break;
+        }
+    }
+
+
 }
 
 void RenderProjectiles(game_state *GameState, const mat4 &ProjFromView, const mat4 &ViewFromWorld)
@@ -146,7 +166,7 @@ void RenderProjectiles(game_state *GameState, const mat4 &ProjFromView, const ma
             continue;
         }
 
-        ++GameState->DynamicInstances.length;        
+        ++GameState->DynamicInstances.length;
         FillModelInstanceData(GameState,
             GameState->DynamicInstances.end()-1, ProjectileRenderPos,
             ProjectileRenderPos, ProjectileRenderRot, P.Type->TexturedModel);
@@ -203,7 +223,7 @@ void SetupProjectilesDataAndAllocateMemory()
     ProjectilesData[PROJECTILE_ROCKET_0].KillAfterSlowingDown = false;
     ProjectilesData[PROJECTILE_ROCKET_0].RemainAfterDead = false;
     ProjectilesData[PROJECTILE_ROCKET_0].DoSplashDamageOnDead = true;
-    ProjectilesData[PROJECTILE_ROCKET_0].SplashDamageRadius = 80.f;
+    ProjectilesData[PROJECTILE_ROCKET_0].SplashDamageRadius = 96.f;
     ProjectilesData[PROJECTILE_ROCKET_0].SplashDamageBase = 60.f;
 
     ProjectilesData[PROJECTILE_GENERIC_GIB_0].BulletDamage = 0.f;
