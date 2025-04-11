@@ -325,8 +325,8 @@ void RenderGameLayer()
     glDisable(GL_CULL_FACE);
     glDepthMask(GL_FALSE); // Particles should depth test but not write to depth buffer
     GLBindMatrix4fv(Sha_ParticlesDefault, "ClipFromWorld", 1, ClipFromWorld.ptr());
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, Assets.DefaultMissingTexture.id);
+    // glActiveTexture(GL_TEXTURE0);
+    // glBindTexture(GL_TEXTURE_2D, Assets.DefaultMissingTexture.id);
     g_GameState.PQuadBuf.setlen(0);
     vec3 QuadDirection = -g_GameState.Player.PlayerCam.Direction;
     AssembleParticleQuads(g_GameState.BloodParticles, QuadDirection, g_GameState.PQuadBuf);
