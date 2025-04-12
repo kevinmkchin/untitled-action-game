@@ -178,6 +178,8 @@ void asset_db_t::LoadAllResources()
     Sfx_Ricochet[0] = Mixer_LoadChunk(sfx_path("snd_ricochet_0.ogg").c_str());
     Sfx_Ricochet[1] = Mixer_LoadChunk(sfx_path("snd_ricochet_1.ogg").c_str());
     Sfx_Ricochet[2] = Mixer_LoadChunk(sfx_path("snd_ricochet_2.ogg").c_str());
+    Sfx_ShootRocket = Mixer_LoadChunk(sfx_path("snd_quakerocketlauncher.ogg").c_str());
+    Sfx_ExplodeRocket = Mixer_LoadChunk(sfx_path("snd_quakerocketexplosion.ogg").c_str());
 
     // === Level entity billboards ===
     // Load all the billboard bitmaps

@@ -322,7 +322,7 @@ void DebugDrawEnemyColliders()
 #endif // JPH_DEBUG_RENDERER
 }
 
-void HurtEnemy(game_state *GameState, u32 EnemyIndex, float Damage)
+void HurtEnemy(game_state *GameState, u32 EnemyIndex, float Damage, bool Explode)
 {
     enemy_t &Target = EnemySystem.Enemies[EnemyIndex];
 
@@ -330,11 +330,11 @@ void HurtEnemy(game_state *GameState, u32 EnemyIndex, float Damage)
 
     if (Target.Health <= 0.f && !(Target.Flags & EnemyFlag_Dead))
     {
-        KillEnemy(GameState, EnemyIndex);
+        KillEnemy(GameState, EnemyIndex, Explode);
     }
 }
 
-void KillEnemy(game_state *GameState, u32 EnemyIndex)
+void KillEnemy(game_state *GameState, u32 EnemyIndex, bool Explode)
 {
     ++GameState->KillEnemyCounter;
 
@@ -344,7 +344,7 @@ void KillEnemy(game_state *GameState, u32 EnemyIndex)
 
     // float f = ENEMYRNG.frand01();
     // LogMessage("%f",f);
-    if (ENEMYRNG.frand01() < 0.00f)
+    if (!Explode && ENEMYRNG.frand01() < 0.95f)
     {
         Target.DeadTimer = 1.f;
         Target.RemainAfterDead = true;
