@@ -351,12 +351,7 @@ void KillProjectile(game_state *GameState, projectile_t *ProjectileToKill)
             float SplashRadius = 0.f;
         };
 
-        // static splash_damage_collector *SplashDamageCollector = 0;
-        // if (SplashDamageCollector == 0)
-            // SplashDamageCollector = new splash_damage_collector();
-
         splash_damage_collector SplashDamageCollector;
-
         SplashDamageCollector.GameState = GameState;
         SplashDamageCollector.BaseDamage = ProjectileToKill->Type->SplashDamageBase;
         SplashDamageCollector.SplashRadius = ProjectileToKill->Type->SplashDamageRadius;
@@ -377,6 +372,22 @@ void KillProjectile(game_state *GameState, projectile_t *ProjectileToKill)
             JPH::SpecifiedObjectLayerFilter(Layers::ENEMY),
             { },
             { });
+
+        particle_emitter Explosion;
+        Explosion.WorldP = FromJoltVector(ProjectilePosSI);
+        Explosion.PSpread = vec3(0.f,0.f,0.f);
+        Explosion.dP = vec3();
+        Explosion.dPSpread = vec3();
+        Explosion.ddP = vec3();
+        Explosion.Color = vec4(0.95f,0.90f,0.00f,0.7f);
+        Explosion.ColorSpread = vec4(0,0,0,0.1f);
+        Explosion.dColor = vec4(0,0,0,-0.05f);
+        Explosion.HalfWidth = ProjectileToKill->Type->SplashDamageRadius*0.5f;
+        Explosion.HalfWidthSpread = 0.3f;
+        Explosion.dHalfWidth = ProjectileToKill->Type->SplashDamageRadius*5.f;
+        Explosion.Timer = 0.f;
+        Explosion.ParticleLifeTimer = 0.1f;
+        GameState->BloodParticles.Emitters.put(Explosion);
     }
 }
 

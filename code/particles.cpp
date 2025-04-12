@@ -41,6 +41,7 @@ void UpdateParticles(particle_buffer &ParticleState, random_series &EmitterRNG)
     {
         particle_emitter &Emitter = ParticleState.Emitters[EmitterIndex];
 
+        // TODO(Kevin): emit rate or emit n particles this frame
         // if (ShouldEmitNewParticle(Emitter))
         // {
             CreateParticleFromEmitter(ParticleState, Emitter, EmitterRNG);
