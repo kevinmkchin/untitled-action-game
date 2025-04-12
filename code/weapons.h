@@ -57,6 +57,7 @@ struct projectile_breed_t
     float KillAfterTimer;
     bool KillAfterSlowingDown;
     bool RemainAfterDead;
+    bool BlowUpEnemies = false;
     bool DoSplashDamageOnDead = false;
     float SplashDamageRadius;
     float SplashDamageBase;

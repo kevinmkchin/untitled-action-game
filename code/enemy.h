@@ -49,8 +49,8 @@ void PostPhysicsTickAllEnemies(game_state *GameState);
 void RenderEnemies(game_state *GameState, const mat4 &ProjFromView, const mat4 &ViewFromWorld);
 void DebugDrawEnemyColliders();
 
-void HurtEnemy(game_state *GameState, u32 EnemyIndex, float Damage);
-void KillEnemy(game_state *GameState, u32 EnemyIndex);
+void HurtEnemy(game_state *GameState, u32 EnemyIndex, float Damage, bool Explode);
+void KillEnemy(game_state *GameState, u32 EnemyIndex, bool Explode);
 
 struct global_enemy_state_t
 {

@@ -47,6 +47,8 @@ public:
 
     Mix_Chunk *Sfx_Shoot0;
     Mix_Chunk *Sfx_Ricochet[3];
+    Mix_Chunk *Sfx_ShootRocket;
+    Mix_Chunk *Sfx_ExplodeRocket;
 
 
     skeleton_t *Skeleton_Humanoid = nullptr;

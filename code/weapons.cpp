@@ -71,8 +71,8 @@ void TickWeapon(weapon_state_t *State, bool LMB, bool RMB)
         if (LMB && State->Cooldown <= 0.f)
         {
             static int ChannelIndex = 0;
-            Mix_VolumeChunk(Assets.Sfx_Shoot0, 24 + SOUNDRNG.NextInt(-2, 2));
-            Mix_PlayChannel(ChannelIndex++%3, Assets.Sfx_Shoot0, 0);
+            Mix_VolumeChunk(Assets.Sfx_ShootRocket, 24 + SOUNDRNG.NextInt(-2, 2));
+            Mix_PlayChannel(ChannelIndex++%3, Assets.Sfx_ShootRocket, 0);
             State->Cooldown = 0.90f;
 
             GunRecoil = 4.9f;
@@ -207,6 +207,7 @@ void SetupProjectilesDataAndAllocateMemory()
     ProjectilesData[PROJECTILE_NAIL].KillAfterTimer = 8.f;
     ProjectilesData[PROJECTILE_NAIL].KillAfterSlowingDown = false;
     ProjectilesData[PROJECTILE_NAIL].RemainAfterDead = false;
+    ProjectilesData[PROJECTILE_NAIL].BlowUpEnemies = false;
     ProjectilesData[PROJECTILE_NAIL].DoSplashDamageOnDead = false;
 
     ProjectilesData[PROJECTILE_ROCKET_0].BulletDamage = 50.f;
@@ -222,6 +223,7 @@ void SetupProjectilesDataAndAllocateMemory()
     ProjectilesData[PROJECTILE_ROCKET_0].KillAfterTimer = 10.f;
     ProjectilesData[PROJECTILE_ROCKET_0].KillAfterSlowingDown = false;
     ProjectilesData[PROJECTILE_ROCKET_0].RemainAfterDead = false;
+    ProjectilesData[PROJECTILE_ROCKET_0].BlowUpEnemies = true;
     ProjectilesData[PROJECTILE_ROCKET_0].DoSplashDamageOnDead = true;
     ProjectilesData[PROJECTILE_ROCKET_0].SplashDamageRadius = 96.f;
     ProjectilesData[PROJECTILE_ROCKET_0].SplashDamageBase = 60.f;
@@ -239,6 +241,7 @@ void SetupProjectilesDataAndAllocateMemory()
     ProjectilesData[PROJECTILE_GENERIC_GIB_0].KillAfterTimer = 10.f;
     ProjectilesData[PROJECTILE_GENERIC_GIB_0].KillAfterSlowingDown = true;
     ProjectilesData[PROJECTILE_GENERIC_GIB_0].RemainAfterDead = true;
+    ProjectilesData[PROJECTILE_GENERIC_GIB_0].BlowUpEnemies = false;
     ProjectilesData[PROJECTILE_GENERIC_GIB_0].DoSplashDamageOnDead = false;
 
     ProjectilesData[PROJECTILE_GENERIC_GIB_1].BulletDamage = 0.f;
@@ -254,6 +257,7 @@ void SetupProjectilesDataAndAllocateMemory()
     ProjectilesData[PROJECTILE_GENERIC_GIB_1].KillAfterTimer = 10.f;
     ProjectilesData[PROJECTILE_GENERIC_GIB_1].KillAfterSlowingDown = true;
     ProjectilesData[PROJECTILE_GENERIC_GIB_1].RemainAfterDead = true;
+    ProjectilesData[PROJECTILE_GENERIC_GIB_1].BlowUpEnemies = false;
     ProjectilesData[PROJECTILE_GENERIC_GIB_1].DoSplashDamageOnDead = false;
 }
 
@@ -342,19 +346,21 @@ void KillProjectile(game_state *GameState, projectile_t *ProjectileToKill)
                 u32 EnemyIndex = (u32)Physics.BodyInterface->GetUserData(bodyID);
                 if (EnemyIndex != BAD_UINDEX)
                 {
-                    HurtEnemy(GameState, EnemyIndex, BaseDamage*DamageScale);
+                    HurtEnemy(GameState, EnemyIndex, BaseDamage*DamageScale, BlowUpEnemies);
                 }
             }
 
             game_state *GameState = nullptr;
             float BaseDamage = 0.f;
             float SplashRadius = 0.f;
+            bool BlowUpEnemies = false;
         };
 
         splash_damage_collector SplashDamageCollector;
         SplashDamageCollector.GameState = GameState;
         SplashDamageCollector.BaseDamage = ProjectileToKill->Type->SplashDamageBase;
         SplashDamageCollector.SplashRadius = ProjectileToKill->Type->SplashDamageRadius;
+        SplashDamageCollector.BlowUpEnemies = ProjectileToKill->Type->BlowUpEnemies;
 
         JPH::Vec3 ProjectilePosSI = Physics.BodyInterface->GetPosition(ProjectileToKill->BodyId);
         Physics.PhysicsSystem->GetNarrowPhaseQuery().CollideShape(
@@ -388,6 +394,9 @@ void KillProjectile(game_state *GameState, projectile_t *ProjectileToKill)
         Explosion.Timer = 0.f;
         Explosion.ParticleLifeTimer = 0.1f;
         GameState->BloodParticles.Emitters.put(Explosion);
+
+        Mix_VolumeChunk(Assets.Sfx_ExplodeRocket, 24 + SOUNDRNG.NextInt(-2, 2));
+        Mix_PlayChannel(-1, Assets.Sfx_ExplodeRocket, 0);
     }
 }
 
@@ -521,7 +530,8 @@ static void ProcessProjectileHitInfos(game_state *GameState)
             if (Projectile->Type->BulletDamage > 0.f)
             {
                 u32 EnemyIndex = (u32)Info.OtherBody->GetUserData();
-                HurtEnemy(GameState, EnemyIndex, Projectile->Type->BulletDamage);
+                HurtEnemy(GameState, EnemyIndex, Projectile->Type->BulletDamage, 
+                    Projectile->Type->BlowUpEnemies);
 
                 particle_emitter BloodBurst;
                 BloodBurst.WorldP = Info.HitP;
@@ -555,22 +565,18 @@ static void ProcessProjectileHitInfos(game_state *GameState)
                 GameState->BloodParticles.Emitters.put(BloodBurst);
             }
 
-            // Rocket should do splash damage collider check
-
-            KillProjectile(GameState, &LiveProjectiles[ProjectileIdx]);
+            KillProjectile(GameState, Projectile);
         }
         else if (SecondBodyLayer == Layers::STATIC)
         {
-            if (SOUNDRNG.NextInt(0,2) < 1)
+            if (Projectile->EType == PROJECTILE_NAIL && SOUNDRNG.NextInt(0,2) < 1)
             {
                 Mix_Chunk *RicochetSnd = Assets.Sfx_Ricochet[SOUNDRNG.NextInt(0,2)];
                 Mix_VolumeChunk(RicochetSnd, 24 + SOUNDRNG.NextInt(-2, 2));
                 Mix_PlayChannel(-1, RicochetSnd, 0);
             }
 
-            // Rocket should do splash damage collider check
-
-            KillProjectile(GameState, &LiveProjectiles[ProjectileIdx]);
+            KillProjectile(GameState, Projectile);
         }
     }
 
