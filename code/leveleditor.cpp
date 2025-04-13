@@ -83,8 +83,22 @@ float GetEditorHandleSize(vec3 worldPosition, float sizeInPixels)
 {
     float distanceFromCamera = Dot(worldPosition - LevelEditor.EditorCam.Position, LevelEditor.EditorCam.Direction);
     quat camOrientation = EulerToQuat(LevelEditor.EditorCam.Rotation * GM_DEG2RAD);
-    vec3 screenPos = WorldPointToScreenPoint(LevelEditor.EditorCam.Position + RotateVector(vec3(distanceFromCamera, 0, 0), camOrientation));
-    vec3 screenPos2 = WorldPointToScreenPoint(LevelEditor.EditorCam.Position + RotateVector(vec3(distanceFromCamera, 0, 32.f), camOrientation));
+    vec3 screenPos = WorldPointToScreenPoint(
+        BackbufferWidth,
+        BackbufferHeight,
+        LevelEditor.ActivePerspectiveMatrix,
+        LevelEditor.ActiveViewMatrix,
+        LevelEditor.EditorCam.Position,
+        LevelEditor.EditorCam.Direction,
+        LevelEditor.EditorCam.Position + RotateVector(vec3(distanceFromCamera, 0, 0), camOrientation));
+    vec3 screenPos2 = WorldPointToScreenPoint(
+        BackbufferWidth,
+        BackbufferHeight,
+        LevelEditor.ActivePerspectiveMatrix,
+        LevelEditor.ActiveViewMatrix,
+        LevelEditor.EditorCam.Position,
+        LevelEditor.EditorCam.Direction,
+        LevelEditor.EditorCam.Position + RotateVector(vec3(distanceFromCamera, 0, 32.f), camOrientation));
     // scaled by 32 to avoid floating point imprecision
     float screenDist = Magnitude(screenPos - screenPos2);
     return (sizeInPixels*32.f / GM_max(screenDist, 0.0001f));
@@ -510,8 +524,18 @@ bool level_editor_t::PickPointAndNormalInLevel(vec3 *PlanePoint, vec3 *PlaneNorm
 
         *PlaneNormal = drawingFace->QuickNormal();
 
-        vec3 ws = ScreenPointToWorldPoint(MousePos, 0.f);
-        vec3 wr = ScreenPointToWorldRay(MousePos);
+        vec3 ws = ScreenPointToWorldPoint(
+            BackbufferWidth,
+            BackbufferHeight,
+            ActivePerspectiveMatrix,
+            ActiveViewMatrix,
+            MousePos, 0.f);
+        vec3 wr = ScreenPointToWorldRay(
+            BackbufferWidth,
+            BackbufferHeight,
+            ActivePerspectiveMatrix,
+            ActiveViewMatrix,
+            MousePos);
         vec3 intersectionPoint;
         IntersectPlaneAndLineWithDirections(drawingFace->loopbase->v->pos, *PlaneNormal, ws, wr, &intersectionPoint);
         
@@ -519,8 +543,18 @@ bool level_editor_t::PickPointAndNormalInLevel(vec3 *PlanePoint, vec3 *PlaneNorm
     }
     else
     {
-        vec3 ws = ScreenPointToWorldPoint(MousePos, 0.f);
-        vec3 wr = ScreenPointToWorldRay(MousePos);
+        vec3 ws = ScreenPointToWorldPoint(
+            BackbufferWidth,
+            BackbufferHeight,
+            ActivePerspectiveMatrix,
+            ActiveViewMatrix,
+            MousePos, 0.f);
+        vec3 wr = ScreenPointToWorldRay(
+            BackbufferWidth,
+            BackbufferHeight,
+            ActivePerspectiveMatrix,
+            ActiveViewMatrix,
+            MousePos);
         float f = (0.f - ws.y) / wr.y;
         if (f < 0.f)
             return false;
@@ -573,8 +607,18 @@ void level_editor_t::DoMovePointEntity()
     if (LMBIsPressed && HotEntityIndex == SelectedEntityIndex && SelectedEntityIndex >= 0)
     {
         level_entity_t& Ent = LevelEntities[SelectedEntityIndex];
-        vec3 WorldPosMouse = ScreenPointToWorldPoint(MousePos, 0.f);
-        vec3 WorldRayMouse = ScreenPointToWorldRay(MousePos);
+        vec3 WorldPosMouse = ScreenPointToWorldPoint(
+            BackbufferWidth,
+            BackbufferHeight,
+            ActivePerspectiveMatrix,
+            ActiveViewMatrix,
+            MousePos, 0.f);
+        vec3 WorldRayMouse = ScreenPointToWorldRay(
+            BackbufferWidth,
+            BackbufferHeight,
+            ActivePerspectiveMatrix,
+            ActiveViewMatrix,
+            MousePos);
 
         if (LMBPressedThisFrame) // refactor translation code into one util function 
         {
@@ -642,8 +686,18 @@ void level_editor_t::DoFaceManip()
             for (MapEdit::Vert *vert : SELECTED_VERTICES)
                 vert->poscache = vert->pos;
 
-            vec3 worldpos_mouse = ScreenPointToWorldPoint(MousePos, 0.f);
-            vec3 worldray_mouse = ScreenPointToWorldRay(MousePos);
+            vec3 worldpos_mouse = ScreenPointToWorldPoint(
+            BackbufferWidth,
+            BackbufferHeight,
+            ActivePerspectiveMatrix,
+            ActiveViewMatrix,
+            MousePos, 0.f);
+            vec3 worldray_mouse = ScreenPointToWorldRay(
+            BackbufferWidth,
+            BackbufferHeight,
+            ActivePerspectiveMatrix,
+            ActiveViewMatrix,
+            MousePos);
             IntersectPlaneAndLineWithDirections(face->loopbase->v->pos, face->QuickNormal(), worldpos_mouse, worldray_mouse, &DragPlanePoint);
         }
     }
@@ -652,8 +706,18 @@ void level_editor_t::DoFaceManip()
     {
         MapEdit::Face *hotFace = SELECTABLE_FACES[HotHandleId-1];
 
-        vec3 worldpos_mouse = ScreenPointToWorldPoint(MousePos, 0.f);
-        vec3 worldray_mouse = ScreenPointToWorldRay(MousePos);
+        vec3 worldpos_mouse = ScreenPointToWorldPoint(
+            BackbufferWidth,
+            BackbufferHeight,
+            ActivePerspectiveMatrix,
+            ActiveViewMatrix,
+            MousePos, 0.f);
+        vec3 worldray_mouse = ScreenPointToWorldRay(
+            BackbufferWidth,
+            BackbufferHeight,
+            ActivePerspectiveMatrix,
+            ActiveViewMatrix,
+            MousePos);
 
         vec3 TotalTranslation;
         if (KeysCurrent[SDL_SCANCODE_LALT])
@@ -736,8 +800,18 @@ void level_editor_t::DoVertexManip()
                 hotVert->poscache = hotVert->pos;
             }
 
-            vec3 worldpos_mouse = ScreenPointToWorldPoint(MousePos, 0.f);
-            vec3 worldray_mouse = ScreenPointToWorldRay(MousePos);
+            vec3 worldpos_mouse = ScreenPointToWorldPoint(
+            BackbufferWidth,
+            BackbufferHeight,
+            ActivePerspectiveMatrix,
+            ActiveViewMatrix,
+            MousePos, 0.f);
+            vec3 worldray_mouse = ScreenPointToWorldRay(
+            BackbufferWidth,
+            BackbufferHeight,
+            ActivePerspectiveMatrix,
+            ActiveViewMatrix,
+            MousePos);
             IntersectPlaneAndLineWithDirections(hotVert->pos, -EditorCam.Direction, worldpos_mouse, worldray_mouse, &DragPlanePoint);
         }
         else if (!LCtrlDownOnLeftMouseDown)
@@ -758,8 +832,18 @@ void level_editor_t::DoVertexManip()
     {
         MapEdit::Vert *hotVert = SELECTABLE_VERTICES[HotHandleId-1];
 
-        vec3 worldpos_mouse = ScreenPointToWorldPoint(MousePos, 0.f);
-        vec3 worldray_mouse = ScreenPointToWorldRay(MousePos);
+        vec3 worldpos_mouse = ScreenPointToWorldPoint(
+            BackbufferWidth,
+            BackbufferHeight,
+            ActivePerspectiveMatrix,
+            ActiveViewMatrix,
+            MousePos, 0.f);
+        vec3 worldray_mouse = ScreenPointToWorldRay(
+            BackbufferWidth,
+            BackbufferHeight,
+            ActivePerspectiveMatrix,
+            ActiveViewMatrix,
+            MousePos);
 
         TotalTranslation = vec3();
         if (KeysCurrent[SDL_SCANCODE_LALT])
@@ -876,8 +960,18 @@ void level_editor_t::DoSimpleBrushTool()
             GRID_UP_VECTOR = drawingplanenormal;
             if (LMBIsPressed)
             {
-                vec3 ws = ScreenPointToWorldPoint(MousePos, 0.f);
-                vec3 wr = ScreenPointToWorldRay(MousePos);
+                vec3 ws = ScreenPointToWorldPoint(
+            BackbufferWidth,
+            BackbufferHeight,
+            ActivePerspectiveMatrix,
+            ActiveViewMatrix,
+            MousePos, 0.f);
+                vec3 wr = ScreenPointToWorldRay(
+            BackbufferWidth,
+            BackbufferHeight,
+            ActivePerspectiveMatrix,
+            ActiveViewMatrix,
+            MousePos);
                 vec3 intersection;
                 IntersectPlaneAndLineWithDirections(rectstartpoint, drawingplanenormal, ws, wr, &intersection);
                 vec3 endpoint = intersection;
@@ -901,8 +995,18 @@ void level_editor_t::DoSimpleBrushTool()
             }
             if (LMBReleasedThisFrame)
             {
-                vec3 ws = ScreenPointToWorldPoint(MousePos, 0.f);
-                vec3 wr = ScreenPointToWorldRay(MousePos);
+                vec3 ws = ScreenPointToWorldPoint(
+            BackbufferWidth,
+            BackbufferHeight,
+            ActivePerspectiveMatrix,
+            ActiveViewMatrix,
+            MousePos, 0.f);
+                vec3 wr = ScreenPointToWorldRay(
+            BackbufferWidth,
+            BackbufferHeight,
+            ActivePerspectiveMatrix,
+            ActiveViewMatrix,
+            MousePos);
                 vec3 intersection;
                 IntersectPlaneAndLineWithDirections(rectstartpoint, drawingplanenormal, ws, wr, &intersection);
                 rectendpoint = intersection;
@@ -940,8 +1044,18 @@ void level_editor_t::DoSimpleBrushTool()
             static vec3 heightBeforeSnap = vec3();
             vec3 pn = -EditorCam.Direction;
             vec3 pp = rectendpoint + heightBeforeSnap;
-            vec3 wp = ScreenPointToWorldPoint(MousePos, 0.f);
-            vec3 wr = ScreenPointToWorldRay(MousePos);
+            vec3 wp = ScreenPointToWorldPoint(
+            BackbufferWidth,
+            BackbufferHeight,
+            ActivePerspectiveMatrix,
+            ActiveViewMatrix,
+            MousePos, 0.f);
+            vec3 wr = ScreenPointToWorldRay(
+            BackbufferWidth,
+            BackbufferHeight,
+            ActivePerspectiveMatrix,
+            ActiveViewMatrix,
+            MousePos);
             vec3 intersection;
             IntersectPlaneAndLineWithDirections(pp, pn, wp, wr, &intersection);
             float trueHeightComp = Dot((intersection - rectendpoint), drawingSurfaceNormal);

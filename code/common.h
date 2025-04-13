@@ -47,4 +47,19 @@ void LogError(const char *fmt, ...);
 #define WORLD_LIMIT 32000
 #define WORLD_LIMIT_F 32000.f
 
+struct app_state
+{
+    u32 MouseCurrent;
+    u32 MousePressed;
+    u32 MouseReleased;
+    vec2 MouseDelta;
+    ivec2 MousePos;
+    bool KeysCurrent[256] = {0};
+    bool KeysPressed[256] = {0};
+    bool KeysReleased[256] = {0};
+    i32 BackBufferWidth = -1;
+    i32 BackBufferHeight = -1;
 
+    i32 GUIRenderTargetWidth;
+    i32 GUIRenderTargetHeight;
+};

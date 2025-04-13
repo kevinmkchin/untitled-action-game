@@ -1,5 +1,10 @@
 #include "gui.h"
 
+#include "mem.h"
+#include "resources.h"
+#include "gpu_resources.h"
+#include "shaders.h"
+#include "utility.h"
 
 #define ISANYOF1(a, x) ((a) == (x))
 #define ISANYOF2(a, x, y) ((a) == (x) || (a) == (y))
@@ -176,15 +181,17 @@ namespace GUI
 
     int MouseXInGUI = 0;
     int MouseYInGUI = 0;
+    bool MouseWentUpFlag = false;
+    bool MouseWentDownFlag = false;
 
     bool MouseWentUp()
     {
-        return MouseReleased & SDL_BUTTON_MASK(SDL_BUTTON_LEFT);
+        return MouseWentUpFlag;
     }
 
     bool MouseWentDown()
     {
-        return MousePressed & SDL_BUTTON_MASK(SDL_BUTTON_LEFT);
+        return MouseWentDownFlag;
     }
 
     bool MouseInside(const UIRect& rect)
@@ -535,6 +542,13 @@ namespace GUI
         }
     }
 
+    bool IsCharInArray(char v, char* array, int count)
+    {
+        for (int i = 0; i < count; ++i)
+            if (v == *(array + i)) return true;
+        return false;
+    }
+
     void PrimitiveFloatInputField(ui_id id, UIRect rect, float* v)
     {
         bool bSetInactiveAndReturnValue = false;
@@ -561,7 +575,7 @@ namespace GUI
                     activeTextInputBuffer.put(char(keycodeASCII));
                 }
                 else if (keycodeASCII == 46 /* decimal point */
-                         && !IsOneOfArray('.', activeTextInputBuffer.data, activeTextInputBuffer.count))
+                         && !IsCharInArray('.', activeTextInputBuffer.data, activeTextInputBuffer.count))
                 {
                     activeTextInputBuffer.put(char(keycodeASCII));
                 }
@@ -1408,12 +1422,12 @@ namespace GUI
         }
     }
 
-    void UpdateMainCanvasALH(ALH *layout)
+    void UpdateMainCanvasALH(ALH *layout, i32 BackBufferWidth, i32 BackBufferHeight)
     {
         layout->x = 0;
         layout->y = 0;
-        layout->w = BackbufferWidth;
-        layout->h = BackbufferHeight;
+        layout->w = BackBufferWidth;
+        layout->h = BackBufferHeight;
         UpdateALHContainer(layout);
     }
 
@@ -1534,21 +1548,26 @@ namespace GUI
         GUIDraw_NewFrame();
     }
 
-    void Draw()
+    void Draw(i32 GUIRenderTargetWidth, i32 GUIRenderTargetHeight)
     {
-        GUIDraw_DrawEverything();
+        GUIDraw_DrawEverything(GUIRenderTargetWidth, GUIRenderTargetHeight);
     }
 
-    void ProcessSDLEvent(const SDL_Event event)
+    void ProcessSDLEvent(app_state *AppState, const SDL_Event event)
     {
+        MouseWentUpFlag = AppState->MouseReleased & SDL_BUTTON_MASK(SDL_BUTTON_LEFT);
+        MouseWentDownFlag = AppState->MousePressed & SDL_BUTTON_MASK(SDL_BUTTON_LEFT);
+
         switch (event.type)
         {
             case SDL_EVENT_MOUSE_MOTION:
             {
                 // NOTE(Kevin): For game GUI where window aspect ratio does not match game aspect ratio, must
                 //              map from window mouse pos to gui canvas mouse pos
-                MouseXInGUI = int(float(MousePos.x) * (float(RenderTargetGUI.width) / float(BackbufferWidth)));
-                MouseYInGUI = int(float(MousePos.y) * (float(RenderTargetGUI.height) / float(BackbufferHeight)));
+                MouseXInGUI = int(float(AppState->MousePos.x) * 
+                    (float(AppState->GUIRenderTargetWidth) / float(AppState->BackBufferWidth)));
+                MouseYInGUI = int(float(AppState->MousePos.y) * 
+                    (float(AppState->GUIRenderTargetHeight) / float(AppState->BackBufferHeight)));
             }break;
             case SDL_EVENT_KEY_DOWN:
             {
@@ -1853,10 +1872,10 @@ namespace GUI
         }
     }
 
-    void GUIDraw_DrawEverything()
+    void GUIDraw_DrawEverything(i32 GUIRenderTargetWidth, i32 GUIRenderTargetHeight)
     {
-        i32 kevGuiScreenWidth = RenderTargetGUI.width;
-        i32 kevGuiScreenHeight = RenderTargetGUI.height;
+        i32 kevGuiScreenWidth = GUIRenderTargetWidth;
+        i32 kevGuiScreenHeight = GUIRenderTargetHeight;
         mat4 projectionMatrix = ProjectionMatrixOrthographicNoZ(0.f, (float)kevGuiScreenWidth, (float)kevGuiScreenHeight, 0.f);
 
         UseShader(main_ui_shader);

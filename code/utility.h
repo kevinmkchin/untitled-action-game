@@ -1,8 +1,26 @@
 #pragma once
 
-vec3 ScreenPointToWorldRay(ivec2 screenspaceCoords);
-vec3 ScreenPointToWorldPoint(ivec2 screenspaceCoords, float z_NDC);
-vec3 WorldPointToScreenPoint(vec3 worldPosition);
+vec3 ScreenPointToWorldRay(
+    i32 BackBufferWidth,
+    i32 BackBufferHeight,
+    mat4 &PerspectiveMatrix,
+    mat4 &ViewMatrix,
+    ivec2 ScreenSpaceCoords);
+vec3 ScreenPointToWorldPoint(
+    i32 BackBufferWidth,
+    i32 BackBufferHeight,
+    mat4 &PerspectiveMatrix,
+    mat4 &ViewMatrix,
+    ivec2 ScreenSpaceCoords,
+    float z_NDC);
+vec3 WorldPointToScreenPoint(
+    i32 BackBufferWidth,
+    i32 BackBufferHeight,
+    mat4 &PerspectiveMatrix,
+    mat4 &ViewMatrix,
+    vec3 CameraPosition,
+    vec3 CameraDirection,
+    vec3 WorldPosition);
 
 bool IntersectPlaneAndLine(vec3 pointOnPlane, vec3 normalOfPlane, 
     vec3 pointOnLine, vec3 directionOfLine, vec3 *intersectionPoint);
@@ -28,9 +46,6 @@ void BlitRect(u8 *A, int AW, int AH, u8 *B, int BW, int BH, int x, int y, size_t
     float((hex & 0x00FF00000) >> 16)/255.f,\
     float((hex & 0x0000FF00) >> 8)/255.f,\
     float(hex & 0x000000FF)/255.f
-
-template<typename T>
-inline bool IsOneOfArray(T v, T* array, int count);
 
 
 struct random_series // random_series
@@ -104,11 +119,6 @@ struct random_series // random_series
 extern random_series RNG;
 extern random_series ENEMYRNG;
 extern random_series SOUNDRNG;
-
-float frand01()
-{
-    return RNG.frand01();
-}
 
 
 i32 ShiftASCII(i32 keycodeASCII, bool shift);

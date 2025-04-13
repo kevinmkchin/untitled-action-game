@@ -1031,10 +1031,15 @@ bool FindSmoothPathTo(vec3 Origin, vec3 Target, float *SmoothPath, int *SmoothPa
     }
 }
 
+float nav_frand01()
+{
+    return RNG.frand01();
+}
+
 void GetRandomPointOnNavMesh(float *Point)
 {
     dtPolyRef RandomPoly;
-    dtStatus Status = m_navQuery->findRandomPoint(&m_filter, frand01, 
+    dtStatus Status = m_navQuery->findRandomPoint(&m_filter, nav_frand01, 
         &RandomPoly, Point);
     ASSERT(dtStatusSucceed(Status));
 }

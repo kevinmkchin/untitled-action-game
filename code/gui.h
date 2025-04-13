@@ -1,5 +1,8 @@
 #pragma once
 
+#include "common.h"
+#include <vertext.h>
+
 /* NOTES
 
 Decouple DrawReqCollection concept from windows concept
@@ -55,8 +58,8 @@ namespace GUI
     void Init(); // on program start
     // void Free();
     void NewFrame(); // before each frame
-    void ProcessSDLEvent(const SDL_Event evt); // update input state
-    void Draw(); // flush draw requests to GPU
+    void ProcessSDLEvent(app_state *AppState, const SDL_Event evt); // update input state
+    void Draw(i32 GUIRenderTargetWidth, i32 GUIRenderTargetHeight); // flush draw requests to GPU
 
     /* Immediate-mode state helpers */
     bool IsActive(ui_id id);
@@ -188,7 +191,7 @@ namespace GUI
         std::vector<ALH*> container;
     };
 
-    void UpdateMainCanvasALH(ALH *layout);
+    void UpdateMainCanvasALH(ALH *layout, i32 BackBufferWidth, i32 BackBufferHeight);
     ALH *NewALH(bool vertical);
     ALH *NewALH(int absX, int absY, int absW, int absH, bool vertical);
     void DeleteALH(ALH *layout);
@@ -205,7 +208,7 @@ namespace GUI {
     struct UIDrawRequest;
 
     void GUIDraw_InitResources();
-    void GUIDraw_DrawEverything();
+    void GUIDraw_DrawEverything(i32 GUIRenderTargetWidth, i32 GUIRenderTargetHeight);
     void GUIDraw_NewFrame();
 
     void GUIDraw_PushDrawCollection(UIRect windowMask, int depth);
