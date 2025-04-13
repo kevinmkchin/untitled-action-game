@@ -50,6 +50,10 @@ using two or more cycles in conjunction.
     used to create Faces.
 */
 
+#include "common.h"
+#include "mem.h"
+#include "game_assets.h"
+
 namespace MapEdit
 {
     struct Edge;

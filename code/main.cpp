@@ -1,18 +1,9 @@
 #include "common.h"
 
-#define GL3W_IMPLEMENTATION
 #include <gl3w.h>
-
-#define STB_SPRINTF_IMPLEMENTATION
 #include <stb_sprintf.h>
-#define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
-#define STB_RECT_PACK_IMPLEMENTATION
-#include <stb_rect_pack.h>
-#define STB_TRUETYPE_IMPLEMENTATION
 #include <stb_truetype.h>
-
-#define VERTEXT_IMPLEMENTATION
 #include <vertext.h>
 
 #if INTERNAL_BUILD
@@ -58,7 +49,6 @@ manualheap_arena_t JoltPhysicsMemory;
 SDL_Window *SDLMainWindow;
 SDL_GLContext SDLGLContext;
 bool ProgramShutdownRequested = false;
-const float FixedDeltaTime = 1.0f / 60.0f;
 float DeltaTime = 0.f;
 float RealDeltaTime = 0.f; // Unscaled and uncapped
 float GameTimeScale = 1.f;
@@ -101,7 +91,6 @@ float GAMEPROJECTION_NEARCLIP = 4.f; // even 2 works fine to remove z fighting
 float GAMEPROJECTION_FARCLIP = 3200.f;
 
 
-#include "physics_debug.cpp"
 #include "shader_helpers.cpp"
 #include "facebatch.cpp"
 #include "filedialog.cpp"
@@ -111,7 +100,6 @@ float GAMEPROJECTION_FARCLIP = 3200.f;
 #include "leveleditor.cpp"
 #include "saveloadlevel.cpp"
 #include "game.cpp"
-#include "physics.cpp"
 #include "levelentities.cpp"
 #include "enemy.cpp"
 #include "nav.cpp"

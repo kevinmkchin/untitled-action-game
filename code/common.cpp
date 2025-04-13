@@ -1,6 +1,19 @@
 #include "common.h"
 #include "debugmenu.h"
 
+#define GL3W_IMPLEMENTATION
+#include <gl3w.h>
+#define STB_RECT_PACK_IMPLEMENTATION
+#include <stb_rect_pack.h>
+#define STB_SPRINTF_IMPLEMENTATION
+#include <stb_sprintf.h>
+#define STB_IMAGE_IMPLEMENTATION
+#include <stb_image.h>
+#define STB_TRUETYPE_IMPLEMENTATION
+#include <stb_truetype.h>
+#define VERTEXT_IMPLEMENTATION
+#include <vertext.h>
+
 std::string wd_path() { return std::string(PROJECT_WORKING_DIR); }
 std::string wd_path(const std::string& name) { return wd_path() + std::string(name); }
 std::string shader_path() { return wd_path() + "shaders/"; }

@@ -67,3 +67,5 @@ struct app_state
 extern vec2 MouseDelta;
 extern bool KeysCurrent[256];
 extern float DeltaTime;
+constexpr float FixedDeltaTime = 1.0f / 60.0f;
+

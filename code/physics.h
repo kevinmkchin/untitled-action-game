@@ -80,13 +80,53 @@ public:
 extern physics_t Physics;
 
 // Converts engine units to and from SI units
-inline float ToJoltUnit(float GameUnit);
-inline float FromJoltUnit(float JoltUnit);
-inline JPH::RVec3 ToJoltVector(vec3 GMathVec3);
-inline vec3 FromJoltVector(JPH::RVec3 JoltVec3);
-inline vec4 FromJoltVector(JPH::Vec4 JoltVec4);
-inline JPH::RVec3 ToJoltVectorNoConvert(vec3 GMathVec3); // Directions should stay normalized
-inline vec3 FromJoltVectorNoConvert(JPH::RVec3 JoltVec3);
-inline vec4 FromJoltVectorNoConvert(JPH::Vec4 JoltVec4);
-inline JPH::Quat ToJoltQuat(quat GMathQuat);
-inline quat FromJoltQuat(JPH::Quat JoltQuat);
+inline float ToJoltUnit(float GameUnit)
+{
+    return GameUnit * GAME_UNIT_TO_SI_UNITS;
+}
+
+inline float FromJoltUnit(float JoltUnit)
+{
+    return JoltUnit * SI_UNITS_TO_GAME_UNITS;
+}
+
+inline JPH::RVec3 ToJoltVector(vec3 GMathVec3)
+{
+    return JPH::RVec3(ToJoltUnit(GMathVec3.x), ToJoltUnit(GMathVec3.y), ToJoltUnit(GMathVec3.z));
+}
+
+inline vec3 FromJoltVector(JPH::RVec3 JoltVec3)
+{
+    return vec3(FromJoltUnit(JoltVec3.GetX()), FromJoltUnit(JoltVec3.GetY()), FromJoltUnit(JoltVec3.GetZ()));
+}
+
+inline vec4 FromJoltVector(JPH::Vec4 JoltVec4)
+{
+    return vec4(FromJoltUnit(JoltVec4.GetX()), FromJoltUnit(JoltVec4.GetY()), 
+        FromJoltUnit(JoltVec4.GetZ()), FromJoltUnit(JoltVec4.GetW()));
+}
+
+inline JPH::RVec3 ToJoltVectorNoConvert(vec3 GMathVec3)
+{
+    return JPH::RVec3(GMathVec3.x, GMathVec3.y, GMathVec3.z);
+}
+
+inline vec3 FromJoltVectorNoConvert(JPH::RVec3 JoltVec3)
+{
+    return vec3(JoltVec3.GetX(), JoltVec3.GetY(), JoltVec3.GetZ());
+}
+
+inline vec4 FromJoltVectorNoConvert(JPH::Vec4 JoltVec4)
+{
+    return vec4(JoltVec4.GetX(), JoltVec4.GetY(), JoltVec4.GetZ(), JoltVec4.GetW());
+}
+
+inline JPH::Quat ToJoltQuat(quat GMathQuat)
+{
+    return JPH::Quat(GMathQuat.x, GMathQuat.y, GMathQuat.z, GMathQuat.w);
+}
+
+inline quat FromJoltQuat(JPH::Quat JoltQuat)
+{
+    return quat(JoltQuat.GetW(), JoltQuat.GetX(), JoltQuat.GetY(), JoltQuat.GetZ());
+}

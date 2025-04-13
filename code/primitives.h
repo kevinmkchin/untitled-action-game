@@ -6,6 +6,9 @@
  *  Pickable elements for picking things in the editor
  * 
  * */
+#include "mem.h"
+#include "shaders.h"
+#include "gpu_resources.h"
 
 inline vec3 CalculateTangent(vec3 Normal);
 

@@ -1,5 +1,8 @@
 #pragma once
 
+#include "common.h"
+#include "cam.h"
+#include "weapons.h"
 
 struct player_t
 {

@@ -1,5 +1,8 @@
 #pragma once
 
+#include "gpu_resources.h"
+#include "shaders.h"
+
 struct face_batch_t
 {
     // Set of triangles that all use the same texture
