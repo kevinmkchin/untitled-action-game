@@ -1,5 +1,10 @@
 #pragma once
 
+#include "common.h"
+
+#include "anim.h"
+#include "resources.h"
+#include "gpu_resources.h"
 // Game Assets Database
 
 Mix_Chunk *Mixer_LoadChunk(const char *filepath);
@@ -58,9 +63,6 @@ public:
 
 private:
     u32 TexturePersistIdCounter;
-
-private:
-    void CreateEntityBillboardAtlasForSupportRenderer(BitmapHandle *BillboardBitmaps);
 };
 
 extern asset_db_t Assets;

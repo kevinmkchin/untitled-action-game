@@ -1,5 +1,7 @@
 #pragma once
 
+#include "common.h"
+
 struct camera_t
 {
     vec3 Position;

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "common.h"
+
 struct GPUShader
 {
     GLuint idShaderProgram = 0; // id of this shader program in GPU memory

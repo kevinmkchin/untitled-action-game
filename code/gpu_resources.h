@@ -1,5 +1,7 @@
 #pragma once
 
+#include "common.h"
+
 struct GPUFrameBuffer
 {
     u32 fbo;

@@ -11,10 +11,6 @@
 #include <stb_rect_pack.h>
 #define STB_TRUETYPE_IMPLEMENTATION
 #include <stb_truetype.h>
-#define STB_DS_IMPLEMENTATION
-#define STBDS_REALLOC(c,p,s) ::realloc(p,s)
-#define STBDS_FREE(c,p)      ::free(p) // ensure global namespace
-#include <stb_ds.h>
 
 #define VERTEXT_IMPLEMENTATION
 #include <vertext.h>
@@ -105,11 +101,6 @@ float GAMEPROJECTION_NEARCLIP = 4.f; // even 2 works fine to remove z fighting
 float GAMEPROJECTION_FARCLIP = 3200.f;
 
 
-#include "anim.cpp"
-#include "gpu_resources.cpp"
-#include "shaders.cpp"
-#include "resources.cpp"
-#include "game_assets.cpp"
 #include "physics_debug.cpp"
 #include "shader_helpers.cpp"
 #include "facebatch.cpp"
@@ -124,7 +115,6 @@ float GAMEPROJECTION_FARCLIP = 3200.f;
 #include "levelentities.cpp"
 #include "enemy.cpp"
 #include "nav.cpp"
-#include "cam.cpp"
 #include "player.cpp"
 #include "weapons.cpp"
 #include "instanced.cpp"
@@ -178,6 +168,145 @@ static void FinalRenderToBackBuffer()
 
     GLHasErrors();
 }
+
+const char* __editor_scene_shader_vs =
+    "#version 330\n"
+    "\n"
+    "layout (location = 0) in vec3 vertex_pos;\n"
+    "layout (location = 1) in vec2 vertex_uv;\n"
+    "layout (location = 2) in vec3 vertex_normal;\n"
+    "\n"
+    "out vec2 uv;\n"
+    "out vec3 LIGHT;\n"
+    "\n"
+    "uniform mat4 modelMatrix;\n"
+    "uniform mat4 viewMatrix;\n"
+    "uniform mat4 projMatrix;\n"
+    "\n"
+    "void main()\n"
+    "{\n"
+    "    uv = vertex_uv;\n"
+    "\n"
+    "    vec4 vertInClipSpace = projMatrix * viewMatrix * modelMatrix * vec4(vertex_pos, 1.0);\n"
+    "    gl_Position = vertInClipSpace;\n"
+    "\n"
+    "    const vec4 sunlightWCS = vec4(0.5, -0.7, -0.8, 0.0);\n"
+    "    vec3 normalWCS = transpose(inverse(mat3(modelMatrix))) * vertex_normal;\n"
+    "    \n"
+    "    float ambientIntensity = 0.6;\n"
+    "    float diffuseIntensity = max(0.0, dot(normalize(normalWCS), normalize(-vec3(sunlightWCS))));\n"
+    "    vec3 lightAMB = vec3(1.0) * ambientIntensity;\n"
+    "    vec3 lightDIFF = vec3(0.4) * diffuseIntensity;\n"
+    "    LIGHT = min(lightAMB + lightDIFF, vec3(1.0));\n"
+    "}";
+
+const char* __editor_scene_shader_fs = 
+    "#version 330\n"
+    "\n"
+    "in vec2 uv;\n"
+    "in vec3 LIGHT;\n"
+    "\n"
+    "layout(location = 0) out vec4 out_colour;\n"
+    "\n"
+    "uniform sampler2D texture0;\n"
+    "\n"
+    "void main()\n"
+    "{\n"
+    "    vec3 COLOR = texture(texture0, uv).xyz;\n"
+    "    vec3 TOTAL = COLOR * LIGHT;\n"
+    "    out_colour = vec4(TOTAL, 1.0);\n"
+    "}";
+
+const char* __editor_scene_wireframe_shader_vs =
+    "#version 330\n"
+    "\n"
+    "layout (location = 0) in vec3 vertex_pos;\n"
+    "layout (location = 1) in vec2 vertex_uv;\n"
+    "layout (location = 2) in vec3 vertex_normal;\n"
+    "\n"
+    "uniform mat4 modelMatrix;\n"
+    "uniform mat4 viewMatrix;\n"
+    "uniform mat4 projMatrix;\n"
+    "\n"
+    "void main()\n"
+    "{\n"
+    "    vec4 vertInClipSpace = projMatrix * viewMatrix * modelMatrix * vec4(vertex_pos, 1.0);\n"
+    "    gl_Position = vertInClipSpace;\n"
+    "}";
+
+const char* __editor_scene_wireframe_shader_fs = 
+    "#version 330\n"
+    "\n"
+    "layout(location = 0) out vec4 out_colour;\n"
+    "\n"
+    "void main()\n"
+    "{\n"
+    "    out_colour = vec4(0.0, 0.0, 0.0, 1.0);\n"
+    "}";
+
+const char* __editor_shader_face_selected_vs =
+    "#version 330\n"
+    "\n"
+    "layout (location = 0) in vec3 vertex_pos;\n"
+    "layout (location = 1) in vec2 vertex_uv;\n"
+    "layout (location = 2) in vec3 vertex_normal;\n"
+    "\n"
+    "out vec2 uv;\n"
+    "\n"
+    "uniform mat4 modelMatrix;\n"
+    "uniform mat4 viewMatrix;\n"
+    "uniform mat4 projMatrix;\n"
+    "\n"
+    "void main()\n"
+    "{\n"
+    "    uv = vertex_uv;\n"
+    "    vec4 vertInClipSpace = projMatrix * viewMatrix * modelMatrix * vec4(vertex_pos, 1.0);\n"
+    "    gl_Position = vertInClipSpace;\n"
+    "}";
+
+const char* __editor_shader_face_selected_fs = 
+    "#version 330\n"
+    "\n"
+    "in vec2 uv;\n"
+    "\n"
+    "layout(location = 0) out vec4 out_colour;\n"
+    "\n"
+    "uniform sampler2D texture0;\n"
+    "uniform vec3 tint;"
+    "\n"
+    "void main()\n"
+    "{\n"
+    "    vec3 COLOR = texture(texture0, uv).xyz;\n"
+    "    vec3 TOTAL = COLOR * tint;\n"
+    "    out_colour = vec4(TOTAL, 1.0);\n"
+    "}";
+
+
+const char* __finalpass_shader_vs =
+    "#version 330\n"
+    "layout(location = 0) in vec2 pos;\n"
+    "layout(location = 1) in vec2 uv;\n"
+    "out vec2 texcoord;\n"
+    "void main()\n"
+    "{\n"
+    "    gl_Position = vec4(pos, 0, 1.0);\n"
+    "    texcoord = uv;\n"
+    "}\n";
+
+const char* __finalpass_shader_fs =
+    "#version 330\n"
+    "uniform sampler2D screen_texture;\n"
+    "in vec2 texcoord;\n"
+    "out vec4 color;\n"
+    "void main()\n"
+    "{\n"
+    "    vec4 in_color = texture(screen_texture, texcoord);\n"
+    "    if(in_color.w < 0.001)\n"
+    "    {\n"
+    "        discard;\n"
+    "    }\n"
+    "    color = in_color;\n"
+    "}\n";
 
 static void InitGameRenderer()
 {

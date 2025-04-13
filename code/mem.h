@@ -1,6 +1,9 @@
 #pragma once
 
 #include "common.h"
+#define STBDS_REALLOC(c,p,s) ::realloc(p,s)
+#define STBDS_FREE(c,p)      ::free(p) // ensure global namespace
+#include <stb_ds.h>
 
 enum class MemoryType
 {

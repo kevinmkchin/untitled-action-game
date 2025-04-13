@@ -63,3 +63,7 @@ struct app_state
     i32 GUIRenderTargetWidth;
     i32 GUIRenderTargetHeight;
 };
+
+extern vec2 MouseDelta;
+extern bool KeysCurrent[256];
+extern float DeltaTime;

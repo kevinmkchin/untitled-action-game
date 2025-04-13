@@ -1,5 +1,5 @@
 #include "resources.h"
-
+#include <stb_image.h>
 
 void FreeFileBinary(BinaryFileHandle& binary_file_to_free)
 {

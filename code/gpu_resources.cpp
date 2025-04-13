@@ -1,4 +1,5 @@
 #include "gpu_resources.h"
+#include "resources.h"
 
 void CreateGPUFrameBuffer(GPUFrameBuffer *buffer, GLenum TargetFormat, GLenum SourceFormat, GLenum type)
 {
@@ -114,11 +115,11 @@ void RenderGPUMesh(u32 idVAO, u32 idVBO, u32 vertexCount, const GPUTexture *text
     if (texture)
     {
         GLuint texId = texture->id;
-        if (texture->id == 0)
-            texId = Assets.DefaultMissingTexture.id;
-
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, texId);
+        if (texture->id > 0)
+        {
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, texId);
+        }
     }
 
     glDrawArrays(GL_TRIANGLES, 0, vertexCount);
