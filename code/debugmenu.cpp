@@ -1,6 +1,8 @@
 #include "debugmenu.h"
 #include "game.h"
+
 #include <SDL3/SDL_clipboard.h>
+#include <noclip.h>
 
 // todo
 // - paste from clipboard

@@ -62,6 +62,9 @@ TODO
 */
 #pragma once
 
+#include "mem.h"
+#include "gpu_resources.h"
+
 // Load just the skeleton and its animation first
 bool LoadSkeleton_GLTF2Bin(const char *InFilePath, struct skeleton_t *OutSkeleton);
 // Load a skinned model using a loaded skeleton

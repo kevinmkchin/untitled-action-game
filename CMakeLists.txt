@@ -24,6 +24,12 @@ add_executable(${PROJECT_NAME}
         code/mem.cpp
         code/utility.cpp
         code/gui.cpp
+        code/cam.cpp
+        code/anim.cpp
+        code/gpu_resources.cpp
+        code/shaders.cpp
+        code/resources.cpp
+        code/game_assets.cpp
 )
 target_precompile_headers(${PROJECT_NAME} PRIVATE code/pch.h)
 target_link_libraries(${PROJECT_NAME} PRIVATE Jolt Recast Detour DebugUtils)

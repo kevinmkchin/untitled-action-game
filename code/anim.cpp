@@ -1,9 +1,12 @@
+#include "common.h"
 #include "anim.h"
 
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
+#include <stb_image.h>
 
+#include "game_assets.h"
 
 static mat4 AssimpMatrixToColumnMajor(const aiMatrix4x4& from)
 {
