@@ -18,7 +18,11 @@ add_subdirectory(recast/Detour)
 add_subdirectory(recast/DebugUtils)
 add_subdirectory(recast/DetourTileCache)
 
-add_executable(${PROJECT_NAME} code/main.cpp)
+add_executable(${PROJECT_NAME} 
+        code/common.cpp
+        code/main.cpp
+)
+target_precompile_headers(${PROJECT_NAME} PRIVATE code/pch.h)
 target_link_libraries(${PROJECT_NAME} PRIVATE Jolt Recast Detour DebugUtils)
 
 file(WRITE  "code/BUILDINFO.H" "#pragma once\n")
