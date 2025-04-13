@@ -1,6 +1,9 @@
 #pragma once
 
 #ifdef JPH_DEBUG_RENDERER
+#include "common.h"
+#include "physics.h"
+#include "primitives.h"
 #include <Jolt/Core/Color.h>
 #include <Jolt/Core/StringTools.h>
 #include <Jolt/Renderer/DebugRendererSimple.h>
@@ -12,6 +15,8 @@ class jph_debug_draw_gl3_t : public JPH::DebugRendererSimple
 {
 public:
     JPH_OVERRIDE_NEW_DELETE
+
+    support_renderer_t *SupportRenderer = nullptr;
 
 public:
     virtual void DrawLine(JPH::RVec3Arg inFrom, JPH::RVec3Arg inTo, JPH::ColorArg inColor) override;

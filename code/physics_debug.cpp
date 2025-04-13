@@ -1,3 +1,4 @@
+#include "physics_debug.h"
 
 #ifdef JPH_DEBUG_RENDERER
 
@@ -39,13 +40,13 @@ void JoltDebugDrawCharacterState(jph_debug_draw_gl3_t *mDebugRenderer, const JPH
 
 void jph_debug_draw_gl3_t::DrawLine(JPH::RVec3Arg inFrom, JPH::RVec3Arg inTo, JPH::ColorArg inColor)
 {
-    SupportRenderer.DrawLine(FromJoltVector(inFrom), FromJoltVector(inTo), 
+    SupportRenderer->DrawLine(FromJoltVector(inFrom), FromJoltVector(inTo), 
         FromJoltVectorNoConvert(inColor.ToVec4()));
 }
 
 void jph_debug_draw_gl3_t::DrawTriangle(JPH::RVec3Arg inV1, JPH::RVec3Arg inV2, JPH::RVec3Arg inV3, JPH::ColorArg inColor, ECastShadow inCastShadow)
 {
-    SupportRenderer.DrawTri(
+    SupportRenderer->DrawTri(
         FromJoltVector(inV1),
         FromJoltVector(inV2),
         FromJoltVector(inV3),

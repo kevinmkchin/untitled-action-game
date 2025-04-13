@@ -1,5 +1,10 @@
 #pragma once
 
+#include "common.h"
+#include "winged.h"
+#include "mem.h"
+#include <stb_rect_pack.h>
+#include "facebatch.h"
 
 struct lm_face_t
 {

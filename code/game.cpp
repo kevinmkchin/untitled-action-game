@@ -44,6 +44,7 @@ void InitializeGame()
 #endif // INTERNAL_BUILD
 #ifdef JPH_DEBUG_RENDERER
     JoltDebugDrawer = new_InGameMemory(jph_debug_draw_gl3_t)();
+    JoltDebugDrawer->SupportRenderer = &SupportRenderer;
 #endif // JPH_DEBUG_RENDERER
 }
 

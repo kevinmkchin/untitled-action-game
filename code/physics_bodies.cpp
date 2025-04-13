@@ -1,4 +1,7 @@
 #include "physics_bodies.h"
+#include "utility.h"
+#include "game.h"
+#include "weapons.h"
 
 JPH::ObjectLayerPairFilterTable *CreateAndSetupObjectLayers()
 {

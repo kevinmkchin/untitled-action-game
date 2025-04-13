@@ -1,5 +1,13 @@
 #pragma once
 
+#include "common.h"
+#include "mem.h"
+#include "particles.h"
+#include "player.h"
+#include "cam.h"
+#include "instanced.h"
+#include "lightmap.h"
+
 struct game_state
 {
     random_series ParticlesRNG;

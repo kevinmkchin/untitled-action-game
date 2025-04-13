@@ -1,5 +1,7 @@
 #pragma once
 
+#include "anim.h"
+
 enum weapon_types_t : u16
 {
     NAILGUN,
