@@ -1,4 +1,4 @@
-
+#include "levelentities.h"
 
 void level_entity_t::SerializeToEditableMapFile(ByteBuffer *Buf)
 {

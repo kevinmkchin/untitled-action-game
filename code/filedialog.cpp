@@ -1,3 +1,4 @@
+#include "filedialog.h"
 
 #include <ShObjIdl.h>
 #include <codecvt>

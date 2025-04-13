@@ -91,16 +91,10 @@ float GAMEPROJECTION_NEARCLIP = 4.f; // even 2 works fine to remove z fighting
 float GAMEPROJECTION_FARCLIP = 3200.f;
 
 
-#include "shader_helpers.cpp"
-#include "facebatch.cpp"
-#include "filedialog.cpp"
-#include "primitives.cpp"
 #include "lightmap.cpp"
-#include "winged.cpp"
 #include "leveleditor.cpp"
 #include "saveloadlevel.cpp"
 #include "game.cpp"
-#include "levelentities.cpp"
 #include "enemy.cpp"
 #include "nav.cpp"
 #include "player.cpp"

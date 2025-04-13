@@ -548,8 +548,8 @@ void level_editor_t::DrawEntityBillboards()
     for (size_t Index = 0; Index < LevelEntities.lenu(); ++Index)
     {
         const level_entity_t& Ent = LevelEntities[Index];
-        SupportRenderer.DoPickableBillboard((u32)Index+1, 
-            Ent.Position, -EditorCam.Direction, (int)Ent.Type);
+        SupportRenderer.DoPickableBillboard((u32)Index+1, Ent.Position, 
+            -EditorCam.Direction, EditorCam.Direction, (int)Ent.Type);
     }
 }
 

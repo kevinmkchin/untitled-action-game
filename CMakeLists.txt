@@ -32,6 +32,12 @@ add_executable(${PROJECT_NAME}
         code/game_assets.cpp
         code/physics.cpp
         code/physics_debug.cpp
+        code/filedialog.cpp
+        code/facebatch.cpp
+        code/shader_helpers.cpp
+        code/winged.cpp
+        code/primitives.cpp
+        code/levelentities.cpp
 )
 target_precompile_headers(${PROJECT_NAME} PRIVATE code/pch.h)
 target_link_libraries(${PROJECT_NAME} PRIVATE Jolt Recast Detour DebugUtils)
