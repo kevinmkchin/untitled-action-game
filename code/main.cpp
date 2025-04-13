@@ -1,46 +1,7 @@
-/*
-
-== NOTES ==
-
-    64x64 pixel texture for each 32x32 unit in game looks decent
-
-    Embrace the fact that lighting will be crude and imperfect. The visual artifacts 
-    is part of the charm of my game and engine. Something that differentiates it from 
-    the perfect crispy lighting of engines like Godot or Unity.
-
-    Ultimately, the game will very much have my identity. From some UI looking crusty,
-    or enemy animations being janky, but that personal touch is part of the charm of 
-    an indie game like this.
-
-*/
-
-#include <cstdint>
-#include <cassert>
-#include <fstream>
-#include <string>
-#include <chrono>
-#include <iterator>
-#include <algorithm>
-#include <iostream>
-#include <iomanip>
-
-#include "BUILDINFO.H"
-
-#if MESA_WINDOWS
-#define NOMINMAX
-#include <windows.h>
-#include <dwmapi.h>
-#include <direct.h>
-#endif
+#include "common.h"
 
 #define GL3W_IMPLEMENTATION
 #include <gl3w.h>
-#define MESA_USING_GL3W
-#define GL_VERSION_4_3_OR_HIGHER
-
-#include <SDL3/SDL.h>
-#include <SDL3/SDL_main.h>
-#include <SDL3_mixer/SDL_mixer.h>
 
 #define STB_SPRINTF_IMPLEMENTATION
 #include <stb_sprintf.h>
@@ -59,129 +20,12 @@
 #include <vertext.h>
 #include <noclip.h>
 #include <gmath.h>
+
 #if INTERNAL_BUILD
 #include <renderdoc_app.h>
 #endif
 
-#include <map>
-#include <unordered_map>
-#include <unordered_set>
-#include <array>
-#include <stack>
-#include <memory>
-#include <utility>
-#include <thread>
-#include <mutex>
-#include <random>
-
-
-typedef uint8_t       u8;
-typedef uint16_t      u16;
-typedef uint32_t      u32;
-typedef uint64_t      u64;
-typedef int8_t        i8;
-typedef int16_t       i16;
-typedef int32_t       i32;
-typedef int64_t       i64;
-typedef uint_fast8_t  u8f;
-typedef uint_fast16_t u16f;
-typedef uint_fast32_t u32f;
-typedef int_fast8_t   i8f;
-typedef int_fast16_t  i16f;
-typedef int_fast32_t  i32f;
-typedef i16           bool16;
-typedef i32           bool32;
-
-
-#if (defined _MSC_VER)
-#define ASSERT(predicate) if(!(predicate)) { __debugbreak(); }
-#else
-#define ASSERT(predicate) if(!(predicate)) { __builtin_trap(); }
-#endif
-#if INTERNAL_BUILD
-    #define ASSERTDEBUG(predicate) ASSERT(predicate)
-#else
-    #define ASSERTDEBUG(predicate)
-#endif
-
-inline std::string wd_path() { return std::string(PROJECT_WORKING_DIR); }
-inline std::string wd_path(const std::string& name) { return wd_path() + std::string(name); }
-inline std::string shader_path() { return wd_path() + "shaders/"; }
-inline std::string shader_path(const std::string& name) { return wd_path() + "shaders/" + name; }
-inline std::string model_path() { return wd_path() + "models/"; }
-inline std::string model_path(const std::string& name) { return wd_path() + "models/" + name; }
-inline std::string texture_path() { return wd_path() + "textures/"; }
-inline std::string texture_path(const std::string& name) { return wd_path() + "textures/" + name; }
-inline std::string sfx_path() { return wd_path() + "sfx/"; }
-inline std::string sfx_path(const std::string& name) { return wd_path() + "sfx/" + name; }
-inline std::string entity_icons_path() { return wd_path() + "entity_icons/"; }
-inline std::string entity_icons_path(const std::string& name) { return wd_path() + "entity_icons/" + name; }
-
-#define ARRAY_COUNT(a) (sizeof(a) / (sizeof(a[0])))
-
 #include "debugmenu.h"
-#define PRINT_TO_INGAME_CONSOLE
-inline u32 CharBufLen(char *Buf)
-{
-    u32 Len = 0;
-    while(*Buf++ != '\0')
-        ++Len;
-    return Len;
-}
-void LogMessage(const char *fmt, ...)
-{
-    va_list ArgPtr;
-    static char Message[1024];
-    va_start(ArgPtr, fmt);
-    stbsp_vsnprintf(Message, 1024, fmt, ArgPtr);
-    va_end(ArgPtr);
-#ifdef PRINT_TO_INGAME_CONSOLE
-    AppendToConsoleOutputBuf(Message, CharBufLen(Message), true);
-#endif // PRINT_TO_INGAME_CONSOLE
-    fprintf(stdout, Message);
-    fprintf(stdout, "\n");
-    fflush(stdout);
-}
-void LogWarning(const char *fmt, ...)
-{
-    va_list ArgPtr;
-    static char Message[1024];
-    va_start(ArgPtr, fmt);
-    stbsp_vsnprintf(Message, 1024, fmt, ArgPtr);
-    va_end(ArgPtr);
-#ifdef PRINT_TO_INGAME_CONSOLE
-    AppendToConsoleOutputBuf(Message, CharBufLen(Message), true);
-#endif // PRINT_TO_INGAME_CONSOLE
-    fprintf(stderr, Message);
-    fprintf(stderr, "\n");
-    fflush(stderr);
-}
-void LogError(const char *fmt, ...)
-{
-    va_list ArgPtr;
-    static char Message[1024];
-    va_start(ArgPtr, fmt);
-    stbsp_vsnprintf(Message, 1024, fmt, ArgPtr);
-    va_end(ArgPtr);
-#ifdef PRINT_TO_INGAME_CONSOLE
-    AppendToConsoleOutputBuf(Message, CharBufLen(Message), true);
-#endif // PRINT_TO_INGAME_CONSOLE
-    fprintf(stderr, Message);
-    fprintf(stderr, "\n");
-    fflush(stderr);
-}
-
-
-// let 1 unit = 1 inch, this approximates 32 units to 0.82 metres
-#define STANDARD_LENGTH_IN_GAME_UNITS 32
-#define GAME_UNIT_TO_SI_UNITS 0.0254f // 0.8128m / 32 units
-#define SI_UNITS_TO_GAME_UNITS 39.37f // 1 / 0.0254
-// sqrt(32^2 + 32^2) = 45.254833996 ~= 45
-#define STANDARD_LENGTH_DIAGONAL 45
-#define THIRTYTWO STANDARD_LENGTH_IN_GAME_UNITS
-#define WORLD_LIMIT 32000
-#define WORLD_LIMIT_F 32000.f
-
 #include "mem.h"
 #include "utility.h"
 #include "gpu_resources.h"
@@ -463,14 +307,12 @@ static bool InitializeApplication()
 
     if (SDLMainWindow == nullptr || SDLGLContext == nullptr) return false;
 
-#ifdef MESA_USING_GL3W
     if (gl3w_init())
     {
         fprintf(stderr, "Failed to initialize OpenGL\n");
         return false;
     }
     LogMessage("GL_VERSION %s", glGetString(GL_VERSION));
-#endif
 
     SDL_SetWindowMinimumSize(SDLMainWindow, 200, 100);
     SDL_GL_SetSwapInterval(1);
