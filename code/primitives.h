@@ -6,11 +6,12 @@
  *  Pickable elements for picking things in the editor
  * 
  * */
+#include "common.h"
 #include "mem.h"
 #include "shaders.h"
 #include "gpu_resources.h"
 
-inline vec3 CalculateTangent(vec3 Normal);
+vec3 CalculateTangent(vec3 Normal);
 
 struct support_renderer_t
 {
@@ -75,7 +76,8 @@ public: // Pickables
         float *ProjectionMat, float *ViewMat);
 
     // Queue a pickable billboard to be drawn with the provided parameters
-    void DoPickableBillboard(u32 Id, vec3 WorldPosition, vec3 WorldNormal, int BillboardId);
+    void DoPickableBillboard(u32 Id, vec3 WorldPos, 
+        vec3 Normal, vec3 CamDirection, int BillboardId);
     // Immediately draw pickable editor billboards
     //      Can be used for color id picking or to draw the actual billboard textures
     void DrawPickableBillboards_GL(float *ProjectionMat, float *ViewMat, bool UseColorIds);

@@ -1,4 +1,5 @@
-
+#include "primitives.h"
+#include "utility.h"
 
 static const char* PRIMITIVES_TRIS_SHADER_VS =
     "#version 330 core\n"
@@ -213,7 +214,7 @@ static const char* GRID_MESH_SHADER_FS =
     "    }\n"
     "}\n";
 
-inline vec3 CalculateTangent(vec3 Normal)
+vec3 CalculateTangent(vec3 Normal)
 {
     return Normalize(Cross(fabsf(Dot(Normalize(Normal), GM_UP_VECTOR)) > 0.999f ? GM_RIGHT_VECTOR : GM_UP_VECTOR, Normal));
 }
@@ -578,7 +579,8 @@ void support_renderer_t::DoDiscHandle(u32 Id, vec3 WorldPosition, vec3 WorldNorm
     }
 }
 
-void support_renderer_t::DoPickableBillboard(u32 Id, vec3 WorldPos, vec3 Normal, int BillboardId)
+void support_renderer_t::DoPickableBillboard(u32 Id, vec3 WorldPos, 
+    vec3 Normal, vec3 CamDirection, int BillboardId)
 {
     vec3 idrgb = HandleIdToRGB(Id);
     vec3 RightTangent = CalculateTangent(Normal);
@@ -589,7 +591,7 @@ void support_renderer_t::DoPickableBillboard(u32 Id, vec3 WorldPos, vec3 Normal,
     RightTangent *= ScaleFactor;
     UpTangent *= ScaleFactor;
 
-    float HowFarAlongCameraDirection = Dot(WorldPos, Normalize(LevelEditor.EditorCam.Direction));
+    float HowFarAlongCameraDirection = Dot(WorldPos, Normalize(CamDirection));
 
     BillboardsRequested.push_back({ idrgb, WorldPos, RightTangent, UpTangent, 
         BillboardId, HowFarAlongCameraDirection });

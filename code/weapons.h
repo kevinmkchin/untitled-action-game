@@ -1,6 +1,7 @@
 #pragma once
 
 #include "anim.h"
+#include "physics.h"
 
 enum weapon_types_t : u16
 {

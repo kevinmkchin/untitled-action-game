@@ -1,3 +1,5 @@
+#include "shader_helpers.h"
+#include "gpu_resources.h"
 
 void BindUniformsForModelLighting(GPUShader &Shader, game_state *MapInfo, vec3 ModelPosition)
 {

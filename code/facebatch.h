@@ -1,5 +1,6 @@
 #pragma once
 
+#include "common.h"
 #include "gpu_resources.h"
 #include "shaders.h"
 
