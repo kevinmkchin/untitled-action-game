@@ -19,8 +19,11 @@ add_subdirectory(recast/DebugUtils)
 add_subdirectory(recast/DetourTileCache)
 
 add_executable(${PROJECT_NAME} 
-        code/common.cpp
         code/main.cpp
+        code/common.cpp
+        code/mem.cpp
+        code/utility.cpp
+        code/gui.cpp
 )
 target_precompile_headers(${PROJECT_NAME} PRIVATE code/pch.h)
 target_link_libraries(${PROJECT_NAME} PRIVATE Jolt Recast Detour DebugUtils)

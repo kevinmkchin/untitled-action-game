@@ -18,15 +18,19 @@
 
 #define VERTEXT_IMPLEMENTATION
 #include <vertext.h>
-#include <noclip.h>
-#include <gmath.h>
 
 #if INTERNAL_BUILD
 #include <renderdoc_app.h>
 #endif
 
-#include "debugmenu.h"
 #include "mem.h"
+// external
+linear_arena_t StaticGameMemory;
+linear_arena_t StaticLevelMemory;
+linear_arena_t FrameMemory;
+manualheap_arena_t JoltPhysicsMemory;
+
+#include "debugmenu.h"
 #include "utility.h"
 #include "gpu_resources.h"
 #include "shaders.h"
@@ -76,6 +80,7 @@ i32 BackbufferWidth = -1;
 i32 BackbufferHeight = -1;
 char CurrentWorkingDirectory[128];
 support_renderer_t SupportRenderer;
+app_state ApplicationState;
 
 #if INTERNAL_BUILD
 RENDERDOC_API_1_6_0 *RDOCAPI = NULL;
@@ -100,8 +105,6 @@ float GAMEPROJECTION_NEARCLIP = 4.f; // even 2 works fine to remove z fighting
 float GAMEPROJECTION_FARCLIP = 3200.f;
 
 
-#include "mem.cpp"
-#include "utility.cpp"
 #include "anim.cpp"
 #include "gpu_resources.cpp"
 #include "shaders.cpp"
@@ -118,7 +121,6 @@ float GAMEPROJECTION_FARCLIP = 3200.f;
 #include "saveloadlevel.cpp"
 #include "game.cpp"
 #include "physics.cpp"
-#include "gui.cpp"
 #include "levelentities.cpp"
 #include "enemy.cpp"
 #include "nav.cpp"
@@ -142,7 +144,7 @@ static void RenderGUILayer()
     glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_SRC_ALPHA, GL_ONE);
     glDisable(GL_DEPTH_TEST); // I forgot why the fuck I'm disabling depth test when using glDepthRange
 
-    GUI::Draw();
+    GUI::Draw(RenderTargetGUI.width, RenderTargetGUI.height);
 }
 
 static void FinalRenderToBackBuffer()
@@ -359,6 +361,19 @@ static void ProcessSDLEvents()
         KeysCurrent[i] = keystate[i];
     }
 
+    ApplicationState.MouseCurrent = MouseCurrent;
+    ApplicationState.MousePressed = MousePressed;
+    ApplicationState.MouseReleased = MouseReleased;
+    ApplicationState.MouseDelta = MouseDelta;
+    ApplicationState.MousePos = MousePos;
+    memcpy(ApplicationState.KeysCurrent, KeysCurrent, 256);
+    memcpy(ApplicationState.KeysPressed, KeysPressed, 256);
+    memcpy(ApplicationState.KeysReleased, KeysReleased, 256);
+    ApplicationState.BackBufferWidth = BackbufferWidth;
+    ApplicationState.BackBufferHeight = BackbufferHeight;
+    ApplicationState.GUIRenderTargetWidth = RenderTargetGUI.width;
+    ApplicationState.GUIRenderTargetHeight = RenderTargetGUI.height;
+
     // EVENT HANDLING
     SDL_Event event;
     while (SDL_PollEvent(&event))
@@ -396,7 +411,7 @@ static void ProcessSDLEvents()
             }
         }
 
-        GUI::ProcessSDLEvent(event);
+        GUI::ProcessSDLEvent(&ApplicationState, event);
 
         if (CurrentDebugMode == DEBUG_MODE_CONSOLE)
             SendInputToConsole(event);
