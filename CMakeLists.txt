@@ -19,6 +19,7 @@ add_subdirectory(recast/DebugUtils)
 add_subdirectory(recast/DetourTileCache)
 
 add_executable(${PROJECT_NAME}
+        # should exist
         code/mem.cpp
         code/common.cpp
         code/filedialog.cpp
@@ -27,7 +28,7 @@ add_executable(${PROJECT_NAME}
         code/instanced.cpp
 
         code/renderer.cpp
-
+        # could refactor
         code/main.cpp
         code/gui.cpp
         code/cam.cpp
@@ -42,6 +43,9 @@ add_executable(${PROJECT_NAME}
         code/winged.cpp
         code/primitives.cpp
         code/levelentities.cpp
+        code/particles.cpp
+        code/lightmap.cpp
+        code/saveloadlevel.cpp
 )
 target_precompile_headers(${PROJECT_NAME} PRIVATE code/pch.h)
 target_link_libraries(${PROJECT_NAME} PRIVATE Jolt Recast Detour DebugUtils)

@@ -76,7 +76,7 @@ void BuildLevelAndPlay()
     if (path.empty())
         return;
 
-    if (BuildGameMap(path.c_str()) == false)
+    if (BuildGameMap(&LevelEditor, path.c_str()) == false)
     {
         LogError("Failed to build to %s", path.c_str());
         return;

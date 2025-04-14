@@ -340,7 +340,7 @@ void level_editor_t::DoEditorGUI()
         if(!path.empty())
         {
             // TODO ...
-            if (BuildGameMap(path.c_str()))
+            if (BuildGameMap(this, path.c_str()))
                 LogMessage("Built %s", path.c_str());
             else
                 LogError("Failed to build to %s", path.c_str());

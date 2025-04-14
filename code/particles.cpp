@@ -1,5 +1,5 @@
 #include "particles.h"
-
+#include "primitives.h"
 
 static void CreateParticleFromEmitter(
     particle_buffer &ParticleState, 

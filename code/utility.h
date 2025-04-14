@@ -1,5 +1,7 @@
 #pragma once
 
+#include "common.h"
+
 vec3 ScreenPointToWorldRay(
     i32 BackBufferWidth,
     i32 BackBufferHeight,

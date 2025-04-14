@@ -1,12 +1,20 @@
+#include "saveloadlevel.h"
+#include "levelentities.h"
+#include "winged.h"
+#include "lightmap.h"
+#include "game.h"
+
 
 std::vector<vec3> LoadingLevelColliderPoints;
 std::vector<u32> LoadingLevelColliderSpans;
 
-static void BuildOutLevelEntities(game_map_build_data_t *BuildData)
+static void BuildOutLevelEntities(
+    level_editor_t *EditorState,
+    game_map_build_data_t *BuildData)
 {
-    for (size_t i = 0; i < LevelEditor.LevelEntities.lenu(); ++i)
+    for (size_t i = 0; i < EditorState->LevelEntities.lenu(); ++i)
     {
-        const level_entity_t& Ent = LevelEditor.LevelEntities[i];
+        const level_entity_t& Ent = EditorState->LevelEntities[i];
         switch (Ent.Type)
         {
             case POINT_LIGHT: {
@@ -60,7 +68,7 @@ static void DeserializeMapLightData(ByteBuffer *Buf, game_state *MapInfo)
     ByteBufferReadBulk(Buf, MapInfo->PointLights.data, sizeof(static_point_light_t) * PointLightsCount);
 }
 
-bool BuildGameMap(const char *path)
+bool BuildGameMap(level_editor_t *EditorState, const char *path)
 {
     u64 TimeAtStartOfBuildGameMap = SDL_GetTicks();
 
@@ -98,7 +106,7 @@ bool BuildGameMap(const char *path)
     }
 
     // Process entities into BuildData
-    BuildOutLevelEntities(&BuildData);
+    BuildOutLevelEntities(EditorState, &BuildData);
 
     ByteBufferWrite(&BuildData.Output, vec3, BuildData.PlayerStartPosition);
     ByteBufferWrite(&BuildData.Output, vec3, BuildData.PlayerStartRotation);

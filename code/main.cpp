@@ -1,3 +1,14 @@
+/** NOTES
+
+    Renderers:
+        renderer.h/cpp
+        primitives.h/cpp
+        instanced.h/cpp
+        leveleditor.h/cpp
+        gui.h/cpp
+
+*/
+
 #include "common.h"
 
 #include <gl3w.h>
@@ -89,18 +100,16 @@ float GAMEPROJECTION_NEARCLIP = 4.f; // even 2 works fine to remove z fighting
 float GAMEPROJECTION_FARCLIP = 3200.f;
 
 
-#include "lightmap.cpp"
+// #include "lightmap.cpp"
 #include "leveleditor.cpp"
-#include "saveloadlevel.cpp"
+// #include "saveloadlevel.cpp"
 
 #include "game.cpp"
 #include "enemy.cpp"
 #include "nav.cpp"
 #include "player.cpp"
 #include "weapons.cpp"
-
-#include "particles.cpp"
-
+// #include "particles.cpp"
 #include "debugmenu.cpp"
 
 

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "utility.h"
+#include "mem.h"
 
 struct particle_vertex
 {
