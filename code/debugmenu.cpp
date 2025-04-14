@@ -60,7 +60,7 @@ void SwitchToLevelEditor()
     ApplicationState.LevelEditor->Open();
 
     SDL_SetWindowRelativeMouseMode(SDLMainWindow, false);
-    g_GameState.GameLoopCanRun = false;
+    ApplicationState.GameState->GameLoopCanRun = false;
     // CurrentDebugMode = DEBUG_MODE_OFF;
 }
 
@@ -84,9 +84,10 @@ void BuildLevelAndPlay()
 
     ApplicationState.LevelEditor->Close();
 
+    SDL_SetWindowRelativeMouseMode(ApplicationState.SDLMainWindow, true);
     LoadLevel(path.c_str());
 
-    g_GameState.GameLoopCanRun = true;
+    ApplicationState.GameState->GameLoopCanRun = true;
     // CurrentDebugMode = DEBUG_MODE_OFF;
 }
 
@@ -330,9 +331,9 @@ static void DisplayDebugMenu()
     if (!ApplicationState.LevelEditor->IsActive)
     {
         GUI::EditorText("-- Game --");
-        bool DebugPausedFlag = !g_GameState.GameLoopCanRun;
+        bool DebugPausedFlag = !ApplicationState.GameState->GameLoopCanRun;
         GUI::EditorCheckbox("Paused", &DebugPausedFlag);
-        g_GameState.GameLoopCanRun = !DebugPausedFlag;
+        ApplicationState.GameState->GameLoopCanRun = !DebugPausedFlag;
         GUI::EditorCheckbox("Noclip", &FlyCamActive);
         GUI::EditorCheckbox("Show memory usage", &DebugShowGameMemoryUsage);
         GUI::EditorCheckbox("Draw level collider", &DebugDrawLevelColliderFlag);
@@ -369,7 +370,7 @@ void ShowDebugConsole()
 {
     if (KeysCurrent[SDL_SCANCODE_LCTRL] && KeysPressed[SDL_SCANCODE_P])
     {
-        g_GameState.GameLoopCanRun = !g_GameState.GameLoopCanRun;
+        ApplicationState.GameState->GameLoopCanRun = !ApplicationState.GameState->GameLoopCanRun;
     }
 
     static DEBUG_MODES LastDebugMode = DEBUG_MODE_CONSOLE;
@@ -387,7 +388,7 @@ void ShowDebugConsole()
             }
             else if (LastDebugMode == DEBUG_MODE_CONSOLE || LastDebugMode == DEBUG_MODE_OFF)
             {
-                g_GameState.GameLoopCanRun = false;
+                ApplicationState.GameState->GameLoopCanRun = false;
                 ConsoleShowingState = DEBUG_CONSOLE_SHOWING;
                 LastDebugMode = DEBUG_MODE_OFF;
                 CurrentDebugMode = DEBUG_MODE_CONSOLE;
@@ -431,7 +432,7 @@ void ShowDebugConsole()
     case DEBUG_CONSOLE_HIDING:
         if (ConsoleY > 0.f)
         {
-            g_GameState.GameLoopCanRun = true;
+            ApplicationState.GameState->GameLoopCanRun = true;
             ConsoleY -= ConsoleScrollSpd * DeltaTime;
         }
         if (ConsoleY <= 0.f)

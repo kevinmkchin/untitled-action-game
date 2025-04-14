@@ -48,6 +48,7 @@
 #include "enemy.h"
 #include "nav.h"
 #include "shader_helpers.h"
+#include "renderer.h"
 
 // Application state
 SDL_Window *SDLMainWindow;
@@ -76,20 +77,15 @@ RENDERDOC_API_1_6_0 *RDOCAPI = NULL;
 #endif // INTERNAL_BUILD
 
 
-GPUShader Sha_GameLevel;
 GPUShader Sha_ModelTexturedLit;
-GPUShader Sha_ParticlesDefault;
 GPUShader Sha_Gun;
 GPUShader Sha_Hemicube;
 GPUShader FinalPassShader;
 GPUFrameBuffer RenderTargetGame;
 GPUFrameBuffer RenderTargetGUI;
 GPUMeshIndexed FinalRenderOutputQuad;
-float GAMEPROJECTION_NEARCLIP = 4.f; // even 2 works fine to remove z fighting
-float GAMEPROJECTION_FARCLIP = 3200.f;
 
 
-#include "game.cpp"
 #include "enemy.cpp"
 #include "player.cpp"
 #include "weapons.cpp"
@@ -188,15 +184,9 @@ static void InitGameRenderer()
     CreateGPUFrameBuffer(&RenderTargetGUI);
 
 
-    GLLoadShaderProgramFromFile(Sha_GameLevel, 
-        shader_path("__game_level.vert").c_str(), 
-        shader_path("__game_level.frag").c_str());
     GLLoadShaderProgramFromFile(Sha_ModelTexturedLit, 
         shader_path("model_textured.vert").c_str(), 
         shader_path("model_textured_skinned.frag").c_str());
-    GLLoadShaderProgramFromFile(Sha_ParticlesDefault, 
-        shader_path("particles.vert").c_str(), 
-        shader_path("particles.frag").c_str());
     GLLoadShaderProgramFromFile(Sha_Gun, 
         shader_path("guns.vert").c_str(), 
         shader_path("guns.frag").c_str());
@@ -409,6 +399,9 @@ int main(int argc, char* argv[])
     InitGameRenderer();
 
     /*Renderer*/AcquireResources();
+    ApplicationState.GameState = new_InGameMemory(game_state)();
+    ApplicationState.GameState->AppState = &ApplicationState;
+    ApplicationState.RenderTargetGame = &RenderTargetGame;
     ApplicationState.PrimitivesRenderer = new_InGameMemory(support_renderer_t)();
     ApplicationState.PrimitivesRenderer->Initialize();
     ApplicationState.LevelEditor = new_InGameMemory(level_editor_t)();
@@ -424,6 +417,7 @@ int main(int argc, char* argv[])
     // BuildGameMap(wd_path(ApplicationState.LevelEditor, "buildtest.map").c_str());
     // LoadLevel(wd_path("buildtest.map").c_str());
 
+    SDL_SetWindowRelativeMouseMode(SDLMainWindow, true);
     LoadLevel(wd_path("buildtest.map").c_str());
     // SwitchToLevelEditor();
 

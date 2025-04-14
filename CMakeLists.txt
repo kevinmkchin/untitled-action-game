@@ -48,6 +48,7 @@ add_executable(${PROJECT_NAME}
         code/saveloadlevel.cpp
         code/nav.cpp
         code/leveleditor.cpp
+        code/game.cpp
 )
 target_precompile_headers(${PROJECT_NAME} PRIVATE code/pch.h)
 target_link_libraries(${PROJECT_NAME} PRIVATE Jolt Recast Detour DebugUtils)
