@@ -1583,11 +1583,10 @@ namespace GUI
                     MouseWentDownFlag = true;
             }break;
             case SDL_EVENT_MOUSE_BUTTON_UP:
+            {
                 SDL_MouseButtonEvent MouseEvent = event.button;
                 if (MouseEvent.button == SDL_BUTTON_LEFT)
                     MouseWentUpFlag = true;
-            {
-                
             }break;
         }
     }
