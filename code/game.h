@@ -10,6 +10,8 @@
 
 struct game_state
 {
+    app_state *AppState;
+
     random_series ParticlesRNG;
     particle_buffer BloodParticles;
     persistent_vertex_stream BloodParticlesVB;
@@ -39,7 +41,6 @@ struct game_state
 
     // Testing
     int KillEnemyCounter = 0;
-
 };
 
 
@@ -67,5 +68,5 @@ void LateNonPhysicsTick();
 void PrePhysicsTick();
 void PostPhysicsTick();
 
-void UpdateGameGUI();
+void UpdateGameGUI(i32 GUIWidth, i32 GUIHeight);
 void RenderGameLayer(app_state *AppState);

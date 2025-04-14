@@ -50,7 +50,10 @@ struct enemy_t
 void NonPhysicsTickAllEnemies(game_state *GameState);
 void PrePhysicsTickAllEnemies(game_state *GameState);
 void PostPhysicsTickAllEnemies(game_state *GameState);
-void DebugDrawEnemyColliders();
+#ifdef JPH_DEBUG_RENDERER
+#include "physics_debug.h"
+void DebugDrawEnemyColliders(jph_debug_draw_gl3_t *JoltDebugDrawer);
+#endif // JPH_DEBUG_RENDERER
 
 void HurtEnemy(game_state *GameState, u32 EnemyIndex, float Damage, bool Explode);
 void KillEnemy(game_state *GameState, u32 EnemyIndex, bool Explode);

@@ -2,6 +2,12 @@
 // external
 global_enemy_state_t EnemySystem;
 
+enum ske_humanoid_clips : u32
+{
+    SKE_HUMANOID_DEATH = 0,
+    SKE_HUMANOID_RUN = 1,
+    SKE_HUMANOID_CLIPCOUNT = 2
+};
 
 void global_enemy_state_t::Init()
 {
@@ -248,9 +254,9 @@ void PostPhysicsTickAllEnemies(game_state *GameState)
     }
 }
 
-void DebugDrawEnemyColliders()
-{
 #ifdef JPH_DEBUG_RENDERER
+void DebugDrawEnemyColliders(jph_debug_draw_gl3_t *JoltDebugDrawer)
+{
     if (!JoltDebugDrawer)
     {
         LogWarning("Called DebugDrawEnemyColliders but JoltDebugDrawer is null.");
@@ -272,8 +278,8 @@ void DebugDrawEnemyColliders()
         // JoltDebugDrawCharacterState(JoltDebugDraw, mCharacter,   
         //     WorldTransform, mCharacter->GetLinearVelocity());
     }
-#endif // JPH_DEBUG_RENDERER
 }
+#endif // JPH_DEBUG_RENDERER
 
 void HurtEnemy(game_state *GameState, u32 EnemyIndex, float Damage, bool Explode)
 {
