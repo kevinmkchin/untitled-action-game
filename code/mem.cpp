@@ -1,5 +1,12 @@
-#define STB_DS_IMPLEMENTATION
 #include "mem.h"
+#define STB_DS_IMPLEMENTATION
+#include <stb_ds.h>
+
+// external
+linear_arena_t StaticGameMemory;
+linear_arena_t StaticLevelMemory;
+linear_arena_t FrameMemory;
+manualheap_arena_t JoltPhysicsMemory;
 
 
 // returns pointer aligned forward to given alignment

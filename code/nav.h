@@ -1,7 +1,9 @@
 #pragma once
 
+#include "common.h"
+#include "game.h"
 
-bool CreateRecastNavMesh();
+bool CreateRecastNavMesh(game_state *GameState);
 void DestroyRecastNavMesh();
 
 #define MAX_SMOOTH 300
@@ -10,11 +12,11 @@ bool FindSmoothPathTo(vec3 Origin, vec3 Target, float *SmoothPath, int *SmoothPa
 void GetRandomPointOnNavMesh(float *Point);
 
 #if INTERNAL_BUILD
+#include "mem.h"
 #include <DebugDraw.h>
 
-// Call recast_debug_draw_gl3_t::Ready before calling these
-void DebugDrawRecast(enum recast_debug_drawmode DrawMode);
-void DebugDrawFollowPath();
+void DebugDrawRecast(duDebugDraw *DebugDrawer, enum recast_debug_drawmode DrawMode);
+void DebugDrawFollowPath(struct support_renderer_t *SupportRenderer);
 
 enum recast_debug_drawmode
 {
@@ -53,7 +55,8 @@ struct recast_debug_draw_gl3_t : duDebugDraw
     virtual void end();
     // virtual unsigned int areaToCol(unsigned int area);
 
-    game_state *GameState = nullptr;
+    struct game_state *GameState = nullptr;
+    struct support_renderer_t *SupportRenderer = nullptr;
 private:
     duDebugDrawPrimitives CurrentPrimitiveDrawMode = DU_DRAW_TRIS;
     float CurrentSize = 1.f;

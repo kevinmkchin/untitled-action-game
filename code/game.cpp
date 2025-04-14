@@ -17,8 +17,7 @@ enum ske_humanoid_clips : u32
     SKE_HUMANOID_CLIPCOUNT = 2
 };
 
-
-void InitializeGame()
+void InitializeGame(app_state *AppState)
 {
     InstanceDrawing_AcquireGPUResources();
 
@@ -52,10 +51,11 @@ void InitializeGame()
 
 #if INTERNAL_BUILD
     RecastDebugDrawer.GameState = &g_GameState;
+    RecastDebugDrawer.SupportRenderer = AppState->PrimitivesRenderer;
 #endif // INTERNAL_BUILD
 #ifdef JPH_DEBUG_RENDERER
     JoltDebugDrawer = new_InGameMemory(jph_debug_draw_gl3_t)();
-    JoltDebugDrawer->SupportRenderer = &SupportRenderer;
+    JoltDebugDrawer->SupportRenderer = AppState->PrimitivesRenderer;
 #endif // JPH_DEBUG_RENDERER
 }
 
@@ -85,8 +85,8 @@ void LoadLevel(const char *MapPath)
     }
 
     ASSERT(Physics.PhysicsSystem);
-    CreateAndRegisterLevelCollider();
-    ASSERT(CreateRecastNavMesh());
+    CreateAndRegisterLevelCollider(&g_GameState);
+    ASSERT(CreateRecastNavMesh(&g_GameState));
 
     g_GameState.Player.CharacterController->SetPosition(ToJoltVector(g_GameState.PlayerStartPosition));
     // TODO Apply rotation to camera rotation instead
@@ -200,9 +200,9 @@ void DebugDrawGame()
 
 #if INTERNAL_BUILD
     if (DebugDrawNavMeshFlag)
-        DebugDrawRecast(DRAWMODE_NAVMESH);
+        DebugDrawRecast(&RecastDebugDrawer, DRAWMODE_NAVMESH);
     if (DebugDrawEnemyPathingFlag)
-        DebugDrawFollowPath();
+        DebugDrawFollowPath(RecastDebugDrawer.SupportRenderer);
 #endif // INTERNAL_BUILD
 
 #ifdef JPH_DEBUG_RENDERER
@@ -229,7 +229,7 @@ void DebugDrawGame()
 #endif // JPH_DEBUG_RENDERER
 }
 
-void DoGameLoop()
+void DoGameLoop(app_state *AppState)
 {
     g_GameState.DynamicInstances = fixed_array<model_instance_data_t>(MaxDynamicInstances, MemoryType::Frame);
 
@@ -260,7 +260,7 @@ void DoGameLoop()
         }
     }
 
-    RenderGameLayer();
+    RenderGameLayer(AppState);
 
     if (g_GameState.GameLoopCanRun) 
     {
@@ -289,7 +289,7 @@ void UpdateGameGUI()
     }
 }
 
-void RenderGameLayer()
+void RenderGameLayer(app_state *AppState)
 {
     glBindFramebuffer(GL_FRAMEBUFFER, RenderTargetGame.fbo);
     glViewport(0, 0, RenderTargetGame.width, RenderTargetGame.height);
@@ -348,7 +348,8 @@ void RenderGameLayer()
     // PRIMITIVES
     glEnable(GL_DEPTH_TEST);
     glDisable(GL_CULL_FACE);
-    SupportRenderer.FlushPrimitives(&perspectiveMatrix, &viewMatrix, RenderTargetGame.depthTexId, 
+    AppState->PrimitivesRenderer->FlushPrimitives(
+        &perspectiveMatrix, &viewMatrix, RenderTargetGame.depthTexId, 
         vec2((float)RenderTargetGame.width, (float)RenderTargetGame.height));
 
 #if INTERNAL_BUILD
@@ -356,20 +357,23 @@ void RenderGameLayer()
     glEnable(GL_BLEND);
     // Blanket disable depth test might be problematic but whatever its debug drawing
     glDisable(GL_DEPTH_TEST);
-    SupportRenderer.FlushPrimitives(&perspectiveMatrix, &viewMatrix, RenderTargetGame.depthTexId, 
+    AppState->PrimitivesRenderer->FlushPrimitives(
+        &perspectiveMatrix, &viewMatrix, RenderTargetGame.depthTexId, 
         vec2((float)RenderTargetGame.width, (float)RenderTargetGame.height));
 #endif // INTERNAL_BUILD
 }
 
-void CreateAndRegisterLevelCollider()
+void CreateAndRegisterLevelCollider(game_state *GameState)
 {
     static JPH::TriangleList LevelColliderTriangles;
     LevelColliderTriangles.clear();
     int LoadingLevelColliderPointsIterator = 0;
-    for (u32 ColliderIndex = 0; ColliderIndex < (u32)LoadingLevelColliderSpans.size(); ++ColliderIndex)
+    for (u32 ColliderIndex = 0; 
+        ColliderIndex < GameState->LoadingLevelColliderSpans.lenu(); 
+        ++ColliderIndex)
     {
-        u32 Span = LoadingLevelColliderSpans[ColliderIndex];
-        vec3 *PointCloudPtr = &LoadingLevelColliderPoints[LoadingLevelColliderPointsIterator];
+        u32 Span = GameState->LoadingLevelColliderSpans[ColliderIndex];
+        vec3 *PointCloudPtr = &GameState->LoadingLevelColliderPoints[LoadingLevelColliderPointsIterator];
 
         vec3 First = PointCloudPtr[0];
         for (u32 i = 2; i < Span; ++i)

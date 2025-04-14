@@ -33,6 +33,9 @@ struct game_state
     vec3 DirectionToSun;
     fixed_array<static_point_light_t> PointLights;
     std::vector<face_batch_t> GameLevelFaceBatches;
+    // Map loading temp data
+    fixed_array<vec3> LoadingLevelColliderPoints;
+    fixed_array<u32> LoadingLevelColliderSpans;
 
     // Testing
     int KillEnemyCounter = 0;
@@ -40,16 +43,15 @@ struct game_state
 };
 
 
-
-void InitializeGame();
+void InitializeGame(app_state *AppState);
 void DestroyGame();
 void LoadLevel(const char *MapPath);
 void UnloadPreviousLevel();
 
-void DoGameLoop();
+void DoGameLoop(app_state *AppState);
 
 // private
-void CreateAndRegisterLevelCollider();
+void CreateAndRegisterLevelCollider(game_state *GameState);
 
 /** NonPhysicsTick runs once per frame.
     Input handling should be done here.
@@ -66,4 +68,4 @@ void PrePhysicsTick();
 void PostPhysicsTick();
 
 void UpdateGameGUI();
-void RenderGameLayer();
+void RenderGameLayer(app_state *AppState);

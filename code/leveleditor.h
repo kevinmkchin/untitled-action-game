@@ -85,6 +85,8 @@ private: // move all the editor session specific data here
 
     int SelectedEntityIndex = -1;
     entity_types_t EntityTypeToPlace;
+
+public:
+    support_renderer_t *SupportRenderer;
 };
 
-extern level_editor_t LevelEditor;

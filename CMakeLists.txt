@@ -25,9 +25,10 @@ add_executable(${PROJECT_NAME}
         code/filedialog.cpp
         code/utility.cpp
         code/shaders.cpp
-        code/instanced.cpp
-
         code/renderer.cpp
+        code/instanced.cpp
+        code/primitives.cpp
+
         # could refactor
         code/main.cpp
         code/gui.cpp
@@ -41,11 +42,11 @@ add_executable(${PROJECT_NAME}
         code/facebatch.cpp
         code/shader_helpers.cpp
         code/winged.cpp
-        code/primitives.cpp
         code/levelentities.cpp
         code/particles.cpp
         code/lightmap.cpp
         code/saveloadlevel.cpp
+        code/nav.cpp
 )
 target_precompile_headers(${PROJECT_NAME} PRIVATE code/pch.h)
 target_link_libraries(${PROJECT_NAME} PRIVATE Jolt Recast Detour DebugUtils)

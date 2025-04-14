@@ -57,7 +57,7 @@ void SwitchToLevelEditor()
     // todo clean up game memory
     // todo close game
 
-    LevelEditor.Open();
+    ApplicationState.LevelEditor->Open();
 
     SDL_SetWindowRelativeMouseMode(SDLMainWindow, false);
     g_GameState.GameLoopCanRun = false;
@@ -66,7 +66,7 @@ void SwitchToLevelEditor()
 
 void BuildLevelAndPlay()
 {
-    if (!LevelEditor.IsActive)
+    if (!ApplicationState.LevelEditor->IsActive)
     {
         LogWarning("ApplicationBuildLevelAndPlay called when level editor is not active.");
         return;
@@ -76,13 +76,13 @@ void BuildLevelAndPlay()
     if (path.empty())
         return;
 
-    if (BuildGameMap(&LevelEditor, path.c_str()) == false)
+    if (BuildGameMap(ApplicationState.LevelEditor, path.c_str()) == false)
     {
         LogError("Failed to build to %s", path.c_str());
         return;
     }
 
-    LevelEditor.Close();
+    ApplicationState.LevelEditor->Close();
 
     LoadLevel(path.c_str());
 
@@ -327,7 +327,7 @@ static void DisplayDebugMenu()
     GUI::EditorText("== Menu ==");
     GUI::EditorSpacer(0, 10);
 
-    if (!LevelEditor.IsActive)
+    if (!ApplicationState.LevelEditor->IsActive)
     {
         GUI::EditorText("-- Game --");
         bool DebugPausedFlag = !g_GameState.GameLoopCanRun;
@@ -444,7 +444,7 @@ void ShowDebugConsole()
     switch (CurrentDebugMode)
     {
     case DEBUG_MODE_OFF:
-        if (!LevelEditor.IsActive)
+        if (!ApplicationState.LevelEditor->IsActive)
             SDL_SetWindowRelativeMouseMode(SDLMainWindow, true);
         break;
     case DEBUG_MODE_MENU:

@@ -16,18 +16,11 @@
 #include <stb_image.h>
 #include <stb_truetype.h>
 #include <vertext.h>
-
 #if INTERNAL_BUILD
 #include <renderdoc_app.h>
 #endif
 
 #include "mem.h"
-// external
-linear_arena_t StaticGameMemory;
-linear_arena_t StaticLevelMemory;
-linear_arena_t FrameMemory;
-manualheap_arena_t JoltPhysicsMemory;
-
 #include "debugmenu.h"
 #include "utility.h"
 #include "gpu_resources.h"
@@ -76,7 +69,6 @@ bool KeysReleased[256] = {0};
 i32 BackbufferWidth = -1;
 i32 BackbufferHeight = -1;
 char CurrentWorkingDirectory[128];
-support_renderer_t SupportRenderer;
 app_state ApplicationState;
 
 #if INTERNAL_BUILD
@@ -100,16 +92,12 @@ float GAMEPROJECTION_NEARCLIP = 4.f; // even 2 works fine to remove z fighting
 float GAMEPROJECTION_FARCLIP = 3200.f;
 
 
-// #include "lightmap.cpp"
 #include "leveleditor.cpp"
-// #include "saveloadlevel.cpp"
 
 #include "game.cpp"
 #include "enemy.cpp"
-#include "nav.cpp"
 #include "player.cpp"
 #include "weapons.cpp"
-// #include "particles.cpp"
 #include "debugmenu.cpp"
 
 
@@ -301,7 +289,6 @@ const char* __finalpass_shader_fs =
 
 static void InitGameRenderer()
 {
-    AcquireResources();
 
     // alpha blending func: (srcRGB) * srcA + (dstRGB) * (1 - srcA)  = final color output
     // alpha blending func: (srcA) * a + (dstA) * 1 = final alpha output
@@ -360,8 +347,6 @@ static void InitGameRenderer()
         0, 3, 2
     };
     CreateGPUMeshIndexed(&FinalRenderOutputQuad, refQuadVertices, refQuadIndices, 16, 6, 2, 2, 0, GL_STATIC_DRAW);
-
-    SupportRenderer.Initialize();
 }
 
 
@@ -546,14 +531,20 @@ int main(int argc, char* argv[])
 
     if (!InitializeApplication()) return -1;
 
+    /*Renderer*/AcquireResources();
+    ApplicationState.PrimitivesRenderer = new_InGameMemory(support_renderer_t)();
+    ApplicationState.PrimitivesRenderer->Initialize();
+    ApplicationState.LevelEditor = new_InGameMemory(level_editor_t)();
+    ApplicationState.LevelEditor->SupportRenderer = ApplicationState.PrimitivesRenderer;
+
     InitGameRenderer();
 
     Assets.LoadAllResources();
 
-    InitializeGame();
+    InitializeGame(&ApplicationState);
 
     // LevelEditor.LoadMap(wd_path("testing.emf").c_str());
-    // BuildGameMap(wd_path("buildtest.map").c_str());
+    // BuildGameMap(wd_path(ApplicationState.LevelEditor, "buildtest.map").c_str());
     // LoadLevel(wd_path("buildtest.map").c_str());
 
     LoadLevel(wd_path("buildtest.map").c_str());
@@ -565,7 +556,7 @@ int main(int argc, char* argv[])
         FrameMemory.ArenaOffset = 0;
         TickTime();
         GUI::NewFrame();
-        SupportRenderer.NewFrame();
+        ApplicationState.PrimitivesRenderer->NewFrame();
 
         // Poll and process events
         ProcessSDLEvents();
@@ -580,14 +571,14 @@ int main(int argc, char* argv[])
         ShowDebugConsole();
 
         // Game logic
-        if (LevelEditor.IsActive)
+        if (ApplicationState.LevelEditor->IsActive)
         {
-            LevelEditor.Tick();
-            LevelEditor.Draw();
+            ApplicationState.LevelEditor->Tick();
+            ApplicationState.LevelEditor->Draw();
         }
         else
         {
-            DoGameLoop();
+            DoGameLoop(&ApplicationState);
         }
 
         // Draw calls
@@ -608,10 +599,10 @@ int main(int argc, char* argv[])
             DwmFlush();
     }
 
-    LevelEditor.Close();
+    ApplicationState.LevelEditor->Close();
     DestroyGame();
 
-    SupportRenderer.Destroy();
+    ApplicationState.PrimitivesRenderer->Destroy();
 
     free(StaticGameMemory.Arena);
     free(StaticLevelMemory.Arena);

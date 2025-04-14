@@ -62,6 +62,8 @@ struct app_state
 
     i32 GUIRenderTargetWidth;
     i32 GUIRenderTargetHeight;
+    struct support_renderer_t *PrimitivesRenderer;
+    struct level_editor_t *LevelEditor;
 };
 
 extern vec2 MouseDelta;
