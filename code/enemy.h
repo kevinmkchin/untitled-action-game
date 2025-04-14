@@ -1,5 +1,7 @@
 #pragma once
 
+#include "physics.h"
+
 constexpr u32 EnemyFlag_Dead     = 0x0001;
 constexpr u32 EnemyFlag_Active   = 0x0002;
 // constexpr u32  = 0x0004;
@@ -16,6 +18,8 @@ constexpr u32 EnemyFlag_Active   = 0x0002;
 // constexpr u32  = 0x8000;
 
 constexpr u32 BAD_UINDEX = 0xFFFFFFFF;
+
+struct animator_t;
 
 struct enemy_t
 {
@@ -46,7 +50,6 @@ struct enemy_t
 void NonPhysicsTickAllEnemies(game_state *GameState);
 void PrePhysicsTickAllEnemies(game_state *GameState);
 void PostPhysicsTickAllEnemies(game_state *GameState);
-void RenderEnemies(game_state *GameState, const mat4 &ProjFromView, const mat4 &ViewFromWorld);
 void DebugDrawEnemyColliders();
 
 void HurtEnemy(game_state *GameState, u32 EnemyIndex, float Damage, bool Explode);

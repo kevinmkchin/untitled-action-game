@@ -28,7 +28,7 @@ struct weapon_state_t
 };
 
 void TickWeapon(weapon_state_t *State, bool LMB, bool RMB);
-void RenderWeapon(weapon_state_t *State, float *ProjFromView, float *WorldFromView);
+// void RenderWeapon(weapon_state_t *State, float *ProjFromView, float *WorldFromView);
 
 
 enum projectile_type_enum : u16
@@ -100,4 +100,5 @@ void KillProjectile(game_state *GameState, projectile_t *ProjectileToKill);
 void NonPhysicsUpdateProjectiles(game_state *GameState);
 void PrePhysicsUpdateProjectiles(game_state *GameState);
 void PostPhysicsUpdateProjectiles(game_state *GameState);
-void RenderProjectiles(game_state *GameState, const mat4 &ProjFromView, const mat4 &ViewFromWorld);
+void InstanceProjectilesForDrawing(game_state *GameState);
+

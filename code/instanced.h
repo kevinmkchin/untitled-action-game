@@ -1,5 +1,9 @@
 #pragma once
 
+#include "common.h"
+#include "mem.h"
+#include "anim.h"
+
 // corpses are simply instanced static models that are textured and lit with no collision
 
 struct alignas(16) model_instance_data_t
