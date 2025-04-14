@@ -5,6 +5,7 @@
 #include "mem.h"
 #include <stb_rect_pack.h>
 #include "facebatch.h"
+#include "utility.h"
 
 struct lm_face_t
 {

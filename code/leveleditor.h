@@ -1,13 +1,12 @@
 #pragma once
 
-/* TODO
+#include "common.h"
+#include "mem.h"
+#include "utility.h"
+#include "winged.h"
+#include "levelentities.h"
+#include "cam.h"
 
-    Still a ton to refactor in leveleditor.cpp
-
-    I don't think we should have volumes as a concept. It's 
-    unnecessary, just deal with faces. A soup of faces.
-
-*/
 
 enum editor_state_t
 {
