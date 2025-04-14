@@ -118,3 +118,4 @@ private:
     GPUShader PICKABLE_BILLBOARDS_SHADER;
     GPUShader GRID_MESH_SHADER;
 };
+

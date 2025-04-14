@@ -5,9 +5,6 @@
 #include "game.h"
 
 
-std::vector<vec3> LoadingLevelColliderPoints;
-std::vector<u32> LoadingLevelColliderSpans;
-
 static void BuildOutLevelEntities(
     level_editor_t *EditorState,
     game_map_build_data_t *BuildData)
@@ -203,14 +200,12 @@ bool LoadGameMap(game_state *MapInfo, const char *path)
     ByteBufferRead(&mapbuf, size_t, &numColliderPoints);
     ByteBufferRead(&mapbuf, size_t, &numColliderSpans);
 
-    LoadingLevelColliderPoints.clear();
-    LoadingLevelColliderPoints.resize(numColliderPoints); 
-    LoadingLevelColliderSpans.clear();
-    LoadingLevelColliderSpans.resize(numColliderSpans);
-
-    ByteBufferReadBulk(&mapbuf, LoadingLevelColliderPoints.data(), sizeof(vec3)*numColliderPoints);
-    ByteBufferReadBulk(&mapbuf, LoadingLevelColliderSpans.data(), sizeof(u32)*numColliderSpans);
-
+    MapInfo->LoadingLevelColliderPoints = fixed_array<vec3>((u32)numColliderPoints, MemoryType::Level);
+    MapInfo->LoadingLevelColliderPoints.setlen((u32)numColliderPoints);
+    MapInfo->LoadingLevelColliderSpans = fixed_array<u32>((u32)numColliderSpans, MemoryType::Level);
+    MapInfo->LoadingLevelColliderSpans.setlen((u32)numColliderSpans);
+    ByteBufferReadBulk(&mapbuf, MapInfo->LoadingLevelColliderPoints.data, sizeof(vec3)*numColliderPoints);
+    ByteBufferReadBulk(&mapbuf, MapInfo->LoadingLevelColliderSpans.data, sizeof(u32)*numColliderSpans);
 
     // vertex buffers
     size_t numVertexBufs;
