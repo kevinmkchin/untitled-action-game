@@ -110,3 +110,135 @@ private:
     GLsync FrameSyncObjects[NumFrames] = { nullptr, nullptr, nullptr };
 };
 
+struct persistent_vertex_stream
+{
+    struct vertex_desc
+    {
+        size_t VByteSize; // and stride
+        GLenum VAttrib0_Format;
+        u32 VAttrib0_Size = 0; // number of attrib0 values per vertex
+        u32 VAttrib0_Offset;
+        GLenum VAttrib1_Format;
+        u32 VAttrib1_Size = 0;
+        u32 VAttrib1_Offset;
+        GLenum VAttrib2_Format;
+        u32 VAttrib2_Size = 0;
+        u32 VAttrib2_Offset;
+        // GLenum VAttrib3_Format;
+        // size_t VAttrib3_Size = 0;
+        // size_t VAttrib3_Offset;
+        // GLenum VAttrib4_Format;
+        // size_t VAttrib4_Size = 0;
+        // size_t VAttrib4_Offset;
+    };
+
+    /*
+        Triple-buffered persistent buffer for vertex streaming
+        https://www.khronos.org/opengl/wiki/Buffer_Object_Streaming#Persistent_mapped_streaming
+    */
+
+    void Alloc(size_t VertexCountPerFrame, vertex_desc VertexDescriptor)
+    {
+        ASSERT(!(VAO || VBO));
+
+        VertexSize = VertexDescriptor.VByteSize;
+        FrameSize = VertexCountPerFrame * VertexSize;
+        TotalSize = NumFrames * FrameSize;
+
+        glGenVertexArrays(1, &VAO);
+        glBindVertexArray(VAO);
+
+        const GLsizei StrideInBytes = (GLsizei)VertexSize;
+        if (VertexDescriptor.VAttrib0_Size > 0)
+        {
+            ASSERT(VertexDescriptor.VAttrib0_Offset == 0);
+            glEnableVertexAttribArray(0);
+            glVertexAttribFormat(0, 
+                VertexDescriptor.VAttrib0_Size, 
+                VertexDescriptor.VAttrib0_Format, 
+                GL_FALSE,
+                VertexDescriptor.VAttrib0_Offset);
+            glVertexAttribBinding(0, BindingIndex);
+        }
+        if (VertexDescriptor.VAttrib1_Size > 0)
+        {
+            glEnableVertexAttribArray(1);
+            glVertexAttribFormat(1, 
+                VertexDescriptor.VAttrib1_Size, 
+                VertexDescriptor.VAttrib1_Format, 
+                GL_FALSE,
+                VertexDescriptor.VAttrib1_Offset);
+            glVertexAttribBinding(1, BindingIndex);
+        }
+        if (VertexDescriptor.VAttrib2_Size > 0)
+        {
+            glEnableVertexAttribArray(2);
+            glVertexAttribFormat(2, 
+                VertexDescriptor.VAttrib2_Size, 
+                VertexDescriptor.VAttrib2_Format, 
+                GL_FALSE,
+                VertexDescriptor.VAttrib2_Offset);
+            glVertexAttribBinding(2, BindingIndex);
+        }
+
+        glGenBuffers(1, &VBO);
+        glBindBuffer(GL_ARRAY_BUFFER, VBO);
+        glBufferStorage(GL_ARRAY_BUFFER, TotalSize, nullptr,
+            GL_MAP_WRITE_BIT |
+            GL_MAP_PERSISTENT_BIT |
+            GL_MAP_COHERENT_BIT);
+        MappedPtr = (char*) glMapBufferRange(GL_ARRAY_BUFFER, 0, TotalSize,
+            GL_MAP_WRITE_BIT |
+            GL_MAP_PERSISTENT_BIT |
+            GL_MAP_COHERENT_BIT);
+        // Tell OpenGL how to interpret the vertex struct (binding index = 0)
+        // Bind buffer to binding index 0 (no offset yet)
+        glBindVertexBuffer(BindingIndex, VBO, 0, StrideInBytes);
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+        glBindVertexArray(0);
+    }
+
+    void Draw(void *VertexData, u32 VertexCount)
+    {
+        if (VertexCount == 0)
+            return;
+        ASSERT(VAO && VBO);
+
+        size_t FrameIndex = CurrentFrame % NumFrames;
+        size_t OffsetInBytes = FrameIndex * FrameSize;
+        const GLsizei StrideInBytes = (GLsizei)VertexSize;
+
+        memcpy(MappedPtr + OffsetInBytes, VertexData, VertexCount * StrideInBytes);
+
+        glBindVertexArray(VAO);
+        glBindVertexBuffer(BindingIndex, VBO, OffsetInBytes, StrideInBytes);
+        glDrawArrays(GL_TRIANGLES, 0, VertexCount);
+        glBindVertexArray(0);
+
+        ++CurrentFrame;
+        if (CurrentFrame >= FrameSize)
+            CurrentFrame = 0;
+    }
+
+    void Free()
+    {
+        glDeleteVertexArrays(1, &VAO);
+        glDeleteBuffers(1, &VBO);
+    }
+
+private:
+    GLuint VAO = 0;
+    GLuint VBO = 0;
+    char* MappedPtr = nullptr;
+    size_t VertexSize = 0;
+
+    static constexpr GLuint BindingIndex = 0;
+
+    static constexpr size_t NumFrames = 3;
+    size_t CurrentFrame = 0;
+    size_t FrameSize = 0;
+    size_t TotalSize = 0;
+};
+
+

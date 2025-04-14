@@ -75,8 +75,6 @@ RENDERDOC_API_1_6_0 *RDOCAPI = NULL;
 
 GPUShader Sha_GameLevel;
 GPUShader Sha_ModelTexturedLit;
-GPUShader Sha_ModelSkinnedLit;
-GPUShader Sha_ModelInstancedLit;
 GPUShader Sha_ParticlesDefault;
 GPUShader Sha_Gun;
 GPUShader Sha_Hemicube;
@@ -94,13 +92,15 @@ float GAMEPROJECTION_FARCLIP = 3200.f;
 #include "lightmap.cpp"
 #include "leveleditor.cpp"
 #include "saveloadlevel.cpp"
+
 #include "game.cpp"
 #include "enemy.cpp"
 #include "nav.cpp"
 #include "player.cpp"
 #include "weapons.cpp"
-#include "instanced.cpp"
+
 #include "particles.cpp"
+
 #include "debugmenu.cpp"
 
 
@@ -292,6 +292,8 @@ const char* __finalpass_shader_fs =
 
 static void InitGameRenderer()
 {
+    AcquireResources();
+
     // alpha blending func: (srcRGB) * srcA + (dstRGB) * (1 - srcA)  = final color output
     // alpha blending func: (srcA) * a + (dstA) * 1 = final alpha output
     glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_SRC_ALPHA, GL_ONE);
@@ -314,12 +316,6 @@ static void InitGameRenderer()
     GLLoadShaderProgramFromFile(Sha_ModelTexturedLit, 
         shader_path("model_textured.vert").c_str(), 
         shader_path("model_textured_skinned.frag").c_str());
-    GLLoadShaderProgramFromFile(Sha_ModelSkinnedLit, 
-        shader_path("model_skinned.vert").c_str(), 
-        shader_path("model_textured_skinned.frag").c_str());
-    GLLoadShaderProgramFromFile(Sha_ModelInstancedLit, 
-        shader_path("model_instanced_lit.vert").c_str(), 
-        shader_path("model_instanced_lit.frag").c_str());
     GLLoadShaderProgramFromFile(Sha_ParticlesDefault, 
         shader_path("particles.vert").c_str(), 
         shader_path("particles.frag").c_str());

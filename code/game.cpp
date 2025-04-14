@@ -1,4 +1,4 @@
-
+#include "renderer.h"
 
 // extern
 game_state g_GameState;
@@ -32,7 +32,18 @@ void InitializeGame()
 
     SetupProjectilesDataAndAllocateMemory();
     g_GameState.BloodParticles.Alloc(128, 32, MemoryType::Game);
-    g_GameState.BloodParticlesVB.Alloc(128*6);
+    persistent_vertex_stream::vertex_desc ParticleVertexDesc;
+    ParticleVertexDesc.VByteSize = sizeof(particle_vertex);
+    ParticleVertexDesc.VAttrib0_Format = GL_FLOAT;
+    ParticleVertexDesc.VAttrib0_Size = 3;
+    ParticleVertexDesc.VAttrib0_Offset = 0;
+    ParticleVertexDesc.VAttrib1_Format = GL_FLOAT;
+    ParticleVertexDesc.VAttrib1_Size = 4;
+    ParticleVertexDesc.VAttrib1_Offset = offsetof(particle_vertex, Color);
+    ParticleVertexDesc.VAttrib2_Format = GL_FLOAT;
+    ParticleVertexDesc.VAttrib2_Size = 2;
+    ParticleVertexDesc.VAttrib2_Offset = offsetof(particle_vertex, UV);
+    g_GameState.BloodParticlesVB.Alloc(128*6, ParticleVertexDesc);
     g_GameState.PQuadBuf = fixed_array<particle_vertex>(256*6, MemoryType::Game);
 
     EnemySystem.Init();
@@ -312,12 +323,11 @@ void RenderGameLayer()
         RenderFaceBatch(&Sha_GameLevel, &fb);
     }
 
-    RenderEnemies(&g_GameState, perspectiveMatrix, viewMatrix);
+    // RenderWeapon(&g_GameState.Player.Weapon, perspectiveMatrix.ptr(), viewMatrix.GetInverse().ptr());
 
-    RenderWeapon(&g_GameState.Player.Weapon, perspectiveMatrix.ptr(), viewMatrix.GetInverse().ptr());
-
-    RenderProjectiles(&g_GameState, perspectiveMatrix, viewMatrix);
-
+    RenderEnemies(EnemySystem.Enemies, &g_GameState,
+        perspectiveMatrix, viewMatrix);
+    InstanceProjectilesForDrawing(&g_GameState);
     SortAndDrawInstancedModels(&g_GameState, g_GameState.StaticInstances, g_GameState.DynamicInstances, 
         perspectiveMatrix, viewMatrix);
 

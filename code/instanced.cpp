@@ -1,11 +1,17 @@
 #include "instanced.h"
-
+#include "game.h"
+#include "lightmap.h"
+#include "shaders.h"
 
 static TripleBufferedSSBO InstanceDataSSBO;
+static GPUShader Sha_ModelInstancedLit;
 
 void InstanceDrawing_AcquireGPUResources()
 {
     InstanceDataSSBO.Init(sizeof(model_instance_data_t) * (MaxStaticInstances + MaxDynamicInstances));
+    GLLoadShaderProgramFromFile(Sha_ModelInstancedLit, 
+        shader_path("model_instanced_lit.vert").c_str(), 
+        shader_path("model_instanced_lit.frag").c_str());
 }
 
 void InstancedDrawing_ReleaseGPUResources()

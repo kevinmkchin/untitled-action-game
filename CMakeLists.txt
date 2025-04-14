@@ -18,21 +18,25 @@ add_subdirectory(recast/Detour)
 add_subdirectory(recast/DebugUtils)
 add_subdirectory(recast/DetourTileCache)
 
-add_executable(${PROJECT_NAME} 
-        code/main.cpp
-        code/common.cpp
+add_executable(${PROJECT_NAME}
         code/mem.cpp
+        code/common.cpp
+        code/filedialog.cpp
         code/utility.cpp
+        code/shaders.cpp
+        code/instanced.cpp
+
+        code/renderer.cpp
+
+        code/main.cpp
         code/gui.cpp
         code/cam.cpp
         code/anim.cpp
         code/gpu_resources.cpp
-        code/shaders.cpp
         code/resources.cpp
         code/game_assets.cpp
         code/physics.cpp
         code/physics_debug.cpp
-        code/filedialog.cpp
         code/facebatch.cpp
         code/shader_helpers.cpp
         code/winged.cpp
