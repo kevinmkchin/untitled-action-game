@@ -81,9 +81,6 @@ GPUShader Sha_ModelTexturedLit;
 GPUShader Sha_ParticlesDefault;
 GPUShader Sha_Gun;
 GPUShader Sha_Hemicube;
-GPUShader Sha_EditorScene;
-GPUShader Sha_EditorWireframe;
-GPUShader Sha_EditorFaceSelected;
 GPUShader FinalPassShader;
 GPUFrameBuffer RenderTargetGame;
 GPUFrameBuffer RenderTargetGUI;
@@ -91,8 +88,6 @@ GPUMeshIndexed FinalRenderOutputQuad;
 float GAMEPROJECTION_NEARCLIP = 4.f; // even 2 works fine to remove z fighting
 float GAMEPROJECTION_FARCLIP = 3200.f;
 
-
-#include "leveleditor.cpp"
 
 #include "game.cpp"
 #include "enemy.cpp"
@@ -147,119 +142,6 @@ static void FinalRenderToBackBuffer()
 
     GLHasErrors();
 }
-
-const char* __editor_scene_shader_vs =
-    "#version 330\n"
-    "\n"
-    "layout (location = 0) in vec3 vertex_pos;\n"
-    "layout (location = 1) in vec2 vertex_uv;\n"
-    "layout (location = 2) in vec3 vertex_normal;\n"
-    "\n"
-    "out vec2 uv;\n"
-    "out vec3 LIGHT;\n"
-    "\n"
-    "uniform mat4 modelMatrix;\n"
-    "uniform mat4 viewMatrix;\n"
-    "uniform mat4 projMatrix;\n"
-    "\n"
-    "void main()\n"
-    "{\n"
-    "    uv = vertex_uv;\n"
-    "\n"
-    "    vec4 vertInClipSpace = projMatrix * viewMatrix * modelMatrix * vec4(vertex_pos, 1.0);\n"
-    "    gl_Position = vertInClipSpace;\n"
-    "\n"
-    "    const vec4 sunlightWCS = vec4(0.5, -0.7, -0.8, 0.0);\n"
-    "    vec3 normalWCS = transpose(inverse(mat3(modelMatrix))) * vertex_normal;\n"
-    "    \n"
-    "    float ambientIntensity = 0.6;\n"
-    "    float diffuseIntensity = max(0.0, dot(normalize(normalWCS), normalize(-vec3(sunlightWCS))));\n"
-    "    vec3 lightAMB = vec3(1.0) * ambientIntensity;\n"
-    "    vec3 lightDIFF = vec3(0.4) * diffuseIntensity;\n"
-    "    LIGHT = min(lightAMB + lightDIFF, vec3(1.0));\n"
-    "}";
-
-const char* __editor_scene_shader_fs = 
-    "#version 330\n"
-    "\n"
-    "in vec2 uv;\n"
-    "in vec3 LIGHT;\n"
-    "\n"
-    "layout(location = 0) out vec4 out_colour;\n"
-    "\n"
-    "uniform sampler2D texture0;\n"
-    "\n"
-    "void main()\n"
-    "{\n"
-    "    vec3 COLOR = texture(texture0, uv).xyz;\n"
-    "    vec3 TOTAL = COLOR * LIGHT;\n"
-    "    out_colour = vec4(TOTAL, 1.0);\n"
-    "}";
-
-const char* __editor_scene_wireframe_shader_vs =
-    "#version 330\n"
-    "\n"
-    "layout (location = 0) in vec3 vertex_pos;\n"
-    "layout (location = 1) in vec2 vertex_uv;\n"
-    "layout (location = 2) in vec3 vertex_normal;\n"
-    "\n"
-    "uniform mat4 modelMatrix;\n"
-    "uniform mat4 viewMatrix;\n"
-    "uniform mat4 projMatrix;\n"
-    "\n"
-    "void main()\n"
-    "{\n"
-    "    vec4 vertInClipSpace = projMatrix * viewMatrix * modelMatrix * vec4(vertex_pos, 1.0);\n"
-    "    gl_Position = vertInClipSpace;\n"
-    "}";
-
-const char* __editor_scene_wireframe_shader_fs = 
-    "#version 330\n"
-    "\n"
-    "layout(location = 0) out vec4 out_colour;\n"
-    "\n"
-    "void main()\n"
-    "{\n"
-    "    out_colour = vec4(0.0, 0.0, 0.0, 1.0);\n"
-    "}";
-
-const char* __editor_shader_face_selected_vs =
-    "#version 330\n"
-    "\n"
-    "layout (location = 0) in vec3 vertex_pos;\n"
-    "layout (location = 1) in vec2 vertex_uv;\n"
-    "layout (location = 2) in vec3 vertex_normal;\n"
-    "\n"
-    "out vec2 uv;\n"
-    "\n"
-    "uniform mat4 modelMatrix;\n"
-    "uniform mat4 viewMatrix;\n"
-    "uniform mat4 projMatrix;\n"
-    "\n"
-    "void main()\n"
-    "{\n"
-    "    uv = vertex_uv;\n"
-    "    vec4 vertInClipSpace = projMatrix * viewMatrix * modelMatrix * vec4(vertex_pos, 1.0);\n"
-    "    gl_Position = vertInClipSpace;\n"
-    "}";
-
-const char* __editor_shader_face_selected_fs = 
-    "#version 330\n"
-    "\n"
-    "in vec2 uv;\n"
-    "\n"
-    "layout(location = 0) out vec4 out_colour;\n"
-    "\n"
-    "uniform sampler2D texture0;\n"
-    "uniform vec3 tint;"
-    "\n"
-    "void main()\n"
-    "{\n"
-    "    vec3 COLOR = texture(texture0, uv).xyz;\n"
-    "    vec3 TOTAL = COLOR * tint;\n"
-    "    out_colour = vec4(TOTAL, 1.0);\n"
-    "}";
-
 
 const char* __finalpass_shader_vs =
     "#version 330\n"
@@ -321,15 +203,6 @@ static void InitGameRenderer()
     GLLoadShaderProgramFromFile(Sha_Hemicube, 
         shader_path("__patches_id.vert").c_str(), 
         shader_path("__patches_id.frag").c_str());
-    GLCreateShaderProgram(Sha_EditorScene, 
-        __editor_scene_shader_vs, 
-        __editor_scene_shader_fs);
-    GLCreateShaderProgram(Sha_EditorWireframe, 
-        __editor_scene_wireframe_shader_vs, 
-        __editor_scene_wireframe_shader_fs);
-    GLCreateShaderProgram(Sha_EditorFaceSelected, 
-        __editor_shader_face_selected_vs, 
-        __editor_shader_face_selected_fs);
     GLCreateShaderProgram(FinalPassShader, 
         __finalpass_shader_vs, 
         __finalpass_shader_fs);
@@ -361,6 +234,7 @@ static void TickTime()
     CurrentTime = currentTimeInSeconds;
     RealDeltaTime = deltaTimeInSeconds;
     TimeSinceStart += RealDeltaTime;
+    ApplicationState.TimeSinceStart += RealDeltaTime;
 
     static const float CappedDeltaTime = 1.0f / 8.0f;
     DeltaTime = GM_min(RealDeltaTime, CappedDeltaTime);
@@ -405,6 +279,7 @@ static bool InitializeApplication()
                                      1920,
                                      1080,
                                      SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE);
+    ApplicationState.SDLMainWindow = SDLMainWindow;
 
     SDLGLContext = SDL_GL_CreateContext(SDLMainWindow);
 
@@ -531,13 +406,15 @@ int main(int argc, char* argv[])
 
     if (!InitializeApplication()) return -1;
 
+    InitGameRenderer();
+
     /*Renderer*/AcquireResources();
     ApplicationState.PrimitivesRenderer = new_InGameMemory(support_renderer_t)();
     ApplicationState.PrimitivesRenderer->Initialize();
     ApplicationState.LevelEditor = new_InGameMemory(level_editor_t)();
+    ApplicationState.LevelEditor->AppState = &ApplicationState;
     ApplicationState.LevelEditor->SupportRenderer = ApplicationState.PrimitivesRenderer;
-
-    InitGameRenderer();
+    ApplicationState.LevelEditor->RenderTargetGame = RenderTargetGame;
 
     Assets.LoadAllResources();
 
