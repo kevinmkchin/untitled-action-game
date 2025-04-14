@@ -49,6 +49,9 @@ void LogError(const char *fmt, ...);
 
 struct app_state
 {
+    SDL_Window *SDLMainWindow;
+
+    float TimeSinceStart = 0.f;
     u32 MouseCurrent;
     u32 MousePressed;
     u32 MouseReleased;
