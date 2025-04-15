@@ -50,6 +50,8 @@ add_executable(${PROJECT_NAME}
         code/leveleditor.cpp
         code/game.cpp
         code/enemy.cpp
+        code/player.cpp
+        code/weapons.cpp
 )
 target_precompile_headers(${PROJECT_NAME} PRIVATE code/pch.h)
 target_link_libraries(${PROJECT_NAME} PRIVATE Jolt Recast Detour DebugUtils)

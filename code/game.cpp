@@ -137,7 +137,7 @@ void NonPhysicsTick()
 
     NonPhysicsUpdateProjectiles(GameState);
 
-    GameState->Player.HandleInput();
+    GameState->Player.HandleInput(GameState->AppState);
 
     if (GameState->Player.Health <= 0.f)
     {

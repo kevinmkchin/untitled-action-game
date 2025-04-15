@@ -1,3 +1,7 @@
+#include "player.h"
+#include "physics.h"
+#include "game.h"
+#include "debugmenu.h"
 
 void player_t::Init()
 {
@@ -33,39 +37,39 @@ void player_t::Destroy()
     delete CharacterController;
 }
 
-void player_t::HandleInput()
+void player_t::HandleInput(app_state *App)
 {
     // CALCULATE PLAYER FACING DIRECTION
-    bool DoMouseLook = SDL_GetWindowRelativeMouseMode(SDLMainWindow);
-    PlayerCam.Update(DoMouseLook, 0.085f);
+    bool DoMouseLook = SDL_GetWindowRelativeMouseMode(App->SDLMainWindow);
+    PlayerCam.Update(DoMouseLook, App->MouseDelta, 0.085f);
     WalkDirectionRight = PlayerCam.Right;
     WalkDirectionForward = Normalize(Cross(GM_UP_VECTOR, PlayerCam.Right));
 
-    if (KeysPressed[SDL_SCANCODE_1])
+    if (App->KeysPressed[SDL_SCANCODE_1])
         Weapon.ActiveType = NAILGUN;
-    if (KeysPressed[SDL_SCANCODE_2])
+    if (App->KeysPressed[SDL_SCANCODE_2])
         Weapon.ActiveType = ROCKETLAUNCHER;
 
     // PLAYER MOVE
-    WASD = KeysCurrent[SDL_SCANCODE_W] || KeysCurrent[SDL_SCANCODE_A] ||
-        KeysCurrent[SDL_SCANCODE_S] || KeysCurrent[SDL_SCANCODE_D];
+    WASD = App->KeysCurrent[SDL_SCANCODE_W] || App->KeysCurrent[SDL_SCANCODE_A] ||
+        App->KeysCurrent[SDL_SCANCODE_S] || App->KeysCurrent[SDL_SCANCODE_D];
 
     DesiredMoveDirection = vec3();
-    if (KeysCurrent[SDL_SCANCODE_W])
+    if (App->KeysCurrent[SDL_SCANCODE_W])
         DesiredMoveDirection += WalkDirectionForward;
-    if (KeysCurrent[SDL_SCANCODE_A])
+    if (App->KeysCurrent[SDL_SCANCODE_A])
         DesiredMoveDirection += -WalkDirectionRight;
-    if (KeysCurrent[SDL_SCANCODE_S])
+    if (App->KeysCurrent[SDL_SCANCODE_S])
         DesiredMoveDirection += -WalkDirectionForward;
-    if (KeysCurrent[SDL_SCANCODE_D])
+    if (App->KeysCurrent[SDL_SCANCODE_D])
         DesiredMoveDirection += WalkDirectionRight;
 
-    if (KeysPressed[SDL_SCANCODE_SPACE])
+    if (App->KeysPressed[SDL_SCANCODE_SPACE])
         JumpRequested = true;
 
     // SHOOT
-    bool LMBPressed = MouseCurrent & SDL_BUTTON_MASK(SDL_BUTTON_LEFT);
-    bool RMBPressed = MouseCurrent & SDL_BUTTON_MASK(SDL_BUTTON_RIGHT);
+    bool LMBPressed = App->MouseCurrent & SDL_BUTTON_MASK(SDL_BUTTON_LEFT);
+    bool RMBPressed = App->MouseCurrent & SDL_BUTTON_MASK(SDL_BUTTON_RIGHT);
     Weapon.Owner = this;
     TickWeapon(&Weapon, LMBPressed, RMBPressed);
 }

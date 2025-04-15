@@ -75,9 +75,6 @@ GPUFrameBuffer RenderTargetGame;
 GPUFrameBuffer RenderTargetGUI;
 GPUMeshIndexed FinalRenderOutputQuad;
 
-
-#include "player.cpp"
-#include "weapons.cpp"
 #include "debugmenu.cpp"
 
 
