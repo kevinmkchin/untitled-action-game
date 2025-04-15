@@ -1,5 +1,7 @@
 #pragma once
 
+#include "common.h"
+#include "mem.h"
 #include "physics.h"
 
 constexpr u32 EnemyFlag_Dead     = 0x0001;
@@ -86,5 +88,4 @@ private:
 };
 
 extern global_enemy_state_t EnemySystem;
-
 

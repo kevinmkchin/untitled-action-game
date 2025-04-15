@@ -1,11 +1,17 @@
 /** NOTES
 
-    Renderers:
+    Keep It Simple
+
+    Rendering:
         renderer.h/cpp
         primitives.h/cpp
         instanced.h/cpp
         leveleditor.h/cpp
         gui.h/cpp
+        anim.h/cpp
+        facebatch.h/cpp
+        game.h/cpp
+        gpu_resources.h/cpp
 
 */
 
@@ -22,32 +28,16 @@
 
 #include "mem.h"
 #include "debugmenu.h"
-#include "utility.h"
-#include "gpu_resources.h"
 #include "shaders.h"
-#include "resources.h"
-#include "anim.h"
 #include "game_assets.h"
-#include "facebatch.h"
 #include "filedialog.h"
 #include "physics.h"
-#include "physics_debug.h"
-#include "cam.h"
-#include "winged.h"
-#include "lightmap.h"
 #include "primitives.h"
-#include "levelentities.h"
 #include "leveleditor.h"
 #include "saveloadlevel.h"
 #include "gui.h"
-#include "weapons.h"
-#include "player.h"
-#include "instanced.h"
-#include "particles.h"
 #include "game.h"
-#include "enemy.h"
 #include "nav.h"
-#include "shader_helpers.h"
 #include "renderer.h"
 
 // Application state
@@ -86,7 +76,6 @@ GPUFrameBuffer RenderTargetGUI;
 GPUMeshIndexed FinalRenderOutputQuad;
 
 
-#include "enemy.cpp"
 #include "player.cpp"
 #include "weapons.cpp"
 #include "debugmenu.cpp"
@@ -259,7 +248,7 @@ static bool InitializeApplication()
 
     // OpenGL 4.6
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 6);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG);
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
@@ -284,11 +273,6 @@ static bool InitializeApplication()
 
     SDL_SetWindowMinimumSize(SDLMainWindow, 200, 100);
     SDL_GL_SetSwapInterval(1);
-    // if (SDL_GL_SetSwapInterval(-1) == -1)
-    // {
-    //     LogWarning("Hardware does not support adaptive vsync.");
-    //     SDL_GL_SetSwapInterval(1);
-    // }
 
     SDL_AudioDeviceID AudioDeviceID = SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK;
     SDL_AudioSpec AudioSpec;

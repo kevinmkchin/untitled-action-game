@@ -1169,39 +1169,39 @@ void DebugDrawRecast(duDebugDraw *DebugDrawer, recast_debug_drawmode DrawMode)
     }
     if (m_cset && DrawMode == DRAWMODE_BOTH_CONTOURS)
     {
-        glDepthMask(GL_FALSE);
+        // glDepthMask(GL_FALSE);
         duDebugDrawRawContours(DebugDrawer, *m_cset, 0.5f);
         duDebugDrawContours(DebugDrawer, *m_cset);
-        glDepthMask(GL_TRUE);
+        // glDepthMask(GL_TRUE);
     }
     if (m_cset && DrawMode == DRAWMODE_CONTOURS)
     {
-        glDepthMask(GL_FALSE);
+        // glDepthMask(GL_FALSE);
         duDebugDrawContours(DebugDrawer, *m_cset);
-        glDepthMask(GL_TRUE);
+        // glDepthMask(GL_TRUE);
     }
     if (m_chf && m_cset && DrawMode == DRAWMODE_REGION_CONNECTIONS)
     {
         duDebugDrawCompactHeightfieldRegions(DebugDrawer, *m_chf);
             
-        glDepthMask(GL_FALSE);
+        // glDepthMask(GL_FALSE);
         duDebugDrawRegionConnections(DebugDrawer, *m_cset);
-        glDepthMask(GL_TRUE);
+        // glDepthMask(GL_TRUE);
     }
     if (m_pmesh && DrawMode == DRAWMODE_POLYMESH)
     {
-        glDepthMask(GL_FALSE);
+        // glDepthMask(GL_FALSE);
         duDebugDrawPolyMesh(DebugDrawer, *m_pmesh);
-        glDepthMask(GL_TRUE);
+        // glDepthMask(GL_TRUE);
     }
     if (m_dmesh && DrawMode == DRAWMODE_POLYMESH_DETAIL)
     {
-        glDepthMask(GL_FALSE);
+        // glDepthMask(GL_FALSE);
         duDebugDrawPolyMeshDetail(DebugDrawer, *m_dmesh);
-        glDepthMask(GL_TRUE);
+        // glDepthMask(GL_TRUE);
     }
 
-    GLHasErrors();
+    // GLHasErrors();
 }
 
 // static void DebugDrawAgent(const float* pos, float r, float h, float c, const unsigned int col)
