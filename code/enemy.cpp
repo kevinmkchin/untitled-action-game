@@ -1,3 +1,7 @@
+#include "enemy.h"
+#include "game.h"
+#include "nav.h"
+#include "debugmenu.h"
 
 // external
 global_enemy_state_t EnemySystem;
