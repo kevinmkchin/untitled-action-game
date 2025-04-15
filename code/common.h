@@ -32,7 +32,7 @@ std::string entity_icons_path();
 std::string entity_icons_path(const std::string& name);
 
 #define PRINT_TO_INGAME_CONSOLE
-inline u32 CharBufLen(char *Buf);
+u32 CharBufLen(char *Buf);
 void LogMessage(const char *fmt, ...);
 void LogWarning(const char *fmt, ...);
 void LogError(const char *fmt, ...);

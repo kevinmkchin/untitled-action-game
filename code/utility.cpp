@@ -3,8 +3,6 @@
 
 // external
 random_series RNG;
-random_series ENEMYRNG;
-random_series SOUNDRNG;
 
 vec3 ScreenPointToWorldRay(
     i32 BackBufferWidth,
@@ -62,7 +60,10 @@ vec3 WorldPointToScreenPoint(
 }
 
 // only checks in direction from
-bool IntersectPlaneAndLine(vec3 pointOnPlane, vec3 normalOfPlane, vec3 pointOnLine, vec3 directionOfLine, vec3 *intersectionPoint)
+bool IntersectPlaneAndLine(
+    vec3 pointOnPlane, vec3 normalOfPlane,
+    vec3 pointOnLine, vec3 directionOfLine,
+    vec3 *intersectionPoint)
 {
     // vec3 pp = pointOnPlane;
     // vec3 pn = normalOfPlane;
@@ -86,7 +87,10 @@ bool IntersectPlaneAndLine(vec3 pointOnPlane, vec3 normalOfPlane, vec3 pointOnLi
     return true;
 }
 
-bool IntersectPlaneAndLineWithDirections(vec3 pointOnPlane, vec3 normalOfPlane, vec3 pointOnLine, vec3 directionOfLine, vec3 *intersectionPoint)
+bool IntersectPlaneAndLineWithDirections(
+    vec3 pointOnPlane, vec3 normalOfPlane,
+    vec3 pointOnLine, vec3 directionOfLine,
+    vec3 *intersectionPoint)
 {
     float denominator = Dot(normalOfPlane, directionOfLine);
     if (denominator > -0.000001f)
@@ -97,13 +101,17 @@ bool IntersectPlaneAndLineWithDirections(vec3 pointOnPlane, vec3 normalOfPlane, 
     return true;
 }
 
-float HorizontalFOVToVerticalFOV_RadianToRadian(float FOVXInRadians, float AspectRatio)
+float HorizontalFOVToVerticalFOV_RadianToRadian(
+    float FOVXInRadians, float AspectRatio)
 {
     float FOVY = 2.0f * atan(tan(FOVXInRadians / 2.0f) / AspectRatio);
     return FOVY;
 }
 
-void BlitRect(u8 *A, int AW, int AH, u8 *B, int BW, int BH, int x, int y, size_t pixelsz)
+void BlitRect(
+    u8 *A, int AW, int AH,
+    u8 *B, int BW, int BH,
+    int x, int y, size_t pixelsz)
 {
     AW *= (int)pixelsz;
     BW *= (int)pixelsz;
