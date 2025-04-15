@@ -1,6 +1,6 @@
 #include "cam.h"
 
-void camera_t::Update(bool DoMouseLook, float LookSensitivity)
+void camera_t::Update(bool DoMouseLook, vec2 MouseDelta, float LookSensitivity)
 {
     if (DoMouseLook)
     {

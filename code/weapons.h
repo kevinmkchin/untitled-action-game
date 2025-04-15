@@ -1,5 +1,7 @@
 #pragma once
 
+#include "common.h"
+#include "mem.h"
 #include "anim.h"
 #include "physics.h"
 

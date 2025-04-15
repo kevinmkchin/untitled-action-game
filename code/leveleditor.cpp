@@ -331,7 +331,8 @@ void level_editor_t::Tick()
         AppState->MouseCurrent & SDL_BUTTON_MASK(SDL_BUTTON_RIGHT) ? true : false);
 
     // EDITOR CAMERA MOVE
-    EditorCam.Update(AppState->MouseCurrent & SDL_BUTTON_MASK(SDL_BUTTON_RIGHT), 0.1f);
+    EditorCam.Update(AppState->MouseCurrent & SDL_BUTTON_MASK(SDL_BUTTON_RIGHT), 
+        AppState->MouseDelta, 0.1f);
     if (AppState->MouseCurrent & SDL_BUTTON_MASK(SDL_BUTTON_RIGHT))
     {
         float MoveSpeed = 250.f;

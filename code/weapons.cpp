@@ -1,4 +1,10 @@
 #include "weapons.h"
+#include "particles.h"
+#include "game_assets.h"
+#include "enemy.h"
+#include "instanced.h"
+#include "game.h"
+
 
 // external
 fixed_array<projectile_breed_t> ProjectilesData;

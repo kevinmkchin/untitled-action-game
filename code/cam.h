@@ -20,7 +20,7 @@ struct camera_t
     // rather than from Direction (which loses yaw and pitch info)
     quat Orientation;
 
-    void Update(bool DoMouseLook, float LookSensitivity);
+    void Update(bool DoMouseLook, vec2 MouseDelta, float LookSensitivity);
     void DoFlyCamMovement(float MoveSpeed);
     mat4 ViewFromWorldMatrix();
 

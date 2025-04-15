@@ -72,7 +72,6 @@ struct app_state
     struct level_editor_t *LevelEditor;
 };
 
-extern vec2 MouseDelta;
 extern bool KeysCurrent[256];
 extern float DeltaTime;
 constexpr float FixedDeltaTime = 1.0f / 60.0f;
