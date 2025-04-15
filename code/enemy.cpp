@@ -305,9 +305,9 @@ void KillEnemy(game_state *GameState, u32 EnemyIndex, bool Explode)
 
     Target.Flags |= EnemyFlag_Dead;
 
-    // float f = ENEMYRNG.frand01();
+    // float f = GameState->EnemyRNG.frand01();
     // LogMessage("%f",f);
-    if (!Explode && ENEMYRNG.frand01() < 0.95f)
+    if (!Explode && GameState->EnemyRNG.frand01() < 0.95f)
     {
         Target.DeadTimer = 1.f;
         Target.RemainAfterDead = true;

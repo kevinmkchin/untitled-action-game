@@ -39,6 +39,9 @@ struct game_state
     fixed_array<vec3> LoadingLevelColliderPoints;
     fixed_array<u32> LoadingLevelColliderSpans;
 
+    // Enemies
+    random_series EnemyRNG;
+
     // Testing
     int KillEnemyCounter = 0;
 };
