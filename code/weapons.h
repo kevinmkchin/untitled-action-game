@@ -30,8 +30,7 @@ struct weapon_state_t
 };
 
 void TickWeapon(weapon_state_t *State, bool LMB, bool RMB);
-// void RenderWeapon(weapon_state_t *State, float *ProjFromView, float *WorldFromView);
-
+void DrawWeaponModel(game_state *GameState);
 
 enum projectile_type_enum : u16
 {

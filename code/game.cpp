@@ -292,16 +292,24 @@ void DebugDrawGame()
 
 void RequestDrawGame()
 {
+    constexpr u32 MaxNumTexturedLitModels = 128;
+    constexpr u32 MaxNumSkinnedModels = 128;
+
+    // Textured Lit Models
+    GameState->TexturedLitRenderData = fixed_array<textured_lit_drawinfo>(
+        MaxNumTexturedLitModels, MemoryType::Frame);
+    DrawWeaponModel(GameState);
+
     // Skinned Models
-    GameState->SMRenderData = fixed_array<sm_draw_info>(
-        EnemySystem.Enemies.lenu(), MemoryType::Frame);
+    GameState->SMRenderData = fixed_array<sm_drawinfo>(
+        MaxNumSkinnedModels, MemoryType::Frame);
     for (u32 i = 0; i < EnemySystem.Enemies.lenu(); ++i)
     {
         enemy_t& Enemy = EnemySystem.Enemies[i];
         if (!(Enemy.Flags & EnemyFlag_Active))
             continue;
 
-        sm_draw_info SMDrawInfo;
+        sm_drawinfo SMDrawInfo;
         FillSkinnedModelDrawInfo(
             &SMDrawInfo,
             GameState,
@@ -312,8 +320,10 @@ void RequestDrawGame()
             Assets.Model_Attacker);
         GameState->SMRenderData.put(SMDrawInfo);
     }
+
     // Projectile Instancing
     InstanceProjectilesForDrawing(GameState);
+
     // Particles
     GameState->PQuadBuf.setlen(0);
     vec3 QuadDirection = -GameState->Player.PlayerCam.Direction;

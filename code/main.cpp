@@ -67,8 +67,6 @@ RENDERDOC_API_1_6_0 *RDOCAPI = NULL;
 #endif // INTERNAL_BUILD
 
 
-GPUShader Sha_ModelTexturedLit;
-GPUShader Sha_Gun;
 GPUShader Sha_Hemicube;
 GPUShader FinalPassShader;
 GPUFrameBuffer RenderTargetGame;
@@ -169,13 +167,6 @@ static void InitGameRenderer()
     RenderTargetGUI.height = BackbufferHeight / 2;
     CreateGPUFrameBuffer(&RenderTargetGUI);
 
-
-    GLLoadShaderProgramFromFile(Sha_ModelTexturedLit, 
-        shader_path("model_textured.vert").c_str(), 
-        shader_path("model_textured_skinned.frag").c_str());
-    GLLoadShaderProgramFromFile(Sha_Gun, 
-        shader_path("guns.vert").c_str(), 
-        shader_path("guns.frag").c_str());
     GLLoadShaderProgramFromFile(Sha_Hemicube, 
         shader_path("__patches_id.vert").c_str(), 
         shader_path("__patches_id.frag").c_str());
