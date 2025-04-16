@@ -6,6 +6,7 @@
 #include "player.h"
 #include "cam.h"
 #include "instanced.h"
+#include "renderer.h"
 #include "lightmap.h"
 
 struct game_state
@@ -14,8 +15,6 @@ struct game_state
 
     random_series ParticlesRNG;
     particle_buffer BloodParticles;
-    persistent_vertex_stream BloodParticlesVB;
-    fixed_array<particle_vertex> PQuadBuf;
 
     player_t Player;
 
@@ -23,10 +22,10 @@ struct game_state
     bool LevelLoaded = false;
     JPH::BodyID LevelColliderBodyId;
 
-    fixed_array<model_instance_data_t> StaticInstances;
-    fixed_array<model_instance_data_t> DynamicInstances;
-
     fixed_array<animator_t> AnimatorPool;
+
+    // Enemies
+    random_series EnemyRNG;
 
     // Runtime map info
     vec3 PlayerStartPosition;
@@ -39,8 +38,15 @@ struct game_state
     fixed_array<vec3> LoadingLevelColliderPoints;
     fixed_array<u32> LoadingLevelColliderSpans;
 
-    // Enemies
-    random_series EnemyRNG;
+    // Rendering Data
+    fixed_array<model_instance_data_t> StaticInstances;
+    fixed_array<model_instance_data_t> DynamicInstances;
+    fixed_array<particle_vertex> PQuadBuf;
+    persistent_vertex_stream BloodParticlesVB;
+    fixed_array<sm_draw_info> SMRenderData;
+    mat4 ClipFromView;
+    mat4 ViewFromWorld;
+    mat4 ClipFromWorld;
 
     // Testing
     int KillEnemyCounter = 0;
@@ -72,4 +78,4 @@ void PrePhysicsTick();
 void PostPhysicsTick();
 
 void UpdateGameGUI(i32 GUIWidth, i32 GUIHeight);
-void RenderGameLayer(app_state *AppState);
+void RequestDrawGame();

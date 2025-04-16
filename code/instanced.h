@@ -4,7 +4,7 @@
 #include "mem.h"
 #include "anim.h"
 
-// Rendering code for instanced models that are textured and lit
+// Rendering Abstraction Layer for instanced models; textured and lit.
 
 struct alignas(16) model_instance_data_t
 {
