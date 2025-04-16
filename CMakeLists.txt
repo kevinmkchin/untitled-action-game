@@ -26,18 +26,17 @@ add_executable(${PROJECT_NAME}
         code/utility.cpp
         # Should never be referenced outside of rendering Layer
         code/shaders.cpp
-        # code/gpu_resources.cpp
         # Rendering Abstraction Layer
         code/primitives.cpp
         code/renderer.cpp
         code/instanced.cpp
         code/anim.cpp
+        code/gpu_resources.cpp
 
         # could refactor
         code/main.cpp
         code/gui.cpp
         code/cam.cpp
-        code/gpu_resources.cpp
         code/resources.cpp
         code/game_assets.cpp
         code/physics.cpp

@@ -2,16 +2,17 @@
 
     Keep It Simple
 
-    Rendering:
+    Rendering Layer:
         renderer.h/cpp
         primitives.h/cpp
         instanced.h/cpp
-        leveleditor.h/cpp
-        gui.h/cpp
         anim.h/cpp
-        facebatch.h/cpp
-        game.h/cpp
         gpu_resources.h/cpp
+        shaders.h/cpp
+        gui.h/cpp
+        facebatch.h/cpp
+
+        leveleditor.h/cpp
 
 */
 

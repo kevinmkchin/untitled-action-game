@@ -136,6 +136,7 @@ void RenderSkinnedModels(
         glUniform4fv(loc4, 4, (float*)SMInfo.RenderingInfo.PointLightsPos);
         glUniform1fv(loc5, 4, (float*)SMInfo.RenderingInfo.PointLightsAttLin);
         glUniform1fv(loc6, 4, (float*)SMInfo.RenderingInfo.PointLightsAttQuad);
+
         mat4 &ModelMatrix = SMInfo.RenderingInfo.WorldFromModel;
         GLBindMatrix4fv(Sha_ModelSkinnedLit, "Model", 1, ModelMatrix.ptr());
         GLBindMatrix4fv(Sha_ModelSkinnedLit, "FinalBonesMatrices[0]", MAX_BONES, 
