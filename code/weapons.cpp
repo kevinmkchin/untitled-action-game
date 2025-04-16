@@ -16,8 +16,9 @@ JPH::Shape *PhysicsShape_Sphere8 = nullptr;
 JPH::Shape *PhysicsShape_Box8 = nullptr;
 
 // internal
+// TODO(Kevin): move these to GameState
 static float GunRecoil = 0.f;
-static random_series SOUNDRNG; // move to game_state
+static random_series SOUNDRNG;
 
 void TickWeapon(weapon_state_t *State, bool LMB, bool RMB)
 {

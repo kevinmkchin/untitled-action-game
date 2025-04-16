@@ -3,7 +3,7 @@
 #include "lightmap.h"
 #include "shaders.h"
 
-static TripleBufferedSSBO InstanceDataSSBO;
+static triple_buffered_ssbo InstanceDataSSBO;
 static GPUShader Sha_ModelInstancedLit;
 
 void InstanceDrawing_AcquireGPUResources()
