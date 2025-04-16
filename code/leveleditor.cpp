@@ -1,9 +1,125 @@
+#include "leveleditor.h"
+#include "primitives.h"
+#include <stb_rect_pack.h>
+#include "gui.h"
+#include "filedialog.h"
+#include "saveloadlevel.h"
 
-level_editor_t LevelEditor; // extern
+const char* __editor_scene_shader_vs =
+    "#version 330\n"
+    "\n"
+    "layout (location = 0) in vec3 vertex_pos;\n"
+    "layout (location = 1) in vec2 vertex_uv;\n"
+    "layout (location = 2) in vec3 vertex_normal;\n"
+    "\n"
+    "out vec2 uv;\n"
+    "out vec3 LIGHT;\n"
+    "\n"
+    "uniform mat4 modelMatrix;\n"
+    "uniform mat4 viewMatrix;\n"
+    "uniform mat4 projMatrix;\n"
+    "\n"
+    "void main()\n"
+    "{\n"
+    "    uv = vertex_uv;\n"
+    "\n"
+    "    vec4 vertInClipSpace = projMatrix * viewMatrix * modelMatrix * vec4(vertex_pos, 1.0);\n"
+    "    gl_Position = vertInClipSpace;\n"
+    "\n"
+    "    const vec4 sunlightWCS = vec4(0.5, -0.7, -0.8, 0.0);\n"
+    "    vec3 normalWCS = transpose(inverse(mat3(modelMatrix))) * vertex_normal;\n"
+    "    \n"
+    "    float ambientIntensity = 0.6;\n"
+    "    float diffuseIntensity = max(0.0, dot(normalize(normalWCS), normalize(-vec3(sunlightWCS))));\n"
+    "    vec3 lightAMB = vec3(1.0) * ambientIntensity;\n"
+    "    vec3 lightDIFF = vec3(0.4) * diffuseIntensity;\n"
+    "    LIGHT = min(lightAMB + lightDIFF, vec3(1.0));\n"
+    "}";
 
-std::vector<float> MY_VERTEX_BUFFER;
+const char* __editor_scene_shader_fs = 
+    "#version 330\n"
+    "\n"
+    "in vec2 uv;\n"
+    "in vec3 LIGHT;\n"
+    "\n"
+    "layout(location = 0) out vec4 out_colour;\n"
+    "\n"
+    "uniform sampler2D texture0;\n"
+    "\n"
+    "void main()\n"
+    "{\n"
+    "    vec3 COLOR = texture(texture0, uv).xyz;\n"
+    "    vec3 TOTAL = COLOR * LIGHT;\n"
+    "    out_colour = vec4(TOTAL, 1.0);\n"
+    "}";
 
-void CreateEntityBillboardAtlasForSupportRenderer(BitmapHandle *BillboardBitmaps)
+const char* __editor_scene_wireframe_shader_vs =
+    "#version 330\n"
+    "\n"
+    "layout (location = 0) in vec3 vertex_pos;\n"
+    "layout (location = 1) in vec2 vertex_uv;\n"
+    "layout (location = 2) in vec3 vertex_normal;\n"
+    "\n"
+    "uniform mat4 modelMatrix;\n"
+    "uniform mat4 viewMatrix;\n"
+    "uniform mat4 projMatrix;\n"
+    "\n"
+    "void main()\n"
+    "{\n"
+    "    vec4 vertInClipSpace = projMatrix * viewMatrix * modelMatrix * vec4(vertex_pos, 1.0);\n"
+    "    gl_Position = vertInClipSpace;\n"
+    "}";
+
+const char* __editor_scene_wireframe_shader_fs = 
+    "#version 330\n"
+    "\n"
+    "layout(location = 0) out vec4 out_colour;\n"
+    "\n"
+    "void main()\n"
+    "{\n"
+    "    out_colour = vec4(0.0, 0.0, 0.0, 1.0);\n"
+    "}";
+
+const char* __editor_shader_face_selected_vs =
+    "#version 330\n"
+    "\n"
+    "layout (location = 0) in vec3 vertex_pos;\n"
+    "layout (location = 1) in vec2 vertex_uv;\n"
+    "layout (location = 2) in vec3 vertex_normal;\n"
+    "\n"
+    "out vec2 uv;\n"
+    "\n"
+    "uniform mat4 modelMatrix;\n"
+    "uniform mat4 viewMatrix;\n"
+    "uniform mat4 projMatrix;\n"
+    "\n"
+    "void main()\n"
+    "{\n"
+    "    uv = vertex_uv;\n"
+    "    vec4 vertInClipSpace = projMatrix * viewMatrix * modelMatrix * vec4(vertex_pos, 1.0);\n"
+    "    gl_Position = vertInClipSpace;\n"
+    "}";
+
+const char* __editor_shader_face_selected_fs = 
+    "#version 330\n"
+    "\n"
+    "in vec2 uv;\n"
+    "\n"
+    "layout(location = 0) out vec4 out_colour;\n"
+    "\n"
+    "uniform sampler2D texture0;\n"
+    "uniform vec3 tint;"
+    "\n"
+    "void main()\n"
+    "{\n"
+    "    vec3 COLOR = texture(texture0, uv).xyz;\n"
+    "    vec3 TOTAL = COLOR * tint;\n"
+    "    out_colour = vec4(TOTAL, 1.0);\n"
+    "}";
+
+static void CreateEntityBillboardAtlasForSupportRenderer(
+    support_renderer_t *SupportRenderer, 
+    BitmapHandle *BillboardBitmaps)
 {
     stbrp_rect *EntBilRects = NULL;
     for (int i = 0; i < 64; ++i)
@@ -55,7 +171,7 @@ void CreateEntityBillboardAtlasForSupportRenderer(BitmapHandle *BillboardBitmaps
             (u8*)BillboardBitmap.memory, PackedRect.w, PackedRect.h,
             PackedRect.x, PackedRect.y, sizeof(u8) * 4/*RGBA*/);
 
-        vec4 *UVRect = &SupportRenderer.EntityBillboardRectMap[PackedRect.id];
+        vec4 *UVRect = &SupportRenderer->EntityBillboardRectMap[PackedRect.id];
         vec2 MinUV = vec2((float)(PackedRect.x) / (float)BillboardAtlasW, 
             (float)(PackedRect.y) / (float)BillboardAtlasH);
         vec2 MaxUV = vec2((float)(PackedRect.x + PackedRect.w) / (float)BillboardAtlasW, 
@@ -65,11 +181,11 @@ void CreateEntityBillboardAtlasForSupportRenderer(BitmapHandle *BillboardBitmaps
         UVRect->z = MaxUV.x; // top right x
         UVRect->w = MaxUV.y; // top right y
 
-        float *BillboardWidth = &SupportRenderer.EntityBillboardWidthMap[PackedRect.id];
+        float *BillboardWidth = &SupportRenderer->EntityBillboardWidthMap[PackedRect.id];
         *BillboardWidth = (float)PackedRect.w;
     }
 
-    CreateGPUTextureFromBitmap(&SupportRenderer.EntityBillboardAtlas,
+    CreateGPUTextureFromBitmap(&SupportRenderer->EntityBillboardAtlas,
         BillboardAtlasBuffer.data, BillboardAtlasW, BillboardAtlasH,
         GL_RGBA, GL_RGBA);
 
@@ -94,7 +210,20 @@ void level_editor_t::Open()
     ReadImage(BillboardBitmaps[POINT_PLAYER_SPAWN], entity_icons_path("ent_bil_playerstart.png").c_str());
     ReadImage(BillboardBitmaps[POINT_LIGHT], entity_icons_path("ent_bil_pointlight.png").c_str());
     ReadImage(BillboardBitmaps[DIRECTIONAL_LIGHT_PROPERTIES], entity_icons_path("ent_bil_dlight.png").c_str());
-    CreateEntityBillboardAtlasForSupportRenderer(BillboardBitmaps);
+    CreateEntityBillboardAtlasForSupportRenderer(SupportRenderer, BillboardBitmaps);
+
+    if (Sha_EditorScene.idShaderProgram == 0)
+    {
+        GLCreateShaderProgram(Sha_EditorScene, 
+            __editor_scene_shader_vs, 
+            __editor_scene_shader_fs);
+        GLCreateShaderProgram(Sha_EditorWireframe, 
+            __editor_scene_wireframe_shader_vs, 
+            __editor_scene_wireframe_shader_fs);
+        GLCreateShaderProgram(Sha_EditorFaceSelected, 
+            __editor_shader_face_selected_vs, 
+            __editor_shader_face_selected_fs);
+    }
 }
 
 void level_editor_t::Close()
@@ -165,26 +294,29 @@ vec3 SnapToGrid(vec3 beforeSnap)
     return snaptemp;
 }
 
-float GetEditorHandleSize(vec3 worldPosition, float sizeInPixels)
+float GetEditorHandleSize(
+    level_editor_t *Editor, 
+    vec3 worldPosition, 
+    float sizeInPixels)
 {
-    float distanceFromCamera = Dot(worldPosition - LevelEditor.EditorCam.Position, LevelEditor.EditorCam.Direction);
-    quat camOrientation = EulerToQuat(LevelEditor.EditorCam.Rotation * GM_DEG2RAD);
+    float distanceFromCamera = Dot(worldPosition - Editor->EditorCam.Position, Editor->EditorCam.Direction);
+    quat camOrientation = EulerToQuat(Editor->EditorCam.Rotation * GM_DEG2RAD);
     vec3 screenPos = WorldPointToScreenPoint(
-        BackbufferWidth,
-        BackbufferHeight,
-        LevelEditor.ActivePerspectiveMatrix,
-        LevelEditor.ActiveViewMatrix,
-        LevelEditor.EditorCam.Position,
-        LevelEditor.EditorCam.Direction,
-        LevelEditor.EditorCam.Position + RotateVector(vec3(distanceFromCamera, 0, 0), camOrientation));
+        Editor->AppState->BackBufferWidth,
+        Editor->AppState->BackBufferHeight,
+        Editor->ActivePerspectiveMatrix,
+        Editor->ActiveViewMatrix,
+        Editor->EditorCam.Position,
+        Editor->EditorCam.Direction,
+        Editor->EditorCam.Position + RotateVector(vec3(distanceFromCamera, 0, 0), camOrientation));
     vec3 screenPos2 = WorldPointToScreenPoint(
-        BackbufferWidth,
-        BackbufferHeight,
-        LevelEditor.ActivePerspectiveMatrix,
-        LevelEditor.ActiveViewMatrix,
-        LevelEditor.EditorCam.Position,
-        LevelEditor.EditorCam.Direction,
-        LevelEditor.EditorCam.Position + RotateVector(vec3(distanceFromCamera, 0, 32.f), camOrientation));
+        Editor->AppState->BackBufferWidth,
+        Editor->AppState->BackBufferHeight,
+        Editor->ActivePerspectiveMatrix,
+        Editor->ActiveViewMatrix,
+        Editor->EditorCam.Position,
+        Editor->EditorCam.Direction,
+        Editor->EditorCam.Position + RotateVector(vec3(distanceFromCamera, 0, 32.f), camOrientation));
     // scaled by 32 to avoid floating point imprecision
     float screenDist = Magnitude(screenPos - screenPos2);
     return (sizeInPixels*32.f / GM_max(screenDist, 0.0001f));
@@ -195,11 +327,13 @@ void level_editor_t::Tick()
     IsActive = true;
     EnterNextState();
 
-    SDL_SetWindowRelativeMouseMode(SDLMainWindow, MouseCurrent & SDL_BUTTON_MASK(SDL_BUTTON_RIGHT) ? true : false);
+    SDL_SetWindowRelativeMouseMode(AppState->SDLMainWindow,
+        AppState->MouseCurrent & SDL_BUTTON_MASK(SDL_BUTTON_RIGHT) ? true : false);
 
     // EDITOR CAMERA MOVE
-    EditorCam.Update(MouseCurrent & SDL_BUTTON_MASK(SDL_BUTTON_RIGHT), 0.1f);
-    if (MouseCurrent & SDL_BUTTON_MASK(SDL_BUTTON_RIGHT))
+    EditorCam.Update(AppState->MouseCurrent & SDL_BUTTON_MASK(SDL_BUTTON_RIGHT), 
+        AppState->MouseDelta, 0.1f);
+    if (AppState->MouseCurrent & SDL_BUTTON_MASK(SDL_BUTTON_RIGHT))
     {
         float MoveSpeed = 250.f;
         if (KeysCurrent[SDL_SCANCODE_LSHIFT])
@@ -209,9 +343,9 @@ void level_editor_t::Tick()
     ActiveViewMatrix = EditorCam.ViewFromWorldMatrix();
 
     // DRAW AXIS LINES
-    SupportRenderer.DrawLine(vec3(320000.f, 0.f, 0.f), vec3(-320000.f, 0.f, 0.f), vec4(RGB255TO1(205, 56, 9), 0.8f));
-    // SupportRenderer.DrawLine(vec3(0.f, 320000.f, 0.f), vec3(0.f, -320000.f, 0.f), vec4(RGB255TO1(67, 123, 9), 0.8f));
-    SupportRenderer.DrawLine(vec3(0.f, 0.f, 320000.f), vec3(0.f, 0.f, -320000.f), vec4(RGB255TO1(21, 129, 205), 0.8f));
+    SupportRenderer->DrawLine(vec3(320000.f, 0.f, 0.f), vec3(-320000.f, 0.f, 0.f), vec4(RGB255TO1(205, 56, 9), 0.8f));
+    // SupportRenderer->DrawLine(vec3(0.f, 320000.f, 0.f), vec3(0.f, -320000.f, 0.f), vec4(RGB255TO1(67, 123, 9), 0.8f));
+    SupportRenderer->DrawLine(vec3(0.f, 0.f, 320000.f), vec3(0.f, 0.f, -320000.f), vec4(RGB255TO1(21, 129, 205), 0.8f));
 
 
     DoEditorGUI();
@@ -224,9 +358,9 @@ void level_editor_t::Tick()
 
     ResetGridOriginAndOrientation();
 
-    LMBPressedThisFrame = MousePressed & SDL_BUTTON_MASK(SDL_BUTTON_LEFT);
-    LMBReleasedThisFrame = MouseReleased & SDL_BUTTON_MASK(SDL_BUTTON_LEFT);
-    LMBIsPressed = MouseCurrent & SDL_BUTTON_MASK(SDL_BUTTON_LEFT);
+    LMBPressedThisFrame = AppState->MousePressed & SDL_BUTTON_MASK(SDL_BUTTON_LEFT);
+    LMBReleasedThisFrame = AppState->MouseReleased & SDL_BUTTON_MASK(SDL_BUTTON_LEFT);
+    LMBIsPressed = AppState->MouseCurrent & SDL_BUTTON_MASK(SDL_BUTTON_LEFT);
 
 
     // === Volume picking ===
@@ -306,7 +440,7 @@ void level_editor_t::Tick()
 
 void level_editor_t::DoEditorGUI()
 {
-    GUI::BeginWindow(GUI::UIRect(0, 0, RenderTargetGUI.width, 19));
+    GUI::BeginWindow(GUI::UIRect(0, 0, AppState->GUIRenderTargetWidth, 19));
     GUI::EditorBeginHorizontal();
     if (GUI::EditorLabelledButton("SAVE"))
     {
@@ -340,7 +474,7 @@ void level_editor_t::DoEditorGUI()
         if(!path.empty())
         {
             // TODO ...
-            if (BuildGameMap(path.c_str()))
+            if (BuildGameMap(this, path.c_str()))
                 LogMessage("Built %s", path.c_str());
             else
                 LogError("Failed to build to %s", path.c_str());
@@ -353,19 +487,19 @@ void level_editor_t::DoEditorGUI()
     bool vertToolActive = ActiveState == VERTEX_MANIP;
     bool edgeToolActive = ActiveState == EDGE_MANIP;
     bool faceToolActive = ActiveState == FACE_MANIP;
-    if (KeysPressed[SDL_SCANCODE_1] || GUI::EditorSelectable_2("BRUSH", &brushToolActive))
+    if (AppState->KeysPressed[SDL_SCANCODE_1] || GUI::EditorSelectable_2("BRUSH", &brushToolActive))
     {
         EnterNewStateNextFrame(SIMPLE_BRUSH_TOOL);
     }
-    if (KeysPressed[SDL_SCANCODE_2] || GUI::EditorSelectable_2("VERT", &vertToolActive))
+    if (AppState->KeysPressed[SDL_SCANCODE_2] || GUI::EditorSelectable_2("VERT", &vertToolActive))
     {
         EnterNewStateNextFrame(VERTEX_MANIP);
     }
-    if (KeysPressed[SDL_SCANCODE_3] || GUI::EditorSelectable_2("EDGE", &edgeToolActive))
+    if (AppState->KeysPressed[SDL_SCANCODE_3] || GUI::EditorSelectable_2("EDGE", &edgeToolActive))
     {
         EnterNewStateNextFrame(EDGE_MANIP);
     }
-    if (KeysPressed[SDL_SCANCODE_4] || GUI::EditorSelectable_2("FACE", &faceToolActive))
+    if (AppState->KeysPressed[SDL_SCANCODE_4] || GUI::EditorSelectable_2("FACE", &faceToolActive))
     {
         EnterNewStateNextFrame(FACE_MANIP);
     }
@@ -392,7 +526,7 @@ void level_editor_t::DoEditorGUI()
 
 
     int volc = SELECTED_MAP_VOLUMES_INDICES.count;
-    GUI::BeginWindow(GUI::UIRect(RenderTargetGUI.width - 160, 28, 150, 15 + volc * 15));
+    GUI::BeginWindow(GUI::UIRect(AppState->GUIRenderTargetWidth - 160, 28, 150, 15 + volc * 15));
     GUI::EditorText((std::string("selected volumes (") + std::to_string(volc) + std::string(")")).c_str());
     for (int i = 0; i < SELECTED_MAP_VOLUMES_INDICES.count; ++i)
     {
@@ -413,7 +547,10 @@ void level_editor_t::DoEditorGUI()
     GUI::EndWindow();
 
 
-    GUI::BeginWindow(GUI::UIRect(RenderTargetGUI.width - 210, RenderTargetGUI.height - 310, 200, 300));
+    GUI::BeginWindow(GUI::UIRect(
+        AppState->GUIRenderTargetWidth - 210, 
+        AppState->GUIRenderTargetHeight - 310, 
+        200, 300));
     GUI::EditorText("Texture");
     
     static bool ShowTextureBrowser = false;
@@ -424,7 +561,9 @@ void level_editor_t::DoEditorGUI()
 
     if (ShowTextureBrowser)
     {
-        GUI::BeginWindow(GUI::UIRect(0, 0, RenderTargetGUI.width, RenderTargetGUI.height));
+        GUI::BeginWindow(GUI::UIRect(0, 0, 
+            AppState->GUIRenderTargetWidth, 
+            AppState->GUIRenderTargetHeight));
         
         GUI::EditorBeginHorizontal();
         if (GUI::EditorLabelledButton("Close"))
@@ -441,7 +580,7 @@ void level_editor_t::DoEditorGUI()
         GUI::EditorEndHorizontal();
 
         GUI::EditorSpacer(0, 8);
-        GUI::EditorBeginGrid(RenderTargetGUI.width, 8000);
+        GUI::EditorBeginGrid(AppState->GUIRenderTargetWidth, 8000);
         for (auto& pair : Assets.Textures)
         {
             GUI::EditorBeginGridItem(162, 186);
@@ -471,7 +610,7 @@ void level_editor_t::DoEditorGUI()
     }
     GUI::EndWindow();
 
-    GUI::BeginWindow(GUI::UIRect(RenderTargetGUI.width - 250, 150, 240, 150));
+    GUI::BeginWindow(GUI::UIRect(AppState->GUIRenderTargetWidth - 250, 150, 240, 150));
     bool PlacePointEntityActive = ActiveState == PLACE_POINT_ENTITY;
     GUI::EditorBeginHorizontal();
     if (GUI::EditorSelectable_2("", &PlacePointEntityActive))
@@ -542,13 +681,13 @@ void level_editor_t::EnterNextState()
 
 void level_editor_t::DrawEntityBillboards()
 {
-    // GUI::PrimitivePanel(GUI::UIRect(0, 0, 512, 512), SupportRenderer.EntityBillboardAtlas.id);
+    // GUI::PrimitivePanel(GUI::UIRect(0, 0, 512, 512), SupportRenderer->EntityBillboardAtlas.id);
     // TODO also fade out and don't draw gizmos that are small
 
     for (size_t Index = 0; Index < LevelEntities.lenu(); ++Index)
     {
         const level_entity_t& Ent = LevelEntities[Index];
-        SupportRenderer.DoPickableBillboard((u32)Index+1, Ent.Position, 
+        SupportRenderer->DoPickableBillboard((u32)Index+1, Ent.Position, 
             -EditorCam.Direction, EditorCam.Direction, (int)Ent.Type);
     }
 }
@@ -565,7 +704,7 @@ u32 level_editor_t::PickVolume(MapEdit::Volume *volumes, u32 arraycount)
     // returns the 1 + index of the volume in the provided array. 0 is nothing picked.
     for (u32 volumeFrameId = 1; volumeFrameId <= arraycount; ++volumeFrameId)
     {
-        vec3 idrgb = SupportRenderer.HandleIdToRGB(volumeFrameId);
+        vec3 idrgb = SupportRenderer->HandleIdToRGB(volumeFrameId);
         MapEdit::Volume& vol = volumes[volumeFrameId - 1];
         for (size_t i = 0; i < vol.faces.lenu(); ++i)
         {
@@ -573,10 +712,10 @@ u32 level_editor_t::PickVolume(MapEdit::Volume *volumes, u32 arraycount)
             int count;
             // TODO(Kevin): instead of triangulate every face every time, probably cache this somehow?
             MapEdit::TriangulateFace_QuickDumb_WithColor(*face, idrgb, PickableTrianglesBuf, &count);
-            SupportRenderer.AddTrianglesToPickableHandles(PickableTrianglesBuf, count);
+            SupportRenderer->AddTrianglesToPickableHandles(PickableTrianglesBuf, count);
         }
     }
-    u32 pickedVolumeFrameId = SupportRenderer.FlushHandles(MousePos, RenderTargetGame, ActiveViewMatrix, ActivePerspectiveMatrix, false);
+    u32 pickedVolumeFrameId = SupportRenderer->FlushHandles(AppState->MousePos, RenderTargetGame, ActiveViewMatrix, ActivePerspectiveMatrix, false);
     return pickedVolumeFrameId;
 }
 
@@ -588,13 +727,13 @@ u32 level_editor_t::PickFace(MapEdit::Face **faces, u32 arraycount)
     for (u32 id = 1; id <= arraycount; ++id)
     {
         MapEdit::Face *face = faces[id-1];
-        vec3 idrgb = SupportRenderer.HandleIdToRGB(id);
+        vec3 idrgb = SupportRenderer->HandleIdToRGB(id);
         int count;
         // TODO(Kevin): instead of triangulate every face every time, probably cache this somehow?
         MapEdit::TriangulateFace_QuickDumb_WithColor(*face, idrgb, PickableTrianglesBuf, &count);
-        SupportRenderer.AddTrianglesToPickableHandles(PickableTrianglesBuf, count);
+        SupportRenderer->AddTrianglesToPickableHandles(PickableTrianglesBuf, count);
     }
-    u32 faceId = SupportRenderer.FlushHandles(MousePos, RenderTargetGame, ActiveViewMatrix, ActivePerspectiveMatrix, false);
+    u32 faceId = SupportRenderer->FlushHandles(AppState->MousePos, RenderTargetGame, ActiveViewMatrix, ActivePerspectiveMatrix, false);
     return faceId;
 }
 
@@ -611,17 +750,17 @@ bool level_editor_t::PickPointAndNormalInLevel(vec3 *PlanePoint, vec3 *PlaneNorm
         *PlaneNormal = drawingFace->QuickNormal();
 
         vec3 ws = ScreenPointToWorldPoint(
-            BackbufferWidth,
-            BackbufferHeight,
+            AppState->BackBufferWidth,
+            AppState->BackBufferHeight,
             ActivePerspectiveMatrix,
             ActiveViewMatrix,
-            MousePos, 0.f);
+            AppState->MousePos, 0.f);
         vec3 wr = ScreenPointToWorldRay(
-            BackbufferWidth,
-            BackbufferHeight,
+            AppState->BackBufferWidth,
+            AppState->BackBufferHeight,
             ActivePerspectiveMatrix,
             ActiveViewMatrix,
-            MousePos);
+            AppState->MousePos);
         vec3 intersectionPoint;
         IntersectPlaneAndLineWithDirections(drawingFace->loopbase->v->pos, *PlaneNormal, ws, wr, &intersectionPoint);
         
@@ -630,17 +769,17 @@ bool level_editor_t::PickPointAndNormalInLevel(vec3 *PlanePoint, vec3 *PlaneNorm
     else
     {
         vec3 ws = ScreenPointToWorldPoint(
-            BackbufferWidth,
-            BackbufferHeight,
+            AppState->BackBufferWidth,
+            AppState->BackBufferHeight,
             ActivePerspectiveMatrix,
             ActiveViewMatrix,
-            MousePos, 0.f);
+            AppState->MousePos, 0.f);
         vec3 wr = ScreenPointToWorldRay(
-            BackbufferWidth,
-            BackbufferHeight,
+            AppState->BackBufferWidth,
+            AppState->BackBufferHeight,
             ActivePerspectiveMatrix,
             ActiveViewMatrix,
-            MousePos);
+            AppState->MousePos);
         float f = (0.f - ws.y) / wr.y;
         if (f < 0.f)
             return false;
@@ -681,7 +820,7 @@ void level_editor_t::DoMovePointEntity()
     if (LMBPressedThisFrame)
     {
         DrawEntityBillboards();
-        u32 PickedId = SupportRenderer.FlushHandles(MousePos, RenderTargetGame, ActiveViewMatrix, ActivePerspectiveMatrix, false);
+        u32 PickedId = SupportRenderer->FlushHandles(AppState->MousePos, RenderTargetGame, ActiveViewMatrix, ActivePerspectiveMatrix, false);
         if (PickedId == 0) 
             return;
         u32 PickedEntityIndex = PickedId - 1;
@@ -694,17 +833,17 @@ void level_editor_t::DoMovePointEntity()
     {
         level_entity_t& Ent = LevelEntities[SelectedEntityIndex];
         vec3 WorldPosMouse = ScreenPointToWorldPoint(
-            BackbufferWidth,
-            BackbufferHeight,
+            AppState->BackBufferWidth,
+            AppState->BackBufferHeight,
             ActivePerspectiveMatrix,
             ActiveViewMatrix,
-            MousePos, 0.f);
+            AppState->MousePos, 0.f);
         vec3 WorldRayMouse = ScreenPointToWorldRay(
-            BackbufferWidth,
-            BackbufferHeight,
+            AppState->BackBufferWidth,
+            AppState->BackBufferHeight,
             ActivePerspectiveMatrix,
             ActiveViewMatrix,
-            MousePos);
+            AppState->MousePos);
 
         if (LMBPressedThisFrame) // refactor translation code into one util function 
         {
@@ -738,7 +877,7 @@ void level_editor_t::DoMovePointEntity()
 
             if (KeysCurrent[SDL_SCANCODE_LALT])
             {
-                SupportRenderer.DrawLine(EntityMoveStartPoint, Ent.Position, vec4(0,0.8f,0,1));
+                SupportRenderer->DrawLine(EntityMoveStartPoint, Ent.Position, vec4(0,0.8f,0,1));
                 GUI::PrimitiveTextFmt(GUI::MouseXInGUI+3,GUI::MouseYInGUI-3,GUI::GetFontSize(),GUI::LEFT,
                     "Y: %f", TotalTranslation.y);
             }
@@ -773,17 +912,17 @@ void level_editor_t::DoFaceManip()
                 vert->poscache = vert->pos;
 
             vec3 worldpos_mouse = ScreenPointToWorldPoint(
-            BackbufferWidth,
-            BackbufferHeight,
+            AppState->BackBufferWidth,
+            AppState->BackBufferHeight,
             ActivePerspectiveMatrix,
             ActiveViewMatrix,
-            MousePos, 0.f);
+            AppState->MousePos, 0.f);
             vec3 worldray_mouse = ScreenPointToWorldRay(
-            BackbufferWidth,
-            BackbufferHeight,
+            AppState->BackBufferWidth,
+            AppState->BackBufferHeight,
             ActivePerspectiveMatrix,
             ActiveViewMatrix,
-            MousePos);
+            AppState->MousePos);
             IntersectPlaneAndLineWithDirections(face->loopbase->v->pos, face->QuickNormal(), worldpos_mouse, worldray_mouse, &DragPlanePoint);
         }
     }
@@ -793,17 +932,17 @@ void level_editor_t::DoFaceManip()
         MapEdit::Face *hotFace = SELECTABLE_FACES[HotHandleId-1];
 
         vec3 worldpos_mouse = ScreenPointToWorldPoint(
-            BackbufferWidth,
-            BackbufferHeight,
+            AppState->BackBufferWidth,
+            AppState->BackBufferHeight,
             ActivePerspectiveMatrix,
             ActiveViewMatrix,
-            MousePos, 0.f);
+            AppState->MousePos, 0.f);
         vec3 worldray_mouse = ScreenPointToWorldRay(
-            BackbufferWidth,
-            BackbufferHeight,
+            AppState->BackBufferWidth,
+            AppState->BackBufferHeight,
             ActivePerspectiveMatrix,
             ActiveViewMatrix,
-            MousePos);
+            AppState->MousePos);
 
         vec3 TotalTranslation;
         if (KeysCurrent[SDL_SCANCODE_LALT])
@@ -868,9 +1007,10 @@ void level_editor_t::DoVertexManip()
         for (u32 id = 1; id <= SELECTABLE_VERTICES.size(); ++id)
         {
             MapEdit::Vert *vert = SELECTABLE_VERTICES[id-1];
-            SupportRenderer.DoDiscHandle(id, vert->pos, EditorCam.Position, GetEditorHandleSize(vert->pos, DISC_HANDLE_RADIUS + 4.f));
+            SupportRenderer->DoDiscHandle(id, vert->pos, EditorCam.Position, 
+                GetEditorHandleSize(this, vert->pos, DISC_HANDLE_RADIUS + 4.f));
         }
-        u32 clickedId = SupportRenderer.FlushHandles(MousePos, RenderTargetGame, ActiveViewMatrix, ActivePerspectiveMatrix, false);
+        u32 clickedId = SupportRenderer->FlushHandles(AppState->MousePos, RenderTargetGame, ActiveViewMatrix, ActivePerspectiveMatrix, false);
 
         if (clickedId > 0)
         {
@@ -887,17 +1027,17 @@ void level_editor_t::DoVertexManip()
             }
 
             vec3 worldpos_mouse = ScreenPointToWorldPoint(
-            BackbufferWidth,
-            BackbufferHeight,
+            AppState->BackBufferWidth,
+            AppState->BackBufferHeight,
             ActivePerspectiveMatrix,
             ActiveViewMatrix,
-            MousePos, 0.f);
+            AppState->MousePos, 0.f);
             vec3 worldray_mouse = ScreenPointToWorldRay(
-            BackbufferWidth,
-            BackbufferHeight,
+            AppState->BackBufferWidth,
+            AppState->BackBufferHeight,
             ActivePerspectiveMatrix,
             ActiveViewMatrix,
-            MousePos);
+            AppState->MousePos);
             IntersectPlaneAndLineWithDirections(hotVert->pos, -EditorCam.Direction, worldpos_mouse, worldray_mouse, &DragPlanePoint);
         }
         else if (!LCtrlDownOnLeftMouseDown)
@@ -919,17 +1059,17 @@ void level_editor_t::DoVertexManip()
         MapEdit::Vert *hotVert = SELECTABLE_VERTICES[HotHandleId-1];
 
         vec3 worldpos_mouse = ScreenPointToWorldPoint(
-            BackbufferWidth,
-            BackbufferHeight,
+            AppState->BackBufferWidth,
+            AppState->BackBufferHeight,
             ActivePerspectiveMatrix,
             ActiveViewMatrix,
-            MousePos, 0.f);
+            AppState->MousePos, 0.f);
         vec3 worldray_mouse = ScreenPointToWorldRay(
-            BackbufferWidth,
-            BackbufferHeight,
+            AppState->BackBufferWidth,
+            AppState->BackBufferHeight,
             ActivePerspectiveMatrix,
             ActiveViewMatrix,
-            MousePos);
+            AppState->MousePos);
 
         TotalTranslation = vec3();
         if (KeysCurrent[SDL_SCANCODE_LALT])
@@ -1047,52 +1187,52 @@ void level_editor_t::DoSimpleBrushTool()
             if (LMBIsPressed)
             {
                 vec3 ws = ScreenPointToWorldPoint(
-            BackbufferWidth,
-            BackbufferHeight,
+            AppState->BackBufferWidth,
+            AppState->BackBufferHeight,
             ActivePerspectiveMatrix,
             ActiveViewMatrix,
-            MousePos, 0.f);
+            AppState->MousePos, 0.f);
                 vec3 wr = ScreenPointToWorldRay(
-            BackbufferWidth,
-            BackbufferHeight,
+            AppState->BackBufferWidth,
+            AppState->BackBufferHeight,
             ActivePerspectiveMatrix,
             ActiveViewMatrix,
-            MousePos);
+            AppState->MousePos);
                 vec3 intersection;
                 IntersectPlaneAndLineWithDirections(rectstartpoint, drawingplanenormal, ws, wr, &intersection);
                 vec3 endpoint = intersection;
                 endpoint = SnapToGrid(endpoint);
                 vec3 startToEndVector = vec3(endpoint - rectstartpoint);
 
-                // SupportRenderer.DrawSolidDisc(rectstartpoint, drawingplanenormal, 4, vec4(0,0,1,1));
-                // SupportRenderer.DrawSolidDisc(endpoint, drawingplanenormal, 4, vec4(0,0,1,1));
-                // SupportRenderer.DrawLine(rectstartpoint, rectstartpoint + drawinghorizontal * 16.f, vec4(0,0,1,1), 2.f); 
-                // SupportRenderer.DrawLine(rectstartpoint, rectstartpoint + drawingvertical * 16.f, vec4(0,0,1,1), 2.f); 
+                // SupportRenderer->DrawSolidDisc(rectstartpoint, drawingplanenormal, 4, vec4(0,0,1,1));
+                // SupportRenderer->DrawSolidDisc(endpoint, drawingplanenormal, 4, vec4(0,0,1,1));
+                // SupportRenderer->DrawLine(rectstartpoint, rectstartpoint + drawinghorizontal * 16.f, vec4(0,0,1,1), 2.f); 
+                // SupportRenderer->DrawLine(rectstartpoint, rectstartpoint + drawingvertical * 16.f, vec4(0,0,1,1), 2.f); 
                 vec3 startToEndProjOnToHorizontal = Dot(startToEndVector, drawinghorizontal) * drawinghorizontal;
                 vec3 startToEndProjOnToVertical = Dot(startToEndVector, drawingvertical) * drawingvertical;
-                SupportRenderer.DrawLine(rectstartpoint, rectstartpoint + startToEndProjOnToVertical,
+                SupportRenderer->DrawLine(rectstartpoint, rectstartpoint + startToEndProjOnToVertical,
                                   vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
-                SupportRenderer.DrawLine(rectstartpoint, rectstartpoint + startToEndProjOnToHorizontal,
+                SupportRenderer->DrawLine(rectstartpoint, rectstartpoint + startToEndProjOnToHorizontal,
                                   vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
-                SupportRenderer.DrawLine(endpoint, endpoint - startToEndProjOnToVertical,
+                SupportRenderer->DrawLine(endpoint, endpoint - startToEndProjOnToVertical,
                                   vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
-                SupportRenderer.DrawLine(endpoint, endpoint - startToEndProjOnToHorizontal,
+                SupportRenderer->DrawLine(endpoint, endpoint - startToEndProjOnToHorizontal,
                                   vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
             }
             if (LMBReleasedThisFrame)
             {
                 vec3 ws = ScreenPointToWorldPoint(
-            BackbufferWidth,
-            BackbufferHeight,
+            AppState->BackBufferWidth,
+            AppState->BackBufferHeight,
             ActivePerspectiveMatrix,
             ActiveViewMatrix,
-            MousePos, 0.f);
+            AppState->MousePos, 0.f);
                 vec3 wr = ScreenPointToWorldRay(
-            BackbufferWidth,
-            BackbufferHeight,
+            AppState->BackBufferWidth,
+            AppState->BackBufferHeight,
             ActivePerspectiveMatrix,
             ActiveViewMatrix,
-            MousePos);
+            AppState->MousePos);
                 vec3 intersection;
                 IntersectPlaneAndLineWithDirections(rectstartpoint, drawingplanenormal, ws, wr, &intersection);
                 rectendpoint = intersection;
@@ -1105,7 +1245,7 @@ void level_editor_t::DoSimpleBrushTool()
                 else
                     simpleBrushToolState = SimpleBrushToolState::NotActive;
             }
-            if (KeysPressed[SDL_SCANCODE_ESCAPE])
+            if (AppState->KeysPressed[SDL_SCANCODE_ESCAPE])
                 simpleBrushToolState = SimpleBrushToolState::NotActive;
 
             break;
@@ -1131,17 +1271,17 @@ void level_editor_t::DoSimpleBrushTool()
             vec3 pn = -EditorCam.Direction;
             vec3 pp = rectendpoint + heightBeforeSnap;
             vec3 wp = ScreenPointToWorldPoint(
-            BackbufferWidth,
-            BackbufferHeight,
+            AppState->BackBufferWidth,
+            AppState->BackBufferHeight,
             ActivePerspectiveMatrix,
             ActiveViewMatrix,
-            MousePos, 0.f);
+            AppState->MousePos, 0.f);
             vec3 wr = ScreenPointToWorldRay(
-            BackbufferWidth,
-            BackbufferHeight,
+            AppState->BackBufferWidth,
+            AppState->BackBufferHeight,
             ActivePerspectiveMatrix,
             ActiveViewMatrix,
-            MousePos);
+            AppState->MousePos);
             vec3 intersection;
             IntersectPlaneAndLineWithDirections(pp, pn, wp, wr, &intersection);
             float trueHeightComp = Dot((intersection - rectendpoint), drawingSurfaceNormal);
@@ -1179,20 +1319,20 @@ void level_editor_t::DoSimpleBrushTool()
             vec3 ceilPointC = floorPointC + height;
             vec3 ceilPointD = floorPointD + height;
 
-            SupportRenderer.DrawLine(floorPointA, floorPointB, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
-            SupportRenderer.DrawLine(floorPointA, floorPointD, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
-            SupportRenderer.DrawLine(floorPointC, floorPointB, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
-            SupportRenderer.DrawLine(floorPointC, floorPointD, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
+            SupportRenderer->DrawLine(floorPointA, floorPointB, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
+            SupportRenderer->DrawLine(floorPointA, floorPointD, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
+            SupportRenderer->DrawLine(floorPointC, floorPointB, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
+            SupportRenderer->DrawLine(floorPointC, floorPointD, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
 
-            SupportRenderer.DrawLine(floorPointA, ceilPointA, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
-            SupportRenderer.DrawLine(floorPointB, ceilPointB, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
-            SupportRenderer.DrawLine(floorPointC, ceilPointC, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
-            SupportRenderer.DrawLine(floorPointD, ceilPointD, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
+            SupportRenderer->DrawLine(floorPointA, ceilPointA, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
+            SupportRenderer->DrawLine(floorPointB, ceilPointB, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
+            SupportRenderer->DrawLine(floorPointC, ceilPointC, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
+            SupportRenderer->DrawLine(floorPointD, ceilPointD, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
 
-            SupportRenderer.DrawLine(ceilPointA, ceilPointB, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
-            SupportRenderer.DrawLine(ceilPointA, ceilPointD, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
-            SupportRenderer.DrawLine(ceilPointC, ceilPointB, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
-            SupportRenderer.DrawLine(ceilPointC, ceilPointD, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
+            SupportRenderer->DrawLine(ceilPointA, ceilPointB, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
+            SupportRenderer->DrawLine(ceilPointA, ceilPointD, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
+            SupportRenderer->DrawLine(ceilPointC, ceilPointB, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
+            SupportRenderer->DrawLine(ceilPointC, ceilPointD, vec4(RGBHEXTO1(0xff8000), 1.0), 2.f);
 
             if (LMBReleasedThisFrame)
             {
@@ -1261,7 +1401,7 @@ void level_editor_t::DoSimpleBrushTool()
 
                 simpleBrushToolState = SimpleBrushToolState::NotActive;
             }
-            if (KeysPressed[SDL_SCANCODE_ESCAPE])
+            if (AppState->KeysPressed[SDL_SCANCODE_ESCAPE])
             {
                 simpleBrushToolState = SimpleBrushToolState::NotActive;
             }
@@ -1279,9 +1419,9 @@ void level_editor_t::Draw()
     glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_SRC_ALPHA, GL_ONE);
     glEnable(GL_DEPTH_TEST);
 
-    float aspectratio = float(BackbufferWidth) / float(BackbufferHeight);
+    float aspectratio = float(AppState->BackBufferWidth) / float(AppState->BackBufferHeight);
     float fovy = HorizontalFOVToVerticalFOV_RadianToRadian(90.f*GM_DEG2RAD, aspectratio);
-    ActivePerspectiveMatrix = ProjectionMatrixPerspective(fovy, aspectratio, GAMEPROJECTION_NEARCLIP, GAMEPROJECTION_FARCLIP);
+    ActivePerspectiveMatrix = ProjectionMatrixPerspective(fovy, aspectratio, EditorNearClip, EditorFarClip);
     mat4 perspectiveMatrix = ActivePerspectiveMatrix;
     mat4 viewMatrix = ActiveViewMatrix;
 
@@ -1302,9 +1442,9 @@ void level_editor_t::Draw()
         MapEdit::Face *editorVolumeFace = MapEdit::LevelEditorFaces[i];
         if (ActiveState == FACE_MANIP)
         {
-            if (LevelEditor.SelectedFace == editorVolumeFace)
+            if (SelectedFace == editorVolumeFace)
             {
-                selectedFace = LevelEditor.SelectedFace;
+                selectedFace = SelectedFace;
                 continue;
             }
             else if (editorVolumeFace->hovered)
@@ -1325,7 +1465,7 @@ void level_editor_t::Draw()
         if (selectedFace)
         {
             UseShader(Sha_EditorFaceSelected);
-            float sf = (sinf(TimeSinceStart * 2.7f) + 1.f) / 2.f;
+            float sf = (sinf(AppState->TimeSinceStart * 2.7f) + 1.f) / 2.f;
             sf *= 0.1f;
             GLBind3f(Sha_EditorFaceSelected, "tint", 1.0f, 1.0f - sf, 1.0f - sf);
             GLBindMatrix4fv(Sha_EditorFaceSelected, "projMatrix", 1, perspectiveMatrix.ptr());
@@ -1355,14 +1495,14 @@ void level_editor_t::Draw()
     // Draw outline of selected faces
     for (int i = 0; i < SELECTED_MAP_VOLUMES_INDICES.count; ++i)
     {
-        const MapEdit::Volume& volume = LevelEditor.LevelEditorVolumes[SELECTED_MAP_VOLUMES_INDICES[i]];
+        const MapEdit::Volume& volume = LevelEditorVolumes[SELECTED_MAP_VOLUMES_INDICES[i]];
         for (size_t j = 0; j < volume.faces.lenu(); ++j)
         {
             MapEdit::Face *selVolFace = volume.faces[j];
             std::vector<MapEdit::Edge*> faceEdges = selVolFace->GetEdges();
             for (MapEdit::Edge* e : faceEdges)
             {
-                SupportRenderer.DrawLine(e->a->pos, e->b->pos, vec4(1,0,0,0.5f), 2.f);
+                SupportRenderer->DrawLine(e->a->pos, e->b->pos, vec4(1,0,0,0.5f), 2.f);
             }
         }
     }
@@ -1375,29 +1515,30 @@ void level_editor_t::Draw()
             vec4 discHandleColor = vec4(RGBHEXTO1(0xFF8000), 1.f);
             if (std::find(SELECTED_VERTICES.begin(), SELECTED_VERTICES.end(), v) != SELECTED_VERTICES.end())
                 discHandleColor = vec4(RGB255TO1(254,8,8),1.f);
-            SupportRenderer.DrawSolidDisc(v->pos, LevelEditor.EditorCam.Position - v->pos, GetEditorHandleSize(v->pos, DISC_HANDLE_RADIUS),
-                                   discHandleColor);
+            SupportRenderer->DrawSolidDisc(
+                v->pos, EditorCam.Position - v->pos, 
+                GetEditorHandleSize(this, v->pos, DISC_HANDLE_RADIUS), discHandleColor);
         }
     }
 
     glDisable(GL_DEPTH_TEST);
     glDisable(GL_CULL_FACE);
-    vec3 gridTranslation = vec3(SnapToGrid(LevelEditor.EditorCam.Position.x), 0.f, SnapToGrid(LevelEditor.EditorCam.Position.z));
+    vec3 gridTranslation = vec3(SnapToGrid(EditorCam.Position.x), 0.f, SnapToGrid(EditorCam.Position.z));
     mat3 gridRotation = mat3();
     if (GRID_ORIGIN != vec3())
     {
         gridTranslation = GRID_ORIGIN;
         gridRotation = GetGridRotationMatrix();
     }
-    SupportRenderer.DrawGrid(GRID_INCREMENT, gridRotation, gridTranslation, &perspectiveMatrix, &viewMatrix, RenderTargetGame.depthTexId, vec2((float)RenderTargetGame.width, (float)RenderTargetGame.height));
-    SupportRenderer.FlushPrimitives(&perspectiveMatrix, &viewMatrix, RenderTargetGame.depthTexId, vec2((float)RenderTargetGame.width, (float)RenderTargetGame.height));
+    SupportRenderer->DrawGrid(GRID_INCREMENT, gridRotation, gridTranslation, &perspectiveMatrix, &viewMatrix, RenderTargetGame.depthTexId, vec2((float)RenderTargetGame.width, (float)RenderTargetGame.height));
+    SupportRenderer->FlushPrimitives(&perspectiveMatrix, &viewMatrix, RenderTargetGame.depthTexId, vec2((float)RenderTargetGame.width, (float)RenderTargetGame.height));
 
     // maybe I want billboards to still show up (but faded) when occluded 
     // glEnable(GL_DEPTH_TEST);
     // Entity billboards
     DrawEntityBillboards();
-    SupportRenderer.DrawPickableBillboards_GL(ActivePerspectiveMatrix.ptr(), ActiveViewMatrix.ptr(), false);
-    SupportRenderer.ClearPickableBillboards();
+    SupportRenderer->DrawPickableBillboards_GL(ActivePerspectiveMatrix.ptr(), ActiveViewMatrix.ptr(), false);
+    SupportRenderer->ClearPickableBillboards();
 
     // // UseShader(editorShader_Wireframe);
     // // glEnable(GL_CULL_FACE);
@@ -1412,7 +1553,7 @@ void level_editor_t::Draw()
     //     std::vector<MapEdit::Edge*> faceEdges = editorVolumeFace->GetEdges();
     //     for (MapEdit::Edge* e : faceEdges)
     //     {
-    //         SupportRenderer.DrawLine(e->a->pos, e->b->pos, vec4(1,1,1,1), 1.2f);
+    //         SupportRenderer->DrawLine(e->a->pos, e->b->pos, vec4(1,1,1,1), 1.2f);
     //     }
     //     // const FaceBatch fb = editorVolumeFace->facemesh;
     //     // RenderFaceBatch(fb);

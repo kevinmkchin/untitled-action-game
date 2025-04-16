@@ -9,7 +9,7 @@ struct player_t
     void Init();
     void Destroy();
 
-    void HandleInput();
+    void HandleInput(app_state *AppState);
     void PrePhysicsUpdate(game_state *GameState);
     void PostPhysicsUpdate();
     void LateNonPhysicsTick();

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "common.h"
+#include "mem.h"
 #include "anim.h"
 #include "physics.h"
 
@@ -10,6 +12,7 @@ enum weapon_types_t : u16
     WEAPON_TYPES_COUNT
 };
 
+// TODO(Kevin): move this to GameState
 struct weapon_state_t
 {
     weapon_types_t ActiveType = ROCKETLAUNCHER;
@@ -28,8 +31,7 @@ struct weapon_state_t
 };
 
 void TickWeapon(weapon_state_t *State, bool LMB, bool RMB);
-void RenderWeapon(weapon_state_t *State, float *ProjFromView, float *WorldFromView);
-
+void DrawWeaponModel(game_state *GameState);
 
 enum projectile_type_enum : u16
 {
@@ -100,4 +102,5 @@ void KillProjectile(game_state *GameState, projectile_t *ProjectileToKill);
 void NonPhysicsUpdateProjectiles(game_state *GameState);
 void PrePhysicsUpdateProjectiles(game_state *GameState);
 void PostPhysicsUpdateProjectiles(game_state *GameState);
-void RenderProjectiles(game_state *GameState, const mat4 &ProjFromView, const mat4 &ViewFromWorld);
+void InstanceProjectilesForDrawing(game_state *GameState);
+

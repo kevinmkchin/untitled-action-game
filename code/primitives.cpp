@@ -302,8 +302,25 @@ void support_renderer_t::Initialize()
 
 void support_renderer_t::Destroy()
 {
-    // TODO !!!
-    LogError("support_renderer_t::Destroy NOT IMPLEMENTED");
+    glDeleteBuffers(1, &PRIM_VERTEX_POS_AND_COLOR_VBO);
+    glDeleteVertexArrays(1, &PRIM_VERTEX_POS_AND_COLOR_VAO);
+
+    glDeleteBuffers(1, &PRIM_VERTEX_POS_COLOR_LINEWIDTH_VBO);
+    glDeleteVertexArrays(1, &PRIM_VERTEX_POS_COLOR_LINEWIDTH_VAO);
+
+    glDeleteBuffers(1, &HANDLES_VBO);
+    glDeleteVertexArrays(1, &HANDLES_VAO);
+
+    DeleteGPUMesh(PICKABLE_BILLBOARDS_MESH.idVAO, PICKABLE_BILLBOARDS_MESH.idVBO);
+
+    glDeleteBuffers(1, &GRID_MESH_VBO);
+    glDeleteVertexArrays(1, &GRID_MESH_VAO);
+
+    GLDeleteShader(LINES_SHADER);
+    GLDeleteShader(FATLINES_SHADER);
+    GLDeleteShader(HANDLES_SHADER);
+    GLDeleteShader(PICKABLE_BILLBOARDS_SHADER);
+    GLDeleteShader(GRID_MESH_SHADER);
 }
 
 void support_renderer_t::DrawGrid(float scale, mat3 rotation, vec3 translation, const mat4 *projectionMatrix, const mat4 *viewMatrix, GLuint sceneDepthTextureId, vec2 framebufferSize)

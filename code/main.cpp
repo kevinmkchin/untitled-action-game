@@ -1,3 +1,21 @@
+/** NOTES
+
+    Keep It Simple
+
+    Rendering Layer:
+        renderer.h/cpp
+        primitives.h/cpp
+        instanced.h/cpp
+        anim.h/cpp
+        gpu_resources.h/cpp
+        shaders.h/cpp
+        gui.h/cpp
+        facebatch.h/cpp
+
+        leveleditor.h/cpp
+
+*/
+
 #include "common.h"
 
 #include <gl3w.h>
@@ -5,45 +23,23 @@
 #include <stb_image.h>
 #include <stb_truetype.h>
 #include <vertext.h>
-
 #if INTERNAL_BUILD
 #include <renderdoc_app.h>
 #endif
 
 #include "mem.h"
-// external
-linear_arena_t StaticGameMemory;
-linear_arena_t StaticLevelMemory;
-linear_arena_t FrameMemory;
-manualheap_arena_t JoltPhysicsMemory;
-
 #include "debugmenu.h"
-#include "utility.h"
-#include "gpu_resources.h"
 #include "shaders.h"
-#include "resources.h"
-#include "anim.h"
 #include "game_assets.h"
-#include "facebatch.h"
 #include "filedialog.h"
 #include "physics.h"
-#include "physics_debug.h"
-#include "cam.h"
-#include "winged.h"
-#include "lightmap.h"
 #include "primitives.h"
-#include "levelentities.h"
 #include "leveleditor.h"
 #include "saveloadlevel.h"
 #include "gui.h"
-#include "weapons.h"
-#include "player.h"
-#include "instanced.h"
-#include "particles.h"
 #include "game.h"
-#include "enemy.h"
 #include "nav.h"
-#include "shader_helpers.h"
+#include "renderer.h"
 
 // Application state
 SDL_Window *SDLMainWindow;
@@ -65,7 +61,6 @@ bool KeysReleased[256] = {0};
 i32 BackbufferWidth = -1;
 i32 BackbufferHeight = -1;
 char CurrentWorkingDirectory[128];
-support_renderer_t SupportRenderer;
 app_state ApplicationState;
 
 #if INTERNAL_BUILD
@@ -73,34 +68,12 @@ RENDERDOC_API_1_6_0 *RDOCAPI = NULL;
 #endif // INTERNAL_BUILD
 
 
-GPUShader Sha_GameLevel;
-GPUShader Sha_ModelTexturedLit;
-GPUShader Sha_ModelSkinnedLit;
-GPUShader Sha_ModelInstancedLit;
-GPUShader Sha_ParticlesDefault;
-GPUShader Sha_Gun;
 GPUShader Sha_Hemicube;
-GPUShader Sha_EditorScene;
-GPUShader Sha_EditorWireframe;
-GPUShader Sha_EditorFaceSelected;
 GPUShader FinalPassShader;
 GPUFrameBuffer RenderTargetGame;
 GPUFrameBuffer RenderTargetGUI;
 GPUMeshIndexed FinalRenderOutputQuad;
-float GAMEPROJECTION_NEARCLIP = 4.f; // even 2 works fine to remove z fighting
-float GAMEPROJECTION_FARCLIP = 3200.f;
 
-
-#include "lightmap.cpp"
-#include "leveleditor.cpp"
-#include "saveloadlevel.cpp"
-#include "game.cpp"
-#include "enemy.cpp"
-#include "nav.cpp"
-#include "player.cpp"
-#include "weapons.cpp"
-#include "instanced.cpp"
-#include "particles.cpp"
 #include "debugmenu.cpp"
 
 
@@ -151,119 +124,6 @@ static void FinalRenderToBackBuffer()
     GLHasErrors();
 }
 
-const char* __editor_scene_shader_vs =
-    "#version 330\n"
-    "\n"
-    "layout (location = 0) in vec3 vertex_pos;\n"
-    "layout (location = 1) in vec2 vertex_uv;\n"
-    "layout (location = 2) in vec3 vertex_normal;\n"
-    "\n"
-    "out vec2 uv;\n"
-    "out vec3 LIGHT;\n"
-    "\n"
-    "uniform mat4 modelMatrix;\n"
-    "uniform mat4 viewMatrix;\n"
-    "uniform mat4 projMatrix;\n"
-    "\n"
-    "void main()\n"
-    "{\n"
-    "    uv = vertex_uv;\n"
-    "\n"
-    "    vec4 vertInClipSpace = projMatrix * viewMatrix * modelMatrix * vec4(vertex_pos, 1.0);\n"
-    "    gl_Position = vertInClipSpace;\n"
-    "\n"
-    "    const vec4 sunlightWCS = vec4(0.5, -0.7, -0.8, 0.0);\n"
-    "    vec3 normalWCS = transpose(inverse(mat3(modelMatrix))) * vertex_normal;\n"
-    "    \n"
-    "    float ambientIntensity = 0.6;\n"
-    "    float diffuseIntensity = max(0.0, dot(normalize(normalWCS), normalize(-vec3(sunlightWCS))));\n"
-    "    vec3 lightAMB = vec3(1.0) * ambientIntensity;\n"
-    "    vec3 lightDIFF = vec3(0.4) * diffuseIntensity;\n"
-    "    LIGHT = min(lightAMB + lightDIFF, vec3(1.0));\n"
-    "}";
-
-const char* __editor_scene_shader_fs = 
-    "#version 330\n"
-    "\n"
-    "in vec2 uv;\n"
-    "in vec3 LIGHT;\n"
-    "\n"
-    "layout(location = 0) out vec4 out_colour;\n"
-    "\n"
-    "uniform sampler2D texture0;\n"
-    "\n"
-    "void main()\n"
-    "{\n"
-    "    vec3 COLOR = texture(texture0, uv).xyz;\n"
-    "    vec3 TOTAL = COLOR * LIGHT;\n"
-    "    out_colour = vec4(TOTAL, 1.0);\n"
-    "}";
-
-const char* __editor_scene_wireframe_shader_vs =
-    "#version 330\n"
-    "\n"
-    "layout (location = 0) in vec3 vertex_pos;\n"
-    "layout (location = 1) in vec2 vertex_uv;\n"
-    "layout (location = 2) in vec3 vertex_normal;\n"
-    "\n"
-    "uniform mat4 modelMatrix;\n"
-    "uniform mat4 viewMatrix;\n"
-    "uniform mat4 projMatrix;\n"
-    "\n"
-    "void main()\n"
-    "{\n"
-    "    vec4 vertInClipSpace = projMatrix * viewMatrix * modelMatrix * vec4(vertex_pos, 1.0);\n"
-    "    gl_Position = vertInClipSpace;\n"
-    "}";
-
-const char* __editor_scene_wireframe_shader_fs = 
-    "#version 330\n"
-    "\n"
-    "layout(location = 0) out vec4 out_colour;\n"
-    "\n"
-    "void main()\n"
-    "{\n"
-    "    out_colour = vec4(0.0, 0.0, 0.0, 1.0);\n"
-    "}";
-
-const char* __editor_shader_face_selected_vs =
-    "#version 330\n"
-    "\n"
-    "layout (location = 0) in vec3 vertex_pos;\n"
-    "layout (location = 1) in vec2 vertex_uv;\n"
-    "layout (location = 2) in vec3 vertex_normal;\n"
-    "\n"
-    "out vec2 uv;\n"
-    "\n"
-    "uniform mat4 modelMatrix;\n"
-    "uniform mat4 viewMatrix;\n"
-    "uniform mat4 projMatrix;\n"
-    "\n"
-    "void main()\n"
-    "{\n"
-    "    uv = vertex_uv;\n"
-    "    vec4 vertInClipSpace = projMatrix * viewMatrix * modelMatrix * vec4(vertex_pos, 1.0);\n"
-    "    gl_Position = vertInClipSpace;\n"
-    "}";
-
-const char* __editor_shader_face_selected_fs = 
-    "#version 330\n"
-    "\n"
-    "in vec2 uv;\n"
-    "\n"
-    "layout(location = 0) out vec4 out_colour;\n"
-    "\n"
-    "uniform sampler2D texture0;\n"
-    "uniform vec3 tint;"
-    "\n"
-    "void main()\n"
-    "{\n"
-    "    vec3 COLOR = texture(texture0, uv).xyz;\n"
-    "    vec3 TOTAL = COLOR * tint;\n"
-    "    out_colour = vec4(TOTAL, 1.0);\n"
-    "}";
-
-
 const char* __finalpass_shader_vs =
     "#version 330\n"
     "layout(location = 0) in vec2 pos;\n"
@@ -292,6 +152,7 @@ const char* __finalpass_shader_fs =
 
 static void InitGameRenderer()
 {
+
     // alpha blending func: (srcRGB) * srcA + (dstRGB) * (1 - srcA)  = final color output
     // alpha blending func: (srcA) * a + (dstA) * 1 = final alpha output
     glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_SRC_ALPHA, GL_ONE);
@@ -307,37 +168,9 @@ static void InitGameRenderer()
     RenderTargetGUI.height = BackbufferHeight / 2;
     CreateGPUFrameBuffer(&RenderTargetGUI);
 
-
-    GLLoadShaderProgramFromFile(Sha_GameLevel, 
-        shader_path("__game_level.vert").c_str(), 
-        shader_path("__game_level.frag").c_str());
-    GLLoadShaderProgramFromFile(Sha_ModelTexturedLit, 
-        shader_path("model_textured.vert").c_str(), 
-        shader_path("model_textured_skinned.frag").c_str());
-    GLLoadShaderProgramFromFile(Sha_ModelSkinnedLit, 
-        shader_path("model_skinned.vert").c_str(), 
-        shader_path("model_textured_skinned.frag").c_str());
-    GLLoadShaderProgramFromFile(Sha_ModelInstancedLit, 
-        shader_path("model_instanced_lit.vert").c_str(), 
-        shader_path("model_instanced_lit.frag").c_str());
-    GLLoadShaderProgramFromFile(Sha_ParticlesDefault, 
-        shader_path("particles.vert").c_str(), 
-        shader_path("particles.frag").c_str());
-    GLLoadShaderProgramFromFile(Sha_Gun, 
-        shader_path("guns.vert").c_str(), 
-        shader_path("guns.frag").c_str());
     GLLoadShaderProgramFromFile(Sha_Hemicube, 
         shader_path("__patches_id.vert").c_str(), 
         shader_path("__patches_id.frag").c_str());
-    GLCreateShaderProgram(Sha_EditorScene, 
-        __editor_scene_shader_vs, 
-        __editor_scene_shader_fs);
-    GLCreateShaderProgram(Sha_EditorWireframe, 
-        __editor_scene_wireframe_shader_vs, 
-        __editor_scene_wireframe_shader_fs);
-    GLCreateShaderProgram(Sha_EditorFaceSelected, 
-        __editor_shader_face_selected_vs, 
-        __editor_shader_face_selected_fs);
     GLCreateShaderProgram(FinalPassShader, 
         __finalpass_shader_vs, 
         __finalpass_shader_fs);
@@ -355,8 +188,6 @@ static void InitGameRenderer()
         0, 3, 2
     };
     CreateGPUMeshIndexed(&FinalRenderOutputQuad, refQuadVertices, refQuadIndices, 16, 6, 2, 2, 0, GL_STATIC_DRAW);
-
-    SupportRenderer.Initialize();
 }
 
 
@@ -371,6 +202,7 @@ static void TickTime()
     CurrentTime = currentTimeInSeconds;
     RealDeltaTime = deltaTimeInSeconds;
     TimeSinceStart += RealDeltaTime;
+    ApplicationState.TimeSinceStart += RealDeltaTime;
 
     static const float CappedDeltaTime = 1.0f / 8.0f;
     DeltaTime = GM_min(RealDeltaTime, CappedDeltaTime);
@@ -405,7 +237,7 @@ static bool InitializeApplication()
 
     // OpenGL 4.6
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 6);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG);
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
@@ -415,6 +247,7 @@ static bool InitializeApplication()
                                      1920,
                                      1080,
                                      SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE);
+    ApplicationState.SDLMainWindow = SDLMainWindow;
 
     SDLGLContext = SDL_GL_CreateContext(SDLMainWindow);
 
@@ -429,11 +262,6 @@ static bool InitializeApplication()
 
     SDL_SetWindowMinimumSize(SDLMainWindow, 200, 100);
     SDL_GL_SetSwapInterval(1);
-    // if (SDL_GL_SetSwapInterval(-1) == -1)
-    // {
-    //     LogWarning("Hardware does not support adaptive vsync.");
-    //     SDL_GL_SetSwapInterval(1);
-    // }
 
     SDL_AudioDeviceID AudioDeviceID = SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK;
     SDL_AudioSpec AudioSpec;
@@ -543,14 +371,26 @@ int main(int argc, char* argv[])
 
     InitGameRenderer();
 
+    AcquireRenderingResources();
+    ApplicationState.GameState = new_InGameMemory(game_state)();
+    ApplicationState.GameState->AppState = &ApplicationState;
+    ApplicationState.RenderTargetGame = &RenderTargetGame;
+    ApplicationState.PrimitivesRenderer = new_InGameMemory(support_renderer_t)();
+    ApplicationState.PrimitivesRenderer->Initialize();
+    ApplicationState.LevelEditor = new_InGameMemory(level_editor_t)();
+    ApplicationState.LevelEditor->AppState = &ApplicationState;
+    ApplicationState.LevelEditor->SupportRenderer = ApplicationState.PrimitivesRenderer;
+    ApplicationState.LevelEditor->RenderTargetGame = RenderTargetGame;
+
     Assets.LoadAllResources();
 
-    InitializeGame();
+    InitializeGame(&ApplicationState);
 
     // LevelEditor.LoadMap(wd_path("testing.emf").c_str());
-    // BuildGameMap(wd_path("buildtest.map").c_str());
+    // BuildGameMap(wd_path(ApplicationState.LevelEditor, "buildtest.map").c_str());
     // LoadLevel(wd_path("buildtest.map").c_str());
 
+    SDL_SetWindowRelativeMouseMode(SDLMainWindow, true);
     LoadLevel(wd_path("buildtest.map").c_str());
     // SwitchToLevelEditor();
 
@@ -560,7 +400,7 @@ int main(int argc, char* argv[])
         FrameMemory.ArenaOffset = 0;
         TickTime();
         GUI::NewFrame();
-        SupportRenderer.NewFrame();
+        ApplicationState.PrimitivesRenderer->NewFrame();
 
         // Poll and process events
         ProcessSDLEvents();
@@ -575,14 +415,14 @@ int main(int argc, char* argv[])
         ShowDebugConsole();
 
         // Game logic
-        if (LevelEditor.IsActive)
+        if (ApplicationState.LevelEditor->IsActive)
         {
-            LevelEditor.Tick();
-            LevelEditor.Draw();
+            ApplicationState.LevelEditor->Tick();
+            ApplicationState.LevelEditor->Draw();
         }
         else
         {
-            DoGameLoop();
+            DoGameLoop(&ApplicationState);
         }
 
         // Draw calls
@@ -603,10 +443,10 @@ int main(int argc, char* argv[])
             DwmFlush();
     }
 
-    LevelEditor.Close();
+    ApplicationState.LevelEditor->Close();
     DestroyGame();
-
-    SupportRenderer.Destroy();
+    ReleaseRenderingResources();
+    ApplicationState.PrimitivesRenderer->Destroy();
 
     free(StaticGameMemory.Arena);
     free(StaticLevelMemory.Arena);

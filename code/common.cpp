@@ -27,7 +27,7 @@ std::string sfx_path(const std::string& name) { return wd_path() + "sfx/" + name
 std::string entity_icons_path() { return wd_path() + "entity_icons/"; }
 std::string entity_icons_path(const std::string& name) { return wd_path() + "entity_icons/" + name; }
 
-inline u32 CharBufLen(char *Buf)
+u32 CharBufLen(char *Buf)
 {
     u32 Len = 0;
     while(*Buf++ != '\0')

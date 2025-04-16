@@ -1,5 +1,6 @@
 #include "debugmenu.h"
 #include "game.h"
+#include "enemy.h"
 
 #include <SDL3/SDL_clipboard.h>
 #include <noclip.h>
@@ -57,16 +58,16 @@ void SwitchToLevelEditor()
     // todo clean up game memory
     // todo close game
 
-    LevelEditor.Open();
+    ApplicationState.LevelEditor->Open();
 
     SDL_SetWindowRelativeMouseMode(SDLMainWindow, false);
-    g_GameState.GameLoopCanRun = false;
+    ApplicationState.GameState->GameLoopCanRun = false;
     // CurrentDebugMode = DEBUG_MODE_OFF;
 }
 
 void BuildLevelAndPlay()
 {
-    if (!LevelEditor.IsActive)
+    if (!ApplicationState.LevelEditor->IsActive)
     {
         LogWarning("ApplicationBuildLevelAndPlay called when level editor is not active.");
         return;
@@ -76,17 +77,18 @@ void BuildLevelAndPlay()
     if (path.empty())
         return;
 
-    if (BuildGameMap(path.c_str()) == false)
+    if (BuildGameMap(ApplicationState.LevelEditor, path.c_str()) == false)
     {
         LogError("Failed to build to %s", path.c_str());
         return;
     }
 
-    LevelEditor.Close();
+    ApplicationState.LevelEditor->Close();
 
+    SDL_SetWindowRelativeMouseMode(ApplicationState.SDLMainWindow, true);
     LoadLevel(path.c_str());
 
-    g_GameState.GameLoopCanRun = true;
+    ApplicationState.GameState->GameLoopCanRun = true;
     // CurrentDebugMode = DEBUG_MODE_OFF;
 }
 
@@ -327,12 +329,12 @@ static void DisplayDebugMenu()
     GUI::EditorText("== Menu ==");
     GUI::EditorSpacer(0, 10);
 
-    if (!LevelEditor.IsActive)
+    if (!ApplicationState.LevelEditor->IsActive)
     {
         GUI::EditorText("-- Game --");
-        bool DebugPausedFlag = !g_GameState.GameLoopCanRun;
+        bool DebugPausedFlag = !ApplicationState.GameState->GameLoopCanRun;
         GUI::EditorCheckbox("Paused", &DebugPausedFlag);
-        g_GameState.GameLoopCanRun = !DebugPausedFlag;
+        ApplicationState.GameState->GameLoopCanRun = !DebugPausedFlag;
         GUI::EditorCheckbox("Noclip", &FlyCamActive);
         GUI::EditorCheckbox("Show memory usage", &DebugShowGameMemoryUsage);
         GUI::EditorCheckbox("Draw level collider", &DebugDrawLevelColliderFlag);
@@ -369,7 +371,7 @@ void ShowDebugConsole()
 {
     if (KeysCurrent[SDL_SCANCODE_LCTRL] && KeysPressed[SDL_SCANCODE_P])
     {
-        g_GameState.GameLoopCanRun = !g_GameState.GameLoopCanRun;
+        ApplicationState.GameState->GameLoopCanRun = !ApplicationState.GameState->GameLoopCanRun;
     }
 
     static DEBUG_MODES LastDebugMode = DEBUG_MODE_CONSOLE;
@@ -387,7 +389,7 @@ void ShowDebugConsole()
             }
             else if (LastDebugMode == DEBUG_MODE_CONSOLE || LastDebugMode == DEBUG_MODE_OFF)
             {
-                g_GameState.GameLoopCanRun = false;
+                ApplicationState.GameState->GameLoopCanRun = false;
                 ConsoleShowingState = DEBUG_CONSOLE_SHOWING;
                 LastDebugMode = DEBUG_MODE_OFF;
                 CurrentDebugMode = DEBUG_MODE_CONSOLE;
@@ -431,7 +433,7 @@ void ShowDebugConsole()
     case DEBUG_CONSOLE_HIDING:
         if (ConsoleY > 0.f)
         {
-            g_GameState.GameLoopCanRun = true;
+            ApplicationState.GameState->GameLoopCanRun = true;
             ConsoleY -= ConsoleScrollSpd * DeltaTime;
         }
         if (ConsoleY <= 0.f)
@@ -444,7 +446,7 @@ void ShowDebugConsole()
     switch (CurrentDebugMode)
     {
     case DEBUG_MODE_OFF:
-        if (!LevelEditor.IsActive)
+        if (!ApplicationState.LevelEditor->IsActive)
             SDL_SetWindowRelativeMouseMode(SDLMainWindow, true);
         break;
     case DEBUG_MODE_MENU:

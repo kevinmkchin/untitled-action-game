@@ -1,11 +1,17 @@
 #include "instanced.h"
+#include "game.h"
+#include "lightmap.h"
+#include "shaders.h"
 
-
-static TripleBufferedSSBO InstanceDataSSBO;
+static triple_buffered_ssbo InstanceDataSSBO;
+static GPUShader Sha_ModelInstancedLit;
 
 void InstanceDrawing_AcquireGPUResources()
 {
     InstanceDataSSBO.Init(sizeof(model_instance_data_t) * (MaxStaticInstances + MaxDynamicInstances));
+    GLLoadShaderProgramFromFile(Sha_ModelInstancedLit, 
+        shader_path("model_instanced_lit.vert").c_str(), 
+        shader_path("model_instanced_lit.frag").c_str());
 }
 
 void InstancedDrawing_ReleaseGPUResources()
@@ -13,8 +19,13 @@ void InstancedDrawing_ReleaseGPUResources()
     InstanceDataSSBO.Destroy();
 }
 
-void FillModelInstanceData(game_state *GameState, model_instance_data_t *InstanceData, 
-    vec3 ModelCentroid, vec3 RenderPosition, quat RenderRotation, ModelGLTF *InstanceModel)
+void FillModelInstanceData(
+    game_state *GameState,
+    model_instance_data_t *InstanceData,
+    vec3 ModelCentroid,
+    vec3 RenderPosition,
+    quat RenderRotation,
+    ModelGLTF *InstanceModel)
 {
     size_t LightCacheIndex = GameState->LightCacheVolume->IndexByPosition(ModelCentroid);
     lc_light_indices_t LightIndices = GameState->LightCacheVolume->SignificantLightIndices[LightCacheIndex];

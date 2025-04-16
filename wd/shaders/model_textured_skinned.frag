@@ -15,7 +15,7 @@ struct model_lighting_data_t
     int DoSunLight;
     vec3 DirectionToSun;
     int PointLightsCount;
-    vec3 PointLightsPos[4];
+    vec4 PointLightsPos[4];
     float PointLightsAttLin[4];
     float PointLightsAttQuad[4];
 };
@@ -55,7 +55,7 @@ float DiffuseLight(vec3 WorldPos, vec3 WorldNormal)
 
     for (int i = 0; i < ModelLighting.PointLightsCount; ++i)
     {
-        vec3 PointLightPos = ModelLighting.PointLightsPos[i];
+        vec3 PointLightPos = ModelLighting.PointLightsPos[i].xyz;
         vec3 ToPointLight = PointLightPos - WorldPos;
         float Lambertian = dot(normalize(ToPointLight), WorldNormal);
         float ModifiedLambertian = (Lambertian * 0.5f + 0.5f);

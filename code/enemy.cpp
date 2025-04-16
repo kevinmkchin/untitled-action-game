@@ -1,7 +1,17 @@
+#include "enemy.h"
+#include "game.h"
+#include "nav.h"
+#include "debugmenu.h"
 
 // external
 global_enemy_state_t EnemySystem;
 
+enum ske_humanoid_clips : u32
+{
+    SKE_HUMANOID_DEATH = 0,
+    SKE_HUMANOID_RUN = 1,
+    SKE_HUMANOID_CLIPCOUNT = 2
+};
 
 void global_enemy_state_t::Init()
 {
@@ -248,56 +258,9 @@ void PostPhysicsTickAllEnemies(game_state *GameState)
     }
 }
 
-void RenderEnemies(game_state *GameState, const mat4 &ProjFromView, const mat4 &ViewFromWorld)
-{
-    UseShader(Sha_ModelSkinnedLit);
-    glEnable(GL_DEPTH_TEST);
-    GLBind4f(Sha_ModelSkinnedLit, "MuzzleFlash", 
-        GameState->Player.Weapon.MuzzleFlash.x, 
-        GameState->Player.Weapon.MuzzleFlash.y, 
-        GameState->Player.Weapon.MuzzleFlash.z, 
-        GameState->Player.Weapon.MuzzleFlash.w);
-    GLBindMatrix4fv(Sha_ModelSkinnedLit, "Projection", 1, ProjFromView.ptr());
-    GLBindMatrix4fv(Sha_ModelSkinnedLit, "View", 1, ViewFromWorld.ptr());
-
-    for (int i = 0; i < EnemySystem.MaxEnemies; ++i)
-    {
-        enemy_t& Enemy = EnemySystem.Enemies[i];
-        if (!(Enemy.Flags & EnemyFlag_Active))
-            continue;
-
-        // TODO(Kevin): should use centroid instead of root
-        BindUniformsForModelLighting(Sha_ModelSkinnedLit, GameState, Enemy.Position);
-
-        mat4 ModelMatrix = TranslationMatrix(Enemy.Position) * 
-            RotationMatrix(Enemy.Orientation) * ScaleMatrix(SI_UNITS_TO_GAME_UNITS);
-
-        GLBindMatrix4fv(Sha_ModelSkinnedLit, "Model", 1, ModelMatrix.ptr());
-
-        GLBindMatrix4fv(Sha_ModelSkinnedLit, "FinalBonesMatrices[0]", MAX_BONES, 
-            Enemy.Animator->SkinningMatrixPalette[0].ptr());
-
-        for (size_t i = 0; i < Assets.Model_Attacker->Meshes.length; ++i)
-        {
-            skinned_mesh_t m = Assets.Model_Attacker->Meshes[i];
-            GPUTexture t = Assets.Model_Attacker->Textures[i];
-
-            glActiveTexture(GL_TEXTURE0);
-            //glBindTexture(GL_TEXTURE_2D, t.id);
-            glBindTexture(GL_TEXTURE_2D, Assets.DefaultEditorTexture.gputex.id);
-
-            glBindVertexArray(m.VAO);
-            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m.IBO);
-            glDrawElements(GL_TRIANGLES, m.IndicesCount, GL_UNSIGNED_INT, nullptr);
-            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-            glBindVertexArray(0);
-        }
-    }
-}
-
-void DebugDrawEnemyColliders()
-{
 #ifdef JPH_DEBUG_RENDERER
+void DebugDrawEnemyColliders(jph_debug_draw_gl3_t *JoltDebugDrawer)
+{
     if (!JoltDebugDrawer)
     {
         LogWarning("Called DebugDrawEnemyColliders but JoltDebugDrawer is null.");
@@ -319,8 +282,8 @@ void DebugDrawEnemyColliders()
         // JoltDebugDrawCharacterState(JoltDebugDraw, mCharacter,   
         //     WorldTransform, mCharacter->GetLinearVelocity());
     }
-#endif // JPH_DEBUG_RENDERER
 }
+#endif // JPH_DEBUG_RENDERER
 
 void HurtEnemy(game_state *GameState, u32 EnemyIndex, float Damage, bool Explode)
 {
@@ -342,9 +305,9 @@ void KillEnemy(game_state *GameState, u32 EnemyIndex, bool Explode)
 
     Target.Flags |= EnemyFlag_Dead;
 
-    // float f = ENEMYRNG.frand01();
+    // float f = GameState->EnemyRNG.frand01();
     // LogMessage("%f",f);
-    if (!Explode && ENEMYRNG.frand01() < 0.95f)
+    if (!Explode && GameState->EnemyRNG.frand01() < 0.95f)
     {
         Target.DeadTimer = 1.f;
         Target.RemainAfterDead = true;
