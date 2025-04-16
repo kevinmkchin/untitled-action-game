@@ -35,6 +35,7 @@ void InitializeGame(app_state *AppState)
 
     SetupProjectilesDataAndAllocateMemory();
     GameState->BloodParticles.Alloc(128, 32, MemoryType::Game);
+    // perhaps allocating the particles vertex stream should move out of here
     persistent_vertex_stream::vertex_desc ParticleVertexDesc;
     ParticleVertexDesc.VByteSize = sizeof(particle_vertex);
     ParticleVertexDesc.VAttrib0_Format = GL_FLOAT;

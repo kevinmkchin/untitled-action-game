@@ -12,6 +12,7 @@ enum weapon_types_t : u16
     WEAPON_TYPES_COUNT
 };
 
+// TODO(Kevin): move this to GameState
 struct weapon_state_t
 {
     weapon_types_t ActiveType = ROCKETLAUNCHER;
