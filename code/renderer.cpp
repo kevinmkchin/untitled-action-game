@@ -14,10 +14,31 @@ void AcquireResources()
         shader_path("model_textured_skinned.frag").c_str());
 }
 
-void RenderEnemies(
-    fixed_array<enemy_t> &Enemies,
-    game_state *GameState,
-    const mat4 &ProjFromView,
+// these should be generic "draw skinned model here, draw lit model there" functions
+
+void FillSkinnedModelDrawInfo(
+    sm_draw_info *DrawInfo,
+    struct game_state *GameState,
+    vec3 ModelCentroid,
+    vec3 RenderPosition,
+    quat RenderRotation,
+    animator_t *Animator,
+    skinned_model_t *Model)
+{
+    FillModelInstanceData(GameState,
+        &DrawInfo->RenderingInfo,
+        ModelCentroid,
+        RenderPosition,
+        RenderRotation,
+        nullptr);
+    DrawInfo->Animator = Animator;
+    DrawInfo->Model = Model;
+}
+
+void RenderSkinnedModels(
+    fixed_array<sm_draw_info> &SMDrawInfos,
+    struct game_state *GameState,
+    const mat4 &ProjFromView, 
     const mat4 &ViewFromWorld)
 {
     UseShader(Sha_ModelSkinnedLit);
@@ -30,27 +51,32 @@ void RenderEnemies(
     GLBindMatrix4fv(Sha_ModelSkinnedLit, "Projection", 1, ProjFromView.ptr());
     GLBindMatrix4fv(Sha_ModelSkinnedLit, "View", 1, ViewFromWorld.ptr());
 
-    for (u32 i = 0; i < Enemies.lenu(); ++i)
+    for (u32 i = 0; i < SMDrawInfos.lenu(); ++i)
     {
-        enemy_t& Enemy = Enemies[i];
-        if (!(Enemy.Flags & EnemyFlag_Active))
-            continue;
+        sm_draw_info &SMInfo = SMDrawInfos[i];
 
-        // TODO(Kevin): should use centroid instead of root
-        BindUniformsForModelLighting(Sha_ModelSkinnedLit, GameState, Enemy.Position);
-
-        mat4 ModelMatrix = TranslationMatrix(Enemy.Position) * 
-            RotationMatrix(Enemy.Orientation) * ScaleMatrix(SI_UNITS_TO_GAME_UNITS);
-
+        i32 loc0 = UniformLocation(Sha_ModelSkinnedLit, "ModelLighting.AmbientCube[0]");
+        i32 loc1 = UniformLocation(Sha_ModelSkinnedLit, "ModelLighting.DoSunLight");
+        i32 loc2 = UniformLocation(Sha_ModelSkinnedLit, "ModelLighting.DirectionToSun");
+        i32 loc3 = UniformLocation(Sha_ModelSkinnedLit, "ModelLighting.PointLightsCount");
+        i32 loc4 = UniformLocation(Sha_ModelSkinnedLit, "ModelLighting.PointLightsPos[0]");
+        i32 loc5 = UniformLocation(Sha_ModelSkinnedLit, "ModelLighting.PointLightsAttLin[0]");
+        i32 loc6 = UniformLocation(Sha_ModelSkinnedLit, "ModelLighting.PointLightsAttQuad[0]");
+        glUniform1fv(loc0, 6, SMInfo.RenderingInfo.AmbientCube);
+        glUniform1i(loc1, SMInfo.RenderingInfo.DoSunLight);
+        glUniform3fv(loc2, 1, (float*)&GameState->DirectionToSun);
+        glUniform1i(loc3, SMInfo.RenderingInfo.PointLightsCount);
+        glUniform4fv(loc4, 4, (float*)SMInfo.RenderingInfo.PointLightsPos);
+        glUniform1fv(loc5, 4, (float*)SMInfo.RenderingInfo.PointLightsAttLin);
+        glUniform1fv(loc6, 4, (float*)SMInfo.RenderingInfo.PointLightsAttQuad);
+        mat4 &ModelMatrix = SMInfo.RenderingInfo.WorldFromModel;
         GLBindMatrix4fv(Sha_ModelSkinnedLit, "Model", 1, ModelMatrix.ptr());
-
         GLBindMatrix4fv(Sha_ModelSkinnedLit, "FinalBonesMatrices[0]", MAX_BONES, 
-            Enemy.Animator->SkinningMatrixPalette[0].ptr());
-
-        for (size_t i = 0; i < Assets.Model_Attacker->Meshes.length; ++i)
+            SMInfo.Animator->SkinningMatrixPalette[0].ptr());
+        for (size_t j = 0; j < SMInfo.Model->Meshes.length; ++j)
         {
-            skinned_mesh_t m = Assets.Model_Attacker->Meshes[i];
-            GPUTexture t = Assets.Model_Attacker->Textures[i];
+            skinned_mesh_t m = SMInfo.Model->Meshes[j];
+            GPUTexture t = SMInfo.Model->Textures[j];
 
             glActiveTexture(GL_TEXTURE0);
             //glBindTexture(GL_TEXTURE_2D, t.id);

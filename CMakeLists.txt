@@ -27,7 +27,6 @@ add_executable(${PROJECT_NAME}
         code/shaders.cpp
         code/primitives.cpp
         code/instanced.cpp
-
         code/renderer.cpp
 
         # could refactor
@@ -41,7 +40,6 @@ add_executable(${PROJECT_NAME}
         code/physics.cpp
         code/physics_debug.cpp
         code/facebatch.cpp
-        code/shader_helpers.cpp
         code/winged.cpp
         code/levelentities.cpp
         code/particles.cpp
