@@ -25,9 +25,10 @@ add_executable(${PROJECT_NAME}
         code/filedialog.cpp
         code/utility.cpp
         code/shaders.cpp
-        code/renderer.cpp
-        code/instanced.cpp
         code/primitives.cpp
+        code/instanced.cpp
+
+        code/renderer.cpp
 
         # could refactor
         code/main.cpp

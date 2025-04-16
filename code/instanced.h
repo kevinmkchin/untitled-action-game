@@ -4,7 +4,7 @@
 #include "mem.h"
 #include "anim.h"
 
-// corpses are simply instanced static models that are textured and lit with no collision
+// Rendering code for instanced models that are textured and lit
 
 struct alignas(16) model_instance_data_t
 {
@@ -37,8 +37,13 @@ struct alignas(16) model_instance_data_t
 constexpr u32 MaxStaticInstances = 2000;
 constexpr u32 MaxDynamicInstances = 1000;
 
-void FillModelInstanceData(struct game_state *GameState, model_instance_data_t *InstanceData, 
-    vec3 ModelCentroid, vec3 RenderPosition, quat RenderRotation, ModelGLTF *InstanceModel);
+void FillModelInstanceData(
+    struct game_state *GameState, 
+    model_instance_data_t *InstanceData, 
+    vec3 ModelCentroid, 
+    vec3 RenderPosition, 
+    quat RenderRotation, 
+    ModelGLTF *InstanceModel);
 
 void InstanceDrawing_AcquireGPUResources();
 void InstancedDrawing_ReleaseGPUResources();

@@ -54,7 +54,7 @@ void warningUniformNotFound(const GPUShader &shader, const char *uniformName)
     }
 }
 
-i32 GetCachedUniformLocation(const GPUShader& shader, const char* uniformName)
+i32 UniformLocation(const GPUShader& shader, const char* uniformName)
 {
     auto location_iter = shader.uniformLocationsMap.find(uniformName);
     if (location_iter != shader.uniformLocationsMap.end())
@@ -267,7 +267,7 @@ void UseShader(const GPUShader& shader)
 
 void GLBind1i(const GPUShader& shader, const char* uniformName, GLint v0)
 {
-    i32 location = GetCachedUniformLocation(shader, uniformName);
+    i32 location = UniformLocation(shader, uniformName);
     if (location >= 0)
     {
         glUniform1i(location, v0);
@@ -276,7 +276,7 @@ void GLBind1i(const GPUShader& shader, const char* uniformName, GLint v0)
 
 void GLBind2i(const GPUShader& shader, const char* uniformName, GLint v0, GLint v1)
 {
-    i32 location = GetCachedUniformLocation(shader, uniformName);
+    i32 location = UniformLocation(shader, uniformName);
     if (location >= 0)
     {
         glUniform2i(location, v0, v1);
@@ -285,7 +285,7 @@ void GLBind2i(const GPUShader& shader, const char* uniformName, GLint v0, GLint 
 
 void GLBind3i(const GPUShader& shader, const char* uniformName, GLint v0, GLint v1, GLint v2)
 {
-    i32 location = GetCachedUniformLocation(shader, uniformName);
+    i32 location = UniformLocation(shader, uniformName);
     if (location >= 0)
     {
         glUniform3i(location, v0, v1, v2);
@@ -298,7 +298,7 @@ void GLBind3i(const GPUShader& shader, const char* uniformName, GLint v0, GLint 
 
 void GLBind4i(const GPUShader& shader, const char* uniformName, GLint v0, GLint v1, GLint v2, GLint v3)
 {
-    i32 location = GetCachedUniformLocation(shader, uniformName);
+    i32 location = UniformLocation(shader, uniformName);
     if (location >= 0)
     {
         glUniform4i(location, v0, v1, v2, v3);
@@ -307,7 +307,7 @@ void GLBind4i(const GPUShader& shader, const char* uniformName, GLint v0, GLint 
 
 void GLBind1f(const GPUShader& shader, const char* uniformName, GLfloat v0)
 {
-    i32 location = GetCachedUniformLocation(shader, uniformName);
+    i32 location = UniformLocation(shader, uniformName);
     if (location >= 0)
     {
         glUniform1f(location, v0);
@@ -316,7 +316,7 @@ void GLBind1f(const GPUShader& shader, const char* uniformName, GLfloat v0)
 
 void GLBind2f(const GPUShader& shader, const char* uniformName, GLfloat v0, GLfloat v1)
 {
-    i32 location = GetCachedUniformLocation(shader, uniformName);
+    i32 location = UniformLocation(shader, uniformName);
     if (location >= 0)
     {
         glUniform2f(location, v0, v1);
@@ -325,7 +325,7 @@ void GLBind2f(const GPUShader& shader, const char* uniformName, GLfloat v0, GLfl
 
 void GLBind3f(const GPUShader& shader, const char* uniformName, GLfloat v0, GLfloat v1, GLfloat v2)
 {
-    i32 location = GetCachedUniformLocation(shader, uniformName);
+    i32 location = UniformLocation(shader, uniformName);
     if (location >= 0)
     {
         glUniform3f(location, v0, v1, v2);
@@ -334,7 +334,7 @@ void GLBind3f(const GPUShader& shader, const char* uniformName, GLfloat v0, GLfl
 
 void GLBind4f(const GPUShader& shader, const char* uniformName, GLfloat v0, GLfloat v1, GLfloat v2, GLfloat v3)
 {
-    i32 location = GetCachedUniformLocation(shader, uniformName);
+    i32 location = UniformLocation(shader, uniformName);
     if (location >= 0)
     {
         glUniform4f(location, v0, v1, v2, v3);
@@ -343,7 +343,7 @@ void GLBind4f(const GPUShader& shader, const char* uniformName, GLfloat v0, GLfl
 
 void GLBindMatrix3fv(const GPUShader& shader, const char* uniformName, GLsizei count, const GLfloat* value)
 {
-    i32 location = GetCachedUniformLocation(shader, uniformName);
+    i32 location = UniformLocation(shader, uniformName);
     if (location >= 0)
     {
         glUniformMatrix3fv(location, count, GL_FALSE, value);
@@ -352,7 +352,7 @@ void GLBindMatrix3fv(const GPUShader& shader, const char* uniformName, GLsizei c
 
 void GLBindMatrix4fv(const GPUShader& shader, const char* uniformName, GLsizei count, const GLfloat* value)
 {
-    i32 location = GetCachedUniformLocation(shader, uniformName);
+    i32 location = UniformLocation(shader, uniformName);
     if (location >= 0)
     {
         glUniformMatrix4fv(location, count, GL_FALSE, value);
