@@ -88,7 +88,7 @@ void UpdateGPUTextureFromBitmap(GPUTexture *texture, unsigned char *bitmap, i32 
 void DeleteGPUTexture(GPUTexture *texture);
 
 
-struct TripleBufferedSSBO
+struct triple_buffered_ssbo
 {
     void Init(size_t FrameChunkSizeBytes);
     void Destroy();
@@ -103,10 +103,56 @@ private:
     GLuint BufferObject = 0;
     void *MappedPtr = nullptr;
 
-    static constexpr size_t NumFrames = 5;
+    static constexpr size_t NumFrames = 3;
     size_t FrameChunkSize = 0;
     size_t TotalSize = 0;
     u32 CurrentFrame = 0;
     GLsync FrameSyncObjects[NumFrames] = { nullptr, nullptr, nullptr };
 };
+
+struct persistent_vertex_stream
+{
+    struct vertex_desc
+    {
+        size_t VByteSize; // and stride
+        GLenum VAttrib0_Format;
+        u32 VAttrib0_Size = 0; // number of attrib0 values per vertex
+        u32 VAttrib0_Offset;
+        GLenum VAttrib1_Format;
+        u32 VAttrib1_Size = 0;
+        u32 VAttrib1_Offset;
+        GLenum VAttrib2_Format;
+        u32 VAttrib2_Size = 0;
+        u32 VAttrib2_Offset;
+        // GLenum VAttrib3_Format;
+        // size_t VAttrib3_Size = 0;
+        // size_t VAttrib3_Offset;
+        // GLenum VAttrib4_Format;
+        // size_t VAttrib4_Size = 0;
+        // size_t VAttrib4_Offset;
+    };
+
+    /*
+        Triple-buffered persistent buffer for vertex streaming
+        https://www.khronos.org/opengl/wiki/Buffer_Object_Streaming#Persistent_mapped_streaming
+    */
+
+    void Alloc(size_t VertexCountPerFrame, vertex_desc VertexDescriptor);
+    void Draw(void *VertexData, u32 VertexCount);
+    void Free();
+
+private:
+    GLuint VAO = 0;
+    GLuint VBO = 0;
+    char* MappedPtr = nullptr;
+    size_t VertexSize = 0;
+
+    static constexpr GLuint BindingIndex = 0;
+
+    static constexpr size_t NumFrames = 3;
+    size_t CurrentFrame = 0;
+    size_t FrameSize = 0;
+    size_t TotalSize = 0;
+};
+
 

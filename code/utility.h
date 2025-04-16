@@ -1,5 +1,7 @@
 #pragma once
 
+#include "common.h"
+
 vec3 ScreenPointToWorldRay(
     i32 BackBufferWidth,
     i32 BackBufferHeight,
@@ -22,33 +24,45 @@ vec3 WorldPointToScreenPoint(
     vec3 CameraDirection,
     vec3 WorldPosition);
 
-bool IntersectPlaneAndLine(vec3 pointOnPlane, vec3 normalOfPlane, 
-    vec3 pointOnLine, vec3 directionOfLine, vec3 *intersectionPoint);
-bool IntersectPlaneAndLineWithDirections(vec3 pointOnPlane, vec3 normalOfPlane, 
-    vec3 pointOnLine, vec3 directionOfLine, vec3 *intersectionPoint);
+bool IntersectPlaneAndLine(
+    vec3 pointOnPlane, vec3 normalOfPlane, 
+    vec3 pointOnLine, vec3 directionOfLine, 
+    vec3 *intersectionPoint);
+bool IntersectPlaneAndLineWithDirections(
+    vec3 pointOnPlane, vec3 normalOfPlane, 
+    vec3 pointOnLine, vec3 directionOfLine,
+    vec3 *intersectionPoint);
 
-float HorizontalFOVToVerticalFOV_RadianToRadian(float FOVXInRadians, float AspectRatio);
+float HorizontalFOVToVerticalFOV_RadianToRadian(
+    float FOVXInRadians, float AspectRatio);
 
 // Blit all of B into A at x y
-//    A is destination
+//    A is destination bitmap
 //    AW is destination bitmap resolution width (how many pixels across? not bytes)
 //    AH is destination bitmap resolution height
-//    B is source
+//    B is source bitmap
 //    BW is how many pixels wide source bitmap is 
 //    BH is how many pixels tall source bitmap is
 //    x and y is pixel X and Y in destination bitmap
-//    pixelsz is size of each pixel (for RGBA32F, it would be sizeof(float)*4 assuming float is 32 bits)
-//    for RGBA8, it would be sizeof(char)*4
-void BlitRect(u8 *A, int AW, int AH, u8 *B, int BW, int BH, int x, int y, size_t pixelsz);
+//    pixelsz is size of each pixel 
+//        for RGBA32F, it would be sizeof(float)*4 assuming float is 32 bits
+//        for RGBA8, it would be sizeof(char)*4
+void BlitRect(
+    u8 *A, int AW, int AH, 
+    u8 *B, int BW, int BH, 
+    int x, int y, size_t pixelsz);
 
-#define RGB255TO1(r,g,b) ((float)r)/255.f, ((float)g)/255.f, ((float)b)/255.f
+#define RGB255TO1(r,g,b)\
+    ((float)r)/255.f,\
+    ((float)g)/255.f,\
+    ((float)b)/255.f
 #define RGBHEXTO1(hex) \
     float((hex & 0x00FF00000) >> 16)/255.f,\
     float((hex & 0x0000FF00) >> 8)/255.f,\
     float(hex & 0x000000FF)/255.f
 
 
-struct random_series // random_series
+struct random_series
 {
     random_series()
     {
@@ -117,9 +131,6 @@ struct random_series // random_series
 };
 
 extern random_series RNG;
-extern random_series ENEMYRNG;
-extern random_series SOUNDRNG;
-
 
 i32 ShiftASCII(i32 keycodeASCII, bool shift);
 

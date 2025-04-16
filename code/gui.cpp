@@ -1539,6 +1539,9 @@ namespace GUI
         if (activeUI == null_ui_id)
             anyElementActive = false;
 
+        MouseWentUpFlag = false;
+        MouseWentDownFlag = false;
+
         keyboardInputASCIIKeycodeThisFrame.reset_count();
         keyboardInputASCIIKeycodeThisFrame.memset_zero();
         freshIdCounter = 0;
@@ -1555,9 +1558,6 @@ namespace GUI
 
     void ProcessSDLEvent(app_state *AppState, const SDL_Event event)
     {
-        MouseWentUpFlag = AppState->MouseReleased & SDL_BUTTON_MASK(SDL_BUTTON_LEFT);
-        MouseWentDownFlag = AppState->MousePressed & SDL_BUTTON_MASK(SDL_BUTTON_LEFT);
-
         switch (event.type)
         {
             case SDL_EVENT_MOUSE_MOTION:
@@ -1575,6 +1575,18 @@ namespace GUI
                 SDL_Keycode keycodeASCII = keyevent.key;
                 keycodeASCII = ShiftASCII(keycodeASCII, keyevent.mod & (SDL_KMOD_LSHIFT | SDL_KMOD_RSHIFT));
                 keyboardInputASCIIKeycodeThisFrame.put(keycodeASCII);
+            }break;
+            case SDL_EVENT_MOUSE_BUTTON_DOWN:
+            {
+                SDL_MouseButtonEvent MouseEvent = event.button;
+                if (MouseEvent.button == SDL_BUTTON_LEFT)
+                    MouseWentDownFlag = true;
+            }break;
+            case SDL_EVENT_MOUSE_BUTTON_UP:
+            {
+                SDL_MouseButtonEvent MouseEvent = event.button;
+                if (MouseEvent.button == SDL_BUTTON_LEFT)
+                    MouseWentUpFlag = true;
             }break;
         }
     }

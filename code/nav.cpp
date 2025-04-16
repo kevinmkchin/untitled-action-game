@@ -1,8 +1,11 @@
+#include "nav.h"
+
 #include <Recast.h>
 #include <DetourNavMesh.h>
 #include <DetourNavMeshBuilder.h>
 #include <DetourNavMeshQuery.h>
 #if INTERNAL_BUILD
+#include "primitives.h"
 #include <RecastDebugDraw.h>
 #include <DetourDebugDraw.h>
 #endif // INTERNAL_BUILD
@@ -205,7 +208,7 @@ enum SamplePartitionType
     SAMPLE_PARTITION_LAYERS
 };
 
-bool CreateRecastNavMesh()
+bool CreateRecastNavMesh(game_state *GameState)
 {
     LogMessage("Building Recast NavMesh");
 
@@ -214,10 +217,10 @@ bool CreateRecastNavMesh()
 
     std::vector<int> LevelColliderTriangles;
     int LoadingLevelColliderPointsIterator = 0;
-    for (u32 ColliderIndex = 0; ColliderIndex < (u32)LoadingLevelColliderSpans.size(); ++ColliderIndex)
+    for (u32 ColliderIndex = 0; ColliderIndex < GameState->LoadingLevelColliderSpans.lenu(); ++ColliderIndex)
     {
-        u32 Span = LoadingLevelColliderSpans[ColliderIndex];
-        vec3 *PointCloudPtr = &LoadingLevelColliderPoints[LoadingLevelColliderPointsIterator];
+        u32 Span = GameState->LoadingLevelColliderSpans[ColliderIndex];
+        vec3 *PointCloudPtr = &GameState->LoadingLevelColliderPoints[LoadingLevelColliderPointsIterator];
 
         for (u32 i = 2; i < Span; ++i)
         {
@@ -240,9 +243,9 @@ bool CreateRecastNavMesh()
     // min max
     vec3 min = vec3(FLT_MAX, FLT_MAX, FLT_MAX);
     vec3 max = vec3(-FLT_MAX, -FLT_MAX, -FLT_MAX);
-    for (u32 i = 0; i < (u32)LoadingLevelColliderPoints.size(); ++i)
+    for (u32 i = 0; i < GameState->LoadingLevelColliderPoints.lenu(); ++i)
     {
-        vec3 point = LoadingLevelColliderPoints[i];
+        vec3 point = GameState->LoadingLevelColliderPoints[i];
         min.x = GM_min(min.x, point.x);
         min.y = GM_min(min.y, point.y);
         min.z = GM_min(min.z, point.z);
@@ -251,10 +254,10 @@ bool CreateRecastNavMesh()
         max.z = GM_max(max.z, point.z);
     }
 
-    const float* bmin = (float*)&min;//m_geom->getNavMeshBoundsMin();
-    const float* bmax = (float*)&max;//m_geom->getNavMeshBoundsMax();
-    const float* verts = (float*)LoadingLevelColliderPoints.data();//m_geom->getMesh()->getVerts();
-    const int nverts = (int)LoadingLevelColliderPoints.size()*3;//m_geom->getMesh()->getVertCount();
+    const float* bmin = (float*)&min;
+    const float* bmax = (float*)&max;
+    const float* verts = (float*)GameState->LoadingLevelColliderPoints.data;
+    const int nverts = (int)GameState->LoadingLevelColliderPoints.lenu()*3;
     const int* tris = (int*)LevelColliderTriangles.data();
     const int ntris = (int)LevelColliderTriangles.size() / 3;
 
@@ -1119,7 +1122,7 @@ void GetRandomPointOnNavMesh(float *Point)
 //     }
 // }
 
-void DebugDrawRecast(recast_debug_drawmode DrawMode)
+void DebugDrawRecast(duDebugDraw *DebugDrawer, recast_debug_drawmode DrawMode)
 {
     if (m_navMesh && m_navQuery &&
         (DrawMode == DRAWMODE_NAVMESH ||
@@ -1129,103 +1132,103 @@ void DebugDrawRecast(recast_debug_drawmode DrawMode)
         DrawMode == DRAWMODE_NAVMESH_INVIS))
     {
         if (DrawMode != DRAWMODE_NAVMESH_INVIS)
-            duDebugDrawNavMeshWithClosedList(&RecastDebugDrawer, *m_navMesh, *m_navQuery, 0);
+            duDebugDrawNavMeshWithClosedList(DebugDrawer, *m_navMesh, *m_navQuery, 0);
         if (DrawMode == DRAWMODE_NAVMESH_BVTREE)
-            duDebugDrawNavMeshBVTree(&RecastDebugDrawer, *m_navMesh);
+            duDebugDrawNavMeshBVTree(DebugDrawer, *m_navMesh);
         if (DrawMode == DRAWMODE_NAVMESH_NODES)
-            duDebugDrawNavMeshNodes(&RecastDebugDrawer, *m_navQuery);
-        // duDebugDrawNavMeshPolysWithFlags(&RecastDebugDrawer, *m_navMesh, SAMPLE_POLYFLAGS_DISABLED, duRGBA(0,0,0,128));
+            duDebugDrawNavMeshNodes(DebugDrawer, *m_navQuery);
+        // duDebugDrawNavMeshPolysWithFlags(DebugDrawer, *m_navMesh, SAMPLE_POLYFLAGS_DISABLED, duRGBA(0,0,0,128));
     }
         
     glDepthMask(GL_TRUE);
 
     if (m_chf && DrawMode == DRAWMODE_COMPACT)
-        duDebugDrawCompactHeightfieldSolid(&RecastDebugDrawer, *m_chf);
+        duDebugDrawCompactHeightfieldSolid(DebugDrawer, *m_chf);
 
     if (m_chf && DrawMode == DRAWMODE_COMPACT_DISTANCE)
-        duDebugDrawCompactHeightfieldDistance(&RecastDebugDrawer, *m_chf);
+        duDebugDrawCompactHeightfieldDistance(DebugDrawer, *m_chf);
     if (m_chf && DrawMode == DRAWMODE_COMPACT_REGIONS)
-        duDebugDrawCompactHeightfieldRegions(&RecastDebugDrawer, *m_chf);
+        duDebugDrawCompactHeightfieldRegions(DebugDrawer, *m_chf);
     if (m_solid && DrawMode == DRAWMODE_VOXELS)
     {
         // glEnable(GL_FOG);
-        duDebugDrawHeightfieldSolid(&RecastDebugDrawer, *m_solid);
+        duDebugDrawHeightfieldSolid(DebugDrawer, *m_solid);
         // glDisable(GL_FOG);
     }
     if (m_solid && DrawMode == DRAWMODE_VOXELS_WALKABLE)
     {
         // glEnable(GL_FOG);
-        duDebugDrawHeightfieldWalkable(&RecastDebugDrawer, *m_solid);
+        duDebugDrawHeightfieldWalkable(DebugDrawer, *m_solid);
         // glDisable(GL_FOG);
     }
     if (m_cset && DrawMode == DRAWMODE_RAW_CONTOURS)
     {
         glDepthMask(GL_FALSE);
-        duDebugDrawRawContours(&RecastDebugDrawer, *m_cset);
+        duDebugDrawRawContours(DebugDrawer, *m_cset);
         glDepthMask(GL_TRUE);
     }
     if (m_cset && DrawMode == DRAWMODE_BOTH_CONTOURS)
     {
-        glDepthMask(GL_FALSE);
-        duDebugDrawRawContours(&RecastDebugDrawer, *m_cset, 0.5f);
-        duDebugDrawContours(&RecastDebugDrawer, *m_cset);
-        glDepthMask(GL_TRUE);
+        // glDepthMask(GL_FALSE);
+        duDebugDrawRawContours(DebugDrawer, *m_cset, 0.5f);
+        duDebugDrawContours(DebugDrawer, *m_cset);
+        // glDepthMask(GL_TRUE);
     }
     if (m_cset && DrawMode == DRAWMODE_CONTOURS)
     {
-        glDepthMask(GL_FALSE);
-        duDebugDrawContours(&RecastDebugDrawer, *m_cset);
-        glDepthMask(GL_TRUE);
+        // glDepthMask(GL_FALSE);
+        duDebugDrawContours(DebugDrawer, *m_cset);
+        // glDepthMask(GL_TRUE);
     }
     if (m_chf && m_cset && DrawMode == DRAWMODE_REGION_CONNECTIONS)
     {
-        duDebugDrawCompactHeightfieldRegions(&RecastDebugDrawer, *m_chf);
+        duDebugDrawCompactHeightfieldRegions(DebugDrawer, *m_chf);
             
-        glDepthMask(GL_FALSE);
-        duDebugDrawRegionConnections(&RecastDebugDrawer, *m_cset);
-        glDepthMask(GL_TRUE);
+        // glDepthMask(GL_FALSE);
+        duDebugDrawRegionConnections(DebugDrawer, *m_cset);
+        // glDepthMask(GL_TRUE);
     }
     if (m_pmesh && DrawMode == DRAWMODE_POLYMESH)
     {
-        glDepthMask(GL_FALSE);
-        duDebugDrawPolyMesh(&RecastDebugDrawer, *m_pmesh);
-        glDepthMask(GL_TRUE);
+        // glDepthMask(GL_FALSE);
+        duDebugDrawPolyMesh(DebugDrawer, *m_pmesh);
+        // glDepthMask(GL_TRUE);
     }
     if (m_dmesh && DrawMode == DRAWMODE_POLYMESH_DETAIL)
     {
-        glDepthMask(GL_FALSE);
-        duDebugDrawPolyMeshDetail(&RecastDebugDrawer, *m_dmesh);
-        glDepthMask(GL_TRUE);
+        // glDepthMask(GL_FALSE);
+        duDebugDrawPolyMeshDetail(DebugDrawer, *m_dmesh);
+        // glDepthMask(GL_TRUE);
     }
 
-    GLHasErrors();
+    // GLHasErrors();
 }
 
-static void DebugDrawAgent(const float* pos, float r, float h, float c, const unsigned int col)
-{
-    duDebugDraw& dd = RecastDebugDrawer;
+// static void DebugDrawAgent(const float* pos, float r, float h, float c, const unsigned int col)
+// {
+//     duDebugDraw& dd = RecastDebugDrawer;
     
-    dd.depthMask(false);
+//     dd.depthMask(false);
     
-    // Agent dimensions.    
-    duDebugDrawCylinderWire(&dd, pos[0]-r, pos[1]+0.02f, pos[2]-r, pos[0]+r, pos[1]+h, pos[2]+r, col, 2.0f);
+//     // Agent dimensions.    
+//     duDebugDrawCylinderWire(&dd, pos[0]-r, pos[1]+0.02f, pos[2]-r, pos[0]+r, pos[1]+h, pos[2]+r, col, 2.0f);
 
-    duDebugDrawCircle(&dd, pos[0],pos[1]+c,pos[2],r,duRGBA(0,0,0,64),1.0f);
+//     duDebugDrawCircle(&dd, pos[0],pos[1]+c,pos[2],r,duRGBA(0,0,0,64),1.0f);
 
-    unsigned int colb = duRGBA(0,0,0,196);
-    dd.begin(DU_DRAW_LINES);
-    dd.vertex(pos[0], pos[1]-c, pos[2], colb);
-    dd.vertex(pos[0], pos[1]+c, pos[2], colb);
-    dd.vertex(pos[0]-r/2, pos[1]+0.02f, pos[2], colb);
-    dd.vertex(pos[0]+r/2, pos[1]+0.02f, pos[2], colb);
-    dd.vertex(pos[0], pos[1]+0.02f, pos[2]-r/2, colb);
-    dd.vertex(pos[0], pos[1]+0.02f, pos[2]+r/2, colb);
-    dd.end();
+//     unsigned int colb = duRGBA(0,0,0,196);
+//     dd.begin(DU_DRAW_LINES);
+//     dd.vertex(pos[0], pos[1]-c, pos[2], colb);
+//     dd.vertex(pos[0], pos[1]+c, pos[2], colb);
+//     dd.vertex(pos[0]-r/2, pos[1]+0.02f, pos[2], colb);
+//     dd.vertex(pos[0]+r/2, pos[1]+0.02f, pos[2], colb);
+//     dd.vertex(pos[0], pos[1]+0.02f, pos[2]-r/2, colb);
+//     dd.vertex(pos[0], pos[1]+0.02f, pos[2]+r/2, colb);
+//     dd.end();
     
-    dd.depthMask(true);
-}
+//     dd.depthMask(true);
+// }
 
-void DebugDrawFollowPath()
+void DebugDrawFollowPath(support_renderer_t *SupportRenderer)
 {
     // duDebugDraw& dd = RecastDebugDrawer;
 
@@ -1279,7 +1282,7 @@ void DebugDrawFollowPath()
             float bx = m_smoothPath[b*3];
             float by = m_smoothPath[b*3+1]+0.1f;
             float bz = m_smoothPath[b*3+2];
-            SupportRenderer.DrawLine(vec3(ax,ay,az), vec3(bx,by,bz), vec4(0,0,0,0.85f), 2.f);
+            SupportRenderer->DrawLine(vec3(ax,ay,az), vec3(bx,by,bz), vec4(0,0,0,0.85f), 2.f);
         }
     }
 }
@@ -1319,39 +1322,39 @@ void recast_debug_draw_gl3_t::vertex(const float* pos, unsigned int color)
 
     if (CurrentPrimitiveDrawMode == DU_DRAW_TRIS)
     {
-        if (SupportRenderer.PRIMITIVE_TRIS_VB.lenu() + 7 > SupportRenderer.PRIMITIVE_TRIS_VB.cap())
+        if (SupportRenderer->PRIMITIVE_TRIS_VB.lenu() + 7 > SupportRenderer->PRIMITIVE_TRIS_VB.cap())
         {
             LogError("PRIMITIVE_TRIS_VB at capacity: cannot insert debug tris.");
             return;
         }
 
-        SupportRenderer.PRIMITIVE_TRIS_VB.put(pos[0]);
-        SupportRenderer.PRIMITIVE_TRIS_VB.put(pos[1]);
-        SupportRenderer.PRIMITIVE_TRIS_VB.put(pos[2]);
-        SupportRenderer.PRIMITIVE_TRIS_VB.put(r);
-        SupportRenderer.PRIMITIVE_TRIS_VB.put(g);
-        SupportRenderer.PRIMITIVE_TRIS_VB.put(b);
-        SupportRenderer.PRIMITIVE_TRIS_VB.put(a);
+        SupportRenderer->PRIMITIVE_TRIS_VB.put(pos[0]);
+        SupportRenderer->PRIMITIVE_TRIS_VB.put(pos[1]);
+        SupportRenderer->PRIMITIVE_TRIS_VB.put(pos[2]);
+        SupportRenderer->PRIMITIVE_TRIS_VB.put(r);
+        SupportRenderer->PRIMITIVE_TRIS_VB.put(g);
+        SupportRenderer->PRIMITIVE_TRIS_VB.put(b);
+        SupportRenderer->PRIMITIVE_TRIS_VB.put(a);
     }
     else if (CurrentPrimitiveDrawMode == DU_DRAW_LINES)
     {
-        if (SupportRenderer.PRIMITIVE_LINES_VB.lenu() + 7 > SupportRenderer.PRIMITIVE_LINES_VB.cap())
+        if (SupportRenderer->PRIMITIVE_LINES_VB.lenu() + 7 > SupportRenderer->PRIMITIVE_LINES_VB.cap())
         {
             LogError("PRIMITIVE_LINES_VB at capacity: cannot insert debug lines.");
             return;
         }
 
-        SupportRenderer.PRIMITIVE_LINES_VB.put(pos[0]);
-        SupportRenderer.PRIMITIVE_LINES_VB.put(pos[1]);
-        SupportRenderer.PRIMITIVE_LINES_VB.put(pos[2]);
-        SupportRenderer.PRIMITIVE_LINES_VB.put(r);
-        SupportRenderer.PRIMITIVE_LINES_VB.put(g);
-        SupportRenderer.PRIMITIVE_LINES_VB.put(b);
-        SupportRenderer.PRIMITIVE_LINES_VB.put(a);
+        SupportRenderer->PRIMITIVE_LINES_VB.put(pos[0]);
+        SupportRenderer->PRIMITIVE_LINES_VB.put(pos[1]);
+        SupportRenderer->PRIMITIVE_LINES_VB.put(pos[2]);
+        SupportRenderer->PRIMITIVE_LINES_VB.put(r);
+        SupportRenderer->PRIMITIVE_LINES_VB.put(g);
+        SupportRenderer->PRIMITIVE_LINES_VB.put(b);
+        SupportRenderer->PRIMITIVE_LINES_VB.put(a);
     }
     else if (CurrentPrimitiveDrawMode == DU_DRAW_POINTS)
     {
-        SupportRenderer.DrawSolidRect(
+        SupportRenderer->DrawSolidRect(
             vec3(pos[0], pos[1], pos[2]),
             -GameState->Player.PlayerCam.Direction,
             CurrentSize,
@@ -1380,39 +1383,39 @@ void recast_debug_draw_gl3_t::vertex(const float x, const float y, const float z
 
     if (CurrentPrimitiveDrawMode == DU_DRAW_TRIS)
     {
-        if (SupportRenderer.PRIMITIVE_TRIS_VB.lenu() + 7 > SupportRenderer.PRIMITIVE_TRIS_VB.cap())
+        if (SupportRenderer->PRIMITIVE_TRIS_VB.lenu() + 7 > SupportRenderer->PRIMITIVE_TRIS_VB.cap())
         {
             LogError("PRIMITIVE_TRIS_VB at capacity: cannot insert debug tris.");
             return;
         }
 
-        SupportRenderer.PRIMITIVE_TRIS_VB.put(x);
-        SupportRenderer.PRIMITIVE_TRIS_VB.put(y);
-        SupportRenderer.PRIMITIVE_TRIS_VB.put(z);
-        SupportRenderer.PRIMITIVE_TRIS_VB.put(r);
-        SupportRenderer.PRIMITIVE_TRIS_VB.put(g);
-        SupportRenderer.PRIMITIVE_TRIS_VB.put(b);
-        SupportRenderer.PRIMITIVE_TRIS_VB.put(a);
+        SupportRenderer->PRIMITIVE_TRIS_VB.put(x);
+        SupportRenderer->PRIMITIVE_TRIS_VB.put(y);
+        SupportRenderer->PRIMITIVE_TRIS_VB.put(z);
+        SupportRenderer->PRIMITIVE_TRIS_VB.put(r);
+        SupportRenderer->PRIMITIVE_TRIS_VB.put(g);
+        SupportRenderer->PRIMITIVE_TRIS_VB.put(b);
+        SupportRenderer->PRIMITIVE_TRIS_VB.put(a);
     }
     else if (CurrentPrimitiveDrawMode == DU_DRAW_LINES)
     {
-        if (SupportRenderer.PRIMITIVE_LINES_VB.lenu() + 7 > SupportRenderer.PRIMITIVE_LINES_VB.cap())
+        if (SupportRenderer->PRIMITIVE_LINES_VB.lenu() + 7 > SupportRenderer->PRIMITIVE_LINES_VB.cap())
         {
             LogError("PRIMITIVE_LINES_VB at capacity: cannot insert debug lines.");
             return;
         }
 
-        SupportRenderer.PRIMITIVE_LINES_VB.put(x);
-        SupportRenderer.PRIMITIVE_LINES_VB.put(y);
-        SupportRenderer.PRIMITIVE_LINES_VB.put(z);
-        SupportRenderer.PRIMITIVE_LINES_VB.put(r);
-        SupportRenderer.PRIMITIVE_LINES_VB.put(g);
-        SupportRenderer.PRIMITIVE_LINES_VB.put(b);
-        SupportRenderer.PRIMITIVE_LINES_VB.put(a);
+        SupportRenderer->PRIMITIVE_LINES_VB.put(x);
+        SupportRenderer->PRIMITIVE_LINES_VB.put(y);
+        SupportRenderer->PRIMITIVE_LINES_VB.put(z);
+        SupportRenderer->PRIMITIVE_LINES_VB.put(r);
+        SupportRenderer->PRIMITIVE_LINES_VB.put(g);
+        SupportRenderer->PRIMITIVE_LINES_VB.put(b);
+        SupportRenderer->PRIMITIVE_LINES_VB.put(a);
     }
     else if (CurrentPrimitiveDrawMode == DU_DRAW_POINTS)
     {
-        SupportRenderer.DrawSolidRect(
+        SupportRenderer->DrawSolidRect(
             vec3(x,y,z),
             -GameState->Player.PlayerCam.Direction,
             CurrentSize,
@@ -1448,12 +1451,12 @@ void recast_debug_draw_gl3_t::end()
     if (CurrentPrimitiveDrawMode == GL_QUADS)
     {
         // GL_QUAD not supported on my pc so I need to change this quad vb to tris vb
-        if (SupportRenderer.PRIMITIVE_TRIS_VB.lenu() + VertexBuffer.lenu() > SupportRenderer.PRIMITIVE_TRIS_VB.cap())
+        if (SupportRenderer->PRIMITIVE_TRIS_VB.lenu() + VertexBuffer.lenu() > SupportRenderer->PRIMITIVE_TRIS_VB.cap())
         {
             LogError("PRIMITIVE_TRIS_VB at capacity: cannot insert debug quads.");
             return;
         }
-        float *copyptr = SupportRenderer.PRIMITIVE_TRIS_VB.addnptr(size_t(VertexBuffer.lenu() * 1.5f));
+        float *copyptr = SupportRenderer->PRIMITIVE_TRIS_VB.addnptr(size_t(VertexBuffer.lenu() * 1.5f));
         size_t vbi = 0;
         for (size_t i = 0; i < VertexBuffer.lenu(); i += 36) // 4*9*sizeof(float)
         {

@@ -1,5 +1,6 @@
 #pragma once
 
+// Perhaps this should be more generic
 /** Simple primitives, debug visualizations, and viewport interaction renderer
  * 
  *  Visualization with lines, discs, grids, etc.
@@ -118,3 +119,4 @@ private:
     GPUShader PICKABLE_BILLBOARDS_SHADER;
     GPUShader GRID_MESH_SHADER;
 };
+

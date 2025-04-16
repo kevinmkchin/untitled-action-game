@@ -1,13 +1,13 @@
 #pragma once
 
-/* TODO
+#include "common.h"
+#include "mem.h"
+#include "utility.h"
+#include "winged.h"
+#include "levelentities.h"
+#include "cam.h"
+#include "shaders.h"
 
-    Still a ton to refactor in leveleditor.cpp
-
-    I don't think we should have volumes as a concept. It's 
-    unnecessary, just deal with faces. A soup of faces.
-
-*/
 
 enum editor_state_t
 {
@@ -69,6 +69,12 @@ public:
     camera_t EditorCam;
     mat4 ActiveViewMatrix;
     mat4 ActivePerspectiveMatrix;
+private:
+    static constexpr float EditorNearClip = 4.f;
+    static constexpr float EditorFarClip  = 8000.f;
+    GPUShader Sha_EditorScene;
+    GPUShader Sha_EditorWireframe;
+    GPUShader Sha_EditorFaceSelected;
 
 private: // move all the editor session specific data here
     u32 HotHandleId = 0;
@@ -86,6 +92,12 @@ private: // move all the editor session specific data here
 
     int SelectedEntityIndex = -1;
     entity_types_t EntityTypeToPlace;
+
+    std::vector<float> MY_VERTEX_BUFFER;
+
+public:
+    app_state *AppState;
+    support_renderer_t *SupportRenderer;
+    GPUFrameBuffer RenderTargetGame;
 };
 
-extern level_editor_t LevelEditor;

@@ -341,7 +341,7 @@ void DeleteGPUTexture(GPUTexture *texture)
 }
 
 
-void TripleBufferedSSBO::Init(size_t FrameChunkSizeBytes)
+void triple_buffered_ssbo::Init(size_t FrameChunkSizeBytes)
 {
     FrameChunkSize = FrameChunkSizeBytes;
     TotalSize = FrameChunkSize * NumFrames;
@@ -365,7 +365,7 @@ void TripleBufferedSSBO::Init(size_t FrameChunkSizeBytes)
     }
 }
 
-void TripleBufferedSSBO::Destroy()
+void triple_buffered_ssbo::Destroy()
 {
     if (BufferObject)
     {
@@ -375,7 +375,7 @@ void TripleBufferedSSBO::Destroy()
     }
 }
 
-void TripleBufferedSSBO::BeginFrame()
+void triple_buffered_ssbo::BeginFrame()
 {
     CurrentFrame = (CurrentFrame + 1) % NumFrames;
 
@@ -389,7 +389,7 @@ void TripleBufferedSSBO::BeginFrame()
     // }
 }
 
-std::pair<void *, GLintptr> TripleBufferedSSBO::Alloc()
+std::pair<void *, GLintptr> triple_buffered_ssbo::Alloc()
 {
     size_t GlobalOffset = CurrentFrame * FrameChunkSize;
     void *CPUPtr = static_cast<char*>(MappedPtr) + GlobalOffset;
@@ -397,13 +397,13 @@ std::pair<void *, GLintptr> TripleBufferedSSBO::Alloc()
     return { CPUPtr, GPUOffset };
 }
 
-void TripleBufferedSSBO::Bind(GLuint BindingPoint) const
+void triple_buffered_ssbo::Bind(GLuint BindingPoint) const
 {
     // This is pretty slow (3000 fps -> 2000 fps)
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, BindingPoint, BufferObject);
 }
 
-void TripleBufferedSSBO::EndFrame()
+void triple_buffered_ssbo::EndFrame()
 {
     // NOTE(Kevin) 2025-03-31: Maybe this is a bug on my GPU, but calling glFenceSync
     //      is leaking memory. In Task Manager and Visual Studio can observe memory rising
@@ -416,4 +416,97 @@ void TripleBufferedSSBO::EndFrame()
     // glDeleteSync(FrameSyncObjects[CurrentFrame]);
     // FrameSyncObjects[CurrentFrame] = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
 }
+
+void persistent_vertex_stream::Alloc(
+    size_t VertexCountPerFrame,
+    vertex_desc VertexDescriptor)
+{
+    ASSERT(!(VAO || VBO));
+
+    VertexSize = VertexDescriptor.VByteSize;
+    FrameSize = VertexCountPerFrame * VertexSize;
+    TotalSize = NumFrames * FrameSize;
+
+    glGenVertexArrays(1, &VAO);
+    glBindVertexArray(VAO);
+
+    const GLsizei StrideInBytes = (GLsizei)VertexSize;
+    if (VertexDescriptor.VAttrib0_Size > 0)
+    {
+        ASSERT(VertexDescriptor.VAttrib0_Offset == 0);
+        glEnableVertexAttribArray(0);
+        glVertexAttribFormat(0, 
+            VertexDescriptor.VAttrib0_Size, 
+            VertexDescriptor.VAttrib0_Format, 
+            GL_FALSE,
+            VertexDescriptor.VAttrib0_Offset);
+        glVertexAttribBinding(0, BindingIndex);
+    }
+    if (VertexDescriptor.VAttrib1_Size > 0)
+    {
+        glEnableVertexAttribArray(1);
+        glVertexAttribFormat(1, 
+            VertexDescriptor.VAttrib1_Size, 
+            VertexDescriptor.VAttrib1_Format, 
+            GL_FALSE,
+            VertexDescriptor.VAttrib1_Offset);
+        glVertexAttribBinding(1, BindingIndex);
+    }
+    if (VertexDescriptor.VAttrib2_Size > 0)
+    {
+        glEnableVertexAttribArray(2);
+        glVertexAttribFormat(2, 
+            VertexDescriptor.VAttrib2_Size, 
+            VertexDescriptor.VAttrib2_Format, 
+            GL_FALSE,
+            VertexDescriptor.VAttrib2_Offset);
+        glVertexAttribBinding(2, BindingIndex);
+    }
+
+    glGenBuffers(1, &VBO);
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    glBufferStorage(GL_ARRAY_BUFFER, TotalSize, nullptr,
+        GL_MAP_WRITE_BIT |
+        GL_MAP_PERSISTENT_BIT |
+        GL_MAP_COHERENT_BIT);
+    MappedPtr = (char*) glMapBufferRange(GL_ARRAY_BUFFER, 0, TotalSize,
+        GL_MAP_WRITE_BIT |
+        GL_MAP_PERSISTENT_BIT |
+        GL_MAP_COHERENT_BIT);
+    // Tell OpenGL how to interpret the vertex struct (binding index = 0)
+    // Bind buffer to binding index 0 (no offset yet)
+    glBindVertexBuffer(BindingIndex, VBO, 0, StrideInBytes);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+    glBindVertexArray(0);
+}
+
+void persistent_vertex_stream::Draw(void *VertexData, u32 VertexCount)
+{
+    if (VertexCount == 0)
+        return;
+    ASSERT(VAO && VBO);
+
+    size_t FrameIndex = CurrentFrame % NumFrames;
+    size_t OffsetInBytes = FrameIndex * FrameSize;
+    const GLsizei StrideInBytes = (GLsizei)VertexSize;
+
+    memcpy(MappedPtr + OffsetInBytes, VertexData, VertexCount * StrideInBytes);
+
+    glBindVertexArray(VAO);
+    glBindVertexBuffer(BindingIndex, VBO, OffsetInBytes, StrideInBytes);
+    glDrawArrays(GL_TRIANGLES, 0, VertexCount);
+    glBindVertexArray(0);
+
+    ++CurrentFrame;
+    if (CurrentFrame >= FrameSize)
+        CurrentFrame = 0;
+}
+
+void persistent_vertex_stream::Free()
+{
+    glDeleteVertexArrays(1, &VAO);
+    glDeleteBuffers(1, &VBO);
+}
+
 

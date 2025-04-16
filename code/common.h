@@ -32,7 +32,7 @@ std::string entity_icons_path();
 std::string entity_icons_path(const std::string& name);
 
 #define PRINT_TO_INGAME_CONSOLE
-inline u32 CharBufLen(char *Buf);
+u32 CharBufLen(char *Buf);
 void LogMessage(const char *fmt, ...);
 void LogWarning(const char *fmt, ...);
 void LogError(const char *fmt, ...);
@@ -49,6 +49,11 @@ void LogError(const char *fmt, ...);
 
 struct app_state
 {
+    struct game_state *GameState;
+
+    SDL_Window *SDLMainWindow;
+
+    float TimeSinceStart = 0.f;
     u32 MouseCurrent;
     u32 MousePressed;
     u32 MouseReleased;
@@ -60,11 +65,13 @@ struct app_state
     i32 BackBufferWidth = -1;
     i32 BackBufferHeight = -1;
 
+    struct GPUFrameBuffer *RenderTargetGame;
     i32 GUIRenderTargetWidth;
     i32 GUIRenderTargetHeight;
+    struct support_renderer_t *PrimitivesRenderer;
+    struct level_editor_t *LevelEditor;
 };
 
-extern vec2 MouseDelta;
 extern bool KeysCurrent[256];
 extern float DeltaTime;
 constexpr float FixedDeltaTime = 1.0f / 60.0f;

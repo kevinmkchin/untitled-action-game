@@ -6,14 +6,15 @@
 #include "player.h"
 #include "cam.h"
 #include "instanced.h"
+#include "renderer.h"
 #include "lightmap.h"
 
 struct game_state
 {
+    app_state *AppState;
+
     random_series ParticlesRNG;
     particle_buffer BloodParticles;
-    particle_vertex_stream BloodParticlesVB;
-    fixed_array<particle_vertex> PQuadBuf;
 
     player_t Player;
 
@@ -21,10 +22,10 @@ struct game_state
     bool LevelLoaded = false;
     JPH::BodyID LevelColliderBodyId;
 
-    fixed_array<model_instance_data_t> StaticInstances;
-    fixed_array<model_instance_data_t> DynamicInstances;
-
     fixed_array<animator_t> AnimatorPool;
+
+    // Enemies
+    random_series EnemyRNG;
 
     // Runtime map info
     vec3 PlayerStartPosition;
@@ -33,23 +34,35 @@ struct game_state
     vec3 DirectionToSun;
     fixed_array<static_point_light_t> PointLights;
     std::vector<face_batch_t> GameLevelFaceBatches;
+    // Map loading temp data
+    fixed_array<vec3> LoadingLevelColliderPoints;
+    fixed_array<u32> LoadingLevelColliderSpans;
+
+    // Rendering Data
+    fixed_array<model_instance_data_t> StaticInstances;
+    fixed_array<model_instance_data_t> DynamicInstances;
+    fixed_array<particle_vertex> PQuadBuf;
+    persistent_vertex_stream BloodParticlesVB;
+    fixed_array<textured_lit_drawinfo> TexturedLitRenderData;
+    fixed_array<sm_drawinfo> SMRenderData;
+    mat4 ClipFromView;
+    mat4 ViewFromWorld;
+    mat4 ClipFromWorld;
 
     // Testing
     int KillEnemyCounter = 0;
-
 };
 
 
-
-void InitializeGame();
+void InitializeGame(app_state *AppState);
 void DestroyGame();
 void LoadLevel(const char *MapPath);
 void UnloadPreviousLevel();
 
-void DoGameLoop();
+void DoGameLoop(app_state *AppState);
 
 // private
-void CreateAndRegisterLevelCollider();
+void CreateAndRegisterLevelCollider(game_state *GameState);
 
 /** NonPhysicsTick runs once per frame.
     Input handling should be done here.
@@ -65,5 +78,5 @@ void LateNonPhysicsTick();
 void PrePhysicsTick();
 void PostPhysicsTick();
 
-void UpdateGameGUI();
-void RenderGameLayer();
+void UpdateGameGUI(i32 GUIWidth, i32 GUIHeight);
+void RequestDrawGame();
