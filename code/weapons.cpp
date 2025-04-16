@@ -28,123 +28,149 @@ void TickWeapon(weapon_state_t *State, bool LMB, bool RMB)
 
     switch (State->ActiveType)
     {
-    case NAILGUN:
-    {
-        GunRecoil = GM_max(0.f, GunRecoil-9.0f*DeltaTime);
-        if (LMB && State->Cooldown <= 0.f)
+        case NAILGUN:
         {
-            // shoot
-            static int ChannelIndex = 0;
-            Mix_VolumeChunk(Assets.Sfx_Shoot0, 24 + SOUNDRNG.NextInt(-2, 2)); // Volume variation
-            Mix_PlayChannel(ChannelIndex++%3, Assets.Sfx_Shoot0, 0);
-            // State->Cooldown = RMB ? 0.080f : 0.150f;
-            State->Cooldown = 0.080f;
-
-            GunRecoil = 0.9f;
-
-            camera_t *Cam = &(State->Owner->PlayerCam);
-            Cam->ApplyKnockback(0.034f, 0.12f);
-            vec3 GunTip = Cam->Position + Cam->Direction * 32.f
-                + vec3(0.f,-5.f,0.f);
-            SpawnProjectile(PROJECTILE_NAIL, GunTip, Cam->Direction, 
-                Cam->Orientation, vec3(), vec3());
-
-            State->MuzzleFlash.w = 0.080f;
-            State->MuzzleFlash.x = GunTip.x;
-            State->MuzzleFlash.y = GunTip.y;
-            State->MuzzleFlash.z = GunTip.z;
-        }
-        if (LMB || RMB)
-        {
-            State->NailgunRotationVelocity = State->NailgunRotationMaxVelocity;
-        }
-
-        State->NailgunRotation += State->NailgunRotationVelocity * DeltaTime;
-        State->NailgunRotationVelocity = fmax(0.f, State->NailgunRotationVelocity + State->NailgunRotationAcceleration * DeltaTime);
-        if (State->NailgunRotationVelocity > 0.1f && State->NailgunRotationVelocity <= 3.f)
-        {
-            State->NailgunRotationVelocity = fmax(3.f, State->NailgunRotationVelocity);
-            if (abs(fmodf(State->NailgunRotation, GM_PI) - GM_HALFPI) < 0.01f)
+            GunRecoil = GM_max(0.f, GunRecoil-9.0f*DeltaTime);
+            if (LMB && State->Cooldown <= 0.f)
             {
-                State->NailgunRotationVelocity = 0.f;
+                // shoot
+                static int ChannelIndex = 0;
+                Mix_VolumeChunk(Assets.Sfx_Shoot0, 24 + SOUNDRNG.NextInt(-2, 2)); // Volume variation
+                Mix_PlayChannel(ChannelIndex++%3, Assets.Sfx_Shoot0, 0);
+                // State->Cooldown = RMB ? 0.080f : 0.150f;
+                State->Cooldown = 0.080f;
+
+                GunRecoil = 0.9f;
+
+                camera_t *Cam = &(State->Owner->PlayerCam);
+                Cam->ApplyKnockback(0.034f, 0.12f);
+                vec3 GunTip = Cam->Position + Cam->Direction * 32.f
+                    + vec3(0.f,-5.f,0.f);
+                SpawnProjectile(PROJECTILE_NAIL, GunTip, Cam->Direction, 
+                    Cam->Orientation, vec3(), vec3());
+
+                State->MuzzleFlash.w = 0.080f;
+                State->MuzzleFlash.x = GunTip.x;
+                State->MuzzleFlash.y = GunTip.y;
+                State->MuzzleFlash.z = GunTip.z;
             }
+            if (LMB || RMB)
+            {
+                State->NailgunRotationVelocity = State->NailgunRotationMaxVelocity;
+            }
+
+            State->NailgunRotation += State->NailgunRotationVelocity * DeltaTime;
+            State->NailgunRotationVelocity = fmax(0.f, State->NailgunRotationVelocity + State->NailgunRotationAcceleration * DeltaTime);
+            if (State->NailgunRotationVelocity > 0.1f && State->NailgunRotationVelocity <= 3.f)
+            {
+                State->NailgunRotationVelocity = fmax(3.f, State->NailgunRotationVelocity);
+                if (abs(fmodf(State->NailgunRotation, GM_PI) - GM_HALFPI) < 0.01f)
+                {
+                    State->NailgunRotationVelocity = 0.f;
+                }
+            }
+            break;
         }
-        break;
-    }
-    case ROCKETLAUNCHER:
-    {
-        GunRecoil = GM_max(0.f, GunRecoil-9.0f*DeltaTime);
-        if (LMB && State->Cooldown <= 0.f)
+        case ROCKETLAUNCHER:
         {
-            static int ChannelIndex = 0;
-            Mix_VolumeChunk(Assets.Sfx_ShootRocket, 24 + SOUNDRNG.NextInt(-2, 2));
-            Mix_PlayChannel(ChannelIndex++%3, Assets.Sfx_ShootRocket, 0);
-            State->Cooldown = 0.90f;
+            GunRecoil = GM_max(0.f, GunRecoil-9.0f*DeltaTime);
+            if (LMB && State->Cooldown <= 0.f)
+            {
+                static int ChannelIndex = 0;
+                Mix_VolumeChunk(Assets.Sfx_ShootRocket, 24 + SOUNDRNG.NextInt(-2, 2));
+                Mix_PlayChannel(ChannelIndex++%3, Assets.Sfx_ShootRocket, 0);
+                State->Cooldown = 0.90f;
 
-            GunRecoil = 4.9f;
+                GunRecoil = 4.9f;
 
-            camera_t *Cam = &(State->Owner->PlayerCam);
-            Cam->ApplyKnockback(0.050f, 0.12f);
-            vec3 GunTip = Cam->Position + Cam->Direction * 32.f
-                + vec3(0.f,0.f,0.f);
-            SpawnProjectile(PROJECTILE_ROCKET_0, GunTip, Cam->Direction, 
-                Cam->Orientation, vec3(), vec3());
+                camera_t *Cam = &(State->Owner->PlayerCam);
+                Cam->ApplyKnockback(0.050f, 0.12f);
+                vec3 GunTip = Cam->Position + Cam->Direction * 32.f
+                    + vec3(0.f,0.f,0.f);
+                SpawnProjectile(PROJECTILE_ROCKET_0, GunTip, Cam->Direction, 
+                    Cam->Orientation, vec3(), vec3());
 
-            State->MuzzleFlash.w = 0.080f;
-            State->MuzzleFlash.x = GunTip.x;
-            State->MuzzleFlash.y = GunTip.y;
-            State->MuzzleFlash.z = GunTip.z;
+                State->MuzzleFlash.w = 0.080f;
+                State->MuzzleFlash.x = GunTip.x;
+                State->MuzzleFlash.y = GunTip.y;
+                State->MuzzleFlash.z = GunTip.z;
+            }
+            break;
         }
-        break;
-    }
     }
 }
 
-// void RenderWeapon(weapon_state_t *State, float *ProjFromView, float *WorldFromView)
-// {
-//     UseShader(Sha_Gun);
-//     glEnable(GL_DEPTH_TEST);
-//     GLBindMatrix4fv(Sha_Gun, "WorldFromView", 1, WorldFromView);
-//     GLBindMatrix4fv(Sha_Gun, "ProjFromView", 1, ProjFromView);
+void DrawWeaponModel(game_state *GameState)
+{
+    // Request draw weapon model
+    // This function is to handle drawing weapon models because they
+    // may require special handling e.g. rotating barrel
 
-//     switch (State->ActiveType)
-//     {
-//         case NAILGUN:
-//         {
-//             GPUMeshIndexed m;
-//             GPUTexture t;
-//             mat4 GunOffsetAndScale = TranslationMatrix(0,-4,GunRecoil) * ScaleMatrix(SI_UNITS_TO_GAME_UNITS);
-//             GLBindMatrix4fv(Sha_Gun, "ViewFromModel", 1, GunOffsetAndScale.ptr());
-//             m = Assets.ModelsTextured[MT_WPN_TYPE1].meshes[0];
-//             t = Assets.ModelsTextured[MT_WPN_TYPE1].color[0];
-//             // glActiveTexture(GL_TEXTURE0);
-//             // glBindTexture(GL_TEXTURE_2D, t.id);
-//             RenderGPUMeshIndexed(m);
-//             GunOffsetAndScale = TranslationMatrix(0,-4,GunRecoil) 
-//                 * RotationMatrix(EulerToQuat(0,0,State->NailgunRotation)) 
-//                 * ScaleMatrix(SI_UNITS_TO_GAME_UNITS);
-//             GLBindMatrix4fv(Sha_Gun, "ViewFromModel", 1, GunOffsetAndScale.ptr());
-//             m = Assets.ModelsTextured[MT_WPN_TYPE1].meshes[1];
-//             t = Assets.ModelsTextured[MT_WPN_TYPE1].color[1];
-//             // glActiveTexture(GL_TEXTURE0);
-//             // glBindTexture(GL_TEXTURE_2D, t.id);
-//             RenderGPUMeshIndexed(m);
-//         } break;
-//         case ROCKETLAUNCHER:
-//         {
-//             GPUMeshIndexed m;
-//             GPUTexture t;
-//             mat4 GunOffsetAndScale = TranslationMatrix(1.8f,-3.8f,GunRecoil) * ScaleMatrix(SI_UNITS_TO_GAME_UNITS);
-//             GLBindMatrix4fv(Sha_Gun, "ViewFromModel", 1, GunOffsetAndScale.ptr());
-//             m = Assets.ModelsTextured[MT_WPN_ROCKETLAUNCHER].meshes[0];
-//             t = Assets.ModelsTextured[MT_WPN_ROCKETLAUNCHER].color[0];
-//             // glActiveTexture(GL_TEXTURE0);
-//             // glBindTexture(GL_TEXTURE_2D, t.id);
-//             RenderGPUMeshIndexed(m);
-//             break;
-//         }
-//     }
-// }
+    weapon_state_t &WeaponState = GameState->Player.Weapon;
+    camera_t &PlayerCam = GameState->Player.PlayerCam;
+
+    vec4 World_GunForward = vec4(PlayerCam.ViewForward, 0);
+    vec4 World_GunUp = vec4(PlayerCam.ViewUp, 0);
+    vec4 World_GunRight = vec4(Normalize(Cross(PlayerCam.ViewForward, PlayerCam.ViewUp)), 0);
+    vec4 World_GunPosition = vec4(PlayerCam.ViewPosition, 1);
+
+    vec4 World_ModifiedGunPosition = World_GunPosition;
+    // TODO(Kevin): read weapon model information from breed/type pattern
+    //              and move WorldFromGun matrix assembly here
+
+    textured_lit_drawinfo DrawInfo;
+    FillModelInstanceData(GameState,
+        &DrawInfo.RenderingInfo,
+        World_GunPosition.xyz,
+        vec3(),
+        quat(),
+        nullptr);
+
+    switch (WeaponState.ActiveType)
+    {
+        case ROCKETLAUNCHER:
+        {
+            World_ModifiedGunPosition += World_GunForward * -GunRecoil;
+            World_ModifiedGunPosition += World_GunUp * -3.8f;
+            World_ModifiedGunPosition += World_GunRight * 1.8f;
+            mat4 WorldFromGun = mat4(
+                World_GunForward,
+                World_GunUp,
+                World_GunRight,
+                World_ModifiedGunPosition);
+
+            DrawInfo.RenderingInfo.WorldFromModel = WorldFromGun
+                * ScaleMatrix(SI_UNITS_TO_GAME_UNITS);
+            DrawInfo.M = Assets.ModelsTextured[MT_WPN_ROCKETLAUNCHER].meshes[0];
+            DrawInfo.T = Assets.ModelsTextured[MT_WPN_ROCKETLAUNCHER].color[0];
+            GameState->TexturedLitRenderData.put(DrawInfo);
+        } break;
+        case NAILGUN:
+        {
+            World_ModifiedGunPosition += World_GunForward * -GunRecoil;
+            World_ModifiedGunPosition += World_GunUp * -4.0f;
+            World_ModifiedGunPosition += World_GunRight * 1.8f;
+            mat4 WorldFromGun = mat4(
+                World_GunForward,
+                World_GunUp,
+                World_GunRight,
+                World_ModifiedGunPosition);
+
+            DrawInfo.RenderingInfo.WorldFromModel = WorldFromGun
+                * ScaleMatrix(SI_UNITS_TO_GAME_UNITS);
+            DrawInfo.M = Assets.ModelsTextured[MT_WPN_TYPE1].meshes[0];
+            DrawInfo.T = Assets.ModelsTextured[MT_WPN_TYPE1].color[0];
+            GameState->TexturedLitRenderData.put(DrawInfo);
+
+            DrawInfo.RenderingInfo.WorldFromModel = WorldFromGun
+                * RotationMatrix(EulerToQuat(WeaponState.NailgunRotation,0,0))
+                * ScaleMatrix(SI_UNITS_TO_GAME_UNITS);
+            DrawInfo.M = Assets.ModelsTextured[MT_WPN_TYPE1].meshes[1];
+            DrawInfo.T = Assets.ModelsTextured[MT_WPN_TYPE1].color[1];
+            GameState->TexturedLitRenderData.put(DrawInfo);
+        } break;
+    }
+}
 
 void InstanceProjectilesForDrawing(game_state *GameState)
 {

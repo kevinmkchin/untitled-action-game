@@ -43,7 +43,8 @@ struct game_state
     fixed_array<model_instance_data_t> DynamicInstances;
     fixed_array<particle_vertex> PQuadBuf;
     persistent_vertex_stream BloodParticlesVB;
-    fixed_array<sm_draw_info> SMRenderData;
+    fixed_array<textured_lit_drawinfo> TexturedLitRenderData;
+    fixed_array<sm_drawinfo> SMRenderData;
     mat4 ClipFromView;
     mat4 ViewFromWorld;
     mat4 ClipFromWorld;
