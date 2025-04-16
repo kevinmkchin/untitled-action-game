@@ -1,5 +1,6 @@
 #include "debugmenu.h"
 #include "game.h"
+#include "enemy.h"
 
 #include <SDL3/SDL_clipboard.h>
 #include <noclip.h>

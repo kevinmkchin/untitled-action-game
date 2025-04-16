@@ -5,6 +5,7 @@
 #include "gui.h"
 #include "debugmenu.h"
 #include "saveloadlevel.h"
+#include "enemy.h"
 
 
 #if INTERNAL_BUILD
@@ -25,14 +26,15 @@ void InitializeGame(app_state *AppState)
 {
     GameState = AppState->GameState;
 
+/////////// this probably shouldn't be here....
     GLLoadShaderProgramFromFile(Sha_GameLevel, 
         shader_path("__game_level.vert").c_str(), 
         shader_path("__game_level.frag").c_str());
     GLLoadShaderProgramFromFile(Sha_ParticlesDefault, 
         shader_path("particles.vert").c_str(), 
         shader_path("particles.frag").c_str());
-
     InstanceDrawing_AcquireGPUResources();
+////////////
 
     GameState->AnimatorPool = fixed_array<animator_t>(64, MemoryType::Game);
     GameState->AnimatorPool.setlen(64);
@@ -337,7 +339,26 @@ void RenderGameLayer(app_state *AppState)
 
     // RenderWeapon(&GameState->Player.Weapon, perspectiveMatrix.ptr(), viewMatrix.GetInverse().ptr());
 
-    RenderEnemies(EnemySystem.Enemies, GameState,
+    fixed_array<sm_draw_info> SkinnedModelDrawRequests
+        = fixed_array<sm_draw_info>(EnemySystem.Enemies.lenu(), MemoryType::Frame);
+    for (u32 i = 0; i < EnemySystem.Enemies.lenu(); ++i)
+    {
+        enemy_t& Enemy = EnemySystem.Enemies[i];
+        if (!(Enemy.Flags & EnemyFlag_Active))
+            continue;
+
+        sm_draw_info SMDrawInfo;
+        FillSkinnedModelDrawInfo(
+            &SMDrawInfo,
+            GameState,
+            Enemy.Position,//TODO(Kevin): Centroid
+            Enemy.Position,
+            Enemy.Orientation,
+            Enemy.Animator,
+            Assets.Model_Attacker);
+        SkinnedModelDrawRequests.put(SMDrawInfo);
+    }
+    RenderSkinnedModels(SkinnedModelDrawRequests, GameState,
         perspectiveMatrix, viewMatrix);
     InstanceProjectilesForDrawing(GameState);
     SortAndDrawInstancedModels(GameState, GameState->StaticInstances, GameState->DynamicInstances, 
