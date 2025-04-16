@@ -19,8 +19,13 @@ void InstancedDrawing_ReleaseGPUResources()
     InstanceDataSSBO.Destroy();
 }
 
-void FillModelInstanceData(game_state *GameState, model_instance_data_t *InstanceData, 
-    vec3 ModelCentroid, vec3 RenderPosition, quat RenderRotation, ModelGLTF *InstanceModel)
+void FillModelInstanceData(
+    game_state *GameState,
+    model_instance_data_t *InstanceData,
+    vec3 ModelCentroid,
+    vec3 RenderPosition,
+    quat RenderRotation,
+    ModelGLTF *InstanceModel)
 {
     size_t LightCacheIndex = GameState->LightCacheVolume->IndexByPosition(ModelCentroid);
     lc_light_indices_t LightIndices = GameState->LightCacheVolume->SignificantLightIndices[LightCacheIndex];
