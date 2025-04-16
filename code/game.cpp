@@ -17,24 +17,13 @@ static jph_debug_draw_gl3_t *JoltDebugDrawer;
 #endif // JPH_DEBUG_RENDERER
 static constexpr float GAMEPROJECTION_NEARCLIP = 4.f; // even 2 works fine to remove z fighting
 static constexpr float GAMEPROJECTION_FARCLIP = 3200.f;
-static GPUShader Sha_GameLevel;
-static GPUShader Sha_ParticlesDefault;
+
 static game_state *GameState;
 
 
 void InitializeGame(app_state *AppState)
 {
     GameState = AppState->GameState;
-
-/////////// this probably shouldn't be here....
-    GLLoadShaderProgramFromFile(Sha_GameLevel, 
-        shader_path("__game_level.vert").c_str(), 
-        shader_path("__game_level.frag").c_str());
-    GLLoadShaderProgramFromFile(Sha_ParticlesDefault, 
-        shader_path("particles.vert").c_str(), 
-        shader_path("particles.frag").c_str());
-    InstanceDrawing_AcquireGPUResources();
-////////////
 
     GameState->AnimatorPool = fixed_array<animator_t>(64, MemoryType::Game);
     GameState->AnimatorPool.setlen(64);
@@ -80,14 +69,12 @@ void DestroyGame()
     Physics.Destroy();
 
     GameState->BloodParticlesVB.Free();
-    InstancedDrawing_ReleaseGPUResources();
 }
 
 void LoadLevel(const char *MapPath)
 {
     StaticLevelMemory.ArenaOffset = 0;
     GameState->StaticInstances = fixed_array<model_instance_data_t>(MaxStaticInstances, MemoryType::Level);
-
 
     if (GameState->LevelLoaded)
         UnloadPreviousLevel();
@@ -194,6 +181,66 @@ void LateNonPhysicsTick()
     UpdateParticles(GameState->BloodParticles, EmitterRNG);
 }
 
+void DoGameLoop(app_state *AppState)
+{
+    GameState->DynamicInstances = fixed_array<model_instance_data_t>(MaxDynamicInstances, MemoryType::Frame);
+
+    if (GameState->GameLoopCanRun) 
+    {
+        NonPhysicsTick();
+
+        static float Accumulator = 0.f;
+        Accumulator += DeltaTime;
+        while (Accumulator >= FixedDeltaTime)
+        {
+            PrePhysicsTick();
+            Physics.Tick();
+            PostPhysicsTick();
+
+            Accumulator -= FixedDeltaTime;
+        }
+
+        LateNonPhysicsTick();
+
+        for (size_t i = 0; i < GameState->AnimatorPool.length; ++i)
+        {
+            if (GameState->AnimatorPool[i].HasOwner)
+            {
+                GameState->AnimatorPool[i].UpdateGlobalPoses(DeltaTime);
+                GameState->AnimatorPool[i].CalculateSkinningMatrixPalette();
+            }
+        }
+    }
+
+    RequestDrawGame();
+
+    if (GameState->GameLoopCanRun) 
+    {
+        UpdateGameGUI(AppState->GUIRenderTargetWidth, AppState->GUIRenderTargetHeight);
+    }
+}
+
+void UpdateGameGUI(i32 GUIWidth, i32 GUIHeight)
+{
+    // temp crosshair
+    ivec2 guiwh = ivec2(GUIWidth, GUIHeight);
+    GUI::PrimitivePanel(GUI::UIRect(guiwh.x / 2 - 3, guiwh.y / 2 - 3, 6, 6), vec4(0, 0, 0, 1));
+    GUI::PrimitivePanel(GUI::UIRect(guiwh.x / 2 - 2, guiwh.y / 2 - 2, 4, 4), vec4(1, 1, 1, 1));
+
+    if (DebugShowGameMemoryUsage)
+    {
+        GUI::PrimitiveTextFmt(8, 58, GUI::GetFontSize(), GUI::Align::LEFT, 
+            "Game Memory usage  [%zd/%zd KB]", 
+            StaticGameMemory.ArenaOffset/1000, StaticGameMemory.ArenaSize/1000);
+        GUI::PrimitiveTextFmt(8, 68, GUI::GetFontSize(), GUI::Align::LEFT, 
+            "Level Memory usage [%zd/%zd KB]", 
+            StaticLevelMemory.ArenaOffset/1000, StaticLevelMemory.ArenaSize/1000);
+        GUI::PrimitiveTextFmt(8, 78, GUI::GetFontSize(), GUI::Align::LEFT, 
+            "Frame Memory usage [%zd/%zd KB]", 
+            FrameMemory.ArenaOffset/1000, FrameMemory.ArenaSize/1000);
+    }
+}
+
 void DebugDrawGame()
 {
     //vec3 p = GameState->Player.Root;// +GameState->Player.CamOffsetFromRoot;
@@ -243,104 +290,11 @@ void DebugDrawGame()
 #endif // JPH_DEBUG_RENDERER
 }
 
-void DoGameLoop(app_state *AppState)
+void RequestDrawGame()
 {
-    GameState->DynamicInstances = fixed_array<model_instance_data_t>(MaxDynamicInstances, MemoryType::Frame);
-
-    if (GameState->GameLoopCanRun) 
-    {
-        NonPhysicsTick();
-
-        static float Accumulator = 0.f;
-        Accumulator += DeltaTime;
-        while (Accumulator >= FixedDeltaTime)
-        {
-            PrePhysicsTick();
-            Physics.Tick();
-            PostPhysicsTick();
-
-            Accumulator -= FixedDeltaTime;
-        }
-
-        LateNonPhysicsTick();
-
-        for (size_t i = 0; i < GameState->AnimatorPool.length; ++i)
-        {
-            if (GameState->AnimatorPool[i].HasOwner)
-            {
-                GameState->AnimatorPool[i].UpdateGlobalPoses(DeltaTime);
-                GameState->AnimatorPool[i].CalculateSkinningMatrixPalette();
-            }
-        }
-    }
-
-    RenderGameLayer(AppState);
-
-    if (GameState->GameLoopCanRun) 
-    {
-        UpdateGameGUI(AppState->GUIRenderTargetWidth, AppState->GUIRenderTargetHeight);
-    }
-}
-
-void UpdateGameGUI(i32 GUIWidth, i32 GUIHeight)
-{
-    // temp crosshair
-    ivec2 guiwh = ivec2(GUIWidth, GUIHeight);
-    GUI::PrimitivePanel(GUI::UIRect(guiwh.x / 2 - 3, guiwh.y / 2 - 3, 6, 6), vec4(0, 0, 0, 1));
-    GUI::PrimitivePanel(GUI::UIRect(guiwh.x / 2 - 2, guiwh.y / 2 - 2, 4, 4), vec4(1, 1, 1, 1));
-
-    if (DebugShowGameMemoryUsage)
-    {
-        GUI::PrimitiveTextFmt(8, 58, GUI::GetFontSize(), GUI::Align::LEFT, 
-            "Game Memory usage  [%zd/%zd KB]", 
-            StaticGameMemory.ArenaOffset/1000, StaticGameMemory.ArenaSize/1000);
-        GUI::PrimitiveTextFmt(8, 68, GUI::GetFontSize(), GUI::Align::LEFT, 
-            "Level Memory usage [%zd/%zd KB]", 
-            StaticLevelMemory.ArenaOffset/1000, StaticLevelMemory.ArenaSize/1000);
-        GUI::PrimitiveTextFmt(8, 78, GUI::GetFontSize(), GUI::Align::LEFT, 
-            "Frame Memory usage [%zd/%zd KB]", 
-            FrameMemory.ArenaOffset/1000, FrameMemory.ArenaSize/1000);
-    }
-}
-
-void RenderGameLayer(app_state *AppState)
-{
-    glBindFramebuffer(GL_FRAMEBUFFER, AppState->RenderTargetGame->fbo);
-    glViewport(0, 0, AppState->RenderTargetGame->width, AppState->RenderTargetGame->height);
-    glClearColor(0.674f, 0.847f, 1.0f, 1.f);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    //RGBHEXTO1(0x6495ed), 1.f);//(RGB255TO1(211, 203, 190), 1.f);//(0.674f, 0.847f, 1.0f, 1.f); //RGB255TO1(46, 88, 120)
-    glEnable(GL_BLEND);
-    glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_SRC_ALPHA, GL_ONE);
-    glEnable(GL_DEPTH_TEST);
-
-    float aspectratio = float(AppState->BackBufferWidth) / float(AppState->BackBufferHeight);
-    float fovy = HorizontalFOVToVerticalFOV_RadianToRadian(90.f*GM_DEG2RAD, aspectratio);
-    mat4 perspectiveMatrix = ProjectionMatrixPerspective(fovy, aspectratio, GAMEPROJECTION_NEARCLIP, GAMEPROJECTION_FARCLIP);
-    mat4 viewMatrix = GameState->Player.PlayerCam.ViewFromWorldMatrix();
-    mat4 ClipFromWorld = perspectiveMatrix * viewMatrix;
-
-    UseShader(Sha_GameLevel);
-    glEnable(GL_CULL_FACE);
-
-    GLBind4f(Sha_GameLevel, "MuzzleFlash", 
-        GameState->Player.Weapon.MuzzleFlash.x, 
-        GameState->Player.Weapon.MuzzleFlash.y, 
-        GameState->Player.Weapon.MuzzleFlash.z, 
-        GameState->Player.Weapon.MuzzleFlash.w);
-    GLBindMatrix4fv(Sha_GameLevel, "projMatrix", 1, perspectiveMatrix.ptr());
-    GLBindMatrix4fv(Sha_GameLevel, "viewMatrix", 1, viewMatrix.ptr());
-
-    for (size_t i = 0; i < GameState->GameLevelFaceBatches.size(); ++i)
-    {
-        face_batch_t fb = GameState->GameLevelFaceBatches.at(i);
-        RenderFaceBatch(&Sha_GameLevel, &fb);
-    }
-
-    // RenderWeapon(&GameState->Player.Weapon, perspectiveMatrix.ptr(), viewMatrix.GetInverse().ptr());
-
-    fixed_array<sm_draw_info> SkinnedModelDrawRequests
-        = fixed_array<sm_draw_info>(EnemySystem.Enemies.lenu(), MemoryType::Frame);
+    // Skinned Models
+    GameState->SMRenderData = fixed_array<sm_draw_info>(
+        EnemySystem.Enemies.lenu(), MemoryType::Frame);
     for (u32 i = 0; i < EnemySystem.Enemies.lenu(); ++i)
     {
         enemy_t& Enemy = EnemySystem.Enemies[i];
@@ -356,44 +310,30 @@ void RenderGameLayer(app_state *AppState)
             Enemy.Orientation,
             Enemy.Animator,
             Assets.Model_Attacker);
-        SkinnedModelDrawRequests.put(SMDrawInfo);
+        GameState->SMRenderData.put(SMDrawInfo);
     }
-    RenderSkinnedModels(SkinnedModelDrawRequests, GameState,
-        perspectiveMatrix, viewMatrix);
+    // Projectile Instancing
     InstanceProjectilesForDrawing(GameState);
-    SortAndDrawInstancedModels(GameState, GameState->StaticInstances, GameState->DynamicInstances, 
-        perspectiveMatrix, viewMatrix);
-
-    UseShader(Sha_ParticlesDefault);
-    glEnable(GL_DEPTH_TEST);
-    glDisable(GL_CULL_FACE);
-    glDepthMask(GL_FALSE); // Particles should depth test but not write to depth buffer
-    GLBindMatrix4fv(Sha_ParticlesDefault, "ClipFromWorld", 1, ClipFromWorld.ptr());
-    // glActiveTexture(GL_TEXTURE0);
-    // glBindTexture(GL_TEXTURE_2D, Assets.DefaultMissingTexture.id);
+    // Particles
     GameState->PQuadBuf.setlen(0);
     vec3 QuadDirection = -GameState->Player.PlayerCam.Direction;
     AssembleParticleQuads(GameState->BloodParticles, QuadDirection, GameState->PQuadBuf);
-    GameState->BloodParticlesVB.Draw(GameState->PQuadBuf.data, GameState->PQuadBuf.lenu());
-    GLHasErrors();
-    glDepthMask(GL_TRUE);
-
-    // PRIMITIVES
-    glEnable(GL_DEPTH_TEST);
-    glDisable(GL_CULL_FACE);
-    AppState->PrimitivesRenderer->FlushPrimitives(
-        &perspectiveMatrix, &viewMatrix, AppState->RenderTargetGame->depthTexId, 
-        vec2((float)AppState->RenderTargetGame->width, (float)AppState->RenderTargetGame->height));
 
 #if INTERNAL_BUILD
     DebugDrawGame();
-    glEnable(GL_BLEND);
-    // Blanket disable depth test might be problematic but whatever its debug drawing
-    glDisable(GL_DEPTH_TEST);
-    AppState->PrimitivesRenderer->FlushPrimitives(
-        &perspectiveMatrix, &viewMatrix, AppState->RenderTargetGame->depthTexId, 
-        vec2((float)AppState->RenderTargetGame->width, (float)AppState->RenderTargetGame->height));
 #endif // INTERNAL_BUILD
+
+    float AspectRatio = 
+        float(GameState->AppState->BackBufferWidth) / 
+        float(GameState->AppState->BackBufferHeight);
+    float FOVX = 90.f;
+    float FOVYRad = HorizontalFOVToVerticalFOV_RadianToRadian(FOVX*GM_DEG2RAD, AspectRatio);
+    GameState->ClipFromView = ProjectionMatrixPerspective(FOVYRad,
+        AspectRatio, GAMEPROJECTION_NEARCLIP, GAMEPROJECTION_FARCLIP);
+    GameState->ViewFromWorld = GameState->Player.PlayerCam.ViewFromWorldMatrix();
+    GameState->ClipFromWorld = GameState->ClipFromView * GameState->ViewFromWorld;
+
+    RenderGameState(GameState);
 }
 
 void CreateAndRegisterLevelCollider(game_state *GameState)

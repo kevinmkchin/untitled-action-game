@@ -379,7 +379,7 @@ int main(int argc, char* argv[])
 
     InitGameRenderer();
 
-    /*Renderer*/AcquireResources();
+    AcquireRenderingResources();
     ApplicationState.GameState = new_InGameMemory(game_state)();
     ApplicationState.GameState->AppState = &ApplicationState;
     ApplicationState.RenderTargetGame = &RenderTargetGame;
@@ -453,7 +453,7 @@ int main(int argc, char* argv[])
 
     ApplicationState.LevelEditor->Close();
     DestroyGame();
-
+    ReleaseRenderingResources();
     ApplicationState.PrimitivesRenderer->Destroy();
 
     free(StaticGameMemory.Arena);

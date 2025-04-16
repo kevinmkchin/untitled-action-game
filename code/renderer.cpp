@@ -3,18 +3,32 @@
 #include "enemy.h"
 #include "game_assets.h"
 #include "shaders.h"
-#include "shader_helpers.h"
 
+static GPUShader Sha_GameLevel;
+static GPUShader Sha_ParticlesDefault;
 static GPUShader Sha_ModelSkinnedLit;
 
-void AcquireResources()
+void AcquireRenderingResources()
 {
+    GLLoadShaderProgramFromFile(Sha_GameLevel, 
+        shader_path("__game_level.vert").c_str(), 
+        shader_path("__game_level.frag").c_str());
+    GLLoadShaderProgramFromFile(Sha_ParticlesDefault, 
+        shader_path("particles.vert").c_str(), 
+        shader_path("particles.frag").c_str());
     GLLoadShaderProgramFromFile(Sha_ModelSkinnedLit, 
         shader_path("model_skinned.vert").c_str(), 
         shader_path("model_textured_skinned.frag").c_str());
+    InstanceDrawing_AcquireGPUResources();
 }
 
-// these should be generic "draw skinned model here, draw lit model there" functions
+void ReleaseRenderingResources()
+{
+    GLDeleteShader(Sha_GameLevel);
+    GLDeleteShader(Sha_ParticlesDefault);
+    GLDeleteShader(Sha_ModelSkinnedLit);
+    InstancedDrawing_ReleaseGPUResources();
+}
 
 void FillSkinnedModelDrawInfo(
     sm_draw_info *DrawInfo,
@@ -89,5 +103,67 @@ void RenderSkinnedModels(
             glBindVertexArray(0);
         }
     }
+}
+
+void RenderGameState(game_state *GameState)
+{
+    app_state *AppState = GameState->AppState;
+
+    glBindFramebuffer(GL_FRAMEBUFFER, AppState->RenderTargetGame->fbo);
+    glViewport(0, 0, AppState->RenderTargetGame->width, AppState->RenderTargetGame->height);
+    glClearColor(0.674f, 0.847f, 1.0f, 1.f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glEnable(GL_BLEND);
+    glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_SRC_ALPHA, GL_ONE);
+    glEnable(GL_DEPTH_TEST);
+
+    UseShader(Sha_GameLevel);
+    glEnable(GL_CULL_FACE);
+    GLBind4f(Sha_GameLevel, "MuzzleFlash",
+        GameState->Player.Weapon.MuzzleFlash.x, 
+        GameState->Player.Weapon.MuzzleFlash.y, 
+        GameState->Player.Weapon.MuzzleFlash.z, 
+        GameState->Player.Weapon.MuzzleFlash.w);
+    GLBindMatrix4fv(Sha_GameLevel, "projMatrix", 1, GameState->ClipFromView.ptr());
+    GLBindMatrix4fv(Sha_GameLevel, "viewMatrix", 1, GameState->ViewFromWorld.ptr());
+    for (size_t i = 0; i < GameState->GameLevelFaceBatches.size(); ++i)
+    {
+        face_batch_t fb = GameState->GameLevelFaceBatches.at(i);
+        RenderFaceBatch(&Sha_GameLevel, &fb);
+    }
+
+    // RenderWeapon(&GameState->Player.Weapon, perspectiveMatrix.ptr(), viewMatrix.GetInverse().ptr());
+
+    RenderSkinnedModels(GameState->SMRenderData,GameState,
+        GameState->ClipFromView, GameState->ViewFromWorld);
+
+    SortAndDrawInstancedModels(GameState, 
+        GameState->StaticInstances,
+        GameState->DynamicInstances, 
+        GameState->ClipFromView,
+        GameState->ViewFromWorld);
+
+    UseShader(Sha_ParticlesDefault);
+    glEnable(GL_DEPTH_TEST);
+    glDisable(GL_CULL_FACE);
+    glDepthMask(GL_FALSE); // Particles should depth test but not write to depth buffer
+    GLBindMatrix4fv(Sha_ParticlesDefault, "ClipFromWorld", 1, GameState->ClipFromWorld.ptr());
+    // glActiveTexture(GL_TEXTURE0);
+    // glBindTexture(GL_TEXTURE_2D, Assets.DefaultMissingTexture.id);
+    GameState->BloodParticlesVB.Draw(GameState->PQuadBuf.data, GameState->PQuadBuf.lenu());
+    GLHasErrors();
+    glDepthMask(GL_TRUE);
+
+    // PRIMITIVES
+    glEnable(GL_BLEND);
+    // Blanket disable depth test might be problematic but whatever its debug drawing
+    glDisable(GL_DEPTH_TEST);
+    glDisable(GL_CULL_FACE);
+    AppState->PrimitivesRenderer->FlushPrimitives(
+        &GameState->ClipFromView, 
+        &GameState->ViewFromWorld,
+        AppState->RenderTargetGame->depthTexId, 
+        vec2((float)AppState->RenderTargetGame->width, 
+            (float)AppState->RenderTargetGame->height));
 }
 

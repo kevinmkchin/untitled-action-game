@@ -25,6 +25,7 @@ add_executable(${PROJECT_NAME}
         code/filedialog.cpp
         code/utility.cpp
         code/shaders.cpp
+        # Rendering Abstraction Layer
         code/primitives.cpp
         code/instanced.cpp
         code/renderer.cpp
