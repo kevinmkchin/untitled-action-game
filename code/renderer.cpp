@@ -1,8 +1,9 @@
 #include "renderer.h"
+#include "primitives.h"
+#include "shaders.h"
 #include "game.h"
 #include "enemy.h"
 #include "game_assets.h"
-#include "shaders.h"
 
 static GPUShader Sha_GameLevel;
 static GPUShader Sha_ParticlesDefault;

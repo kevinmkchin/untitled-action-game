@@ -19,6 +19,7 @@ Distribution   : shippable build
 == Dependencies ==
 
 SDL3 - platform https://github.com/libsdl-org/SDL
+     - precompiled, but should be easy to include it as a subproject
 Jolt - physics https://github.com/jrouwe/JoltPhysics
 Recast - navigation mesh https://github.com/recastnavigation/recastnavigation
 NVIDIA OptiX - RTX ray tracing support for lightmapping
