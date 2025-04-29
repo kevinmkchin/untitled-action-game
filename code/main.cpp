@@ -25,10 +25,10 @@
 #include <vertext.h>
 #if INTERNAL_BUILD
 #include <renderdoc_app.h>
+static RENDERDOC_API_1_6_0 *RDOCAPI = NULL;
 #endif
 
 #include "mem.h"
-#include "debugmenu.h"
 #include "shaders.h"
 #include "game_assets.h"
 #include "filedialog.h"
@@ -42,156 +42,27 @@
 #include "renderer.h"
 
 // Application state
-SDL_Window *SDLMainWindow;
-SDL_GLContext SDLGLContext;
-bool ProgramShutdownRequested = false;
+static SDL_GLContext SDLGLContext;
+static bool ProgramShutdownRequested = false;
 float DeltaTime = 0.f;
-float RealDeltaTime = 0.f; // Unscaled and uncapped
-float GameTimeScale = 1.f;
-float CurrentTime = 0.f;
-float TimeSinceStart = 0.f;
-u32 MouseCurrent;
-u32 MousePressed;
-u32 MouseReleased;
-vec2 MouseDelta;
-ivec2 MousePos;
+static float RealDeltaTime = 0.f; // Unscaled and uncapped
+static float GameTimeScale = 1.f;
+static float CurrentTime = 0.f;
+static float TimeSinceStart = 0.f;
+static u32 MouseCurrent;
+static u32 MousePressed;
+static u32 MouseReleased;
+static vec2 MouseDelta;
+static ivec2 MousePos;
 bool KeysCurrent[256] = {0};
-bool KeysPressed[256] = {0};
-bool KeysReleased[256] = {0};
-i32 BackbufferWidth = -1;
-i32 BackbufferHeight = -1;
-char CurrentWorkingDirectory[128];
-app_state ApplicationState;
-
-#if INTERNAL_BUILD
-RENDERDOC_API_1_6_0 *RDOCAPI = NULL;
-#endif // INTERNAL_BUILD
-
-
-GPUShader Sha_Hemicube;
-GPUShader FinalPassShader;
-GPUFrameBuffer RenderTargetGame;
-GPUFrameBuffer RenderTargetGUI;
-GPUMeshIndexed FinalRenderOutputQuad;
+static bool KeysPressed[256] = {0};
+static bool KeysReleased[256] = {0};
+static app_state AppState;
 
 #include "debugmenu.cpp"
 
-
-static void RenderGUILayer()
-{
-    glBindFramebuffer(GL_FRAMEBUFFER, RenderTargetGUI.fbo);
-    glViewport(0, 0, RenderTargetGUI.width, RenderTargetGUI.height);
-//    glDepthRange(0.00001f, 10.f); I should just be doing painters algorithm
-    glClearColor(RGB255TO1(244, 194, 194), 0.0f);
-//    glClearDepth(10.f);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    glEnable(GL_BLEND);
-    glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_SRC_ALPHA, GL_ONE);
-    glDisable(GL_DEPTH_TEST); // I forgot why the fuck I'm disabling depth test when using glDepthRange
-
-    GUI::Draw(RenderTargetGUI.width, RenderTargetGUI.height);
-}
-
-static void FinalRenderToBackBuffer()
-{
-    UseShader(FinalPassShader);
-
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    glViewport(0, 0, BackbufferWidth, BackbufferHeight);
-//    glDepthRange(0, 10);
-    glClearColor(RGB255TO1(0, 0, 0), 1.f);
-//    glClearDepth(1.f);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    glEnable(GL_BLEND);
-    glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_SRC_ALPHA, GL_ONE);
-    glDisable(GL_DEPTH_TEST);
-
-    // Draw game frame
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, RenderTargetGame.colorTexId);
-    RenderGPUMeshIndexed(FinalRenderOutputQuad);
-
-    // Draw GUI frame
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, RenderTargetGUI.colorTexId);
-    RenderGPUMeshIndexed(FinalRenderOutputQuad);
-
-    //    // Draw Debug UI frame
-    //    glActiveTexture(GL_TEXTURE0);
-    //    glBindTexture(GL_TEXTURE_2D, debugUILayer.colorTexId);
-    //    RenderMesh(screenSizeQuad);
-
-    GLHasErrors();
-}
-
-const char* __finalpass_shader_vs =
-    "#version 330\n"
-    "layout(location = 0) in vec2 pos;\n"
-    "layout(location = 1) in vec2 uv;\n"
-    "out vec2 texcoord;\n"
-    "void main()\n"
-    "{\n"
-    "    gl_Position = vec4(pos, 0, 1.0);\n"
-    "    texcoord = uv;\n"
-    "}\n";
-
-const char* __finalpass_shader_fs =
-    "#version 330\n"
-    "uniform sampler2D screen_texture;\n"
-    "in vec2 texcoord;\n"
-    "out vec4 color;\n"
-    "void main()\n"
-    "{\n"
-    "    vec4 in_color = texture(screen_texture, texcoord);\n"
-    "    if(in_color.w < 0.001)\n"
-    "    {\n"
-    "        discard;\n"
-    "    }\n"
-    "    color = in_color;\n"
-    "}\n";
-
-static void InitGameRenderer()
-{
-
-    // alpha blending func: (srcRGB) * srcA + (dstRGB) * (1 - srcA)  = final color output
-    // alpha blending func: (srcA) * a + (dstA) * 1 = final alpha output
-    glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_SRC_ALPHA, GL_ONE);
-    glBlendEquation(GL_FUNC_ADD);
-    glFrontFace(GL_CCW); // OpenGL default is GL_CCW
-
-
-    SDL_GetWindowSizeInPixels(SDLMainWindow, &BackbufferWidth, &BackbufferHeight);
-    RenderTargetGame.width = BackbufferWidth;
-    RenderTargetGame.height = BackbufferHeight;
-    CreateGPUFrameBuffer(&RenderTargetGame);
-    RenderTargetGUI.width = BackbufferWidth / 2;
-    RenderTargetGUI.height = BackbufferHeight / 2;
-    CreateGPUFrameBuffer(&RenderTargetGUI);
-
-    GLLoadShaderProgramFromFile(Sha_Hemicube, 
-        shader_path("__patches_id.vert").c_str(), 
-        shader_path("__patches_id.frag").c_str());
-    GLCreateShaderProgram(FinalPassShader, 
-        __finalpass_shader_vs, 
-        __finalpass_shader_fs);
-
-
-    float refQuadVertices[16] = {
-        //  x   y    u    v
-        -1.f, -1.f, 0.f, 0.f,
-        1.f, -1.f, 1.f, 0.f,
-        -1.f, 1.f, 0.f, 1.f,
-        1.f, 1.f, 1.f, 1.f
-    };
-    u32 refQuadIndices[6] = {
-        0, 1, 3,
-        0, 3, 2
-    };
-    CreateGPUMeshIndexed(&FinalRenderOutputQuad, refQuadVertices, refQuadIndices, 16, 6, 2, 2, 0, GL_STATIC_DRAW);
-}
-
-
-static void TickTime()
+static void
+TickTime()
 {
     static std::chrono::high_resolution_clock::time_point timeAtLastUpdate = std::chrono::high_resolution_clock::now();
     auto now = std::chrono::high_resolution_clock::now();
@@ -202,17 +73,16 @@ static void TickTime()
     CurrentTime = currentTimeInSeconds;
     RealDeltaTime = deltaTimeInSeconds;
     TimeSinceStart += RealDeltaTime;
-    ApplicationState.TimeSinceStart += RealDeltaTime;
+    AppState.TimeSinceStart += RealDeltaTime;
 
     static const float CappedDeltaTime = 1.0f / 8.0f;
     DeltaTime = GM_min(RealDeltaTime, CappedDeltaTime);
     DeltaTime = DeltaTime * GameTimeScale;
 }
 
-static bool InitializeApplication()
+static void
+LoadRenderDoc()
 {
-    _getcwd(CurrentWorkingDirectory, 128);
-
 #if INTERNAL_BUILD
     // === RENDER DOC API ===
     LoadLibrary("renderdoc.dll");
@@ -230,53 +100,58 @@ static bool InitializeApplication()
         LogWarning("Failed to load renderdoc.dll");
     }
 #endif
+}
 
-    ProgramShutdownRequested = false;
-
-    if (SDL_Init(SDL_INIT_AUDIO | SDL_INIT_VIDEO | SDL_INIT_EVENTS) == false) return false;
-
-    // OpenGL 4.6
+static void
+InitWindowAndGLContext()
+{
+    // SDL3
+    ASSERT(SDL_Init(SDL_INIT_AUDIO | SDL_INIT_VIDEO | SDL_INIT_EVENTS));
+    // OpenGL 4.3
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG);
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
     SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
+    AppState.BackBufferWidth = 1920;
+    AppState.BackBufferHeight = 1080;
+    AppState.SDLMainWindow = SDL_CreateWindow(
+        "game", AppState.BackBufferWidth, AppState.BackBufferHeight,
+        SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE);
+    ASSERT(AppState.SDLMainWindow);
+    SDL_SetWindowMinimumSize(AppState.SDLMainWindow, 200, 100);
+    SDL_GetWindowSizeInPixels(AppState.SDLMainWindow,
+        &AppState.BackBufferWidth,
+        &AppState.BackBufferHeight);
 
-    SDLMainWindow = SDL_CreateWindow("game",
-                                     1920,
-                                     1080,
-                                     SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE);
-    ApplicationState.SDLMainWindow = SDLMainWindow;
-
-    SDLGLContext = SDL_GL_CreateContext(SDLMainWindow);
-
-    if (SDLMainWindow == nullptr || SDLGLContext == nullptr) return false;
-
+    SDLGLContext = SDL_GL_CreateContext(AppState.SDLMainWindow);
+    ASSERT(SDLGLContext);
+    // GL3W
     if (gl3w_init())
     {
         fprintf(stderr, "Failed to initialize OpenGL\n");
-        return false;
+        ASSERT(0);
     }
     LogMessage("GL_VERSION %s", glGetString(GL_VERSION));
 
-    SDL_SetWindowMinimumSize(SDLMainWindow, 200, 100);
     SDL_GL_SetSwapInterval(1);
+}
 
+static void
+InitAudioMixer()
+{
     SDL_AudioDeviceID AudioDeviceID = SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK;
     SDL_AudioSpec AudioSpec;
     AudioSpec.format = SDL_AUDIO_S16LE; /**< Audio data format */
     AudioSpec.channels = 2; /**< Number of channels: 1 mono, 2 stereo, etc */
     AudioSpec.freq = 44100; /**< sample rate: sample frames per second */
     if (Mix_OpenAudio(AudioDeviceID, &AudioSpec) == false || Mix_Init(MIX_INIT_OGG) == 0)
-        return false;
-
-    GUI::Init();
-
-    return true;
+        ASSERT(0);
 }
 
-static void ProcessSDLEvents()
+static void 
+ProcessSDLEvents()
 {
     // MOUSE
     float mx, my;
@@ -300,18 +175,14 @@ static void ProcessSDLEvents()
         KeysCurrent[i] = keystate[i];
     }
 
-    ApplicationState.MouseCurrent = MouseCurrent;
-    ApplicationState.MousePressed = MousePressed;
-    ApplicationState.MouseReleased = MouseReleased;
-    ApplicationState.MouseDelta = MouseDelta;
-    ApplicationState.MousePos = MousePos;
-    memcpy(ApplicationState.KeysCurrent, KeysCurrent, 256);
-    memcpy(ApplicationState.KeysPressed, KeysPressed, 256);
-    memcpy(ApplicationState.KeysReleased, KeysReleased, 256);
-    ApplicationState.BackBufferWidth = BackbufferWidth;
-    ApplicationState.BackBufferHeight = BackbufferHeight;
-    ApplicationState.GUIRenderTargetWidth = RenderTargetGUI.width;
-    ApplicationState.GUIRenderTargetHeight = RenderTargetGUI.height;
+    AppState.MouseCurrent = MouseCurrent;
+    AppState.MousePressed = MousePressed;
+    AppState.MouseReleased = MouseReleased;
+    AppState.MouseDelta = MouseDelta;
+    AppState.MousePos = MousePos;
+    memcpy(AppState.KeysCurrent, KeysCurrent, 256);
+    memcpy(AppState.KeysPressed, KeysPressed, 256);
+    memcpy(AppState.KeysReleased, KeysReleased, 256);
 
     // EVENT HANDLING
     SDL_Event event;
@@ -321,9 +192,10 @@ static void ProcessSDLEvents()
         {
             case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
             {
-                SDL_GetWindowSizeInPixels(SDLMainWindow, &BackbufferWidth, &BackbufferHeight);
-                UpdateGPUFrameBufferSize(&RenderTargetGame, BackbufferWidth, BackbufferHeight);
-                UpdateGPUFrameBufferSize(&RenderTargetGUI, BackbufferWidth / 2, BackbufferHeight / 2);
+                SDL_GetWindowSizeInPixels(AppState.SDLMainWindow, 
+                    &AppState.BackBufferWidth,
+                    &AppState.BackBufferHeight);
+                UpdateRenderTargetSizes(&AppState);
                 break;
             }
 
@@ -340,17 +212,17 @@ static void ProcessSDLEvents()
                 if (sdlkey == SDLK_RETURN && SDL_GetModState() & SDL_KMOD_LALT)
                 {
                     // SDL_GetFullscreenDisplayModes();
-                    if (SDL_GetWindowFlags(SDLMainWindow) & SDL_WINDOW_FULLSCREEN)
-                        SDL_SetWindowFullscreen(SDLMainWindow, false);
+                    if (SDL_GetWindowFlags(AppState.SDLMainWindow) & SDL_WINDOW_FULLSCREEN)
+                        SDL_SetWindowFullscreen(AppState.SDLMainWindow, false);
                     else
-                        SDL_SetWindowFullscreen(SDLMainWindow, true);
+                        SDL_SetWindowFullscreen(AppState.SDLMainWindow, true);
                     event.type = 0;
                 }
                 break;
             }
         }
 
-        GUI::ProcessSDLEvent(&ApplicationState, event);
+        GUI::ProcessSDLEvent(&AppState, event);
 
         if (CurrentDebugMode == DEBUG_MODE_CONSOLE)
             SendInputToConsole(event);
@@ -364,45 +236,37 @@ int main(int argc, char* argv[])
     StaticLevelMemory.Init(32000000);
     FrameMemory.Init(32000000);
     JoltPhysicsMemory.Init(128000000);
-
     SetupConsoleAndBindProcedures();
-
-    if (!InitializeApplication()) return -1;
-
-    InitGameRenderer();
-
-    AcquireRenderingResources();
-    ApplicationState.GameState = new_InGameMemory(game_state)();
-    ApplicationState.GameState->AppState = &ApplicationState;
-    ApplicationState.RenderTargetGame = &RenderTargetGame;
-    ApplicationState.PrimitivesRenderer = new_InGameMemory(support_renderer_t)();
-    ApplicationState.PrimitivesRenderer->Initialize();
-    ApplicationState.LevelEditor = new_InGameMemory(level_editor_t)();
-    ApplicationState.LevelEditor->AppState = &ApplicationState;
-    ApplicationState.LevelEditor->SupportRenderer = ApplicationState.PrimitivesRenderer;
-    ApplicationState.LevelEditor->RenderTargetGame = RenderTargetGame;
-
+    LoadRenderDoc();
+    InitWindowAndGLContext();
+    InitAudioMixer();
+    GUI::Init();
+    AcquireRenderingResources(&AppState);
+    AppState.GameState = new_InGameMemory(game_state)();
+    AppState.GameState->AppState = &AppState;
+    AppState.PrimitivesRenderer = new_InGameMemory(support_renderer_t)();
+    AppState.PrimitivesRenderer->Initialize();
+    AppState.LevelEditor = new_InGameMemory(level_editor_t)();
+    AppState.LevelEditor->AppState = &AppState;
+    AppState.LevelEditor->SupportRenderer = AppState.PrimitivesRenderer;
     Assets.LoadAllResources();
-
-    InitializeGame(&ApplicationState);
+    InitializeGame(&AppState);
 
     // LevelEditor.LoadMap(wd_path("testing.emf").c_str());
-    // BuildGameMap(wd_path(ApplicationState.LevelEditor, "buildtest.map").c_str());
+    // BuildGameMap(wd_path(AppState.LevelEditor, "buildtest.map").c_str());
     // LoadLevel(wd_path("buildtest.map").c_str());
 
-    SDL_SetWindowRelativeMouseMode(SDLMainWindow, true);
+    SDL_SetWindowRelativeMouseMode(AppState.SDLMainWindow, true);
     LoadLevel(wd_path("buildtest.map").c_str());
     // SwitchToLevelEditor();
 
     while (!ProgramShutdownRequested)
     {
-        // Prepare for next frame
         FrameMemory.ArenaOffset = 0;
         TickTime();
         GUI::NewFrame();
-        ApplicationState.PrimitivesRenderer->NewFrame();
+        AppState.PrimitivesRenderer->NewFrame();
 
-        // Poll and process events
         ProcessSDLEvents();
 
 #if INTERNAL_BUILD
@@ -411,27 +275,20 @@ int main(int argc, char* argv[])
                 RDOCAPI->LaunchReplayUI(1, "");
 #endif // INTERNAL_BUILD
 
-        // Process console commands
         ShowDebugConsole();
 
-        // Game logic
-        if (ApplicationState.LevelEditor->IsActive)
+        if (AppState.LevelEditor->IsActive)
         {
-            ApplicationState.LevelEditor->Tick();
-            ApplicationState.LevelEditor->Draw();
+            AppState.LevelEditor->Tick();
+            AppState.LevelEditor->Draw();
         }
         else
         {
-            DoGameLoop(&ApplicationState);
+            DoGameLoop(&AppState);
         }
 
-        // Draw calls
-        RenderGUILayer();
-        FinalRenderToBackBuffer();
-
-        // Swap buffers
-        SDL_GL_SwapWindow(SDLMainWindow);
-
+        RenderFrame(&AppState);
+        SDL_GL_SwapWindow(AppState.SDLMainWindow);
         // NOTE(Kevin) 2025-04-02: Even on SDL3 there's microstutters with Windowed VSYNC
         //                         Still feels much better with DwmFlush after SwapBuffers
         // NOTE(Kevin) 2025-04-08: FullscreenEx VSYNC+DwmFlush feels the best. FullscreenEx VSYNC
@@ -443,17 +300,14 @@ int main(int argc, char* argv[])
             DwmFlush();
     }
 
-    ApplicationState.LevelEditor->Close();
+    AppState.LevelEditor->Close();
     DestroyGame();
     ReleaseRenderingResources();
-    ApplicationState.PrimitivesRenderer->Destroy();
-
+    AppState.PrimitivesRenderer->Destroy();
     free(StaticGameMemory.Arena);
     free(StaticLevelMemory.Arena);
-
-    SDL_DestroyWindow(SDLMainWindow);
+    SDL_DestroyWindow(AppState.SDLMainWindow);
     SDL_GL_DestroyContext(SDLGLContext);
     SDL_Quit();
-
     return 0;
 }

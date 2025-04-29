@@ -343,8 +343,6 @@ void RequestDrawGame()
         AspectRatio, GAMEPROJECTION_NEARCLIP, GAMEPROJECTION_FARCLIP);
     GameState->ViewFromWorld = GameState->Player.PlayerCam.ViewFromWorldMatrix();
     GameState->ClipFromWorld = GameState->ClipFromView * GameState->ViewFromWorld;
-
-    RenderGameState(GameState);
 }
 
 void CreateAndRegisterLevelCollider(game_state *GameState)

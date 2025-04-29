@@ -58,16 +58,16 @@ void SwitchToLevelEditor()
     // todo clean up game memory
     // todo close game
 
-    ApplicationState.LevelEditor->Open();
+    AppState.LevelEditor->Open();
 
-    SDL_SetWindowRelativeMouseMode(SDLMainWindow, false);
-    ApplicationState.GameState->GameLoopCanRun = false;
+    SDL_SetWindowRelativeMouseMode(AppState.SDLMainWindow, false);
+    AppState.GameState->GameLoopCanRun = false;
     // CurrentDebugMode = DEBUG_MODE_OFF;
 }
 
 void BuildLevelAndPlay()
 {
-    if (!ApplicationState.LevelEditor->IsActive)
+    if (!AppState.LevelEditor->IsActive)
     {
         LogWarning("ApplicationBuildLevelAndPlay called when level editor is not active.");
         return;
@@ -77,18 +77,18 @@ void BuildLevelAndPlay()
     if (path.empty())
         return;
 
-    if (BuildGameMap(ApplicationState.LevelEditor, path.c_str()) == false)
+    if (BuildGameMap(AppState.LevelEditor, path.c_str()) == false)
     {
         LogError("Failed to build to %s", path.c_str());
         return;
     }
 
-    ApplicationState.LevelEditor->Close();
+    AppState.LevelEditor->Close();
 
-    SDL_SetWindowRelativeMouseMode(ApplicationState.SDLMainWindow, true);
+    SDL_SetWindowRelativeMouseMode(AppState.SDLMainWindow, true);
     LoadLevel(path.c_str());
 
-    ApplicationState.GameState->GameLoopCanRun = true;
+    AppState.GameState->GameLoopCanRun = true;
     // CurrentDebugMode = DEBUG_MODE_OFF;
 }
 
@@ -329,12 +329,12 @@ static void DisplayDebugMenu()
     GUI::EditorText("== Menu ==");
     GUI::EditorSpacer(0, 10);
 
-    if (!ApplicationState.LevelEditor->IsActive)
+    if (!AppState.LevelEditor->IsActive)
     {
         GUI::EditorText("-- Game --");
-        bool DebugPausedFlag = !ApplicationState.GameState->GameLoopCanRun;
+        bool DebugPausedFlag = !AppState.GameState->GameLoopCanRun;
         GUI::EditorCheckbox("Paused", &DebugPausedFlag);
-        ApplicationState.GameState->GameLoopCanRun = !DebugPausedFlag;
+        AppState.GameState->GameLoopCanRun = !DebugPausedFlag;
         GUI::EditorCheckbox("Noclip", &FlyCamActive);
         GUI::EditorCheckbox("Show memory usage", &DebugShowGameMemoryUsage);
         GUI::EditorCheckbox("Draw level collider", &DebugDrawLevelColliderFlag);
@@ -371,7 +371,7 @@ void ShowDebugConsole()
 {
     if (KeysCurrent[SDL_SCANCODE_LCTRL] && KeysPressed[SDL_SCANCODE_P])
     {
-        ApplicationState.GameState->GameLoopCanRun = !ApplicationState.GameState->GameLoopCanRun;
+        AppState.GameState->GameLoopCanRun = !AppState.GameState->GameLoopCanRun;
     }
 
     static DEBUG_MODES LastDebugMode = DEBUG_MODE_CONSOLE;
@@ -389,7 +389,7 @@ void ShowDebugConsole()
             }
             else if (LastDebugMode == DEBUG_MODE_CONSOLE || LastDebugMode == DEBUG_MODE_OFF)
             {
-                ApplicationState.GameState->GameLoopCanRun = false;
+                AppState.GameState->GameLoopCanRun = false;
                 ConsoleShowingState = DEBUG_CONSOLE_SHOWING;
                 LastDebugMode = DEBUG_MODE_OFF;
                 CurrentDebugMode = DEBUG_MODE_CONSOLE;
@@ -407,7 +407,7 @@ void ShowDebugConsole()
         }
     }
 
-    ConsoleH = fminf(ConsoleHDefault, (float)RenderTargetGUI.height-60);
+    ConsoleH = fminf(ConsoleHDefault, (float)AppState.RenderTargetGUI->height-60);
     switch (ConsoleShowingState)
     {
     case DEBUG_CONSOLE_HIDDEN:
@@ -433,7 +433,7 @@ void ShowDebugConsole()
     case DEBUG_CONSOLE_HIDING:
         if (ConsoleY > 0.f)
         {
-            ApplicationState.GameState->GameLoopCanRun = true;
+            AppState.GameState->GameLoopCanRun = true;
             ConsoleY -= ConsoleScrollSpd * DeltaTime;
         }
         if (ConsoleY <= 0.f)
@@ -446,11 +446,11 @@ void ShowDebugConsole()
     switch (CurrentDebugMode)
     {
     case DEBUG_MODE_OFF:
-        if (!ApplicationState.LevelEditor->IsActive)
-            SDL_SetWindowRelativeMouseMode(SDLMainWindow, true);
+        if (!AppState.LevelEditor->IsActive)
+            SDL_SetWindowRelativeMouseMode(AppState.SDLMainWindow, true);
         break;
     case DEBUG_MODE_MENU:
-        SDL_SetWindowRelativeMouseMode(SDLMainWindow, false);
+        SDL_SetWindowRelativeMouseMode(AppState.SDLMainWindow, false);
         DisplayDebugMenu();
         break;
     case DEBUG_MODE_CONSOLE:
