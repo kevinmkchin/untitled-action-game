@@ -1,8 +1,8 @@
-# Untitled FPS Game (work in progress)
+# Untitled FPS Game
 
-This is a quick feature overview of my custom engine and untitled game.
+This is a quick feature overview of my custom engine and work-in-progress untitled game.
 
-TODO show gameplay gif here
+![](https://github.com/user-attachments/assets/a9ed7826-a706-4128-9acf-b00dca7abec0)
 
 ### Lightmapping
 ![image](https://github.com/user-attachments/assets/0d52e813-ab61-477a-99b6-8bc2fbc5a414)
@@ -18,7 +18,7 @@ TODO show model with and without light probes
 ![image](https://github.com/user-attachments/assets/ed32a890-59f8-4205-bd0f-1c129a93e864)
 
 ### Particle System
-TODO show gib gif here
+![gibs-compressed-short](https://github.com/user-attachments/assets/0b873a4b-1a20-452b-b208-d0a3bb363788)
 
 ### Skeletal Animation
 ![skeletal-animation](https://github.com/user-attachments/assets/f406453c-8adc-49ff-b4cc-332da241c0c4)
