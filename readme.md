@@ -4,14 +4,19 @@ This is a quick feature overview of my custom engine and work-in-progress untitl
 
 ![](https://github.com/user-attachments/assets/a9ed7826-a706-4128-9acf-b00dca7abec0)
 
-### Lightmapping
+### Baked Lightmaps
+Static direct lighting and indirect bounce lighting information is baked into lightmaps. The current version uses raytracing hardware to perform Monte Carlo path-tracing on the GPU and calculate the bounce lighting that each surface luxel receives. Previously, I had written a slower hemicube rendering based solution: https://kevin.gd/PrebakedGlobalIllumination.html.
+
 ![image](https://github.com/user-attachments/assets/0d52e813-ab61-477a-99b6-8bc2fbc5a414)
 ![image](https://github.com/user-attachments/assets/d286b2a2-fcb6-44e6-bdaf-bc3b4e78a584)
 ![image](https://github.com/user-attachments/assets/f550ef33-4c04-4dcb-a987-880d16768d00)
 
 ### Light Probes
+Dynamic models such as characters are illuminated using light probes baked into the levels. It uses the same Monte Carlo path-tracing shader to collect the indirect bounce lighting from the 6 directions around each light probe. The directional data gives me something similar to Valve's Ambient Cube solution in Half-Life 2. The difference in my solution is that I cache which directional light sources are visible from the light probe and use this later to know which light sources are occluded from that region in space.
+
 ![image](https://github.com/user-attachments/assets/de486d90-5e64-487b-9104-b7f41ed12ff6)
-TODO show model with and without light probes
+> Before and after model lighting with light probes
+![model-lighting-comparison](https://github.com/user-attachments/assets/83f06624-14f1-4f0e-a5f3-d7e34d3347d4)
 
 ### Level Editor
 [Watch Demo on YouTube](https://www.youtube.com/watch?v=EjHV1p95SDo&ab_channel=KevinChin)
