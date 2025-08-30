@@ -1012,6 +1012,10 @@ void RenderGameFaceBatch(const GPUShader shader, GameFaceBatch Batch)
 #include "UTILITY.CPP"
 #include "COLLISION.CPP"
 
+#define SHOOTER_SLOW 1
+#include "shooter_colliders.cpp"
+
+
 #pragma region MORE_GLOBAL_VARIABLES
 GPUShader GameLevelShader;
 GPUShader PatchesIDShader;
@@ -1204,22 +1208,46 @@ static vec3 ResolvePlayerCollisions(vec3 PlayerTestP)
 {
     vec3 Result = {};
 
+#define GJK_REWRITE_TEST 1
+#if 1
+#define printf printf
+#else
 #define printf
+#endif
     // PLAYER RESOLVE COLLISIONS
     MeshCollider *pcol = PlayerColliderAtPos(PlayerTestP);
     Bounds playerBounds = BoundsFromMeshCollider(*pcol);
     // cylinder_collider RealShit = GiveMeCylinderCollider(PlayerTestP, 48.f, 8.f);
 
+    mesh_collider GJKRewriteTestA;
+    GJKRewriteTestA.PointCloud = pcol->pointCloud.data();
+    GJKRewriteTestA.PointCount = (u32)pcol->pointCloud.size();
+
     std::unordered_set<Collider*> pcollisionquery = GameLevelCollisionTree.Query(playerBounds);
     // NOTE(Kevin): If I wanted, I could do something like sort these potential colliders by walls before floors or something
     printf("\n");
     u32 Collisions = 0;
+    u32 GJKRewriteCollisions = 0;
     for (Collider *levelCollider : pcollisionquery)
     {
         CollisionResult result = GJK(levelCollider, pcol);
         // CollisionResult result = GJK(levelCollider, &RealShit);
         FlatPolygonCollider *fpc = dynamic_cast<FlatPolygonCollider*>(levelCollider);
         ASSERT(fpc);
+
+#if GJK_REWRITE_TEST
+        flatpoly_collider GJKRewriteTestB;
+        GJKRewriteTestB.PointCloud = fpc->pointCloudPtr;
+        GJKRewriteTestB.PointCount = fpc->pointCount;
+
+        gjk_simplex CaptureSimplex;
+        bool GJKRewriteTestResult = GJK((collider_base *)&GJKRewriteTestB, 
+            (collider_base *)&GJKRewriteTestA, &CaptureSimplex);
+        if (GJKRewriteTestResult)
+        {
+            ++GJKRewriteCollisions;
+        }
+#endif
 
         if (result.hasCollision)
         {
@@ -1254,6 +1282,10 @@ static vec3 ResolvePlayerCollisions(vec3 PlayerTestP)
         }
     }
     printf("Collisions: %u\n", Collisions);
+#if GJK_REWRITE_TEST
+    printf("GJK Rewrite Collisions: %u\n", GJKRewriteCollisions);
+    ASSERT(Collisions == GJKRewriteCollisions);
+#endif
 #undef printf
 
     return Result;
@@ -1853,6 +1885,8 @@ int main(int argc, char* argv[])
 
     InitGameRenderer();
 
+    // Tests_CollideFlatPolygonXLine();
+
     Stuff();
 
     LoadMapEditor();
@@ -1867,7 +1901,7 @@ int main(int argc, char* argv[])
 // #endif
 //     BuildGameMap(wd_path("LightTestRealShit.map").c_str());
 
-    if (LoadGameMap(wd_path("walltest.map").c_str()) == false)
+    if (LoadGameMap(wd_path("LightTestRealShit.map").c_str()) == false)
         LogError("failed to load game map");
 
     while (!ProgramShutdownRequested)
