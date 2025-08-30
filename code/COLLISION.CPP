@@ -153,7 +153,7 @@ struct FlatPolygonCollider : Collider
                 maxVertexSoFar = pointWCS;
                 maxDistanceSoFar = distance;
             }
-
+#if 0
             // I don't think this artificial thickening is helping much
             distance = Dot(pointWCS - n * 1.f, direction);
             if (distance > maxDistanceSoFar)
@@ -161,6 +161,7 @@ struct FlatPolygonCollider : Collider
                 maxVertexSoFar = pointWCS;
                 maxDistanceSoFar = distance;
             }
+#endif
         }
 
         return maxVertexSoFar;

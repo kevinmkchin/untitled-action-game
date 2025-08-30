@@ -112,6 +112,7 @@ a resolution normal defined.
 
 */
 #define SUNLIGHT_TEST 0
+#define FORCE_SYNC_VERTICAL_BLANK 1
 
 #include <cstdint>
 #include <cassert>
@@ -1067,11 +1068,13 @@ mat4 ActivePerspectiveMatrix;
 mat4 ActiveViewMatrix;
 vec3 PlayerWalkDirectionForward;
 vec3 PlayerWalkDirectionRight;
-// vec3 PlayerColliderPoints[] = {
-//     vec3(8,0,8), vec3(8,0,-8), vec3(-8,0,8), vec3(-8,0,-8),
-//     vec3(8,48,8), vec3(8,48,-8), vec3(-8,48,8), vec3(-8,48,-8)
-// };
-
+#if 0
+vec3 PlayerColliderPoints[] = {
+    vec3(8,0,8), vec3(8,0,-8), vec3(-8,0,8), vec3(-8,0,-8),
+    vec3(8,48,8), vec3(8,48,-8), vec3(-8,48,8), vec3(-8,48,-8)
+};
+#else
+// NOTE(Kevin): Having cylindrical mesh helps A LOT with avoiding ghost collisions along walls.
 vec3 PlayerColliderPoints[] = {
     vec3(8.0000f  , 0.f,  0.0000f  ),
     vec3(7.3910f  , 0.f,  3.0615f  ),
@@ -1106,7 +1109,7 @@ vec3 PlayerColliderPoints[] = {
     vec3(5.6569f  , 47.f,  -5.6569f ),
     vec3(7.3910f  , 47.f,  -3.0615f )
 };
-
+#endif
 
 MeshCollider PlayerCollider;
 MeshCollider *PlayerColliderAtPos(vec3 playerWorldPosition)
@@ -1201,6 +1204,7 @@ static vec3 ResolvePlayerCollisions(vec3 PlayerTestP)
 {
     vec3 Result = {};
 
+#define printf
     // PLAYER RESOLVE COLLISIONS
     MeshCollider *pcol = PlayerColliderAtPos(PlayerTestP);
     Bounds playerBounds = BoundsFromMeshCollider(*pcol);
@@ -1250,6 +1254,7 @@ static vec3 ResolvePlayerCollisions(vec3 PlayerTestP)
         }
     }
     printf("Collisions: %u\n", Collisions);
+#undef printf
 
     return Result;
 }
@@ -1696,9 +1701,11 @@ static void TickTime()
     TimeSinceStart += UnscaledDeltaTime;
     DeltaTime = UnscaledDeltaTime * GameTimeScale;
 
+#if FORCE_SYNC_VERTICAL_BLANK
     // printf("%f\n", DeltaTime);
     UnscaledDeltaTime = 0.01666666f;
     DeltaTime = 0.01666666f;
+#endif
 
 }
 
@@ -1860,7 +1867,7 @@ int main(int argc, char* argv[])
 // #endif
 //     BuildGameMap(wd_path("LightTestRealShit.map").c_str());
 
-    if (LoadGameMap(wd_path("LightTestRealShit.map").c_str()) == false)
+    if (LoadGameMap(wd_path("walltest.map").c_str()) == false)
         LogError("failed to load game map");
 
     while (!ProgramShutdownRequested)
@@ -1880,7 +1887,9 @@ int main(int argc, char* argv[])
         // DrawMapEditor();
 
         SDL_GL_SwapWindow(SDLMainWindow);
+#if FORCE_SYNC_VERTICAL_BLANK
         DwmFlush();
+#endif
     }
 
     CloseMapEditor();
