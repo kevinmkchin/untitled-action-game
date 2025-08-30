@@ -6,6 +6,7 @@ enum class ColliderType
     MESH,
     POLYGON,
     SPHERE,
+    CYLINDER,
     LINE,
     BOUNDS,
     INVALID,
@@ -47,6 +48,48 @@ struct MeshCollider : Collider // kinda wanna remove this... I don't want to use
     }
 
     std::vector<vec3> pointCloud;
+};
+
+struct cylinder_collider : Collider
+{
+    // must be always upright
+
+    cylinder_collider()
+    {
+        type = ColliderType::CYLINDER;
+    }
+
+    vec3 FindFurthestPoint(vec3 direction) const override
+    {
+        vec3 directionNoY = direction;
+        directionNoY.y = 0.f;
+
+        float M = Magnitude(directionNoY);
+        if (M == 0.f)
+        {
+            ASSERT(direction.x == 0.f);
+            ASSERT(direction.z == 0.f);
+            vec3 OffsetFromCenter = HalfHeight * direction;
+
+            return Center + OffsetFromCenter;
+        }
+        else
+        {
+            float F = Radius / M;
+            vec3 OffsetFromCenter = F * direction;
+            float CompOffsetUntoUp = Dot(OffsetFromCenter, GM_UP_VECTOR);
+            if (GM_abs(CompOffsetUntoUp) > HalfHeight)
+            {
+                OffsetFromCenter = (HalfHeight / CompOffsetUntoUp) * OffsetFromCenter;
+            }
+
+            return Center + OffsetFromCenter;
+        }
+    }
+
+    vec3 Center;
+    float Radius;
+    float HalfHeight;
 };
 
 struct StaticMeshCollider : Collider
@@ -95,6 +138,12 @@ struct FlatPolygonCollider : Collider
 #if INTERNAL_BUILD
         if (pointCount == 0) LogWarning("FlatPolygonCollider has zero points in it...");
 #endif
+
+        vec3 a = pointCloudPtr[0];
+        vec3 b = pointCloudPtr[1];
+        vec3 c = pointCloudPtr[2];
+        vec3 n = Normalize(Cross(b-a, c-a));
+
         for (u32 i = 0; i < pointCount; ++i)
         {
             vec3 pointWCS = pointCloudPtr[i];
@@ -104,7 +153,16 @@ struct FlatPolygonCollider : Collider
                 maxVertexSoFar = pointWCS;
                 maxDistanceSoFar = distance;
             }
+
+            // I don't think this artificial thickening is helping much
+            distance = Dot(pointWCS - n * 1.f, direction);
+            if (distance > maxDistanceSoFar)
+            {
+                maxVertexSoFar = pointWCS;
+                maxDistanceSoFar = distance;
+            }
         }
+
         return maxVertexSoFar;
     }
 

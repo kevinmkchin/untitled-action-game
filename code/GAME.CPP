@@ -1067,19 +1067,65 @@ mat4 ActivePerspectiveMatrix;
 mat4 ActiveViewMatrix;
 vec3 PlayerWalkDirectionForward;
 vec3 PlayerWalkDirectionRight;
+// vec3 PlayerColliderPoints[] = {
+//     vec3(8,0,8), vec3(8,0,-8), vec3(-8,0,8), vec3(-8,0,-8),
+//     vec3(8,48,8), vec3(8,48,-8), vec3(-8,48,8), vec3(-8,48,-8)
+// };
+
 vec3 PlayerColliderPoints[] = {
-    vec3(8,0,8), vec3(8,0,-8), vec3(-8,0,8), vec3(-8,0,-8),
-    vec3(8,48,8), vec3(8,48,-8), vec3(-8,48,8), vec3(-8,48,-8)
+    vec3(8.0000f  , 0.f,  0.0000f  ),
+    vec3(7.3910f  , 0.f,  3.0615f  ),
+    vec3(5.6569f  , 0.f,  5.6569f  ),
+    vec3(3.0615f  , 0.f,  7.3910f  ),
+    vec3(0.0000f  , 0.f,  8.0000f  ),
+    vec3(-3.0615f , 0.f,  7.3910f  ),
+    vec3(-5.6569f , 0.f,  5.6569f  ),
+    vec3(-7.3910f , 0.f,  3.0615f  ),
+    vec3(-8.0000f , 0.f,  0.0000f  ),
+    vec3(-7.3910f , 0.f,  -3.0615f ),
+    vec3(-5.6569f , 0.f,  -5.6569f ),
+    vec3(-3.0615f , 0.f,  -7.3910f ),
+    vec3(0.0000f  , 0.f,  -8.0000f ),
+    vec3(3.0615f  , 0.f,  -7.3910f ),
+    vec3(5.6569f  , 0.f,  -5.6569f ),
+    vec3(7.3910f  , 0.f,  -3.0615f ),
+    vec3(8.0000f  , 47.f,  0.0000f  ),
+    vec3(7.3910f  , 47.f,  3.0615f  ),
+    vec3(5.6569f  , 47.f,  5.6569f  ),
+    vec3(3.0615f  , 47.f,  7.3910f  ),
+    vec3(0.0000f  , 47.f,  8.0000f  ),
+    vec3(-3.0615f , 47.f,  7.3910f  ),
+    vec3(-5.6569f , 47.f,  5.6569f  ),
+    vec3(-7.3910f , 47.f,  3.0615f  ),
+    vec3(-8.0000f , 47.f,  0.0000f  ),
+    vec3(-7.3910f , 47.f,  -3.0615f ),
+    vec3(-5.6569f , 47.f,  -5.6569f ),
+    vec3(-3.0615f , 47.f,  -7.3910f ),
+    vec3(0.0000f  , 47.f,  -8.0000f ),
+    vec3(3.0615f  , 47.f,  -7.3910f ),
+    vec3(5.6569f  , 47.f,  -5.6569f ),
+    vec3(7.3910f  , 47.f,  -3.0615f )
 };
+
+
 MeshCollider PlayerCollider;
 MeshCollider *PlayerColliderAtPos(vec3 playerWorldPosition)
 {
-    PlayerCollider.pointCloud.resize(8);
-    for (int i = 0; i < 8; ++i)
+    PlayerCollider.pointCloud.resize(ARRAY_COUNT(PlayerColliderPoints));
+    for (int i = 0; i < ARRAY_COUNT(PlayerColliderPoints); ++i)
         PlayerCollider.pointCloud[i] = playerWorldPosition + PlayerColliderPoints[i];
     return &PlayerCollider;
 }
 float PlayerYVel = 0.f;
+
+cylinder_collider GiveMeCylinderCollider(vec3 BasePos, float Height, float Radius)
+{
+    cylinder_collider Result;
+    Result.Radius = Radius;
+    Result.HalfHeight = Height / 2.f;
+    Result.Center = vec3(BasePos.x, BasePos.y + Result.HalfHeight, BasePos.z);
+    return Result;
+}
 
 vec3 BodyguardEnemyColliderPoints[] = {
     vec3(8,0,8), vec3(8,0,-8), vec3(-8,0,8), vec3(-8,0,-8),
@@ -1151,6 +1197,63 @@ static void Stuff()
     // RebindFaceBatchBufferObject(&fb0, (u32)MY_VERTEX_BUFFER.size()*sizeof(float), MY_VERTEX_BUFFER.data());
 }
 
+static vec3 ResolvePlayerCollisions(vec3 PlayerTestP)
+{
+    vec3 Result = {};
+
+    // PLAYER RESOLVE COLLISIONS
+    MeshCollider *pcol = PlayerColliderAtPos(PlayerTestP);
+    Bounds playerBounds = BoundsFromMeshCollider(*pcol);
+    // cylinder_collider RealShit = GiveMeCylinderCollider(PlayerTestP, 48.f, 8.f);
+
+    std::unordered_set<Collider*> pcollisionquery = GameLevelCollisionTree.Query(playerBounds);
+    // NOTE(Kevin): If I wanted, I could do something like sort these potential colliders by walls before floors or something
+    printf("\n");
+    u32 Collisions = 0;
+    for (Collider *levelCollider : pcollisionquery)
+    {
+        CollisionResult result = GJK(levelCollider, pcol);
+        // CollisionResult result = GJK(levelCollider, &RealShit);
+        FlatPolygonCollider *fpc = dynamic_cast<FlatPolygonCollider*>(levelCollider);
+        ASSERT(fpc);
+
+        if (result.hasCollision)
+        {
+            vec3 a = fpc->pointCloudPtr[0];
+            vec3 b = fpc->pointCloudPtr[1];
+            vec3 c = fpc->pointCloudPtr[2];
+            vec3 n = Normalize(Cross(b-a, c-a));
+
+            vec3 moveby = result.normal * result.penetrationDepth;
+
+            if (Dot(n, result.normal) > 0.001f)
+            {
+                Result += moveby;
+
+                PlayerTestP += moveby;
+                // holyshit lmfao i forgot to update the player collider LOOL
+                pcol = PlayerColliderAtPos(PlayerTestP);
+                // RealShit = GiveMeCylinderCollider(PlayerTestP, 48.f, 8.f);
+                if (GM_abs(Dot(result.normal, GM_UP_VECTOR)) > 0.1f)
+                    PlayerYVel = 0.f;
+                printf("Registered\n");
+            }
+            else
+            {
+                printf("Ignored\n");
+            }
+
+            printf("    Col %d n: %f, %f, %f \n", Collisions, n.x, n.y, n.z);
+            printf("    Col %d moveby: %f, %f, %f \n", Collisions, moveby.x, moveby.y, moveby.z);
+
+            ++Collisions;
+        }
+    }
+    printf("Collisions: %u\n", Collisions);
+
+    return Result;
+}
+
 static void TickGame()
 {
 #if !SUNLIGHT_TEST
@@ -1197,44 +1300,67 @@ static void TickGame()
 
 
     // PLAYER MOVE
-    float moveSpeed = 250.f;
-    vec3 playerPositionDelta;
+
+    // TODO(Kevin): Listen, I just need to write a much more robust player movement and collision 
+    // resolver code.
+
+    // NOTE(Kevin): When player move slowly at 50 units per second, really no problem colliding 
+    // with things - no tunneling through walls. So maybe I should go step by step: move 50*dT first, 
+    // check collisions, move 50*dT second, check collisions, and so on. And once I'm happy with my 
+    // horizontal movement, I can apply vertical movement and resolve collisions there as well ie 
+    // walls before floor check.
+
+    vec3 playerHorizontalMoveDir;
     if (KeysCurrent[SDL_SCANCODE_W])
-        playerPositionDelta += PlayerWalkDirectionForward * moveSpeed * DeltaTime;
+        playerHorizontalMoveDir += PlayerWalkDirectionForward;
     if (KeysCurrent[SDL_SCANCODE_A])
-        playerPositionDelta += -PlayerWalkDirectionRight * moveSpeed * DeltaTime;
+        playerHorizontalMoveDir += -PlayerWalkDirectionRight;
     if (KeysCurrent[SDL_SCANCODE_S])
-        playerPositionDelta += -PlayerWalkDirectionForward * moveSpeed * DeltaTime;
+        playerHorizontalMoveDir += -PlayerWalkDirectionForward;
     if (KeysCurrent[SDL_SCANCODE_D])
-        playerPositionDelta += PlayerWalkDirectionRight * moveSpeed * DeltaTime;
-    PlayerControllerRoot += playerPositionDelta;
-    
-    static int channelrotationtesting = 0;
+        playerHorizontalMoveDir += PlayerWalkDirectionRight;
+    if (KeysCurrent[SDL_SCANCODE_A] ^ KeysCurrent[SDL_SCANCODE_D])
+    {
+        Gui::PrimitivePanel(Gui::UIRect(20, 20, 100, 100), vec4(0,1,0,1));
+    }
+
+    vec3 TestPlayerRoot = PlayerControllerRoot;
+
+    // NOTE(Kevin): Moving in smaller increments before resolving collision to
+    // avoid tunneling and erroneous collision resolution vectors (that resolve
+    // player into walls). Heuristically, 50 seems to be a safe value, for current
+    // player radius of 8.
+    float moveStepVelocity = 50.f;
+    TestPlayerRoot += playerHorizontalMoveDir * moveStepVelocity * DeltaTime;
+    TestPlayerRoot += ResolvePlayerCollisions(TestPlayerRoot);
+    TestPlayerRoot += playerHorizontalMoveDir * moveStepVelocity * DeltaTime;
+    TestPlayerRoot += ResolvePlayerCollisions(TestPlayerRoot);
+    TestPlayerRoot += playerHorizontalMoveDir * moveStepVelocity * DeltaTime;
+    TestPlayerRoot += ResolvePlayerCollisions(TestPlayerRoot);
+    TestPlayerRoot += playerHorizontalMoveDir * moveStepVelocity * DeltaTime;
+    TestPlayerRoot += ResolvePlayerCollisions(TestPlayerRoot);
+    // TestPlayerRoot += playerHorizontalMoveDir * moveStepVelocity * DeltaTime;
+    // TestPlayerRoot += ResolvePlayerCollisions(TestPlayerRoot);
+
     if (KeysPressed[SDL_SCANCODE_SPACE])
     {
         PlayerYVel = 160.f;
-        Mix_VolumeChunk(sfx_Jump, 48);
-//        Mix_PlayChannel(channelrotationtesting++%3, sfx_Jump, 0);
     }
     PlayerYVel -= 314.f * DeltaTime; // 9.81 m/s * 32 units/m ~= 314 units/s
-    PlayerControllerRoot.y += PlayerYVel * DeltaTime;
+    TestPlayerRoot.y += PlayerYVel * DeltaTime;
+    TestPlayerRoot += ResolvePlayerCollisions(TestPlayerRoot);
 
-    // PLAYER RESOLVE COLLISIONS
-    MeshCollider *pcol = PlayerColliderAtPos(PlayerControllerRoot);
-    Bounds playerBounds = BoundsFromMeshCollider(*pcol);
-    std::unordered_set<Collider*> pcollisionquery = GameLevelCollisionTree.Query(playerBounds);
-    // NOTE(Kevin): If I wanted, I could do something like sort these potential colliders by walls before floors or something
-    for (Collider *levelCollider : pcollisionquery)
-    {
-        CollisionResult result = GJK(levelCollider, pcol);
-        if (result.hasCollision)
-        {
-            vec3 moveby = result.normal * result.penetrationDepth;
-            PlayerControllerRoot += moveby;
-            if (Dot(result.normal, GM_UP_VECTOR) > 0.1f)
-                PlayerYVel = 0.f;
-        }
-    }
+    PlayerControllerRoot = TestPlayerRoot;
+
+
+
+//     static int channelrotationtesting = 0;
+//     if (KeysPressed[SDL_SCANCODE_SPACE])
+//         Mix_VolumeChunk(sfx_Jump, 48);
+// //        Mix_PlayChannel(channelrotationtesting++%3, sfx_Jump, 0);
+//     }
+
+
 
     // PLAYER CAMERA 
     vec3 cameraPosOffsetFromRoot = vec3(0,40,0);
@@ -1569,6 +1695,11 @@ static void TickTime()
     UnscaledDeltaTime = deltaTimeInSeconds;
     TimeSinceStart += UnscaledDeltaTime;
     DeltaTime = UnscaledDeltaTime * GameTimeScale;
+
+    // printf("%f\n", DeltaTime);
+    UnscaledDeltaTime = 0.01666666f;
+    DeltaTime = 0.01666666f;
+
 }
 
 static bool InitializeEverything()
@@ -1721,15 +1852,15 @@ int main(int argc, char* argv[])
 
     // RDOCAPI->LaunchReplayUI(1, "");
 
-#if SUNLIGHT_TEST
-    EditorDeserializeMap(wd_path("House.emf").c_str());
-    // EditorDeserializeMap(wd_path("IrradianceCachingTest.emf").c_str());
-#else
-    EditorDeserializeMap(wd_path("LightTest.emf").c_str());
-#endif
-    BuildGameMap(wd_path("buildtest.map").c_str());
+// #if SUNLIGHT_TEST
+//     EditorDeserializeMap(wd_path("House.emf").c_str());
+//     // EditorDeserializeMap(wd_path("IrradianceCachingTest.emf").c_str());
+// #else
+//     EditorDeserializeMap(wd_path("LightTest.emf").c_str());
+// #endif
+//     BuildGameMap(wd_path("LightTestRealShit.map").c_str());
 
-    if (LoadGameMap(wd_path("buildtest.map").c_str()) == false)
+    if (LoadGameMap(wd_path("LightTestRealShit.map").c_str()) == false)
         LogError("failed to load game map");
 
     while (!ProgramShutdownRequested)
@@ -1749,7 +1880,7 @@ int main(int argc, char* argv[])
         // DrawMapEditor();
 
         SDL_GL_SwapWindow(SDLMainWindow);
-        glFinish();
+        DwmFlush();
     }
 
     CloseMapEditor();
