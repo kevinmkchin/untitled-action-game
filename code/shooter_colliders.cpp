@@ -1,5 +1,7 @@
 #include "shooter_colliders.h"
+#include "shooter_containers.h"
 
+/// GJK
 
 vec3 FindFurthestPointOnConvexShell(collider_base *Collider, vec3 Direction)
 {
@@ -69,8 +71,9 @@ vec3 FindFurthestPointOnConvexShell(collider_base *Collider, vec3 Direction)
     return FurthestPoint;
 }
 
-#define GJKMin(a, b) ((a) < (b) ? (a) : (b))
+#define GJKMin(A, B) ((A) < (B) ? (A) : (B))
 #define GJKSameDirection(Dir, A_to_Origin) (Dot(Dir, A_to_Origin) > 0.f)
+#define GJKAbsoluteFloat(A) ((A) < 0.f ? (-(A)) : (A))
 
 void GJKSimplexPushFront(gjk_simplex *Simplex, vec3 P)
 {
@@ -90,7 +93,7 @@ vec3 GJKSupportFunction(collider_base *A, collider_base *B, vec3 Direction)
 
 bool GJKLine(gjk_simplex *Capture, vec3 *Direction)
 {
-#if SHOOTER_SLOW
+#if SHOOTER_SLOWCODE
     ASSERT(Capture && Direction);
     ASSERT(Capture->VertexCount == 2);
 #endif
@@ -124,7 +127,7 @@ bool GJKLine(gjk_simplex *Capture, vec3 *Direction)
 
 bool GJKTriangle(gjk_simplex *Capture, vec3 *Direction)
 {
-#if SHOOTER_SLOW
+#if SHOOTER_SLOWCODE
     ASSERT(Capture && Direction);
     ASSERT(Capture->VertexCount == 3);
 #endif
@@ -196,7 +199,7 @@ bool GJKTriangle(gjk_simplex *Capture, vec3 *Direction)
 
 bool GJKTetrahedron(gjk_simplex *Capture, vec3 *Direction)
 {
-#if SHOOTER_SLOW
+#if SHOOTER_SLOWCODE
     ASSERT(Capture && Direction);
     ASSERT(Capture->VertexCount == 4);
 #endif
@@ -299,5 +302,207 @@ bool GJK(collider_base *A, collider_base *B, gjk_simplex *OutSimplex)
 
         // TODO(Kevin): Add fallback in case infinite loop
     }
+}
+
+
+/// EPA
+
+#define EPA_MAX_ITERATIONS 10
+#define EPA_DISTANCE_EPSILON 0.01f
+
+#define EPA_MAX_VERTICES (4 + EPA_MAX_ITERATIONS)
+// NOTE(Kevin): We are guaranteed a convex polyhedra therefore
+// the number of faces cannot exceed more than twice the vertices.
+#define EPA_MAX_FACES (EPA_MAX_VERTICES * 2 - 4)
+#define EPA_MAX_EDGES (EPA_MAX_FACES * 3)
+
+struct epa_face
+{
+    int Indices[3];
+    vec3 Normal;
+    float DistFromOrigin;
+};
+
+struct epa_edge
+{
+    int IndexA;
+    int IndexB;
+};
+
+epa_face EPABuildFace(carray<vec3, EPA_MAX_VERTICES> *Vertices,
+                      int Index0, int Index1, int Index2)
+{
+    epa_face Result;
+    Result.Indices[0] = Index0;
+    Result.Indices[1] = Index1;
+    Result.Indices[2] = Index2;
+
+    vec3 A = (*Vertices)[Index0];
+    vec3 B = (*Vertices)[Index1];
+    vec3 C = (*Vertices)[Index2];
+    Result.Normal = Normalize(Cross(B - A, C - A));
+
+    // Distance from origin is the Component of vector(origin To A) projected onto the normal
+    Result.DistFromOrigin = Dot(Result.Normal, A);
+    if (Result.DistFromOrigin < 0.f)
+    {
+        Result.Normal *= -1.f;
+        Result.DistFromOrigin *= -1.f;
+    }
+
+    return Result;
+}
+
+bool EPAEdgeEquals(epa_edge Lhs, epa_edge Rhs)
+{
+    if (Lhs.IndexA == Rhs.IndexA)
+    {
+        return Lhs.IndexB == Rhs.IndexB;
+    }
+    else
+    {
+        return Lhs.IndexA == Rhs.IndexB && Lhs.IndexB == Rhs.IndexA;
+    }
+}
+
+void EPAKeepEdgeIfUnique(carray<epa_edge, EPA_MAX_EDGES> *UniqueEdges, int IndexA, int IndexB)
+{
+    epa_edge Edge;
+    // Index order matters for reconstruction later. For edge comparison,
+    // the new edge to check should be in reverse order of the edge that
+    // may exist, but I wrote EPAEdgeEquals to work either way.
+    Edge.IndexA = IndexA;
+    Edge.IndexB = IndexB;
+
+    int ExistingEdgeIndex = 0;
+    for (; ExistingEdgeIndex < UniqueEdges->Count; ++ExistingEdgeIndex)
+    {
+        if (EPAEdgeEquals(Edge, (*UniqueEdges)[ExistingEdgeIndex]))
+        {
+            break;
+        }
+    }
+
+    if (ExistingEdgeIndex == UniqueEdges->Count)
+    {
+        UniqueEdges->Put(Edge);
+    }
+    else
+    {
+        // shared edge so it shouldn't exist; remove the previously added edge
+        // TODO(KEVIN): DeleteSwap AFTER CHECKING REWRITE WORKS
+        UniqueEdges->Delete(ExistingEdgeIndex);
+    }
+}
+
+epa_result EPA(collider_base *A, collider_base *B, gjk_simplex *Simplex)
+{
+#if SHOOTER_SLOWCODE
+    ASSERT(Simplex->VertexCount == 4);
+#endif
+
+    // The initial polytope
+    carray<vec3, EPA_MAX_VERTICES> Vertices;
+    memcpy(Vertices.Data, Simplex->Vertices, sizeof(Simplex->Vertices));
+    Vertices.Count = Simplex->VertexCount;
+
+    carray<epa_face, EPA_MAX_FACES> Faces;
+    Faces.Put(EPABuildFace(&Vertices, 0, 1, 2));
+    Faces.Put(EPABuildFace(&Vertices, 0, 3, 1));
+    Faces.Put(EPABuildFace(&Vertices, 0, 2, 3));
+    Faces.Put(EPABuildFace(&Vertices, 1, 3, 2));
+
+    vec3 NearestFaceNormal;
+    float NearestFaceDist = FLT_MAX;
+
+    carray<epa_edge, EPA_MAX_EDGES> UniqueEdges;
+
+    for (u32 EPAIterations = 0;; ++EPAIterations)
+    {
+        // Find the nearest face
+        NearestFaceDist = FLT_MAX;
+        for (int FaceIndex = 0; FaceIndex < Faces.Count; ++FaceIndex)
+        {
+            epa_face Face = Faces[FaceIndex];
+            if (Face.DistFromOrigin < NearestFaceDist)
+            {
+                NearestFaceNormal = Face.Normal;
+                NearestFaceDist = Face.DistFromOrigin;
+            }
+        }
+
+        // EPA loop can be infinite if we have curved edges - just return
+        // whatever it has after X iterations. Also, it can go for a really long
+        // time even if there aren't curved edges.
+        // TODO(Kevin): This may cause the alg to erroneously end early for very
+        // detailed convex hulls. Not really a huge concern right now, but maybe
+        // just check if the NearestFaceNormal and NearestFaceDist start to converge
+        // really closely => when there is little variation in the NearestFaceNormal
+        // and NearestFaceDist between each polytope expansion iterations, we can be
+        // confident to return.
+        if (EPAIterations == EPA_MAX_ITERATIONS)
+        {
+            break;
+        }
+
+        // Is there a point to be added in this direction? If the point we
+        // find is already the furthest along the search direction (the normal
+        // of the nearest face) then the point already exists in the polytope
+        // on the nearest face.
+        vec3 SupportP = GJKSupportFunction(A, B, NearestFaceNormal);
+        float DistAlongSearchDirection = Dot(NearestFaceNormal, SupportP);
+
+        if (GJKAbsoluteFloat(DistAlongSearchDirection - NearestFaceDist) > EPA_DISTANCE_EPSILON)
+        {
+            UniqueEdges.ResetCount();
+            // Delete faces; Remember edges that are shared with undeleted faces
+            for (int FaceIndex = 0; FaceIndex < Faces.Count; ++FaceIndex)
+            {
+                epa_face Face = Faces[FaceIndex];
+
+                // Faces in the same direction as SupportP should be removed
+                if (GJKSameDirection(Face.Normal, SupportP))
+                {
+                    int Index0 = Face.Indices[0];
+                    int Index1 = Face.Indices[1];
+                    int Index2 = Face.Indices[2];
+
+                    EPAKeepEdgeIfUnique(&UniqueEdges, Index0, Index1);
+                    EPAKeepEdgeIfUnique(&UniqueEdges, Index1, Index2);
+                    EPAKeepEdgeIfUnique(&UniqueEdges, Index2, Index0);
+
+                    Faces.DeleteSwap(FaceIndex);
+                    --FaceIndex;
+                }
+            }
+            // TODO(Kevin): Do I need this fallback? or can I just assert here
+            if (UniqueEdges.Count == 0)
+            {
+                NearestFaceNormal = vec3(0.f, 0.f, 0.f);
+                NearestFaceDist = 0.f;
+                break;
+            }
+
+            Vertices.Put(SupportP);
+
+            // Reconstruction
+            for (int EdgeIndex = 0; EdgeIndex < UniqueEdges.Count; ++EdgeIndex)
+            {
+                int Index0 = UniqueEdges[EdgeIndex].IndexA;
+                int Index1 = UniqueEdges[EdgeIndex].IndexB;
+                int Index2 = Vertices.Count-1;
+                Faces.Put(EPABuildFace(&Vertices, Index0, Index1, Index2));
+            }
+        }
+        else
+        {
+            break;
+        }
+    }
+
+    epa_result Result;
+    Result.NearestFaceNormal = NearestFaceNormal;
+    Result.NearestFaceDist = NearestFaceDist + EPA_DISTANCE_EPSILON;
+    return Result;
 }
 

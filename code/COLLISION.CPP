@@ -395,6 +395,8 @@ struct CollisionResult
     bool hasCollision = false;
 };
 
+/// __EPA__
+
 static std::pair<std::vector<vec4>, int> EPAGetFaceNormals(
     const std::vector<vec3>& polytope,
     const std::vector<int>& faces)
@@ -453,6 +455,9 @@ static void EPAAddIfUniqueEdge(
 #ifndef EPA_MAX_ITERATIONS
 #define EPA_MAX_ITERATIONS 10
 #endif
+#define EPA_EPSILON 0.001f // Yes I know this is different from value in shooter_colliders.cpp
+// I did that after comparing the two with correct values => it was still diverging occasionally
+// after ~8 loops
 static CollisionResult EPA(GJKSimplex& simplex, const Collider* colA, const Collider* colB)
 {
     std::vector<vec3> polytope;
@@ -481,7 +486,7 @@ static CollisionResult EPA(GJKSimplex& simplex, const Collider* colA, const Coll
         minNormal = normals[minFace].xyz;
         minDistance = normals[minFace].w;
 
-        if (epaIterations++ > EPA_MAX_ITERATIONS)
+        if (epaIterations++ == EPA_MAX_ITERATIONS)
         {
             break;
         }
@@ -489,7 +494,7 @@ static CollisionResult EPA(GJKSimplex& simplex, const Collider* colA, const Coll
         vec3 support = GJKSupport(colA, colB, minNormal); // i.e. is there a point to be added in this direction?
         float sDistance = Dot(minNormal, support);
 
-        if (GM_abs(sDistance - minDistance) > 0.001f)
+        if (GM_abs(sDistance - minDistance) > EPA_EPSILON)
         {
             // then we must expand the polytope
             std::vector<std::pair<int, int>> uniqueEdges;
@@ -559,7 +564,7 @@ static CollisionResult EPA(GJKSimplex& simplex, const Collider* colA, const Coll
 
     CollisionResult points;
     points.normal = minNormal;
-    points.penetrationDepth = minDistance + 0.001f;
+    points.penetrationDepth = minDistance + EPA_EPSILON;
     points.hasCollision = true;
     return points;
 }

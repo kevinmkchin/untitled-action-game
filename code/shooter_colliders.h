@@ -4,6 +4,12 @@ enum class collider_type
 {
     mesh,
     flatpoly,
+    // TODO(Kevin): aabb should be GJK acceptible collider type too
+    // because when we are baking the spatial hash, we can get exactly
+    // the aabb cells that intersect with the flatpoly rather than all
+    // the aabb cells that overlap with the aabb of the flatpoly. during
+    // baking, i should prob narrow down the aabb cells first (broadphase)
+    // before checking the narrowed down cells against the flatpoly using GJK
     invalid
 };
 
@@ -49,3 +55,12 @@ struct gjk_simplex
 };
 
 bool GJK(collider_base *A, collider_base *B, gjk_simplex *OutSimplex);
+
+struct epa_result
+{
+    // NOTE(Kevin): This can be 0,0,0 for the normal
+    vec3 NearestFaceNormal;
+    float NearestFaceDist;
+};
+
+epa_result EPA(collider_base *A, collider_base *B, gjk_simplex *Simplex);
