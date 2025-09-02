@@ -62,17 +62,19 @@ struct app_state
     bool KeysCurrent[256] = {0};
     bool KeysPressed[256] = {0};
     bool KeysReleased[256] = {0};
+
     i32 BackBufferWidth = -1;
     i32 BackBufferHeight = -1;
-
     struct GPUFrameBuffer *RenderTargetGame;
+    struct GPUFrameBuffer *RenderTargetGUI;
     i32 GUIRenderTargetWidth;
     i32 GUIRenderTargetHeight;
     struct support_renderer_t *PrimitivesRenderer;
     struct level_editor_t *LevelEditor;
 };
 
+constexpr float FixedDeltaTime = 1.0f / 60.0f;
+
 extern bool KeysCurrent[256];
 extern float DeltaTime;
-constexpr float FixedDeltaTime = 1.0f / 60.0f;
 

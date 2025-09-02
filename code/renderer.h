@@ -5,12 +5,14 @@
 #include "instanced.h"
 #include "anim.h"
 
+void AcquireRenderingResources(app_state *AppState);
+void ReleaseRenderingResources();
+void UpdateRenderTargetSizes(app_state *AppState);
+void RenderFrame(app_state *AppState);
+
 // This is the Rendering Abstraction Layer
 // Renderable data should be collected by the game layer into generic formats
 // and provided to this interface.
-
-void AcquireRenderingResources();
-void ReleaseRenderingResources();
 
 struct textured_lit_drawinfo
 {
@@ -47,7 +49,4 @@ void RenderSkinnedModels(
     struct game_state *GameState,
     const mat4 &ProjFromView, 
     const mat4 &ViewFromWorld);
-
-void RenderGameState(struct game_state *GameState);
-
 

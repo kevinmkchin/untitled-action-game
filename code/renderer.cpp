@@ -1,17 +1,72 @@
 #include "renderer.h"
-#include "primitives.h"
+#include "utility.h"
 #include "shaders.h"
+#include "gpu_resources.h"
+
+#include "gui.h"
 #include "game.h"
+#include "primitives.h"
 #include "enemy.h"
 #include "game_assets.h"
 
+const char* __finalpass_shader_vs =
+    "#version 330\n"
+    "layout(location = 0) in vec2 pos;\n"
+    "layout(location = 1) in vec2 uv;\n"
+    "out vec2 texcoord;\n"
+    "void main()\n"
+    "{\n"
+    "    gl_Position = vec4(pos, 0, 1.0);\n"
+    "    texcoord = uv;\n"
+    "}\n";
+
+const char* __finalpass_shader_fs =
+    "#version 330\n"
+    "uniform sampler2D screen_texture;\n"
+    "in vec2 texcoord;\n"
+    "out vec4 color;\n"
+    "void main()\n"
+    "{\n"
+    "    vec4 in_color = texture(screen_texture, texcoord);\n"
+    "    if(in_color.w < 0.001)\n"
+    "    {\n"
+    "        discard;\n"
+    "    }\n"
+    "    color = in_color;\n"
+    "}\n";
+
+static GPUShader Sha_FinalPassShader;
 static GPUShader Sha_GameLevel;
 static GPUShader Sha_ParticlesDefault;
 static GPUShader Sha_ModelTexturedLit;
 static GPUShader Sha_ModelSkinnedLit;
+static GPUFrameBuffer RenderTargetGame;
+static GPUFrameBuffer RenderTargetGUI;
+static GPUMeshIndexed FinalRenderOutputQuad;
 
-void AcquireRenderingResources()
+void UpdateRenderTargetSizes(app_state *AppState)
 {
+    RenderTargetGame.width = AppState->BackBufferWidth;
+    RenderTargetGame.height = AppState->BackBufferHeight;
+    RenderTargetGUI.width = AppState->BackBufferWidth / 2;
+    RenderTargetGUI.height = AppState->BackBufferHeight / 2;
+    AppState->GUIRenderTargetWidth = RenderTargetGUI.width;
+    AppState->GUIRenderTargetHeight = RenderTargetGUI.height;
+
+    if (RenderTargetGame.fbo != 0)
+    {
+        UpdateGPUFrameBufferSize(&RenderTargetGame,
+            AppState->BackBufferWidth, AppState->BackBufferHeight);
+        UpdateGPUFrameBufferSize(&RenderTargetGUI,
+            AppState->GUIRenderTargetWidth, AppState->GUIRenderTargetHeight);
+    }
+}
+
+void AcquireRenderingResources(app_state *AppState)
+{
+    GLCreateShaderProgram(Sha_FinalPassShader, 
+        __finalpass_shader_vs, 
+        __finalpass_shader_fs);
     GLLoadShaderProgramFromFile(Sha_GameLevel, 
         shader_path("__game_level.vert").c_str(), 
         shader_path("__game_level.frag").c_str());
@@ -24,15 +79,44 @@ void AcquireRenderingResources()
     GLLoadShaderProgramFromFile(Sha_ModelSkinnedLit, 
         shader_path("model_skinned.vert").c_str(), 
         shader_path("model_textured_skinned.frag").c_str());
+
+    AppState->RenderTargetGame = &RenderTargetGame;
+    AppState->RenderTargetGUI = &RenderTargetGUI;
+    UpdateRenderTargetSizes(AppState);
+    CreateGPUFrameBuffer(&RenderTargetGame);
+    CreateGPUFrameBuffer(&RenderTargetGUI);
+
+    float refQuadVertices[16] = {
+        //  x   y    u    v
+        -1.f, -1.f, 0.f, 0.f,
+        1.f, -1.f, 1.f, 0.f,
+        -1.f, 1.f, 0.f, 1.f,
+        1.f, 1.f, 1.f, 1.f
+    };
+    u32 refQuadIndices[6] = {
+        0, 1, 3,
+        0, 3, 2
+    };
+    CreateGPUMeshIndexed(&FinalRenderOutputQuad, refQuadVertices, 
+        refQuadIndices, 16, 6, 2, 2, 0, GL_STATIC_DRAW);
+
+    // alpha blending func: (srcRGB) * srcA + (dstRGB) * (1 - srcA)  = final color output
+    // alpha blending func: (srcA) * a + (dstA) * 1 = final alpha output
+    glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_SRC_ALPHA, GL_ONE);
+    glBlendEquation(GL_FUNC_ADD);
+    glFrontFace(GL_CCW); // OpenGL default is GL_CCW
+
     InstanceDrawing_AcquireGPUResources();
 }
 
 void ReleaseRenderingResources()
 {
+    GLDeleteShader(Sha_FinalPassShader);
     GLDeleteShader(Sha_GameLevel);
     GLDeleteShader(Sha_ParticlesDefault);
     GLDeleteShader(Sha_ModelTexturedLit);
     GLDeleteShader(Sha_ModelSkinnedLit);
+
     InstancedDrawing_ReleaseGPUResources();
 }
 
@@ -162,7 +246,8 @@ void RenderSkinnedModels(
     }
 }
 
-void RenderGameState(game_state *GameState)
+static void
+RenderGameState(game_state *GameState)
 {
     app_state *AppState = GameState->AppState;
 
@@ -225,3 +310,52 @@ void RenderGameState(game_state *GameState)
             (float)AppState->RenderTargetGame->height));
 }
 
+
+static void 
+RenderGUI()
+{
+    glBindFramebuffer(GL_FRAMEBUFFER, RenderTargetGUI.fbo);
+    glViewport(0, 0, RenderTargetGUI.width, RenderTargetGUI.height);
+    glClearColor(RGB255TO1(244, 194, 194), 0.0f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glEnable(GL_BLEND);
+    glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_SRC_ALPHA, GL_ONE);
+    glDisable(GL_DEPTH_TEST);
+
+    GUI::Draw(RenderTargetGUI.width, RenderTargetGUI.height);
+}
+
+static void 
+CompositeRenderTargetsToBackBuffer(app_state *AppState)
+{
+    UseShader(Sha_FinalPassShader);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glViewport(0, 0, AppState->BackBufferWidth, AppState->BackBufferHeight);
+    glClearColor(RGB255TO1(0, 0, 0), 1.f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glEnable(GL_BLEND);
+    glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_SRC_ALPHA, GL_ONE);
+    glDisable(GL_DEPTH_TEST);
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, RenderTargetGame.colorTexId);
+    RenderGPUMeshIndexed(FinalRenderOutputQuad);
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, RenderTargetGUI.colorTexId);
+    RenderGPUMeshIndexed(FinalRenderOutputQuad);
+
+    // glActiveTexture(GL_TEXTURE0);
+    // glBindTexture(GL_TEXTURE_2D, debugUILayer.colorTexId);
+    // RenderMesh(screenSizeQuad);
+
+    GLHasErrors();
+}
+
+void RenderFrame(app_state *AppState)
+{
+    RenderGameState(AppState->GameState);
+    RenderGUI();
+    CompositeRenderTargetsToBackBuffer(AppState);
+}
