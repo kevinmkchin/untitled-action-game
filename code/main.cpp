@@ -251,14 +251,15 @@ int main(int argc, char* argv[])
     AppState.LevelEditor->SupportRenderer = AppState.PrimitivesRenderer;
     Assets.LoadAllResources();
     InitializeGame(&AppState);
+    SetLevelEditorRenderTarget(AppState.LevelEditor);
 
-    // LevelEditor.LoadMap(wd_path("testing.emf").c_str());
+    AppState.LevelEditor->LoadMap(wd_path("testing.emf").c_str());
     // BuildGameMap(wd_path(AppState.LevelEditor, "buildtest.map").c_str());
     // LoadLevel(wd_path("buildtest.map").c_str());
 
     SDL_SetWindowRelativeMouseMode(AppState.SDLMainWindow, true);
-    LoadLevel(wd_path("buildtest.map").c_str());
-    // SwitchToLevelEditor();
+    // LoadLevel(wd_path("buildtest.map").c_str());
+    SwitchToLevelEditor();
 
     while (!ProgramShutdownRequested)
     {

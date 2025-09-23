@@ -2,6 +2,7 @@
 #include "utility.h"
 #include "shaders.h"
 #include "gpu_resources.h"
+#include "leveleditor.h"
 
 #include "gui.h"
 #include "game.h"
@@ -353,9 +354,14 @@ CompositeRenderTargetsToBackBuffer(app_state *AppState)
     GLHasErrors();
 }
 
+void SetLevelEditorRenderTarget(level_editor_t *Editor)
+{
+    Editor->RenderTargetGame = &RenderTargetGame;
+}
+
 void RenderFrame(app_state *AppState)
 {
-    RenderGameState(AppState->GameState);
+    // RenderGameState(AppState->GameState);
     RenderGUI();
     CompositeRenderTargetsToBackBuffer(AppState);
 }

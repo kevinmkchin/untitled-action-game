@@ -154,8 +154,10 @@ namespace MapEdit
         return ++session_VolumePersistIdCounter;
     }
 
-    u32 FreshElemId()
+    u32 SessionElementID()
     {
+        // NOTE(Kevin): This ID is to help persist and reconstruct topo entity relationships
+        // when serializing or to refer to elements by ID only valid during that session.
         static u32 elemIdCounter = 0;
         return ++elemIdCounter;
     }
@@ -193,7 +195,7 @@ namespace MapEdit
 
         // Create face and loops
         Face *face = new Face();
-        face->elemId = FreshElemId();
+        face->elemId = SessionElementID();
 
         Loop *lastLoop = NULL;
         Loop *firstLoop = NULL;
@@ -238,7 +240,7 @@ namespace MapEdit
     Edge *CreateEdge(Vert *v1, Vert *v2, Volume *owner)
     {
         Edge *edge = new Edge();
-        edge->elemId = FreshElemId();
+        edge->elemId = SessionElementID();
 
         edge->a = v1;
         edge->b = v2;
@@ -252,7 +254,7 @@ namespace MapEdit
     Vert *CreateVert(vec3 pos, Volume *owner)
     {
         Vert *v = new Vert();
-        v->elemId = FreshElemId();
+        v->elemId = SessionElementID();
 
         v->pos = pos;
 

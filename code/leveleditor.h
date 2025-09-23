@@ -98,6 +98,6 @@ private: // move all the editor session specific data here
 public:
     app_state *AppState;
     support_renderer_t *SupportRenderer;
-    GPUFrameBuffer RenderTargetGame;
+    GPUFrameBuffer *RenderTargetGame;
 };
 

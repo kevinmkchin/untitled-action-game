@@ -54,6 +54,7 @@ using two or more cycles in conjunction.
 #include "mem.h"
 #include "game_assets.h"
 
+
 namespace MapEdit
 {
     struct Edge;
@@ -153,7 +154,7 @@ namespace MapEdit
     extern u64 session_VolumePersistIdCounter;
     u64 FreshVolumePersistId();
 
-    u32 FreshElemId();
+    u32 SessionElementID();
 
     Face *CreateFace(const std::vector<Edge*>& edges, Volume *owner);
     Edge *CreateEdge(Vert *v1, Vert *v2, Volume *owner);

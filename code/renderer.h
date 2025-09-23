@@ -8,6 +8,7 @@
 void AcquireRenderingResources(app_state *AppState);
 void ReleaseRenderingResources();
 void UpdateRenderTargetSizes(app_state *AppState);
+void SetLevelEditorRenderTarget(level_editor_t *Editor);
 void RenderFrame(app_state *AppState);
 
 // This is the Rendering Abstraction Layer

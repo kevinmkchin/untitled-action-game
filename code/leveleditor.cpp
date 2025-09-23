@@ -715,7 +715,7 @@ u32 level_editor_t::PickVolume(MapEdit::Volume *volumes, u32 arraycount)
             SupportRenderer->AddTrianglesToPickableHandles(PickableTrianglesBuf, count);
         }
     }
-    u32 pickedVolumeFrameId = SupportRenderer->FlushHandles(AppState->MousePos, RenderTargetGame, ActiveViewMatrix, ActivePerspectiveMatrix, false);
+    u32 pickedVolumeFrameId = SupportRenderer->FlushHandles(AppState->MousePos, *RenderTargetGame, ActiveViewMatrix, ActivePerspectiveMatrix, false);
     return pickedVolumeFrameId;
 }
 
@@ -733,7 +733,7 @@ u32 level_editor_t::PickFace(MapEdit::Face **faces, u32 arraycount)
         MapEdit::TriangulateFace_QuickDumb_WithColor(*face, idrgb, PickableTrianglesBuf, &count);
         SupportRenderer->AddTrianglesToPickableHandles(PickableTrianglesBuf, count);
     }
-    u32 faceId = SupportRenderer->FlushHandles(AppState->MousePos, RenderTargetGame, ActiveViewMatrix, ActivePerspectiveMatrix, false);
+    u32 faceId = SupportRenderer->FlushHandles(AppState->MousePos, *RenderTargetGame, ActiveViewMatrix, ActivePerspectiveMatrix, false);
     return faceId;
 }
 
@@ -820,7 +820,7 @@ void level_editor_t::DoMovePointEntity()
     if (LMBPressedThisFrame)
     {
         DrawEntityBillboards();
-        u32 PickedId = SupportRenderer->FlushHandles(AppState->MousePos, RenderTargetGame, ActiveViewMatrix, ActivePerspectiveMatrix, false);
+        u32 PickedId = SupportRenderer->FlushHandles(AppState->MousePos, *RenderTargetGame, ActiveViewMatrix, ActivePerspectiveMatrix, false);
         if (PickedId == 0) 
             return;
         u32 PickedEntityIndex = PickedId - 1;
@@ -990,6 +990,7 @@ void level_editor_t::DoFaceManip()
     if (LMBReleasedThisFrame && HotHandleId > 0)
     {
         HotHandleId = 0;
+        
     }
 }
 
@@ -1010,7 +1011,7 @@ void level_editor_t::DoVertexManip()
             SupportRenderer->DoDiscHandle(id, vert->pos, EditorCam.Position, 
                 GetEditorHandleSize(this, vert->pos, DISC_HANDLE_RADIUS + 4.f));
         }
-        u32 clickedId = SupportRenderer->FlushHandles(AppState->MousePos, RenderTargetGame, ActiveViewMatrix, ActivePerspectiveMatrix, false);
+        u32 clickedId = SupportRenderer->FlushHandles(AppState->MousePos, *RenderTargetGame, ActiveViewMatrix, ActivePerspectiveMatrix, false);
 
         if (clickedId > 0)
         {
@@ -1411,8 +1412,8 @@ void level_editor_t::DoSimpleBrushTool()
 
 void level_editor_t::Draw()
 {
-    glBindFramebuffer(GL_FRAMEBUFFER, RenderTargetGame.fbo);
-    glViewport(0, 0, RenderTargetGame.width, RenderTargetGame.height);
+    glBindFramebuffer(GL_FRAMEBUFFER, RenderTargetGame->fbo);
+    glViewport(0, 0, RenderTargetGame->width, RenderTargetGame->height);
     glClearColor(0.15f, 0.15f, 0.15f, 1.f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glEnable(GL_BLEND);
@@ -1530,8 +1531,8 @@ void level_editor_t::Draw()
         gridTranslation = GRID_ORIGIN;
         gridRotation = GetGridRotationMatrix();
     }
-    SupportRenderer->DrawGrid(GRID_INCREMENT, gridRotation, gridTranslation, &perspectiveMatrix, &viewMatrix, RenderTargetGame.depthTexId, vec2((float)RenderTargetGame.width, (float)RenderTargetGame.height));
-    SupportRenderer->FlushPrimitives(&perspectiveMatrix, &viewMatrix, RenderTargetGame.depthTexId, vec2((float)RenderTargetGame.width, (float)RenderTargetGame.height));
+    SupportRenderer->DrawGrid(GRID_INCREMENT, gridRotation, gridTranslation, &perspectiveMatrix, &viewMatrix, RenderTargetGame->depthTexId, vec2((float)RenderTargetGame->width, (float)RenderTargetGame->height));
+    SupportRenderer->FlushPrimitives(&perspectiveMatrix, &viewMatrix, RenderTargetGame->depthTexId, vec2((float)RenderTargetGame->width, (float)RenderTargetGame->height));
 
     // maybe I want billboards to still show up (but faded) when occluded 
     // glEnable(GL_DEPTH_TEST);
