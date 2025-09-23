@@ -1231,7 +1231,8 @@ static vec3 ResolvePlayerCollisions(vec3 PlayerTestP)
     for (Collider *levelCollider : pcollisionquery)
     {
         bool Kpressed = KeysPressed[SDL_SCANCODE_K];
-        CollisionResult result = GJK(levelCollider, pcol, Kpressed);
+        CollisionResult result;
+        // result = GJK(levelCollider, pcol, Kpressed);
         // CollisionResult result = GJK(levelCollider, &RealShit);
         FlatPolygonCollider *fpc = dynamic_cast<FlatPolygonCollider*>(levelCollider);
         ASSERT(fpc);
@@ -1280,6 +1281,7 @@ static vec3 ResolvePlayerCollisions(vec3 PlayerTestP)
 
             result.normal = EPAResult.NearestFaceNormal;
             result.penetrationDepth = EPAResult.NearestFaceDist;
+            result.hasCollision = true;
         }
 #endif
 
