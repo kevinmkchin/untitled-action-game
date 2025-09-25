@@ -67,6 +67,9 @@ static void DeserializeMapLightData(ByteBuffer *Buf, game_state *MapInfo)
 
 bool BuildGameMap(level_editor_t *EditorState, const char *path)
 {
+    // nah fuck this shit -> build game map shouldn't serialize -> it should create an in-memory
+    // representation the compiled game-ready map data that can be serialized and deserialized as is!
+
     u64 TimeAtStartOfBuildGameMap = SDL_GetTicks();
 
     LogMessage("Building game map data to %s", path);

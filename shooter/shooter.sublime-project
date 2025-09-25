@@ -1,0 +1,27 @@
+{
+    "folders":
+    [
+        {
+            "path": ".",
+            "file_exclude_patterns":
+            [
+            ],
+            "folder_exclude_patterns":
+            [
+                "build",
+                "cmake-build-*",
+                ".vs",
+                ".idea",
+                "out"
+            ]
+        }
+    ],
+    "build_systems": [
+		// {
+		// 	"name": "devenv build\\...",
+		// 	"cmd": ["devenv", "."],
+		// 	"working_dir": "${project_path:${folder}}",
+		// 	"shell": true,
+		// },
+	]
+}
