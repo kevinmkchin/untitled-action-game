@@ -45,18 +45,7 @@ typedef DEBUG_PLATFORM_WRITE_ENTIRE_FILE(debug_platform_write_entire_file);
 
 /*
     NOTE(Kevin): Services that the game provides to the platform layer.
-    (this may expand in the future - sound on separate thread, etc.)
 */
-// FOUR THINGS - timing, controller/keyboard input, bitmap buffer to use, sound buffer to use
-// TODO(Kevin): In the future, rendering specifically will become a three-tiered abstraction!!!
-struct game_offscreen_buffer
-{
-    void *Memory;
-    int Width;
-    int Height;
-    int Pitch;
-    int BytesPerPixel;
-};
 
 struct game_sound_output_buffer
 {
@@ -137,7 +126,8 @@ struct game_memory
     debug_platform_write_entire_file *DEBUGPlatformWriteEntireFile;
 };
 
-#define GAME_UPDATE_AND_RENDER(name) void name(thread_context *Thread, game_memory *Memory, game_input *Input, game_offscreen_buffer *Buffer)
+// PLATFORM PROVIDES FOUR THINGS - timing, controller/keyboard input, sound buffer to use, renderer to use
+#define GAME_UPDATE_AND_RENDER(name) void name(thread_context *Thread, game_memory *Memory, game_input *Input, struct renderer *Renderer)
 typedef GAME_UPDATE_AND_RENDER(game_update_and_render); 
 
 #define GAME_GET_SOUND_SAMPLES(name) void name(thread_context *Thread, game_memory *Memory, game_sound_output_buffer *SoundBuffer)

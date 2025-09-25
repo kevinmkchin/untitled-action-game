@@ -218,6 +218,7 @@ internal open_gl *
 Win32InitOpenGL(HDC WindowDC /* TODO(Kevin): platform limits?*/)
 {
     open_gl *OpenGL = (open_gl *)Win32RendererAlloc(sizeof(open_gl));
+    ConstructRendererServiceAt(&(OpenGL->Header));
     Win32LoadWGLExtensions(OpenGL);
     Win32SetPixelFormat(OpenGL, WindowDC);
 

@@ -1,5 +1,4 @@
 #include "shooter.h"
-
 #include "shooter_renderer.h"
 
 internal void
@@ -28,114 +27,6 @@ GameOutputSound(game_state *GameState, game_sound_output_buffer *SoundBuffer, in
             GameState->tSine -= 2.0f * Pi32;
         }
 #endif
-    }
-}
-
-internal void
-DrawRectangle(game_offscreen_buffer *Buffer, vec2 vMin, vec2 vMax, real32 R, real32 G, real32 B)
-{
-    int32 MinX = RoundReal32ToInt32(vMin.x);
-    int32 MinY = RoundReal32ToInt32(vMin.y);
-    int32 MaxX = RoundReal32ToInt32(vMax.x);
-    int32 MaxY = RoundReal32ToInt32(vMax.y);
-
-    if (MinX < 0)
-        MinX = 0;
-    if (MinY < 0)
-        MinY = 0;
-    if (MaxX > Buffer->Width)
-        MaxX = Buffer->Width;
-    if (MaxY > Buffer->Height)
-        MaxY = Buffer->Height;
-
-    uint32 Color = 0xFF000000 |
-                   ((uint32)RoundReal32ToInt32(R * 255.0f)) << 16 |
-                   ((uint32)RoundReal32ToInt32(G * 255.0f)) << 8 |
-                   ((uint32)RoundReal32ToInt32(B * 255.0f)) << 0;
-
-    uint8 *Row = ((uint8 *)Buffer->Memory +
-                  MinX*Buffer->BytesPerPixel +
-                  MinY*Buffer->Pitch);
-
-    for (int Y = MinY; Y < MaxY; ++Y)
-    {
-        uint32 *Pixel = (uint32 *)Row;
-        for (int X = MinX; X < MaxX; ++X)
-        {
-            *Pixel++ = Color;
-        }
-        Row += Buffer->Pitch;
-    }
-}
-
-internal void
-DrawBitmap(game_offscreen_buffer *Buffer, loaded_bitmap *Bitmap,
-           real32 RealX, real32 RealY,
-           int32 AlignX = 0, int32 AlignY = 0)
-{
-    RealX -= (real32)AlignX;
-    RealY -= (real32)AlignY;
-
-    int32 MinX = RoundReal32ToInt32(RealX);
-    int32 MinY = RoundReal32ToInt32(RealY);
-    int32 MaxX = RoundReal32ToInt32(RealX + (real32)Bitmap->Width);
-    int32 MaxY = RoundReal32ToInt32(RealY + (real32)Bitmap->Height);
-
-    int32 SourceOffsetX = 0;
-    int32 SourceOffsetY = 0;
-    if (MinX < 0)
-    {
-        SourceOffsetX = -MinX;
-        MinX = 0;
-    }
-    if (MinY < 0)
-    {
-        SourceOffsetY = -MinY;
-        MinY = 0;
-    }
-    if (MaxX > Buffer->Width)
-    {
-        MaxX = Buffer->Width;
-    }
-    if (MaxY > Buffer->Height)
-    {
-        MaxY = Buffer->Height;
-    }
-
-    // TODO(Kevin): SourceRow needs to be changed based on clipping.
-    uint32 *SourceRow = Bitmap->Pixels + (Bitmap->Width * (Bitmap->Height - 1));
-    SourceRow += -SourceOffsetY * Bitmap->Width + SourceOffsetX;
-    uint8 *DestRow = (uint8 *)Buffer->Memory +
-                     MinX * Buffer->BytesPerPixel +
-                     MinY * Buffer->Pitch;
-    for (int Y = MinY; Y < MaxY; ++Y)
-    {
-        uint32 *Source = SourceRow;
-        uint32 *Dest = (uint32 *)DestRow;
-        for (int X = MinX; X < MaxX; ++X)
-        {
-            real32 A = (real32)((*Source >> 24) & 0xFF) / 255.0f;
-            real32 DR = (real32)((*Dest >> 16) & 0xFF);
-            real32 DG = (real32)((*Dest >> 8) & 0xFF);
-            real32 DB = (real32)((*Dest >> 0) & 0xFF);
-            real32 SR = (real32)((*Source >> 16) & 0xFF);
-            real32 SG = (real32)((*Source >> 8) & 0xFF);
-            real32 SB = (real32)((*Source >> 0) & 0xFF);
-            
-            // TODO(Kevin): Premultiplied alpha - this is not premultiplied alpha
-            real32 R = (1.0f - A)*DR + A*SR;
-            real32 G = (1.0f - A)*DG + A*SG;
-            real32 B = (1.0f - A)*DB + A*SB;
-
-            *Dest = ((uint32)(R + 0.5f) << 16) |
-                    ((uint32)(G + 0.5f) << 8) |
-                    ((uint32)(B + 0.5f) << 0);
-
-            ++Dest;
-            ++Source;
-        }
-        SourceRow -= Bitmap->Width;
-        DestRow += Buffer->Pitch;
     }
 }
 
@@ -240,6 +131,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
            ArrayCount(Input->Controllers[0].Buttons));
     Assert(sizeof(game_state) <= Memory->PermanentStorageSize);
 
+    uint32 Result = Renderer->SomeTestServiceToGame(64);
+
     game_state *GameState = (game_state *)Memory->PermanentStorage;
     if (!Memory->IsInitialized)
     {
@@ -260,9 +153,6 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             continue;
         }
     }
-
-    // DrawRectangle(Buffer, 0.f, 0.f, (real32)Buffer->Width, (real32)Buffer->Height, 1.f, 0.f, 1.f);
-    DrawBitmap(Buffer, &GameState->Backdrop, 0, 0);
 }
 
 extern "C" GAME_GET_SOUND_SAMPLES(GameGetSoundSamples)

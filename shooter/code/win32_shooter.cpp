@@ -37,8 +37,7 @@ Platform Layer TODO
 #include "shooter_renderer_opengl.cpp"
 
 global bool GlobalRunning;
-global win32_offscreen_buffer GlobalBackbuffer;
-global int64 GlobalPerfCountFrequency; 
+global int64 GlobalPerfCountFrequency;
 global bool32 DEBUGGlobalShowCursor;
 global WINDOWPLACEMENT GlobalWindowPosition = {sizeof(GlobalWindowPosition)};
 
@@ -258,6 +257,7 @@ Win32GetWindowDimension(HWND Window)
 {
     win32_window_dimension Result;
 
+    // NOTE(Kevin): This will be the dimensions of the OpenGL backbuffer
     RECT ClientRect;
     GetClientRect(Window, &ClientRect);
     Result.Width = ClientRect.right - ClientRect.left;
@@ -375,9 +375,9 @@ Win32MainWindowCallback(HWND Window, UINT Message, WPARAM WParam, LPARAM LParam)
         {
             PAINTSTRUCT Paint;
             HDC DeviceContext = BeginPaint(Window, &Paint);
-            win32_window_dimension Dimension = Win32GetWindowDimension(Window);
-            Win32DisplayBufferInWindow(&GlobalBackbuffer, DeviceContext,
-                                       Dimension.Width, Dimension.Height);
+            // win32_window_dimension Dimension = Win32GetWindowDimension(Window);
+            // Win32DisplayBufferInWindow(&GlobalBackbuffer, DeviceContext,
+            //                            Dimension.Width, Dimension.Height);
             EndPaint(Window, &Paint);
         } break;
 
@@ -765,11 +765,6 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
     // DPI scaling! Otherwise not pixel perfect.
     SetProcessDpiAwareness(PROCESS_PER_MONITOR_DPI_AWARE);
 #endif
-    // NOTE(Kevin): 1080p display mode is 1920x1080
-    //  1920 -> 2048 = 2048 - 1920 -> 128
-    //  1080 -> 2048 = 2048 - 1080 -> 968
-    //  1024 + 128 = 1152
-    Win32ResizeDIBSection(&GlobalBackbuffer, 960, 540);
 
 #if HANDMADE_INTERNAL
     DEBUGGlobalShowCursor = true;
@@ -1068,13 +1063,6 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                     }
 
                     thread_context Thread = {};
-
-                    game_offscreen_buffer BackBuffer = {};
-                    BackBuffer.Memory = GlobalBackbuffer.Memory;
-                    BackBuffer.Width = GlobalBackbuffer.Width;
-                    BackBuffer.Height = GlobalBackbuffer.Height;
-                    BackBuffer.Pitch = GlobalBackbuffer.Pitch;
-                    BackBuffer.BytesPerPixel = GlobalBackbuffer.BytesPerPixel;
                     
                     if (Win32State.InputRecordingIndex)
                     {
@@ -1088,7 +1076,7 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
 
                     if (Game.UpdateAndRender)
                     {
-                        Game.UpdateAndRender(&Thread, &GameMemory, NewInput, &BackBuffer);
+                        Game.UpdateAndRender(&Thread, &GameMemory, NewInput, Renderer);
                     }
 
                     //
@@ -1162,51 +1150,14 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                     }
 #endif
 
-                    LARGE_INTEGER EndCounter = Win32GetWallClock();
-                    real32 MSPerFrame = 1000.f*Win32GetSecondsElapsed(LastCounter, EndCounter);
-                    LastCounter = EndCounter;
-
-#if 0
-#if HANDMADE_INTERNAL
-                    if (Win32State.InputRecordingIndex > 0)
-                    {
-                        for (int X = 10; X < 20; ++X)
-                        {
-                            for (int Y = 10; Y < 20; ++Y)
-                            {
-                                uint32 *Pixel = (uint32 *)((uint8 *)GlobalBackbuffer.Memory +
-                                    X*GlobalBackbuffer.BytesPerPixel +
-                                    Y*GlobalBackbuffer.Pitch);
-                                *Pixel = 0xFFFF0000;
-                            }
-                        }
-                    }
-                    if (Win32State.InputPlayingIndex > 0)
-                    {
-                        for (int X = 20; X < 30; ++X)
-                        {
-                            for (int Y = 10; Y < 20; ++Y)
-                            {
-                                uint32 *Pixel = (uint32 *)((uint8 *)GlobalBackbuffer.Memory +
-                                    X*GlobalBackbuffer.BytesPerPixel +
-                                    Y*GlobalBackbuffer.Pitch);
-                                *Pixel = 0xFF00FF00;
-                            }
-                        }
-                    }
-#endif
-
-                    win32_window_dimension Dimension = Win32GetWindowDimension(Window);
-                    HDC DeviceContext = GetDC(Window);
-                    Win32DisplayBufferInWindow(&GlobalBackbuffer, DeviceContext,
-                                               Dimension.Width, Dimension.Height);
-                    ReleaseDC(Window, DeviceContext);
-#endif
-
                     game_input *Temp = NewInput;
                     NewInput = OldInput;
                     OldInput = Temp;
                     *NewInput = {};
+
+                    LARGE_INTEGER EndCounter = Win32GetWallClock();
+                    real32 MSPerFrame = 1000.f*Win32GetSecondsElapsed(LastCounter, EndCounter);
+                    LastCounter = EndCounter;
 
 #if 0
                     real64 FPS = 1000.f / MSPerFrame;

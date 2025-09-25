@@ -15,9 +15,3 @@ cl %CommonCompilerFlags% -LD ..\code\shooter.cpp -Fmshooter.map /link -increment
 del lock.tmp
 cl %CommonCompilerFlags% ..\code\win32_shooter.cpp -Fmwin32_shooter.map /link %CommonLinkerFlags%
 popd
-
-
-rem when PDB name does not match binary name, Superluminal is not able to find debug info
-rem I could probably just write the correct PDB name when I know I want to profile in superluminal
-rem or just have that be default and only the hot-reload PDBs get the random names
-
