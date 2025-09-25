@@ -40,6 +40,10 @@ global bool GlobalRunning;
 global int64 GlobalPerfCountFrequency;
 global bool32 DEBUGGlobalShowCursor;
 global WINDOWPLACEMENT GlobalWindowPosition = {sizeof(GlobalWindowPosition)};
+#if HANDMADE_INTERNAL
+#include "../ext/renderdoc_app.h"
+global RENDERDOC_API_1_6_0 *RenderDocAPI = NULL;
+#endif
 
 // NOTE(Kevin): This is our support for XInputGetState
 // define function prototype once (so I can change it once here and changes everywhere)
@@ -238,6 +242,30 @@ Win32LoadXInput()
         XInputSetState = (x_input_set_state *)GetProcAddress(XInputLibrary, "XInputSetState");
         if (!XInputSetState) { XInputSetState = XInputSetStateStub; }
     }
+}
+
+
+internal void
+Win32LoadRenderDoc()
+{
+#if HANDMADE_INTERNAL
+    LoadLibrary("renderdoc.dll");
+    if (HMODULE RenderDocModule = GetModuleHandleA("renderdoc.dll"))
+    {
+        pRENDERDOC_GetAPI RENDERDOC_GetAPI = 
+            (pRENDERDOC_GetAPI) GetProcAddress(RenderDocModule, "RENDERDOC_GetAPI");
+        int Result = RENDERDOC_GetAPI(eRENDERDOC_API_Version_1_1_2, (void **)&RenderDocAPI);
+        Assert(Result == 1);
+        // RenderDocAPI->SetCaptureFilePathTemplate(...);
+        // TODO(Kevin): Logging
+        // LogMessage("Loaded renderdoc.dll");
+    }
+    else
+    {
+        // TODO(Kevin): Logging
+        // LogWarning("Failed to load renderdoc.dll");
+    }
+#endif
 }
 
 #if SHOOTER_WIN32_OPEN_CONSOLE
@@ -671,6 +699,16 @@ Win32ProcessPendingMessages(win32_state *State, game_controller_input *KeyboardC
                             }
                         }
                     }
+                    else if (VKCode == VK_HOME)
+                    {
+                        if (IsDown)
+                        {
+                            if (RenderDocAPI && RenderDocAPI->ShowReplayUI() == 0)
+                            {
+                                RenderDocAPI->LaunchReplayUI(1, "");
+                            }
+                        }
+                    }
 #endif
                 }
 
@@ -759,6 +797,7 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
 #endif
 
     Win32LoadXInput();
+    Win32LoadRenderDoc();
 
 #if SHOOTER_WIN32_FORCE_OFF_DWM_DPI_SCALING
     // NOTE(Kevin): For writing debug rendering code atm, turn off DWM compositor's

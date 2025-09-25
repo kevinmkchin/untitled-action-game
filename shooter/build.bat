@@ -15,3 +15,8 @@ cl %CommonCompilerFlags% -LD ..\code\shooter.cpp -Fmshooter.map /link -increment
 del lock.tmp
 cl %CommonCompilerFlags% ..\code\win32_shooter.cpp -Fmwin32_shooter.map /link %CommonLinkerFlags%
 popd
+
+:: COPY DLLS ::
+set OutputFolder=.
+rem IF NOT EXIST build\%OutputFolder% MKDIR build\%OutputFolder%
+IF NOT EXIST build\%OutputFolder%\renderdoc.dll copy ext\renderdoc.dll build\%OutputFolder%\renderdoc.dll >nul
