@@ -11,7 +11,10 @@ Copy(void *DestInit, void *SourceInit, memory_index Size)
     // TODO(Kevin): make this faster - copy by 8 bytes (or is 4 faster?) at a time then the trailing bytes!
     uint8 *Source = (uint8 *)SourceInit;
     uint8 *Dest = (uint8 *)DestInit;
-    while (Size--) { *Dest++ = *Source++; }
+    while (Size--)
+    {
+        *Dest++ = *Source++;
+    }
     
     return DestInit;
 }

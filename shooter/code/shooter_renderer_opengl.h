@@ -101,8 +101,10 @@ struct open_gl
 
 void OpenGLActivatePipeline(open_gl *OpenGL, rendering_pipeline Pipeline);
 
+mesh_handle OpenGLUploadMesh(open_gl *OpenGL, PNUV1_vertex *VB, uint32 VC, uint32 *IB, uint32 IC);
 mesh_handle OpenGLUploadMesh(open_gl *OpenGL, PNUV2_vertex *VB, uint32 VC, uint32 *IB, uint32 IC);
 void OpenGLDrawMesh(open_gl *OpenGL, mesh_handle MeshHandle);
+void OpenGLDrawMeshInstanced(open_gl *OpenGL, mesh_handle MeshHandle, uint32 Count);
 void OpenGLDeleteMesh(open_gl *OpenGL, mesh_handle MeshHandle);
 
 texture_handle OpenGLUploadTexture2D(open_gl *OpenGL, void *bitmap, uint32 w, uint32 h, 

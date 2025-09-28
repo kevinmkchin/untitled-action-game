@@ -3,6 +3,11 @@
 
 
 
+mesh_handle renderer::UploadMeshData(PNUV1_vertex *VB, uint32 VC, uint32 *IB, uint32 IC)
+{
+    mesh_handle Result = OpenGLUploadMesh((open_gl *)this, VB, VC, IB, IC);
+    return Result;
+}
 
 mesh_handle renderer::UploadMeshData(PNUV2_vertex *VB, uint32 VC, uint32 *IB, uint32 IC)
 {

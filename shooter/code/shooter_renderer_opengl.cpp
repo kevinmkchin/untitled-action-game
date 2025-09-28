@@ -72,14 +72,14 @@ internal void OpenGLEndFrame(open_gl *OpenGL)
     // which are the only point lights that meshes will check against (since they're dynamic). Probably,
     // not shadow casting unless I want that as a very pronounced effect e.g. Doom 3.
 
-    mat4 ViewFromWorld = ViewMatrixLookAt(vec3(0,60,0), vec3(0,60,0) + vec3(1,0,1), GM_UP_VECTOR);
+    mat4 ViewFromWorld = ViewMatrixLookAt(vec3(-100,60,0), vec3(-100,60,0) + vec3(1,-0.1f,0), GM_UP_VECTOR);
     float AspectRatio = float(OpenGL->Header.BackBufferW) / float(OpenGL->Header.BackBufferH);
     float FOVX = 90.f;
     float FOVYRad = HorizontalFOVToVerticalFOV(FOVX*GM_DEG2RAD, AspectRatio);
     mat4 ClipFromView = ProjectionMatrixPerspective(FOVYRad, AspectRatio, 4.f, 3200.f);
 
     // OpenGLBindTexture2D(OpenGL, 0, ColorTextureHandle)
-    OpenGLBindTexture2D(OpenGL, 1, 0);
+    OpenGLBindTexture2D(OpenGL, 1, 1);
 
     OpenGLActivatePipeline(OpenGL, RendererFrontend->WorldGeometryTest);
     open_gl_shader *WorldGeomShader = OpenGL->Shaders[RendererFrontend->WorldGeometryTest.ShaderID];
@@ -89,33 +89,54 @@ internal void OpenGLEndFrame(open_gl *OpenGL)
     GLBind1i(*WorldGeomShader, "ColorTexture", 0);
     GLBind1i(*WorldGeomShader, "LightMap", 1);
 
-    OpenGLDrawMesh(OpenGL, 0);
     OpenGLDrawMesh(OpenGL, 1);
+    OpenGLDrawMesh(OpenGL, 2);
 
 
     //
     // NOTE(Kevin): Model instancing
     //
-    open_gl_model_instance *ModelInstances = 0;
-    uint32 ModelInstancesCount = 0;
+    local_persist open_gl_model_instance PerInstanceData[10];
+    local_persist uint32 ModelInstancesCount = 10;
+
+    // TODO(Kevin): move this test code to game side - draw 10 cubes and have it go through static lit pipeline
+    bool32 DoOnce = true;
+    if (DoOnce)
+    {
+        DoOnce = false;
+
+        for (uint32 i = 0; i < ModelInstancesCount; ++i)
+        {            
+            mat4 ModelMatrix = TranslationMatrix(vec3(100, 30, (float(i) * 25) - 125)) * 
+                               // RotationMatrix(RenderRotation) * 
+                               ScaleMatrix(0.5f); // SI_UNITS_TO_GAME_UNITS
+            PerInstanceData[i] = {};
+            PerInstanceData[i].WorldFromModel = ModelMatrix;
+            PerInstanceData[i].DoSunLight = 1;
+        }
+    }
 
     OpenGLActivatePipeline(OpenGL, RendererFrontend->StaticLit);
-    open_gl_shader *StaticLitShader = OpenGL->Shaders[RendererFrontend->WorldGeometryTest.ShaderID];
+    open_gl_shader *StaticLitShader = OpenGL->Shaders[RendererFrontend->StaticLit.ShaderID];
 
+    vec3 DirectionToSun = vec3(-1,1,1);
     // GLBind4f(Sha_ModelInstancedLit, "MuzzleFlash",
     //     RuntimeMap->Player.Weapon.MuzzleFlash.x, 
     //     RuntimeMap->Player.Weapon.MuzzleFlash.y, 
     //     RuntimeMap->Player.Weapon.MuzzleFlash.z, 
     //     RuntimeMap->Player.Weapon.MuzzleFlash.w);
-    // GLBindMatrix4fv(*StaticLitShader, "ProjFromView", 1, ProjFromView.ptr());
-    // GLBindMatrix4fv(*StaticLitShader, "ViewFromWorld", 1, ViewFromWorld.ptr());
-    // GLBind3f(*StaticLitShader, "DirectionToSun", RuntimeMap->DirectionToSun.x,
-    //     RuntimeMap->DirectionToSun.y, RuntimeMap->DirectionToSun.z);
+    GLBindMatrix4fv(*StaticLitShader, "ProjFromView", 1, ClipFromView.ptr());
+    GLBindMatrix4fv(*StaticLitShader, "ViewFromWorld", 1, ViewFromWorld.ptr());
+    GLBind3f(*StaticLitShader, "DirectionToSun", DirectionToSun.x, DirectionToSun.y, DirectionToSun.z);
 
     ssbo_frame_chunk FrameChunk = OpenGLSSBOBeginFrame(&(OpenGL->PerInstanceDataSSBO));
-    Copy(FrameChunk.WriteTo, ModelInstances, ModelInstancesCount*sizeof(open_gl_model_instance));
+    Copy(FrameChunk.WriteTo, PerInstanceData, ModelInstancesCount*sizeof(open_gl_model_instance));
     OpenGLSSBOBindTo(&(OpenGL->PerInstanceDataSSBO), 0);
     int32 BaseInstanceIndex = SafeCastToInt32(SafeTruncateUInt64(FrameChunk.BaseOffset / sizeof(open_gl_model_instance)));
+
+    // TODO(Kevin): BaseInstanceIndex should be updated for different meshes (diff meshes will have diff offset
+    //              from start of frame chunk)
+    GLBind1i(*StaticLitShader, "BaseInstanceIndex", (GLint)BaseInstanceIndex);
 
     // uint32 CurrentModelId = InstancesCopy[0].CorpseModel->MT_ID;
     // uint32 CurrentModelCount = 0;
@@ -125,8 +146,6 @@ internal void OpenGLEndFrame(open_gl *OpenGL)
     //     if (i == InstancesCopy.lenu() || InstancesCopy[i].CorpseModel->MT_ID != CurrentModelId)
     //     {
     //         // flush
-    //         GLBind1i(Sha_ModelInstancedLit, "BaseInstanceIndex", 
-    //             (GLint)BaseInstanceIndex + CurrentOffsetFromBase);
     //         DrawModelInstanced(Assets.ModelsTextured[CurrentModelId], CurrentModelCount);
 
     //         if (i == InstancesCopy.lenu())
@@ -138,6 +157,14 @@ internal void OpenGLEndFrame(open_gl *OpenGL)
     //     }
     //     ++CurrentModelCount;
     // }
+
+    {
+        uint32 CurrentMeshCount = 10;
+        texture_handle AlbedoTexture = 0;
+
+        OpenGLBindTexture2D(OpenGL, 0, AlbedoTexture);
+        OpenGLDrawMeshInstanced(OpenGL, 0, CurrentMeshCount);
+    }
 
     OpenGLSSBOEndFrame(&(OpenGL->PerInstanceDataSSBO));
 }
@@ -177,6 +204,40 @@ void OpenGLActivatePipeline(open_gl *OpenGL, rendering_pipeline Pipeline)
     // glEnable(GL_BLEND);
     // glEnable(GL_CULL_FACE);
     // glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_SRC_ALPHA, GL_ONE);
+}
+
+mesh_handle OpenGLUploadMesh(open_gl *OpenGL, PNUV1_vertex *VB, uint32 VC, uint32 *IB, uint32 IC)
+{
+    GLsizei StrideInBytes = sizeof(PNUV1_vertex);
+    GLsizeiptr VertexBufferSzInBytes = (GLsizeiptr)sizeof(PNUV1_vertex)*VC;
+    GLsizeiptr IndexBufferSzInBytes = (GLsizeiptr)sizeof(uint32)*IC;
+
+    open_gl_mesh Mesh = {};
+
+    glGenVertexArrays(1, &Mesh.VAO);
+    glBindVertexArray(Mesh.VAO);
+    glGenBuffers(1, &Mesh.VBO);
+    glBindBuffer(GL_ARRAY_BUFFER, Mesh.VBO);
+    glBufferData(GL_ARRAY_BUFFER, VertexBufferSzInBytes, VB, GL_STATIC_DRAW);
+
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, StrideInBytes, 0);
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, StrideInBytes, (void*)offsetof(PNUV1_vertex, IJK));
+    glEnableVertexAttribArray(2);
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, StrideInBytes, (void*)offsetof(PNUV1_vertex, UV0));
+
+    glGenBuffers(1, &Mesh.IBO);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, Mesh.IBO);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, IndexBufferSzInBytes, IB, GL_STATIC_DRAW);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
+
+    Mesh.IndicesCount = IC;
+    mesh_handle NewHandle = NextAvailableMeshHandle(OpenGL);
+    OpenGL->HandleToMesh[NewHandle] = Mesh;
+
+    return NewHandle;
 }
 
 mesh_handle OpenGLUploadMesh(open_gl *OpenGL, PNUV2_vertex *VB, uint32 VC, uint32 *IB, uint32 IC)
@@ -223,7 +284,20 @@ void OpenGLDrawMesh(open_gl *OpenGL, mesh_handle MeshHandle)
 
     glBindVertexArray(Mesh.VAO);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, Mesh.IBO);
-    glDrawElements(GL_TRIANGLES, Mesh.IndicesCount, GL_UNSIGNED_INT, nullptr);
+    glDrawElements(GL_TRIANGLES, Mesh.IndicesCount, GL_UNSIGNED_INT, 0);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
+}
+
+void OpenGLDrawMeshInstanced(open_gl *OpenGL, mesh_handle MeshHandle, uint32 Count)
+{
+    open_gl_mesh Mesh = OpenGL->HandleToMesh[MeshHandle];
+
+    Assert(Mesh.IndicesCount > 0);
+
+    glBindVertexArray(Mesh.VAO);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, Mesh.IBO);
+    glDrawElementsInstanced(GL_TRIANGLES, Mesh.IndicesCount, GL_UNSIGNED_INT, 0, Count);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
 }
@@ -269,16 +343,26 @@ texture_handle OpenGLUploadTexture2D(open_gl *OpenGL, void *Bitmap, uint32 W, ui
         Texture.SourceFormat = GL_RED;
         Texture.PixelDataType = GL_FLOAT;
         break;
-    case RGBA_Float:
-        Texture.TargetFormat = GL_RGBA;
-        Texture.SourceFormat = GL_RGBA;
-        Texture.PixelDataType = GL_FLOAT;
-        break;
     default:
     case RGBA_U8:
         Texture.TargetFormat = GL_RGBA;
         Texture.SourceFormat = GL_RGBA;
         Texture.PixelDataType = GL_UNSIGNED_BYTE;
+        break;
+    case RGBA_Float:
+        Texture.TargetFormat = GL_RGBA;
+        Texture.SourceFormat = GL_RGBA;
+        Texture.PixelDataType = GL_FLOAT;
+        break;
+    case BGRA_U8:
+        Texture.TargetFormat = GL_RGBA;
+        Texture.SourceFormat = GL_BGRA;
+        Texture.PixelDataType = GL_UNSIGNED_BYTE;
+        break;
+    case BGRA_Float:
+        Texture.TargetFormat = GL_RGBA;
+        Texture.SourceFormat = GL_BGRA;
+        Texture.PixelDataType = GL_FLOAT;
         break;
     }
 

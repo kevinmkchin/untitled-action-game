@@ -3,8 +3,8 @@
 // NOTE(Kevin): All worldspace, lit, mesh-based entities are instanced via this shader!
 
 layout (location = 0) in vec3 Model_Position;
-layout (location = 1) in vec2 Model_UV;
-layout (location = 2) in vec3 Model_Normal;
+layout (location = 1) in vec3 Model_Normal;
+layout (location = 2) in vec2 Model_UV;
 
 struct model_instance_data_t
 {

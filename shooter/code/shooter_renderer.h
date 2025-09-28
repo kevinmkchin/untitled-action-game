@@ -14,7 +14,16 @@ enum pixel_format
     R_Float,
     RGBA_U8,
     RGBA_Float,
+    BGRA_U8,
+    BGRA_Float,
     // TODO(Kevin): BGRA?
+};
+
+struct PNUV1_vertex
+{
+    vec3 XYZ;
+    vec3 IJK;
+    vec2 UV0;
 };
 
 struct PNUV2_vertex
@@ -60,6 +69,7 @@ struct renderer
     // definition. vtable essentially provides the function table of callable services
     // from the game layer. Therefore, renderer MUST be constructed to have a valid vtable
     // ptr. C-style function table will be more stable, but for now this is more convenient.
+    virtual mesh_handle UploadMeshData(PNUV1_vertex *VB, uint32 VC, uint32 *IB, uint32 IC);
     virtual mesh_handle UploadMeshData(PNUV2_vertex *VB, uint32 VC, uint32 *IB, uint32 IC);
     virtual texture_handle UploadTexture2DData(void *Bitmap, uint32 W, uint32 H, pixel_format Format, 
                                                bool32 LinearFiltering);

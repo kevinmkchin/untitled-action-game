@@ -137,6 +137,66 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     {
         GameState->Backdrop = DEBUGLoadBMP(Thread, Memory->PlatformAPI.DEBUGPlatformReadEntireFile, "test/test_background.bmp");
 
+        loaded_bitmap TestBmp = DEBUGLoadBMP(Thread, Memory->PlatformAPI.DEBUGPlatformReadEntireFile, "test_1.bmp");
+        Renderer->UploadTexture2DData(TestBmp.Pixels, TestBmp.Width, TestBmp.Height, BGRA_U8, false);
+        PNUV1_vertex CubeVB[] = { 
+            // +X face
+            { { 16.0f, -16.0f, -16.0f }, { 1.0f, 0.0f, 0.0f }, { 0.0f, 0.0f } },
+            { { 16.0f,  16.0f, -16.0f }, { 1.0f, 0.0f, 0.0f }, { 0.0f, 1.0f } },
+            { { 16.0f,  16.0f,  16.0f }, { 1.0f, 0.0f, 0.0f }, { 1.0f, 1.0f } },
+
+            { { 16.0f, -16.0f, -16.0f }, { 1.0f, 0.0f, 0.0f }, { 0.0f, 0.0f } },
+            { { 16.0f,  16.0f,  16.0f }, { 1.0f, 0.0f, 0.0f }, { 1.0f, 1.0f } },
+            { { 16.0f, -16.0f,  16.0f }, { 1.0f, 0.0f, 0.0f }, { 1.0f, 0.0f } },
+
+            // -X face
+            { { -16.0f, -16.0f,  16.0f }, { -1.0f, 0.0f, 0.0f }, { 0.0f, 0.0f } },
+            { { -16.0f,  16.0f,  16.0f }, { -1.0f, 0.0f, 0.0f }, { 0.0f, 1.0f } },
+            { { -16.0f,  16.0f, -16.0f }, { -1.0f, 0.0f, 0.0f }, { 1.0f, 1.0f } },
+
+            { { -16.0f, -16.0f,  16.0f }, { -1.0f, 0.0f, 0.0f }, { 0.0f, 0.0f } },
+            { { -16.0f,  16.0f, -16.0f }, { -1.0f, 0.0f, 0.0f }, { 1.0f, 1.0f } },
+            { { -16.0f, -16.0f, -16.0f }, { -1.0f, 0.0f, 0.0f }, { 1.0f, 0.0f } },
+
+            // +Y face
+            { { -16.0f, 16.0f, -16.0f }, { 0.0f, 1.0f, 0.0f }, { 0.0f, 0.0f } },
+            { { -16.0f, 16.0f,  16.0f }, { 0.0f, 1.0f, 0.0f }, { 0.0f, 1.0f } },
+            { {  16.0f, 16.0f,  16.0f }, { 0.0f, 1.0f, 0.0f }, { 1.0f, 1.0f } },
+
+            { { -16.0f, 16.0f, -16.0f }, { 0.0f, 1.0f, 0.0f }, { 0.0f, 0.0f } },
+            { {  16.0f, 16.0f,  16.0f }, { 0.0f, 1.0f, 0.0f }, { 1.0f, 1.0f } },
+            { {  16.0f, 16.0f, -16.0f }, { 0.0f, 1.0f, 0.0f }, { 1.0f, 0.0f } },
+
+            // -Y face
+            { { -16.0f, -16.0f,  16.0f }, { 0.0f, -1.0f, 0.0f }, { 0.0f, 0.0f } },
+            { { -16.0f, -16.0f, -16.0f }, { 0.0f, -1.0f, 0.0f }, { 0.0f, 1.0f } },
+            { {  16.0f, -16.0f, -16.0f }, { 0.0f, -1.0f, 0.0f }, { 1.0f, 1.0f } },
+
+            { { -16.0f, -16.0f,  16.0f }, { 0.0f, -1.0f, 0.0f }, { 0.0f, 0.0f } },
+            { {  16.0f, -16.0f, -16.0f }, { 0.0f, -1.0f, 0.0f }, { 1.0f, 1.0f } },
+            { {  16.0f, -16.0f,  16.0f }, { 0.0f, -1.0f, 0.0f }, { 1.0f, 0.0f } },
+
+            // +Z face
+            { { -16.0f, -16.0f, 16.0f }, { 0.0f, 0.0f, 1.0f }, { 0.0f, 0.0f } },
+            { {  16.0f, -16.0f, 16.0f }, { 0.0f, 0.0f, 1.0f }, { 1.0f, 0.0f } },
+            { {  16.0f,  16.0f, 16.0f }, { 0.0f, 0.0f, 1.0f }, { 1.0f, 1.0f } },
+
+            { { -16.0f, -16.0f, 16.0f }, { 0.0f, 0.0f, 1.0f }, { 0.0f, 0.0f } },
+            { {  16.0f,  16.0f, 16.0f }, { 0.0f, 0.0f, 1.0f }, { 1.0f, 1.0f } },
+            { { -16.0f,  16.0f, 16.0f }, { 0.0f, 0.0f, 1.0f }, { 0.0f, 1.0f } },
+
+            // -Z face
+            { {  16.0f, -16.0f, -16.0f }, { 0.0f, 0.0f, -1.0f }, { 0.0f, 0.0f } },
+            { { -16.0f, -16.0f, -16.0f }, { 0.0f, 0.0f, -1.0f }, { 1.0f, 0.0f } },
+            { { -16.0f,  16.0f, -16.0f }, { 0.0f, 0.0f, -1.0f }, { 1.0f, 1.0f } },
+
+            { {  16.0f, -16.0f, -16.0f }, { 0.0f, 0.0f, -1.0f }, { 0.0f, 0.0f } },
+            { { -16.0f,  16.0f, -16.0f }, { 0.0f, 0.0f, -1.0f }, { 1.0f, 1.0f } },
+            { {  16.0f,  16.0f, -16.0f }, { 0.0f, 0.0f, -1.0f }, { 0.0f, 1.0f } },
+        };
+        uint32 CubeIB[] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35 };
+        Renderer->UploadMeshData(CubeVB, ArrayCount(CubeVB), CubeIB, ArrayCount(CubeIB));
+
         InitializeArena(&GameState->WorldArena, Memory->PermanentStorageSize - sizeof(game_state),
                         (uint8 *)Memory->PermanentStorage + sizeof(game_state));
 
