@@ -1,4 +1,5 @@
-#pragma once
+#ifndef SHOOTER_INTRINSICS_H
+#define SHOOTER_INTRINSICS_H
 
 //
 // TODO(Kevin): Convert all of these to platform-efficient versions
@@ -15,7 +16,7 @@ inline int32
 SignOf(int32 Value)
 {
     int32 Result = (Value >= 0) ? 1 : -1;
-    return(Result);
+    return Result;
 }
 
 inline real32
@@ -83,7 +84,7 @@ inline int32
 CeilReal32ToInt32(real32 Real32)
 {
     int32 Result = (int32)ceilf(Real32);
-    return(Result);
+    return Result;
 }
 
 inline int32
@@ -97,21 +98,35 @@ inline real32
 Sin(real32 Angle)
 {
     real32 Result = sinf(Angle);
-    return(Result);
+    return Result;
 }
 
 inline real32
 Cos(real32 Angle)
 {
     real32 Result = cosf(Angle);
-    return(Result);
+    return Result;
+}
+
+inline real32
+Tan(real32 Angle)
+{
+    real32 Result = tanf(Angle);
+    return Result;
+}
+
+inline real32
+ATan(real32 X)
+{
+    real32 Result = atanf(X);
+    return Result;
 }
 
 inline real32
 ATan2(real32 Y, real32 X)
 {
     real32 Result = atan2f(Y, X);
-    return(Result);
+    return Result;
 }
 
 struct bit_scan_result
@@ -141,3 +156,4 @@ FindLeastSignificantSetBit(uint32 Value)
     return Result;
 }
 
+#endif // SHOOTER_INTRINSICS_H

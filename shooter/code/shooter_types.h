@@ -95,4 +95,20 @@ SafeTruncateUInt64(uint64 Value)
     return Result;
 }
 
+inline uint32
+SafeCastToUInt32(int32 Value)
+{
+    Assert(Value >= 0);
+    uint32 Result = (uint32)Value;
+    return Result;
+}
+
+inline int32
+SafeCastToInt32(uint32 Value)
+{
+    Assert(Value < 0x80000000);
+    int32 Result = (int32)Value;
+    return Result;
+}
+
 #endif // SHOOTER_TYPES_H

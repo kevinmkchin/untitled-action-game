@@ -31,10 +31,10 @@ Platform Layer TODO
 #include <audioclient.h>
 
 #include "win32_shooter.h"
+#include "shooter_shared.h"
 #include "shooter_renderer.h"
 #include "shooter_renderer.cpp"
 #include "shooter_renderer_opengl.h"
-#include "shooter_renderer_opengl.cpp"
 
 global bool GlobalRunning;
 global int64 GlobalPerfCountFrequency;
@@ -165,6 +165,8 @@ DEBUG_PLATFORM_WRITE_ENTIRE_FILE(DEBUGPlatformWriteEntireFile)
 
     return Result;
 }
+
+#include "shooter_renderer_opengl.cpp"
 
 inline FILETIME
 Win32GetLastWriteTime(char *Filepath)
@@ -910,18 +912,21 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
             int16 *Samples = (int16 *)VirtualAlloc(0, SoundOutputBufferByteSize, 
                                                    MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
 
+            platform_api PlatformAPI;
+            PlatformAPI.DEBUGPlatformFreeFileMemory = DEBUGPlatformFreeFileMemory;
+            PlatformAPI.DEBUGPlatformReadEntireFile = DEBUGPlatformReadEntireFile;
+            PlatformAPI.DEBUGPlatformWriteEntireFile = DEBUGPlatformWriteEntireFile;
+
+            game_memory GameMemory = {};
+            GameMemory.PermanentStorageSize = Megabytes(64);
+            GameMemory.TransientStorageSize = Gigabytes(1);
+            GameMemory.PlatformAPI = PlatformAPI;
+
 #if HANDMADE_INTERNAL
             LPVOID BaseAddress = (LPVOID)Terabytes(2);
 #else
             LPVOID BaseAddress = 0;
 #endif
-            game_memory GameMemory = {};
-            GameMemory.PermanentStorageSize = Megabytes(64);
-            GameMemory.TransientStorageSize = Gigabytes(1);
-            GameMemory.DEBUGPlatformFreeFileMemory = DEBUGPlatformFreeFileMemory;
-            GameMemory.DEBUGPlatformReadEntireFile = DEBUGPlatformReadEntireFile;
-            GameMemory.DEBUGPlatformWriteEntireFile = DEBUGPlatformWriteEntireFile;
-
             // TODO(Kevin): Use MEM_LARGE_PAGES and call AdjustTokenPrivileges
             // TODO(Kevin): TransientStorage needs to be broken up into game
             // transient and cache transient, and only the former needs to be
@@ -967,6 +972,10 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                                                      OldKeyboardController);
 
                     Win32ProcessPendingMessages(&Win32State, NewKeyboardController);
+
+                    win32_window_dimension Dimensions = Win32GetWindowDimension(Window);
+                    Renderer->BackBufferW = SafeCastToUInt32(Dimensions.Width);
+                    Renderer->BackBufferH = SafeCastToUInt32(Dimensions.Height);
 
                     POINT MouseP;
                     // TODO(Kevin): Handle failure case

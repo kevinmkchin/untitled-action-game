@@ -1,5 +1,6 @@
 #include "shooter.h"
 #include "shooter_renderer.h"
+#include "shooter_shared.h"
 
 internal void
 GameOutputSound(game_state *GameState, game_sound_output_buffer *SoundBuffer, int ToneHz)
@@ -136,10 +137,134 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     game_state *GameState = (game_state *)Memory->PermanentStorage;
     if (!Memory->IsInitialized)
     {
-        GameState->Backdrop = DEBUGLoadBMP(Thread, Memory->DEBUGPlatformReadEntireFile, "test/test_background.bmp");
+        GameState->Backdrop = DEBUGLoadBMP(Thread, Memory->PlatformAPI.DEBUGPlatformReadEntireFile, "test/test_background.bmp");
 
         InitializeArena(&GameState->WorldArena, Memory->PermanentStorageSize - sizeof(game_state),
                         (uint8 *)Memory->PermanentStorage + sizeof(game_state));
+
+        // InitializeArena(&GameState->ScratchArena, Memory->TransientStorageSize,
+        //                 (uint8 *)Memory->TransientStorage);
+
+        char *MapFilename = "../../wd/buildtest.map";
+        debug_read_file_result MapReadResult = Memory->PlatformAPI.DEBUGPlatformReadEntireFile(Thread, MapFilename);
+        if (MapReadResult.ContentsSize > 0)
+        {
+            buffer MapBytes;
+            MapBytes.Data = (uint8 *)MapReadResult.Contents;
+            MapBytes.Count = MapReadResult.ContentsSize;
+            umm Position = 0;
+
+#define ByteBufferRead(Buffer, PositionPtr, Type, WritePtr)\
+            do {\
+                if ((WritePtr))\
+                {\
+                    Type *WritePtrCasted = (Type *)(WritePtr);\
+                    *WritePtrCasted = *(Type *)((Buffer).Data + *(PositionPtr));\
+                }\
+                *(PositionPtr) += sizeof(Type);\
+            } while (0);
+
+#define ByteBufferReadBulk(Buffer, PositionPtr, BytesToRead, WritePtr)\
+            do {\
+                if ((WritePtr))\
+                {\
+                    Copy((WritePtr), ((Buffer).Data + *(PositionPtr)), BytesToRead);\
+                }\
+                *(PositionPtr) += BytesToRead;\
+            } while (0);
+
+            ByteBufferRead(MapBytes, &Position, vec3, 0); //&GameState->PlayerStartPosition);
+            ByteBufferRead(MapBytes, &Position, vec3, 0); //&GameState->PlayerStartRotation);
+
+            int32 LightmapW, LightmapH;
+            ByteBufferRead(MapBytes, &Position, int32, &LightmapW);
+            ByteBufferRead(MapBytes, &Position, int32, &LightmapH);
+            uint32 LightmapDimensions = (uint32)(LightmapW*LightmapH);
+            float *LightmapData = (float *)malloc(LightmapDimensions*sizeof(float));
+            ByteBufferReadBulk(MapBytes, &Position, LightmapDimensions*sizeof(float), LightmapData);
+            // TODO(Kevin): Yeah don't create texture resources here...just load all the data first
+            // LightmapData should be part of e.g. map_data
+            Renderer->UploadTexture2DData(LightmapData, SafeCastToUInt32(LightmapW), SafeCastToUInt32(LightmapH),
+                                          R_Float, true);
+
+            // Light cache volume
+            uint32 TotalCubeCount;
+            ByteBufferRead(MapBytes, &Position, uint64, 0);
+            ByteBufferRead(MapBytes, &Position, vec3, 0);//&Start);
+            ByteBufferRead(MapBytes, &Position, vec3, 0);//&End);
+            ByteBufferRead(MapBytes, &Position, int, 0);//&CountX);
+            ByteBufferRead(MapBytes, &Position, int, 0);//&CountY);
+            ByteBufferRead(MapBytes, &Position, int, 0);//&CountZ);
+            ByteBufferRead(MapBytes, &Position, ivec3, 0);//&LightCubePlacementInterval);
+            ByteBufferRead(MapBytes, &Position, uint32, &TotalCubeCount);
+            ByteBufferReadBulk(MapBytes, &Position, sizeof(vec3)*TotalCubeCount, 0);//CubePositions.data);
+            ByteBufferReadBulk(MapBytes, &Position, sizeof(float)*6*TotalCubeCount, 0);//AmbientCubes.data);
+            ByteBufferReadBulk(MapBytes, &Position, sizeof(short)*4*TotalCubeCount, 0);//SignificantLightIndices.data);
+
+            // DeserializeMapLightData
+            ByteBufferRead(MapBytes, &Position, uint64, 0);//&SerializeStartMarker);
+            ByteBufferRead(MapBytes, &Position, vec3, 0);//&MapInfo->DirectionToSun);
+            //MapInfo->DirectionToSun = Normalize(MapInfo->DirectionToSun);
+            uint32 PointLightsCount;
+            ByteBufferRead(MapBytes, &Position, uint32, &PointLightsCount);
+            // MapInfo->PointLights = fixed_array<static_point_light_t>(PointLightsCount, MemoryType::Level);
+            // MapInfo->PointLights.setlen(PointLightsCount);
+            ByteBufferReadBulk(MapBytes, &Position, sizeof(float)*5*PointLightsCount, 0);//MapInfo->PointLights.data,
+
+            // TODO(Kevin): SerializeArray function that takes pointer, element size, element count
+            // TODO(Kevin): These would need to pointers from game_map
+            // - Lightmap data
+            // - Light cache volume
+            // - PointLights probably
+            // - Colliders
+            // - Vertex buffers
+
+            // collider shit
+            size_t numColliderPoints, numColliderSpans;
+            ByteBufferRead(MapBytes, &Position, size_t, &numColliderPoints);
+            ByteBufferRead(MapBytes, &Position, size_t, &numColliderSpans);
+            ByteBufferReadBulk(MapBytes, &Position, sizeof(vec3)*numColliderPoints, 0);//MapInfo->LoadingLevelColliderPoints.data, 
+            ByteBufferReadBulk(MapBytes, &Position, sizeof(uint32)*numColliderSpans, 0);//MapInfo->LoadingLevelColliderSpans.data, 
+            // vertex buffers
+            size_t numVertexBufs;
+            ByteBufferRead(MapBytes, &Position, size_t, &numVertexBufs);
+            for (int i = 0; i < numVertexBufs; ++i)
+            {
+                uint32 texturePersistId;
+                size_t FloatValuesCount;
+                ByteBufferRead(MapBytes, &Position, uint32, &texturePersistId);
+                ByteBufferRead(MapBytes, &Position, size_t, &FloatValuesCount);
+                uint32 VertexCount = (uint32)(FloatValuesCount / (sizeof(PNUV2_vertex) / sizeof(float)));
+                // TODO(Kevin): This is test code! won't be using malloc ever.
+                PNUV2_vertex *vb = (PNUV2_vertex *)malloc(sizeof(float)*FloatValuesCount);
+                uint32 *ib = (uint32 *)malloc(sizeof(uint32)*FloatValuesCount);
+                ByteBufferReadBulk(MapBytes, &Position, sizeof(float)*FloatValuesCount, vb);
+
+                // face_batch_t FaceBatch;
+                // FaceBatch.ColorTexture = Assets.GetTextureById(texturePersistId).gputex;
+                // FaceBatch.LightMapTexture = LevelLightmapTexture;
+                // CreateFaceBatch(&FaceBatch);
+                // RebindFaceBatch(&FaceBatch, sizeof(float)*VertexCount, vb.data());
+                // MapInfo->GameLevelFaceBatches.push_back(FaceBatch);
+
+                // TODO(Kevin): Since this is a hack to work w vertex buffers without index buffers,
+                // maybe have one array with uint32s from 0 ... some big N to reuse instead of creating
+                // a new one every time - could be useful for vertex streaming
+                for (uint32 VertexIndex = 0; VertexIndex < VertexCount; ++VertexIndex)
+                {
+                    ib[VertexIndex] = VertexIndex;
+                }
+
+                Renderer->UploadMeshData(vb, VertexCount, ib, VertexCount);
+                free(vb);
+                free(ib);
+            }
+
+
+            Memory->PlatformAPI.DEBUGPlatformFreeFileMemory(Thread, MapReadResult.Contents);
+        }
+
+        Memory->IsInitialized = true;
     }
 
     for (int ControllerIndex = 0;

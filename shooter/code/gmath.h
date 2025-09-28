@@ -3,7 +3,7 @@
     // TODO(Kevin): PascalCase variables
     // TODO(Kevin): review where the handedness and application order is baked into the implementation...
     // can I modify it?
-    // TODO(Kevin): What am I actually using from cstdlib and cmath? sinf, cosf, sqrtf, asinf, acosf, atan2f
+    // TODO(Kevin): What am I actually using from math? sinf, cosf, sqrtf, asinf, acosf, atan2f
     // TODO(Kevin): SIMD
     // TODO(Kevin): Slerp tests are shit - comparing against incorrect implementation...also result even 
     // seems to vary b/w correct implementations
@@ -39,8 +39,8 @@ Standards:
 #ifndef _INCLUDE_GMATH_LIBRARY_H_
 #define _INCLUDE_GMATH_LIBRARY_H_
 
-#include <cstdlib>
-#include <cmath>
+// #include <math.h>
+#include "shooter_intrinsics.h"
 
 #define GM_FORWARD_VECTOR vec3(1.f,0.f,0.f)
 #define GM_BACKWARD_VECTOR (-GM_FORWARD_VECTOR)

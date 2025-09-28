@@ -2,6 +2,31 @@
 #define SHOOTER_SHARED_H
 
 #include "shooter_types.h"
+#include "shooter_intrinsics.h"
+
+#define CopyArray(Dest, Source, Count) Copy((Dest), (Source), (Count)*sizeof(*(Source)))
+internal void *
+Copy(void *DestInit, void *SourceInit, memory_index Size)
+{
+    // TODO(Kevin): make this faster - copy by 8 bytes (or is 4 faster?) at a time then the trailing bytes!
+    uint8 *Source = (uint8 *)SourceInit;
+    uint8 *Dest = (uint8 *)DestInit;
+    while (Size--) { *Dest++ = *Source++; }
+    
+    return DestInit;
+}
+
+#define ZeroStruct(Instance) ZeroSize(sizeof(Instance), &(Instance))
+#define ZeroArray(Count, Pointer) ZeroSize((Count)*sizeof((Pointer)[0]), Pointer)
+internal void
+ZeroSize(memory_index Size, void *Ptr)
+{
+    uint8 *Byte = (uint8 *)Ptr;
+    while (Size--)
+    {
+        *Byte++ = 0;
+    }
+}
 
 internal bool32
 IsEndOfLine(char C)
@@ -248,6 +273,13 @@ StringLength(char *String)
         ++Count;
     }
     return Count;
+}
+
+internal real32
+HorizontalFOVToVerticalFOV(real32 FOVXInRadians, real32 AspectRatio)
+{
+    real32 FOVY = 2.0f * ATan(Tan(FOVXInRadians / 2.0f) / AspectRatio);
+    return FOVY;
 }
 
 #endif // SHOOTER_SHARED_H

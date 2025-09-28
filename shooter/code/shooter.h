@@ -19,31 +19,6 @@ struct thread_context
 };
 
 /*
-    NOTE(Kevin): Services that the platform layer provides to the game.
-*/
-#if HANDMADE_INTERNAL
-/*  IMPORTANT(Kevin):
-    These are NOT for doing anything in the shipping game - they are blocking
-    and the write does not protect against lost data.
-*/
-struct debug_read_file_result
-{
-    uint32 ContentsSize;
-    void *Contents;
-};
-
-#define DEBUG_PLATFORM_FREE_FILE_MEMORY(name) void name(thread_context *Thread, void *BitmapMemory)
-typedef DEBUG_PLATFORM_FREE_FILE_MEMORY(debug_platform_free_file_memory);
-
-#define DEBUG_PLATFORM_READ_ENTIRE_FILE(name) debug_read_file_result name(thread_context *Thread, char *Filename)
-typedef DEBUG_PLATFORM_READ_ENTIRE_FILE(debug_platform_read_entire_file);
-
-#define DEBUG_PLATFORM_WRITE_ENTIRE_FILE(name) bool32 name(thread_context *Thread, char *Filename, uint32 MemorySize, void *Memory)
-typedef DEBUG_PLATFORM_WRITE_ENTIRE_FILE(debug_platform_write_entire_file);
-
-#endif
-
-/*
     NOTE(Kevin): Services that the game provides to the platform layer.
 */
 
@@ -111,6 +86,37 @@ inline game_controller_input *GetController(game_input *Input, int unsigned Cont
     return Result;
 }
 
+#if HANDMADE_INTERNAL
+/*  IMPORTANT(Kevin):
+    These are NOT for doing anything in the shipping game - they are blocking
+    and the write does not protect against lost data.
+*/
+struct debug_read_file_result
+{
+    uint32 ContentsSize;
+    void *Contents;
+};
+
+#define DEBUG_PLATFORM_FREE_FILE_MEMORY(name) void name(thread_context *Thread, void *BitmapMemory)
+typedef DEBUG_PLATFORM_FREE_FILE_MEMORY(debug_platform_free_file_memory);
+
+#define DEBUG_PLATFORM_READ_ENTIRE_FILE(name) debug_read_file_result name(thread_context *Thread, char *Filename)
+typedef DEBUG_PLATFORM_READ_ENTIRE_FILE(debug_platform_read_entire_file);
+
+#define DEBUG_PLATFORM_WRITE_ENTIRE_FILE(name) bool32 name(thread_context *Thread, char *Filename, uint32 MemorySize, void *Memory)
+typedef DEBUG_PLATFORM_WRITE_ENTIRE_FILE(debug_platform_write_entire_file);
+
+#endif
+
+struct platform_api
+{
+#if HANDMADE_INTERNAL
+    debug_platform_free_file_memory *DEBUGPlatformFreeFileMemory;
+    debug_platform_read_entire_file *DEBUGPlatformReadEntireFile;
+    debug_platform_write_entire_file *DEBUGPlatformWriteEntireFile;
+#endif
+};
+
 struct game_memory
 {
     bool32 IsInitialized;
@@ -121,9 +127,7 @@ struct game_memory
     uint64 TransientStorageSize;
     void *TransientStorage; // NOTE(Kevin): REQUIRED to be cleared to zero at startup
 
-    debug_platform_free_file_memory *DEBUGPlatformFreeFileMemory;
-    debug_platform_read_entire_file *DEBUGPlatformReadEntireFile;
-    debug_platform_write_entire_file *DEBUGPlatformWriteEntireFile;
+    platform_api PlatformAPI;
 };
 
 // PLATFORM PROVIDES FOUR THINGS - timing, controller/keyboard input, sound buffer to use, renderer to use
@@ -181,8 +185,8 @@ struct loaded_bitmap
 struct game_state
 {
     memory_arena WorldArena;
+    // memory_arena ScratchArena;
 
+    real32 tSine;
     loaded_bitmap Backdrop;
 };
-
-
