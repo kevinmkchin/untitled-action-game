@@ -9,8 +9,8 @@
 
 struct open_gl_shader
 {
-    GLuint ProgramId = 0;
-    bool32 PrintWarnings = true;
+    GLuint ProgramId;
+    bool32 PrintWarnings;
     std::unordered_map<std::string, int32> UniformLocations;
 };
 
@@ -26,8 +26,6 @@ GLCreateComputeShaderProgram(open_gl_shader& shader, char* computeShaderStr);
 #endif
 internal void
 GLDeleteShader(open_gl_shader& shader);
-internal void
-UseShader(open_gl_shader& shader);
 internal int32
 UniformLocation(open_gl_shader& shader, char* uniformName);
 internal void
@@ -293,17 +291,6 @@ GLDeleteShader(open_gl_shader& shader)
         return;
     }
     glDeleteProgram(shader.ProgramId);
-}
-
-internal void
-UseShader(open_gl_shader& shader)
-{
-    if (shader.ProgramId == 0)
-    {
-        printf("WARNING: Passed an unloaded shader program to UseShader! Aborting.\n");
-        return;
-    }
-    glUseProgram(shader.ProgramId);
 }
 
 internal void

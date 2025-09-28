@@ -25,12 +25,24 @@ struct PNUV2_vertex
     vec2 UV1;
 };
 
+struct rendering_pipeline
+{
+    uint32 ShaderID;
+    bool32 DepthTest;
+
+    // VertexInputLayout
+    // Rasterizer state (culling, polygon mode, scissor test)
+    // Depth/stencil state (depth test, write mask, stencil rules)
+    // Blend state
+    // Render targets formats (color, depth attachment formats)
+};
+
 //
 // NOTE(Kevin): Renderer Frontend
 //
 struct renderer
 {
-// NOTE(Kevin): placement new to explicitly invoke the constructor
+// NOTE(Kevin): placement new to explicitly invoke constructor and get valid vfptr!
 #define ConstructRendererServiceAt(Address) new(Address) renderer()
 
     uint32 BackBufferW;
@@ -38,12 +50,16 @@ struct renderer
 
     platform_api PlatformAPI;
 
+    rendering_pipeline WorldGeometryTest;
+    rendering_pipeline StaticLit;
+    // TODO(Kevin): rendering_pipeline SkinnedLit;
+
+    uint32 StaticLitItemsMaxCount;
+
     // NOTE(Kevin): Service APIs to the game must be virtual to avoid linking with
     // definition. vtable essentially provides the function table of callable services
     // from the game layer. Therefore, renderer MUST be constructed to have a valid vtable
     // ptr. C-style function table will be more stable, but for now this is more convenient.
-    virtual uint32 SomeTestServiceToGame(uint32 Value);
-
     virtual mesh_handle UploadMeshData(PNUV2_vertex *VB, uint32 VC, uint32 *IB, uint32 IC);
     virtual texture_handle UploadTexture2DData(void *Bitmap, uint32 W, uint32 H, pixel_format Format, 
                                                bool32 LinearFiltering);

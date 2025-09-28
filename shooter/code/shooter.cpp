@@ -132,8 +132,6 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
            ArrayCount(Input->Controllers[0].Buttons));
     Assert(sizeof(game_state) <= Memory->PermanentStorageSize);
 
-    uint32 Result = Renderer->SomeTestServiceToGame(64);
-
     game_state *GameState = (game_state *)Memory->PermanentStorage;
     if (!Memory->IsInitialized)
     {

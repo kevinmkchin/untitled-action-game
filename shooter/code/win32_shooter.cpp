@@ -8,8 +8,6 @@ Platform Layer TODO
 - Raw Input (support for multiple keyboards)
 - ClipCursor (multimonitor support)
 - QueryCancelAutoplay
-- Blit speed improvements (BitBlt)
-- Hardware acceleration (OpenGL or Direct3D)
 - GetKeyboardLayout (for French keyboards, international WASD support)
 
 */

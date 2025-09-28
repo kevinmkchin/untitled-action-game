@@ -2,20 +2,39 @@
 #include "shooter_shared.h"
 #define GL3W_IMPLEMENTATION
 #include "../ext/gl3w.h"
-#include "shooter_renderer_opengl_shaders.h"
 
 internal void OpenGLInit(open_gl *OpenGL)
 {
+    renderer *RendererFrontend = &(OpenGL->Header);
+
     debug_read_file_result TestVSRead = DEBUGPlatformReadEntireFile(0, "../data/glsl/test.vert");
     debug_read_file_result TestFSRead = DEBUGPlatformReadEntireFile(0, "../data/glsl/test.frag");
     char *TestVS = (char *)TestVSRead.Contents;
     char *TestFS = (char *)TestFSRead.Contents;
-    OpenGL->TestShader = new open_gl_shader();
-    GLCreateShaderProgram(*(OpenGL->TestShader), TestVS, TestFS);
+    // TODO(Kevin): This is just test code! Get rid of new! Constructor required for std::unordered_map bullshit
+    OpenGL->Shaders[0] = new open_gl_shader();
+    ++OpenGL->ShadersCount;
+    GLCreateShaderProgram(*(OpenGL->Shaders[0]), TestVS, TestFS);
     DEBUGPlatformFreeFileMemory(0, TestVSRead.Contents);
     DEBUGPlatformFreeFileMemory(0, TestFSRead.Contents);
+    RendererFrontend->WorldGeometryTest.ShaderID = 0;
+    RendererFrontend->WorldGeometryTest.DepthTest = true;
 
+    TestVSRead = DEBUGPlatformReadEntireFile(0, "../data/glsl/StaticLit.vert");
+    TestFSRead = DEBUGPlatformReadEntireFile(0, "../data/glsl/StaticLit.frag");
+    TestVS = (char *)TestVSRead.Contents;
+    TestFS = (char *)TestFSRead.Contents;
+    OpenGL->Shaders[1] = new open_gl_shader();
+    ++OpenGL->ShadersCount;
+    GLCreateShaderProgram(*(OpenGL->Shaders[1]), TestVS, TestFS);
+    DEBUGPlatformFreeFileMemory(0, TestVSRead.Contents);
+    DEBUGPlatformFreeFileMemory(0, TestFSRead.Contents);
+    RendererFrontend->StaticLit.ShaderID = 1;
+    RendererFrontend->StaticLit.DepthTest = true;
 
+    RendererFrontend->StaticLitItemsMaxCount = 2000;
+    OpenGLSSBOInitialize(&(OpenGL->PerInstanceDataSSBO), 
+                         sizeof(open_gl_model_instance)*RendererFrontend->StaticLitItemsMaxCount, 3);
 
     OpenGL->FreeMeshHandlesCount = ArrayCount(OpenGL->FreeMeshHandles);
     for (int32 FreeHandle = 0; 
@@ -38,6 +57,8 @@ internal void OpenGLInit(open_gl *OpenGL)
 
 internal void OpenGLEndFrame(open_gl *OpenGL)
 {
+    renderer *RendererFrontend = &(OpenGL->Header);
+
     glViewport(0, 0, OpenGL->Header.BackBufferW, OpenGL->Header.BackBufferH);
     glClearColor(0.674f, 0.847f, 1.0f, 1.f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -57,33 +78,69 @@ internal void OpenGLEndFrame(open_gl *OpenGL)
     float FOVYRad = HorizontalFOVToVerticalFOV(FOVX*GM_DEG2RAD, AspectRatio);
     mat4 ClipFromView = ProjectionMatrixPerspective(FOVYRad, AspectRatio, 4.f, 3200.f);
 
-    // glActiveTexture(GL_TEXTURE0);
-    // glBindTexture(GL_TEXTURE_2D, FaceBatch->ColorTexture.id);
-
+    // OpenGLBindTexture2D(OpenGL, 0, ColorTextureHandle)
     OpenGLBindTexture2D(OpenGL, 1, 0);
 
-    UseShader(*(OpenGL->TestShader));
-    GLBindMatrix4fv(*(OpenGL->TestShader), "viewMatrix", 1, ViewFromWorld.ptr());
-    GLBindMatrix4fv(*(OpenGL->TestShader), "projMatrix", 1, ClipFromView.ptr());    
-    GLBind1i(*(OpenGL->TestShader), "ColorTexture", 0);
-    GLBind1i(*(OpenGL->TestShader), "LightMap", 1);
+    OpenGLActivatePipeline(OpenGL, RendererFrontend->WorldGeometryTest);
+    open_gl_shader *WorldGeomShader = OpenGL->Shaders[RendererFrontend->WorldGeometryTest.ShaderID];
 
-    // PNUV2_vertex VB[] = { 
-    //     { { -0.5f, -0.5f, 0.0f }, { -0.5f, -0.5f, -0.5f }, { -0.5f, -0.5f }, { -0.5f, -0.5f } },
-    //     { { 0.5f, -0.5f, 0.0f }, { -0.5f, -0.5f, -0.5f }, { -0.5f, -0.5f }, { -0.5f, -0.5f } },
-    //     { { 0.0f, 0.5f, 0.0f }, { -0.5f, -0.5f, -0.5f }, { -0.5f, -0.5f }, { -0.5f, -0.5f } },
-    // };
-    // uint32 IB[] = { 0, 1, 2 };
-    // static mesh_handle Test = 0;
-    // if (Test == 0)
-    //     Test = OpenGLUploadMesh(OpenGL, VB, 3, IB, 3);
-    // OpenGLDrawMesh(OpenGL, Test);
+    GLBindMatrix4fv(*WorldGeomShader, "viewMatrix", 1, ViewFromWorld.ptr());
+    GLBindMatrix4fv(*WorldGeomShader, "projMatrix", 1, ClipFromView.ptr());    
+    GLBind1i(*WorldGeomShader, "ColorTexture", 0);
+    GLBind1i(*WorldGeomShader, "LightMap", 1);
 
     OpenGLDrawMesh(OpenGL, 0);
     OpenGLDrawMesh(OpenGL, 1);
+
+
+    //
+    // NOTE(Kevin): Model instancing
+    //
+    open_gl_model_instance *ModelInstances = 0;
+    uint32 ModelInstancesCount = 0;
+
+    OpenGLActivatePipeline(OpenGL, RendererFrontend->StaticLit);
+    open_gl_shader *StaticLitShader = OpenGL->Shaders[RendererFrontend->WorldGeometryTest.ShaderID];
+
+    // GLBind4f(Sha_ModelInstancedLit, "MuzzleFlash",
+    //     RuntimeMap->Player.Weapon.MuzzleFlash.x, 
+    //     RuntimeMap->Player.Weapon.MuzzleFlash.y, 
+    //     RuntimeMap->Player.Weapon.MuzzleFlash.z, 
+    //     RuntimeMap->Player.Weapon.MuzzleFlash.w);
+    // GLBindMatrix4fv(*StaticLitShader, "ProjFromView", 1, ProjFromView.ptr());
+    // GLBindMatrix4fv(*StaticLitShader, "ViewFromWorld", 1, ViewFromWorld.ptr());
+    // GLBind3f(*StaticLitShader, "DirectionToSun", RuntimeMap->DirectionToSun.x,
+    //     RuntimeMap->DirectionToSun.y, RuntimeMap->DirectionToSun.z);
+
+    ssbo_frame_chunk FrameChunk = OpenGLSSBOBeginFrame(&(OpenGL->PerInstanceDataSSBO));
+    Copy(FrameChunk.WriteTo, ModelInstances, ModelInstancesCount*sizeof(open_gl_model_instance));
+    OpenGLSSBOBindTo(&(OpenGL->PerInstanceDataSSBO), 0);
+    int32 BaseInstanceIndex = SafeCastToInt32(SafeTruncateUInt64(FrameChunk.BaseOffset / sizeof(open_gl_model_instance)));
+
+    // uint32 CurrentModelId = InstancesCopy[0].CorpseModel->MT_ID;
+    // uint32 CurrentModelCount = 0;
+    // uint32 CurrentOffsetFromBase = 0;
+    // for (u32 i = 0; i <= InstancesCopy.lenu(); ++i)
+    // {
+    //     if (i == InstancesCopy.lenu() || InstancesCopy[i].CorpseModel->MT_ID != CurrentModelId)
+    //     {
+    //         // flush
+    //         GLBind1i(Sha_ModelInstancedLit, "BaseInstanceIndex", 
+    //             (GLint)BaseInstanceIndex + CurrentOffsetFromBase);
+    //         DrawModelInstanced(Assets.ModelsTextured[CurrentModelId], CurrentModelCount);
+
+    //         if (i == InstancesCopy.lenu())
+    //             break;
+
+    //         CurrentOffsetFromBase += CurrentModelCount;
+    //         CurrentModelId = InstancesCopy[i].CorpseModel->MT_ID;
+    //         CurrentModelCount = 0;
+    //     }
+    //     ++CurrentModelCount;
+    // }
+
+    OpenGLSSBOEndFrame(&(OpenGL->PerInstanceDataSSBO));
 }
-
-
 
 internal mesh_handle NextAvailableMeshHandle(open_gl *OpenGL)
 {
@@ -97,6 +154,29 @@ internal texture_handle NextAvailableTextureHandle(open_gl *OpenGL)
     Assert(OpenGL->FreeTextureHandlesCount > 0);
     texture_handle FreeHandle = OpenGL->FreeTextureHandles[--OpenGL->FreeTextureHandlesCount];
     return FreeHandle;
+}
+
+void OpenGLActivatePipeline(open_gl *OpenGL, rendering_pipeline Pipeline)
+{
+    Assert(Pipeline.ShaderID < OpenGL->ShadersCount);
+    open_gl_shader *OpenglShader = (OpenGL->Shaders[Pipeline.ShaderID]);
+
+    Assert(OpenglShader->ProgramId);
+    glUseProgram(OpenglShader->ProgramId);
+
+    if (Pipeline.DepthTest)
+    {
+        glEnable(GL_DEPTH_TEST);
+    }
+    else
+    {
+        glDisable(GL_DEPTH_TEST);
+    }
+
+    // TODO(Kevin): blending, backface culling, etc.
+    // glEnable(GL_BLEND);
+    // glEnable(GL_CULL_FACE);
+    // glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_SRC_ALPHA, GL_ONE);
 }
 
 mesh_handle OpenGLUploadMesh(open_gl *OpenGL, PNUV2_vertex *VB, uint32 VC, uint32 *IB, uint32 IC)
@@ -205,6 +285,7 @@ texture_handle OpenGLUploadTexture2D(open_gl *OpenGL, void *Bitmap, uint32 W, ui
     glGenTextures(1, &Texture.Id);   // generate texture and grab texture id
 
     glBindTexture(GL_TEXTURE_2D, Texture.Id);
+    // https://registry.khronos.org/OpenGL-Refpages/gl4/html/glTexImage2D.xhtml
     glTexImage2D(
             GL_TEXTURE_2D,            // texture target type
             0,                        // level-of-detail number n = n-th mipmap reduction image
@@ -286,6 +367,79 @@ void OpenGLBindTexture2D(open_gl *OpenGL, uint32 Slot, texture_handle TextureHan
 
     glActiveTexture(TextureUnit);
     glBindTexture(GL_TEXTURE_2D, Texture.Id);
+}
+
+void OpenGLSSBOInitialize(n_buffered_ssbo *SSBO, umm FrameChunkSizeBytes, uint32 NumFrames)
+{
+    *SSBO = {};
+
+    Assert(NumFrames <= 5);
+
+    SSBO->NumFrames = NumFrames;
+    SSBO->CurrentFrame = 0;
+    SSBO->FrameChunkSize = FrameChunkSizeBytes;
+    SSBO->TotalSize = SSBO->FrameChunkSize * SSBO->NumFrames;
+
+    glGenBuffers(1, &(SSBO->BufferObject));
+    Assert(SSBO->BufferObject);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, SSBO->BufferObject);
+    glBufferStorage(GL_SHADER_STORAGE_BUFFER, SSBO->TotalSize, 0,
+        GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT);
+    SSBO->MappedPtr = glMapBufferRange(GL_SHADER_STORAGE_BUFFER, 0, SSBO->TotalSize,
+        GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT);
+    Assert(SSBO->MappedPtr);
+}
+
+void OpenGLSSBODelete(n_buffered_ssbo *SSBO)
+{
+    if (SSBO->BufferObject)
+    {
+        glDeleteBuffers(1, &(SSBO->BufferObject));
+        SSBO->BufferObject = 0;
+        SSBO->MappedPtr = 0;
+        // TODO(Kevin): probably glDeleteSync
+    }
+}
+
+void OpenGLSSBOBindTo(n_buffered_ssbo *SSBO, GLuint BindingIndex)
+{
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, BindingIndex, SSBO->BufferObject);
+}
+
+ssbo_frame_chunk OpenGLSSBOBeginFrame(n_buffered_ssbo *SSBO)
+{
+    SSBO->CurrentFrame = (SSBO->CurrentFrame + 1) % SSBO->NumFrames;
+
+    // IMPORTANT See note in OpenGLSSBOEndFrame
+    // // When a fence becomes signaled, you can be certain that the GPU has completed all 
+    // // OpenGL commands issued before the fence was created.
+    // GLenum Status = GL_UNSIGNALED;
+    // while (Status != GL_ALREADY_SIGNALED && Status != GL_CONDITION_SATISFIED && SSBO->FrameSyncObjects[SSBO->CurrentFrame] != nullptr)
+    // {
+    //     Status = glClientWaitSync(SSBO->FrameSyncObjects[SSBO->CurrentFrame], GL_SYNC_FLUSH_COMMANDS_BIT, 1);
+    // }
+
+    umm GlobalOffset = SSBO->CurrentFrame * SSBO->FrameChunkSize;
+
+    ssbo_frame_chunk Result;
+    Result.WriteTo = ((uint8 *)SSBO->MappedPtr) + GlobalOffset;
+    Result.BaseOffset = GlobalOffset;
+    return Result;
+}
+
+void OpenGLSSBOEndFrame(n_buffered_ssbo *SSBO)
+{
+    // IMPORTANT
+    // NOTE(Kevin) 2025-03-31: Maybe this is a bug on my GPU, but calling glFenceSync
+    //      is leaking memory. In Task Manager and Visual Studio can observe memory rising
+    //      every frame this is called even if glDeleteSync is also called...
+    //      hopefully this issue doesn't persist when I port to Vulkan.
+    //      ACTUALLY when VSYNC is ON it does not leak memory. Which makes me think it's something
+    //      to do with the CPU submitting jobs too quickly maybe. ChatGPT says this is expected on
+    //      NVIDIA cards it is a backpressure problem. Hopefully the issue goes away when the CPU
+    //      is taking longer to complete the frame and CPU GPU work is more balanced.
+    // glDeleteSync(SSBO->FrameSyncObjects[SSBO->CurrentFrame]);
+    // SSBO->FrameSyncObjects[SSBO->CurrentFrame] = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
 }
 
 
