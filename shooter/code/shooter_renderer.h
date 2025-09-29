@@ -16,7 +16,6 @@ enum pixel_format
     RGBA_Float,
     BGRA_U8,
     BGRA_Float,
-    // TODO(Kevin): BGRA?
 };
 
 struct PNUV1_vertex
@@ -32,6 +31,48 @@ struct PNUV2_vertex
     vec3 IJK;
     vec2 UV0;
     vec2 UV1;
+};
+
+struct render_descriptor
+{
+    mesh_handle    Mesh;
+    texture_handle Albedo;
+
+    bool operator==(render_descriptor &Other)
+    {
+        bool Result = Mesh == Other.Mesh &&
+                      Albedo == Other.Albedo;
+        return Result;
+    }
+    bool operator!=(render_descriptor &Other)
+    {
+        bool Result = !(*this == Other);
+        return Result;
+    }
+};
+
+struct render_item
+{
+    // TODO(Kevin): which rendering pipeline to use?
+
+    render_descriptor Descriptor;
+    bool32 UseLightCubes; // TODO(Kevin): branch on UseLightCubes
+    bool32 UseLightmap;
+    texture_handle Lightmap;
+    vec3 WorldPosition;
+    quat WorldRotation;
+    vec3 WorldScale;
+
+    // bones
+
+    // TODO(Kevin): Should this info also live in here i.e. provided by the game?
+    // mat4 WorldFromModel;            // 64      : 64
+    // vec4 PointLightsPos[4];         // 64      : 128
+    // real32 AmbientCube[6];          // 4*6=24  : 152
+    // int32 DoSunLight;               // 4       : 156
+    // int32 PointLightsCount;         // 4       : 160
+    // real32 PointLightsAttLin[4];    // 4*4=16  : 176
+    // real32 PointLightsAttQuad[4];   // 4*4=16  : 192
 };
 
 struct rendering_pipeline
@@ -69,6 +110,7 @@ struct renderer
     // definition. vtable essentially provides the function table of callable services
     // from the game layer. Therefore, renderer MUST be constructed to have a valid vtable
     // ptr. C-style function table will be more stable, but for now this is more convenient.
+    virtual void PushRenderItems(render_item *RenderItems, uint32 RenderItemsCount);
     virtual mesh_handle UploadMeshData(PNUV1_vertex *VB, uint32 VC, uint32 *IB, uint32 IC);
     virtual mesh_handle UploadMeshData(PNUV2_vertex *VB, uint32 VC, uint32 *IB, uint32 IC);
     virtual texture_handle UploadTexture2DData(void *Bitmap, uint32 W, uint32 H, pixel_format Format, 

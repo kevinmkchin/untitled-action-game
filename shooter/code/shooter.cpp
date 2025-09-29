@@ -137,8 +137,6 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     {
         GameState->Backdrop = DEBUGLoadBMP(Thread, Memory->PlatformAPI.DEBUGPlatformReadEntireFile, "test/test_background.bmp");
 
-        loaded_bitmap TestBmp = DEBUGLoadBMP(Thread, Memory->PlatformAPI.DEBUGPlatformReadEntireFile, "test_1.bmp");
-        Renderer->UploadTexture2DData(TestBmp.Pixels, TestBmp.Width, TestBmp.Height, BGRA_U8, false);
         PNUV1_vertex CubeVB[] = { 
             // +X face
             { { 16.0f, -16.0f, -16.0f }, { 1.0f, 0.0f, 0.0f }, { 0.0f, 0.0f } },
@@ -195,13 +193,13 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             { {  16.0f,  16.0f, -16.0f }, { 0.0f, 0.0f, -1.0f }, { 0.0f, 1.0f } },
         };
         uint32 CubeIB[] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35 };
-        Renderer->UploadMeshData(CubeVB, ArrayCount(CubeVB), CubeIB, ArrayCount(CubeIB));
+        RendererAPI->UploadMeshData(CubeVB, ArrayCount(CubeVB), CubeIB, ArrayCount(CubeIB));
 
         InitializeArena(&GameState->WorldArena, Memory->PermanentStorageSize - sizeof(game_state),
                         (uint8 *)Memory->PermanentStorage + sizeof(game_state));
 
-        // InitializeArena(&GameState->ScratchArena, Memory->TransientStorageSize,
-        //                 (uint8 *)Memory->TransientStorage);
+        InitializeArena(&GameState->ScratchArena, Memory->TransientStorageSize,
+                        (uint8 *)Memory->TransientStorage);
 
         char *MapFilename = "../../wd/buildtest.map";
         debug_read_file_result MapReadResult = Memory->PlatformAPI.DEBUGPlatformReadEntireFile(Thread, MapFilename);
@@ -242,7 +240,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             ByteBufferReadBulk(MapBytes, &Position, LightmapDimensions*sizeof(float), LightmapData);
             // TODO(Kevin): Yeah don't create texture resources here...just load all the data first
             // LightmapData should be part of e.g. map_data
-            Renderer->UploadTexture2DData(LightmapData, SafeCastToUInt32(LightmapW), SafeCastToUInt32(LightmapH),
+            RendererAPI->UploadTexture2DData(LightmapData, SafeCastToUInt32(LightmapW), SafeCastToUInt32(LightmapH),
                                           R_Float, true);
 
             // Light cache volume
@@ -313,7 +311,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                     ib[VertexIndex] = VertexIndex;
                 }
 
-                Renderer->UploadMeshData(vb, VertexCount, ib, VertexCount);
+                RendererAPI->UploadMeshData(vb, VertexCount, ib, VertexCount);
                 free(vb);
                 free(ib);
             }
@@ -321,6 +319,12 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
             Memory->PlatformAPI.DEBUGPlatformFreeFileMemory(Thread, MapReadResult.Contents);
         }
+
+        loaded_bitmap TestBmp = DEBUGLoadBMP(Thread, Memory->PlatformAPI.DEBUGPlatformReadEntireFile, "test_1.bmp");
+        RendererAPI->UploadTexture2DData(TestBmp.Pixels, TestBmp.Width, TestBmp.Height, BGRA_U8, false);
+
+        loaded_bitmap TestBmp2 = DEBUGLoadBMP(Thread, Memory->PlatformAPI.DEBUGPlatformReadEntireFile, "default_8x8.bmp");
+        RendererAPI->UploadTexture2DData(TestBmp2.Pixels, TestBmp2.Width, TestBmp2.Height, BGRA_U8, false);
 
         Memory->IsInitialized = true;
     }
@@ -336,6 +340,22 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             continue;
         }
     }
+
+    // TODO(Kevin): draw 10 cubes and have it go through static lit pipeline
+    uint32 RenderItemsCount = 10;
+    uint8 *RenderItemsStart = GameState->ScratchArena.Base;
+    for (uint32 i = 0; i < RenderItemsCount; ++i)
+    {
+        render_item *Item = PushStruct(&GameState->ScratchArena, render_item);
+        Item->Descriptor.Mesh = 0;
+        Item->Descriptor.Albedo = i > 4 ? 2 : 1;
+        Item->UseLightCubes = true;
+        Item->UseLightmap = false;
+        Item->WorldPosition = vec3(100, 30, (float(i) * 25) - 125);
+        Item->WorldRotation = quat();
+        Item->WorldScale = vec3(0.5f, 0.5f, 0.5f);
+    }
+    RendererAPI->PushRenderItems((render_item *)RenderItemsStart, RenderItemsCount);
 }
 
 extern "C" GAME_GET_SOUND_SAMPLES(GameGetSoundSamples)

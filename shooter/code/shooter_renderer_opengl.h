@@ -43,20 +43,20 @@ struct alignas(16) open_gl_model_instance
     int32 PointLightsCount;         // 4       : 160
     real32 PointLightsAttLin[4];    // 4*4=16  : 176
     real32 PointLightsAttQuad[4];   // 4*4=16  : 192
-    uint64 _reserved_;                 // 8       : 200
-    uint64 _padding_;                  // 8       : 208
+    render_descriptor Descriptor;   // 8       : 200
+    uint64 _padding_;               // 8       : 208
 
-    bool operator<(const open_gl_model_instance &Other) const
-    {
-        // TODO(Kevin): Sorting...uhhh maybe we just sort render_items instead?
-        //              Cuz everything we want to draw with instancing are drawn in one pipeline!
-        return true;
-        // if (!CorpseModel)
-        //     return false;
-        // if (!Other.CorpseModel)
-        //     return true;
-        // return CorpseModel->MT_ID < Other.CorpseModel->MT_ID;
-    }
+    // bool operator<(const open_gl_model_instance &Other) const
+    // {
+    //     // TODO(Kevin): Sorting...uhhh maybe we just sort render_items instead?
+    //     //              Cuz everything we want to draw with instancing are drawn in one pipeline!
+    //     return true;
+    //     // if (!CorpseModel)
+    //     //     return false;
+    //     // if (!Other.CorpseModel)
+    //     //     return true;
+    //     // return CorpseModel->MT_ID < Other.CorpseModel->MT_ID;
+    // }
 };
 
 struct ssbo_frame_chunk
@@ -97,9 +97,13 @@ struct open_gl
     uint32 ShadersCount;
 
     n_buffered_ssbo PerInstanceDataSSBO;
+    ssbo_frame_chunk PerInstanceDataFrameChunk;
+    uint32 PerInstanceDataCount;
 };
 
 void OpenGLActivatePipeline(open_gl *OpenGL, rendering_pipeline Pipeline);
+
+void OpenGLGetPerInstanceDataArray(open_gl *OpenGL, open_gl_model_instance **OutArray, uint32 **OutCount);
 
 mesh_handle OpenGLUploadMesh(open_gl *OpenGL, PNUV1_vertex *VB, uint32 VC, uint32 *IB, uint32 IC);
 mesh_handle OpenGLUploadMesh(open_gl *OpenGL, PNUV2_vertex *VB, uint32 VC, uint32 *IB, uint32 IC);
@@ -122,6 +126,7 @@ void OpenGLSSBOEndFrame(n_buffered_ssbo *SSBO);
 #ifdef SHOOTER_PLATFORM_WIN32
 
 renderer *Win32LoadRenderer(HDC WindowDC);
+void Win32BeginFrame(renderer *Renderer);
 void Win32EndFrame(renderer *Renderer);
 
 #endif // SHOOTER_PLATFORM_WIN32

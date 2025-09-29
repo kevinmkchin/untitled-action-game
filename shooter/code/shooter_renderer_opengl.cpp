@@ -55,6 +55,12 @@ internal void OpenGLInit(open_gl *OpenGL)
     }
 }
 
+internal void OpenGLBeginFrame(open_gl *OpenGL)
+{
+    OpenGL->PerInstanceDataFrameChunk = OpenGLSSBOBeginFrame(&(OpenGL->PerInstanceDataSSBO));
+    OpenGL->PerInstanceDataCount = 0;
+}
+
 internal void OpenGLEndFrame(open_gl *OpenGL)
 {
     renderer *RendererFrontend = &(OpenGL->Header);
@@ -79,7 +85,7 @@ internal void OpenGLEndFrame(open_gl *OpenGL)
     mat4 ClipFromView = ProjectionMatrixPerspective(FOVYRad, AspectRatio, 4.f, 3200.f);
 
     // OpenGLBindTexture2D(OpenGL, 0, ColorTextureHandle)
-    OpenGLBindTexture2D(OpenGL, 1, 1);
+    OpenGLBindTexture2D(OpenGL, 1, 0);
 
     OpenGLActivatePipeline(OpenGL, RendererFrontend->WorldGeometryTest);
     open_gl_shader *WorldGeomShader = OpenGL->Shaders[RendererFrontend->WorldGeometryTest.ShaderID];
@@ -96,26 +102,6 @@ internal void OpenGLEndFrame(open_gl *OpenGL)
     //
     // NOTE(Kevin): Model instancing
     //
-    local_persist open_gl_model_instance PerInstanceData[10];
-    local_persist uint32 ModelInstancesCount = 10;
-
-    // TODO(Kevin): move this test code to game side - draw 10 cubes and have it go through static lit pipeline
-    bool32 DoOnce = true;
-    if (DoOnce)
-    {
-        DoOnce = false;
-
-        for (uint32 i = 0; i < ModelInstancesCount; ++i)
-        {            
-            mat4 ModelMatrix = TranslationMatrix(vec3(100, 30, (float(i) * 25) - 125)) * 
-                               // RotationMatrix(RenderRotation) * 
-                               ScaleMatrix(0.5f); // SI_UNITS_TO_GAME_UNITS
-            PerInstanceData[i] = {};
-            PerInstanceData[i].WorldFromModel = ModelMatrix;
-            PerInstanceData[i].DoSunLight = 1;
-        }
-    }
-
     OpenGLActivatePipeline(OpenGL, RendererFrontend->StaticLit);
     open_gl_shader *StaticLitShader = OpenGL->Shaders[RendererFrontend->StaticLit.ShaderID];
 
@@ -129,41 +115,45 @@ internal void OpenGLEndFrame(open_gl *OpenGL)
     GLBindMatrix4fv(*StaticLitShader, "ViewFromWorld", 1, ViewFromWorld.ptr());
     GLBind3f(*StaticLitShader, "DirectionToSun", DirectionToSun.x, DirectionToSun.y, DirectionToSun.z);
 
-    ssbo_frame_chunk FrameChunk = OpenGLSSBOBeginFrame(&(OpenGL->PerInstanceDataSSBO));
-    Copy(FrameChunk.WriteTo, PerInstanceData, ModelInstancesCount*sizeof(open_gl_model_instance));
-    OpenGLSSBOBindTo(&(OpenGL->PerInstanceDataSSBO), 0);
-    int32 BaseInstanceIndex = SafeCastToInt32(SafeTruncateUInt64(FrameChunk.BaseOffset / sizeof(open_gl_model_instance)));
-
-    // TODO(Kevin): BaseInstanceIndex should be updated for different meshes (diff meshes will have diff offset
-    //              from start of frame chunk)
-    GLBind1i(*StaticLitShader, "BaseInstanceIndex", (GLint)BaseInstanceIndex);
-
-    // uint32 CurrentModelId = InstancesCopy[0].CorpseModel->MT_ID;
-    // uint32 CurrentModelCount = 0;
-    // uint32 CurrentOffsetFromBase = 0;
-    // for (u32 i = 0; i <= InstancesCopy.lenu(); ++i)
-    // {
-    //     if (i == InstancesCopy.lenu() || InstancesCopy[i].CorpseModel->MT_ID != CurrentModelId)
-    //     {
-    //         // flush
-    //         DrawModelInstanced(Assets.ModelsTextured[CurrentModelId], CurrentModelCount);
-
-    //         if (i == InstancesCopy.lenu())
-    //             break;
-
-    //         CurrentOffsetFromBase += CurrentModelCount;
-    //         CurrentModelId = InstancesCopy[i].CorpseModel->MT_ID;
-    //         CurrentModelCount = 0;
-    //     }
-    //     ++CurrentModelCount;
-    // }
-
+    if (OpenGL->PerInstanceDataCount > 0)
     {
-        uint32 CurrentMeshCount = 10;
-        texture_handle AlbedoTexture = 0;
+        Assert(OpenGL->PerInstanceDataFrameChunk.WriteTo);
 
-        OpenGLBindTexture2D(OpenGL, 0, AlbedoTexture);
-        OpenGLDrawMeshInstanced(OpenGL, 0, CurrentMeshCount);
+        OpenGLSSBOBindTo(&(OpenGL->PerInstanceDataSSBO), 0);
+        uint32 BaseInstanceIndex = SafeTruncateUInt64(OpenGL->PerInstanceDataFrameChunk.BaseOffset / 
+                                                      sizeof(open_gl_model_instance));
+
+        open_gl_model_instance *PerInstanceData = (open_gl_model_instance *)OpenGL->PerInstanceDataFrameChunk.WriteTo;
+
+        uint32 CurrentDescriptorCount = 0;
+        uint32 CurrentOffsetFromBase = 0;
+        render_descriptor CurrentDescriptor = PerInstanceData[0].Descriptor;
+
+        for (uint32 PerInstanceDataIndex = 0;
+             PerInstanceDataIndex <= OpenGL->PerInstanceDataCount; 
+             ++PerInstanceDataIndex)
+        {
+            if (PerInstanceDataIndex == OpenGL->PerInstanceDataCount ||
+                PerInstanceData[PerInstanceDataIndex].Descriptor != CurrentDescriptor)
+            {
+                GLBind1i(*StaticLitShader, "BaseInstanceIndex", 
+                         (GLint)SafeCastToInt32(BaseInstanceIndex + CurrentOffsetFromBase));
+
+                OpenGLBindTexture2D(OpenGL, 0, CurrentDescriptor.Albedo);
+                OpenGLDrawMeshInstanced(OpenGL, CurrentDescriptor.Mesh, CurrentDescriptorCount);
+
+                if (PerInstanceDataIndex == OpenGL->PerInstanceDataCount)
+                {
+                    break;
+                }
+
+                CurrentOffsetFromBase += CurrentDescriptorCount;
+                CurrentDescriptor = PerInstanceData[PerInstanceDataIndex].Descriptor;
+                CurrentDescriptorCount = 0;
+            }
+
+            ++CurrentDescriptorCount;
+        }
     }
 
     OpenGLSSBOEndFrame(&(OpenGL->PerInstanceDataSSBO));
@@ -204,6 +194,12 @@ void OpenGLActivatePipeline(open_gl *OpenGL, rendering_pipeline Pipeline)
     // glEnable(GL_BLEND);
     // glEnable(GL_CULL_FACE);
     // glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_SRC_ALPHA, GL_ONE);
+}
+
+void OpenGLGetPerInstanceDataArray(open_gl *OpenGL, open_gl_model_instance **OutArray, uint32 **OutCount)
+{
+    *OutArray = (open_gl_model_instance *)OpenGL->PerInstanceDataFrameChunk.WriteTo;
+    *OutCount = &OpenGL->PerInstanceDataCount;
 }
 
 mesh_handle OpenGLUploadMesh(open_gl *OpenGL, PNUV1_vertex *VB, uint32 VC, uint32 *IB, uint32 IC)
@@ -785,6 +781,12 @@ Win32LoadRenderer(HDC WindowDC)
 {
     renderer *Renderer = (renderer *)Win32InitOpenGL(WindowDC);
     return Renderer;
+}
+
+void
+Win32BeginFrame(renderer *Renderer)
+{
+    OpenGLBeginFrame((open_gl *)Renderer);
 }
 
 void
