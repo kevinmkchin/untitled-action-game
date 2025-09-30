@@ -1,4 +1,6 @@
-#version 460
+#version 430
+
+// TODO(Kevin): Can we make this shader branchless? e.g. Lambertian > 0.f could be a min clamp to 0 perhaps
 
 layout(location = 0) out vec4 FragColor;
 
@@ -20,15 +22,16 @@ layout(std430, binding = 0) buffer InstanceDataSSBO
 };
 
 in flat int InstanceIndex;
-in vec2 TexCoords;
+in vec2 UV0;
+in vec2 UV1;
 in vec3 WorldPos;
 in vec3 WorldNormal;
 
 uniform int BaseInstanceIndex;
 uniform sampler2D ColorTexture;
+uniform sampler2D LightmapTexture;
 uniform vec4 MuzzleFlash;
 uniform vec3 DirectionToSun;
-
 
 // world normal -> directional ambient contribution
 float AmbientLight(vec3 WorldNormal)
@@ -95,10 +98,11 @@ vec3 ShadeDynamicModel(vec3 Color, vec3 WorldPos, vec3 WorldNormal)
 
 void main()
 {
-    vec3 FinalColor = texture(ColorTexture, TexCoords).xyz;
-    // FinalColor = vec3(1.0);
+    vec3 FinalColor = texture(ColorTexture, UV0).xyz;
+    float LightmapValue = texture(LightmapTexture, UV1).r;
 
     FinalColor = ShadeDynamicModel(FinalColor, WorldPos, normalize(WorldNormal));
+    FinalColor *= LightmapValue;
 
     if (MuzzleFlash.w > 0.0)
     {

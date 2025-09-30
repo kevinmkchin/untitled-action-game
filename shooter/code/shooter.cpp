@@ -137,60 +137,43 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     {
         GameState->Backdrop = DEBUGLoadBMP(Thread, Memory->PlatformAPI.DEBUGPlatformReadEntireFile, "test/test_background.bmp");
 
-        PNUV1_vertex CubeVB[] = { 
-            // +X face
-            { { 16.0f, -16.0f, -16.0f }, { 1.0f, 0.0f, 0.0f }, { 0.0f, 0.0f } },
-            { { 16.0f,  16.0f, -16.0f }, { 1.0f, 0.0f, 0.0f }, { 0.0f, 1.0f } },
-            { { 16.0f,  16.0f,  16.0f }, { 1.0f, 0.0f, 0.0f }, { 1.0f, 1.0f } },
-
-            { { 16.0f, -16.0f, -16.0f }, { 1.0f, 0.0f, 0.0f }, { 0.0f, 0.0f } },
-            { { 16.0f,  16.0f,  16.0f }, { 1.0f, 0.0f, 0.0f }, { 1.0f, 1.0f } },
-            { { 16.0f, -16.0f,  16.0f }, { 1.0f, 0.0f, 0.0f }, { 1.0f, 0.0f } },
-
-            // -X face
-            { { -16.0f, -16.0f,  16.0f }, { -1.0f, 0.0f, 0.0f }, { 0.0f, 0.0f } },
-            { { -16.0f,  16.0f,  16.0f }, { -1.0f, 0.0f, 0.0f }, { 0.0f, 1.0f } },
-            { { -16.0f,  16.0f, -16.0f }, { -1.0f, 0.0f, 0.0f }, { 1.0f, 1.0f } },
-
-            { { -16.0f, -16.0f,  16.0f }, { -1.0f, 0.0f, 0.0f }, { 0.0f, 0.0f } },
-            { { -16.0f,  16.0f, -16.0f }, { -1.0f, 0.0f, 0.0f }, { 1.0f, 1.0f } },
-            { { -16.0f, -16.0f, -16.0f }, { -1.0f, 0.0f, 0.0f }, { 1.0f, 0.0f } },
-
-            // +Y face
-            { { -16.0f, 16.0f, -16.0f }, { 0.0f, 1.0f, 0.0f }, { 0.0f, 0.0f } },
-            { { -16.0f, 16.0f,  16.0f }, { 0.0f, 1.0f, 0.0f }, { 0.0f, 1.0f } },
-            { {  16.0f, 16.0f,  16.0f }, { 0.0f, 1.0f, 0.0f }, { 1.0f, 1.0f } },
-
-            { { -16.0f, 16.0f, -16.0f }, { 0.0f, 1.0f, 0.0f }, { 0.0f, 0.0f } },
-            { {  16.0f, 16.0f,  16.0f }, { 0.0f, 1.0f, 0.0f }, { 1.0f, 1.0f } },
-            { {  16.0f, 16.0f, -16.0f }, { 0.0f, 1.0f, 0.0f }, { 1.0f, 0.0f } },
-
-            // -Y face
-            { { -16.0f, -16.0f,  16.0f }, { 0.0f, -1.0f, 0.0f }, { 0.0f, 0.0f } },
-            { { -16.0f, -16.0f, -16.0f }, { 0.0f, -1.0f, 0.0f }, { 0.0f, 1.0f } },
-            { {  16.0f, -16.0f, -16.0f }, { 0.0f, -1.0f, 0.0f }, { 1.0f, 1.0f } },
-
-            { { -16.0f, -16.0f,  16.0f }, { 0.0f, -1.0f, 0.0f }, { 0.0f, 0.0f } },
-            { {  16.0f, -16.0f, -16.0f }, { 0.0f, -1.0f, 0.0f }, { 1.0f, 1.0f } },
-            { {  16.0f, -16.0f,  16.0f }, { 0.0f, -1.0f, 0.0f }, { 1.0f, 0.0f } },
-
-            // +Z face
-            { { -16.0f, -16.0f, 16.0f }, { 0.0f, 0.0f, 1.0f }, { 0.0f, 0.0f } },
-            { {  16.0f, -16.0f, 16.0f }, { 0.0f, 0.0f, 1.0f }, { 1.0f, 0.0f } },
-            { {  16.0f,  16.0f, 16.0f }, { 0.0f, 0.0f, 1.0f }, { 1.0f, 1.0f } },
-
-            { { -16.0f, -16.0f, 16.0f }, { 0.0f, 0.0f, 1.0f }, { 0.0f, 0.0f } },
-            { {  16.0f,  16.0f, 16.0f }, { 0.0f, 0.0f, 1.0f }, { 1.0f, 1.0f } },
-            { { -16.0f,  16.0f, 16.0f }, { 0.0f, 0.0f, 1.0f }, { 0.0f, 1.0f } },
-
-            // -Z face
-            { {  16.0f, -16.0f, -16.0f }, { 0.0f, 0.0f, -1.0f }, { 0.0f, 0.0f } },
-            { { -16.0f, -16.0f, -16.0f }, { 0.0f, 0.0f, -1.0f }, { 1.0f, 0.0f } },
-            { { -16.0f,  16.0f, -16.0f }, { 0.0f, 0.0f, -1.0f }, { 1.0f, 1.0f } },
-
-            { {  16.0f, -16.0f, -16.0f }, { 0.0f, 0.0f, -1.0f }, { 0.0f, 0.0f } },
-            { { -16.0f,  16.0f, -16.0f }, { 0.0f, 0.0f, -1.0f }, { 1.0f, 1.0f } },
-            { {  16.0f,  16.0f, -16.0f }, { 0.0f, 0.0f, -1.0f }, { 0.0f, 1.0f } },
+        PNUV2_vertex CubeVB[] = {
+            { { 16.0f, -16.0f, -16.0f }, { 1.0f, 0.0f, 0.0f }, { 0.0f, 0.0f }, { 0.0f, 0.0f } }, // +X face
+            { { 16.0f,  16.0f, -16.0f }, { 1.0f, 0.0f, 0.0f }, { 0.0f, 1.0f }, { 0.0f, 1.0f } },
+            { { 16.0f,  16.0f,  16.0f }, { 1.0f, 0.0f, 0.0f }, { 1.0f, 1.0f }, { 1.0f, 1.0f } },
+            { { 16.0f, -16.0f, -16.0f }, { 1.0f, 0.0f, 0.0f }, { 0.0f, 0.0f }, { 0.0f, 0.0f } },
+            { { 16.0f,  16.0f,  16.0f }, { 1.0f, 0.0f, 0.0f }, { 1.0f, 1.0f }, { 1.0f, 1.0f } },
+            { { 16.0f, -16.0f,  16.0f }, { 1.0f, 0.0f, 0.0f }, { 1.0f, 0.0f }, { 1.0f, 0.0f } },
+            { { -16.0f, -16.0f,  16.0f }, { -1.0f, 0.0f, 0.0f }, { 0.0f, 0.0f }, { 0.0f, 0.0f } }, // -X face
+            { { -16.0f,  16.0f,  16.0f }, { -1.0f, 0.0f, 0.0f }, { 0.0f, 1.0f }, { 0.0f, 1.0f } },
+            { { -16.0f,  16.0f, -16.0f }, { -1.0f, 0.0f, 0.0f }, { 1.0f, 1.0f }, { 1.0f, 1.0f } },
+            { { -16.0f, -16.0f,  16.0f }, { -1.0f, 0.0f, 0.0f }, { 0.0f, 0.0f }, { 0.0f, 0.0f } },
+            { { -16.0f,  16.0f, -16.0f }, { -1.0f, 0.0f, 0.0f }, { 1.0f, 1.0f }, { 1.0f, 1.0f } },
+            { { -16.0f, -16.0f, -16.0f }, { -1.0f, 0.0f, 0.0f }, { 1.0f, 0.0f }, { 1.0f, 0.0f } },
+            { { -16.0f, 16.0f, -16.0f }, { 0.0f, 1.0f, 0.0f }, { 0.0f, 0.0f }, { 0.0f, 0.0f } }, // +Y face
+            { { -16.0f, 16.0f,  16.0f }, { 0.0f, 1.0f, 0.0f }, { 0.0f, 1.0f }, { 0.0f, 1.0f } },
+            { {  16.0f, 16.0f,  16.0f }, { 0.0f, 1.0f, 0.0f }, { 1.0f, 1.0f }, { 1.0f, 1.0f } },
+            { { -16.0f, 16.0f, -16.0f }, { 0.0f, 1.0f, 0.0f }, { 0.0f, 0.0f }, { 0.0f, 0.0f } },
+            { {  16.0f, 16.0f,  16.0f }, { 0.0f, 1.0f, 0.0f }, { 1.0f, 1.0f }, { 1.0f, 1.0f } },
+            { {  16.0f, 16.0f, -16.0f }, { 0.0f, 1.0f, 0.0f }, { 1.0f, 0.0f }, { 1.0f, 0.0f } },
+            { { -16.0f, -16.0f,  16.0f }, { 0.0f, -1.0f, 0.0f }, { 0.0f, 0.0f }, { 0.0f, 0.0f } }, // -Y face
+            { { -16.0f, -16.0f, -16.0f }, { 0.0f, -1.0f, 0.0f }, { 0.0f, 1.0f }, { 0.0f, 1.0f } },
+            { {  16.0f, -16.0f, -16.0f }, { 0.0f, -1.0f, 0.0f }, { 1.0f, 1.0f }, { 1.0f, 1.0f } },
+            { { -16.0f, -16.0f,  16.0f }, { 0.0f, -1.0f, 0.0f }, { 0.0f, 0.0f }, { 0.0f, 0.0f } },
+            { {  16.0f, -16.0f, -16.0f }, { 0.0f, -1.0f, 0.0f }, { 1.0f, 1.0f }, { 1.0f, 1.0f } },
+            { {  16.0f, -16.0f,  16.0f }, { 0.0f, -1.0f, 0.0f }, { 1.0f, 0.0f }, { 1.0f, 0.0f } },
+            { { -16.0f, -16.0f, 16.0f }, { 0.0f, 0.0f, 1.0f }, { 0.0f, 0.0f }, { 0.0f, 0.0f } }, // +Z face
+            { {  16.0f, -16.0f, 16.0f }, { 0.0f, 0.0f, 1.0f }, { 1.0f, 0.0f }, { 1.0f, 0.0f } },
+            { {  16.0f,  16.0f, 16.0f }, { 0.0f, 0.0f, 1.0f }, { 1.0f, 1.0f }, { 1.0f, 1.0f } },
+            { { -16.0f, -16.0f, 16.0f }, { 0.0f, 0.0f, 1.0f }, { 0.0f, 0.0f }, { 0.0f, 0.0f } },
+            { {  16.0f,  16.0f, 16.0f }, { 0.0f, 0.0f, 1.0f }, { 1.0f, 1.0f }, { 1.0f, 1.0f } },
+            { { -16.0f,  16.0f, 16.0f }, { 0.0f, 0.0f, 1.0f }, { 0.0f, 1.0f }, { 0.0f, 1.0f } },
+            { {  16.0f, -16.0f, -16.0f }, { 0.0f, 0.0f, -1.0f }, { 0.0f, 0.0f }, { 0.0f, 0.0f } }, // -Z face
+            { { -16.0f, -16.0f, -16.0f }, { 0.0f, 0.0f, -1.0f }, { 1.0f, 0.0f }, { 1.0f, 0.0f } },
+            { { -16.0f,  16.0f, -16.0f }, { 0.0f, 0.0f, -1.0f }, { 1.0f, 1.0f }, { 1.0f, 1.0f } },
+            { {  16.0f, -16.0f, -16.0f }, { 0.0f, 0.0f, -1.0f }, { 0.0f, 0.0f }, { 0.0f, 0.0f } },
+            { { -16.0f,  16.0f, -16.0f }, { 0.0f, 0.0f, -1.0f }, { 1.0f, 1.0f }, { 1.0f, 1.0f } },
+            { {  16.0f,  16.0f, -16.0f }, { 0.0f, 0.0f, -1.0f }, { 0.0f, 1.0f }, { 0.0f, 1.0f } },
         };
         uint32 CubeIB[] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35 };
         RendererAPI->UploadMeshData(CubeVB, ArrayCount(CubeVB), CubeIB, ArrayCount(CubeIB));
@@ -326,6 +309,11 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         loaded_bitmap TestBmp2 = DEBUGLoadBMP(Thread, Memory->PlatformAPI.DEBUGPlatformReadEntireFile, "default_8x8.bmp");
         RendererAPI->UploadTexture2DData(TestBmp2.Pixels, TestBmp2.Width, TestBmp2.Height, BGRA_U8, false);
 
+        // TODO(Kevin): Load this default white lightmap from inside renderer code! Not from game code!
+        loaded_bitmap White_1x1 = DEBUGLoadBMP(Thread, Memory->PlatformAPI.DEBUGPlatformReadEntireFile, "white_1x1.bmp");
+        RendererAPI->WhiteTexture_1x1 = 
+            RendererAPI->UploadTexture2DData(White_1x1.Pixels, White_1x1.Width, White_1x1.Height, BGRA_U8, false);
+
         Memory->IsInitialized = true;
     }
 
@@ -342,11 +330,13 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     }
 
     // TODO(Kevin): draw 10 cubes and have it go through static lit pipeline
-    uint32 RenderItemsCount = 10;
+    uint32 RenderItemsCount = 12;
     uint8 *RenderItemsStart = GameState->ScratchArena.Base;
-    for (uint32 i = 0; i < RenderItemsCount; ++i)
+
+    for (uint32 i = 0; i < RenderItemsCount - 2; ++i)
     {
         render_item *Item = PushStruct(&GameState->ScratchArena, render_item);
+        *Item = {};
         Item->Descriptor.Mesh = 0;
         Item->Descriptor.Albedo = i > 4 ? 2 : 1;
         Item->UseLightCubes = true;
@@ -355,6 +345,29 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         Item->WorldRotation = quat();
         Item->WorldScale = vec3(0.5f, 0.5f, 0.5f);
     }
+
+    render_item *Item0 = PushStruct(&GameState->ScratchArena, render_item);
+    *Item0 = {};
+    Item0->Descriptor.Mesh = 1;
+    Item0->Descriptor.Albedo = 2;
+    Item0->Descriptor.Lightmap = 0;
+    Item0->UseLightCubes = false;
+    Item0->UseLightmap = true;
+    Item0->WorldPosition = vec3();
+    Item0->WorldRotation = quat();
+    Item0->WorldScale = vec3(1.0f,1.0f,1.0f);
+
+    render_item *Item1 = PushStruct(&GameState->ScratchArena, render_item);
+    *Item1 = {};
+    Item1->Descriptor.Mesh = 2;
+    Item1->Descriptor.Albedo = 2;
+    Item1->Descriptor.Lightmap = 0;
+    Item1->UseLightCubes = false;
+    Item1->UseLightmap = true;
+    Item1->WorldPosition = vec3();
+    Item1->WorldRotation = quat();
+    Item1->WorldScale = vec3(1.0f,1.0f,1.0f);
+
     RendererAPI->PushRenderItems((render_item *)RenderItemsStart, RenderItemsCount);
 }
 

@@ -7,8 +7,8 @@ internal void OpenGLInit(open_gl *OpenGL)
 {
     renderer *RendererFrontend = &(OpenGL->Header);
 
-    debug_read_file_result TestVSRead = DEBUGPlatformReadEntireFile(0, "../data/glsl/test.vert");
-    debug_read_file_result TestFSRead = DEBUGPlatformReadEntireFile(0, "../data/glsl/test.frag");
+    debug_read_file_result TestVSRead = DEBUGPlatformReadEntireFile(0, "../data/glsl/StaticLit.vert");
+    debug_read_file_result TestFSRead = DEBUGPlatformReadEntireFile(0, "../data/glsl/StaticLit.frag");
     char *TestVS = (char *)TestVSRead.Contents;
     char *TestFS = (char *)TestFSRead.Contents;
     // TODO(Kevin): This is just test code! Get rid of new! Constructor required for std::unordered_map bullshit
@@ -17,19 +17,7 @@ internal void OpenGLInit(open_gl *OpenGL)
     GLCreateShaderProgram(*(OpenGL->Shaders[0]), TestVS, TestFS);
     DEBUGPlatformFreeFileMemory(0, TestVSRead.Contents);
     DEBUGPlatformFreeFileMemory(0, TestFSRead.Contents);
-    RendererFrontend->WorldGeometryTest.ShaderID = 0;
-    RendererFrontend->WorldGeometryTest.DepthTest = true;
-
-    TestVSRead = DEBUGPlatformReadEntireFile(0, "../data/glsl/StaticLit.vert");
-    TestFSRead = DEBUGPlatformReadEntireFile(0, "../data/glsl/StaticLit.frag");
-    TestVS = (char *)TestVSRead.Contents;
-    TestFS = (char *)TestFSRead.Contents;
-    OpenGL->Shaders[1] = new open_gl_shader();
-    ++OpenGL->ShadersCount;
-    GLCreateShaderProgram(*(OpenGL->Shaders[1]), TestVS, TestFS);
-    DEBUGPlatformFreeFileMemory(0, TestVSRead.Contents);
-    DEBUGPlatformFreeFileMemory(0, TestFSRead.Contents);
-    RendererFrontend->StaticLit.ShaderID = 1;
+    RendererFrontend->StaticLit.ShaderID = 0;
     RendererFrontend->StaticLit.DepthTest = true;
 
     RendererFrontend->StaticLitItemsMaxCount = 2000;
@@ -69,50 +57,31 @@ internal void OpenGLEndFrame(open_gl *OpenGL)
     glClearColor(0.674f, 0.847f, 1.0f, 1.f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    glEnable(GL_DEPTH_TEST);
-    // glEnable(GL_BLEND);
-    // glEnable(GL_CULL_FACE);
-    // glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_SRC_ALPHA, GL_ONE);
-
-    // TODO(Kevin): Muzzle flash should made generic in list of "real-time dynamic point light sources"
-    // which are the only point lights that meshes will check against (since they're dynamic). Probably,
-    // not shadow casting unless I want that as a very pronounced effect e.g. Doom 3.
-
     mat4 ViewFromWorld = ViewMatrixLookAt(vec3(-100,60,0), vec3(-100,60,0) + vec3(1,-0.1f,0), GM_UP_VECTOR);
     float AspectRatio = float(OpenGL->Header.BackBufferW) / float(OpenGL->Header.BackBufferH);
     float FOVX = 90.f;
     float FOVYRad = HorizontalFOVToVerticalFOV(FOVX*GM_DEG2RAD, AspectRatio);
     mat4 ClipFromView = ProjectionMatrixPerspective(FOVYRad, AspectRatio, 4.f, 3200.f);
 
-    // OpenGLBindTexture2D(OpenGL, 0, ColorTextureHandle)
-    OpenGLBindTexture2D(OpenGL, 1, 0);
-
-    OpenGLActivatePipeline(OpenGL, RendererFrontend->WorldGeometryTest);
-    open_gl_shader *WorldGeomShader = OpenGL->Shaders[RendererFrontend->WorldGeometryTest.ShaderID];
-
-    GLBindMatrix4fv(*WorldGeomShader, "viewMatrix", 1, ViewFromWorld.ptr());
-    GLBindMatrix4fv(*WorldGeomShader, "projMatrix", 1, ClipFromView.ptr());    
-    GLBind1i(*WorldGeomShader, "ColorTexture", 0);
-    GLBind1i(*WorldGeomShader, "LightMap", 1);
-
-    OpenGLDrawMesh(OpenGL, 1);
-    OpenGLDrawMesh(OpenGL, 2);
-
-
     //
-    // NOTE(Kevin): Model instancing
+    // NOTE(Kevin): Lit models pipeline
     //
     OpenGLActivatePipeline(OpenGL, RendererFrontend->StaticLit);
     open_gl_shader *StaticLitShader = OpenGL->Shaders[RendererFrontend->StaticLit.ShaderID];
 
-    vec3 DirectionToSun = vec3(-1,1,1);
+    GLBindMatrix4fv(*StaticLitShader, "ProjFromView", 1, ClipFromView.ptr());
+    GLBindMatrix4fv(*StaticLitShader, "ViewFromWorld", 1, ViewFromWorld.ptr());
+    GLBind1i(*StaticLitShader, "ColorTexture", 0);
+    GLBind1i(*StaticLitShader, "LightmapTexture", 1);
+    // TODO(Kevin): Muzzle flash should made generic in list of "real-time dynamic point light sources"
+    // which are the only point lights that meshes will check against (since they're dynamic). Probably,
+    // not shadow casting unless I want that as a very pronounced effect e.g. Doom 3.
     // GLBind4f(Sha_ModelInstancedLit, "MuzzleFlash",
     //     RuntimeMap->Player.Weapon.MuzzleFlash.x, 
     //     RuntimeMap->Player.Weapon.MuzzleFlash.y, 
     //     RuntimeMap->Player.Weapon.MuzzleFlash.z, 
     //     RuntimeMap->Player.Weapon.MuzzleFlash.w);
-    GLBindMatrix4fv(*StaticLitShader, "ProjFromView", 1, ClipFromView.ptr());
-    GLBindMatrix4fv(*StaticLitShader, "ViewFromWorld", 1, ViewFromWorld.ptr());
+    vec3 DirectionToSun = vec3(-1,1,1);
     GLBind3f(*StaticLitShader, "DirectionToSun", DirectionToSun.x, DirectionToSun.y, DirectionToSun.z);
 
     if (OpenGL->PerInstanceDataCount > 0)
@@ -140,6 +109,7 @@ internal void OpenGLEndFrame(open_gl *OpenGL)
                          (GLint)SafeCastToInt32(BaseInstanceIndex + CurrentOffsetFromBase));
 
                 OpenGLBindTexture2D(OpenGL, 0, CurrentDescriptor.Albedo);
+                OpenGLBindTexture2D(OpenGL, 1, CurrentDescriptor.Lightmap);
                 OpenGLDrawMeshInstanced(OpenGL, CurrentDescriptor.Mesh, CurrentDescriptorCount);
 
                 if (PerInstanceDataIndex == OpenGL->PerInstanceDataCount)
@@ -202,39 +172,39 @@ void OpenGLGetPerInstanceDataArray(open_gl *OpenGL, open_gl_model_instance **Out
     *OutCount = &OpenGL->PerInstanceDataCount;
 }
 
-mesh_handle OpenGLUploadMesh(open_gl *OpenGL, PNUV1_vertex *VB, uint32 VC, uint32 *IB, uint32 IC)
-{
-    GLsizei StrideInBytes = sizeof(PNUV1_vertex);
-    GLsizeiptr VertexBufferSzInBytes = (GLsizeiptr)sizeof(PNUV1_vertex)*VC;
-    GLsizeiptr IndexBufferSzInBytes = (GLsizeiptr)sizeof(uint32)*IC;
+// mesh_handle OpenGLUploadMesh(open_gl *OpenGL, PNUV1_vertex *VB, uint32 VC, uint32 *IB, uint32 IC)
+// {
+//     GLsizei StrideInBytes = sizeof(PNUV1_vertex);
+//     GLsizeiptr VertexBufferSzInBytes = (GLsizeiptr)sizeof(PNUV1_vertex)*VC;
+//     GLsizeiptr IndexBufferSzInBytes = (GLsizeiptr)sizeof(uint32)*IC;
 
-    open_gl_mesh Mesh = {};
+//     open_gl_mesh Mesh = {};
 
-    glGenVertexArrays(1, &Mesh.VAO);
-    glBindVertexArray(Mesh.VAO);
-    glGenBuffers(1, &Mesh.VBO);
-    glBindBuffer(GL_ARRAY_BUFFER, Mesh.VBO);
-    glBufferData(GL_ARRAY_BUFFER, VertexBufferSzInBytes, VB, GL_STATIC_DRAW);
+//     glGenVertexArrays(1, &Mesh.VAO);
+//     glBindVertexArray(Mesh.VAO);
+//     glGenBuffers(1, &Mesh.VBO);
+//     glBindBuffer(GL_ARRAY_BUFFER, Mesh.VBO);
+//     glBufferData(GL_ARRAY_BUFFER, VertexBufferSzInBytes, VB, GL_STATIC_DRAW);
 
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, StrideInBytes, 0);
-    glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, StrideInBytes, (void*)offsetof(PNUV1_vertex, IJK));
-    glEnableVertexAttribArray(2);
-    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, StrideInBytes, (void*)offsetof(PNUV1_vertex, UV0));
+//     glEnableVertexAttribArray(0);
+//     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, StrideInBytes, 0);
+//     glEnableVertexAttribArray(1);
+//     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, StrideInBytes, (void*)offsetof(PNUV1_vertex, IJK));
+//     glEnableVertexAttribArray(2);
+//     glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, StrideInBytes, (void*)offsetof(PNUV1_vertex, UV0));
 
-    glGenBuffers(1, &Mesh.IBO);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, Mesh.IBO);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, IndexBufferSzInBytes, IB, GL_STATIC_DRAW);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-    glBindVertexArray(0);
+//     glGenBuffers(1, &Mesh.IBO);
+//     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, Mesh.IBO);
+//     glBufferData(GL_ELEMENT_ARRAY_BUFFER, IndexBufferSzInBytes, IB, GL_STATIC_DRAW);
+//     glBindBuffer(GL_ARRAY_BUFFER, 0);
+//     glBindVertexArray(0);
 
-    Mesh.IndicesCount = IC;
-    mesh_handle NewHandle = NextAvailableMeshHandle(OpenGL);
-    OpenGL->HandleToMesh[NewHandle] = Mesh;
+//     Mesh.IndicesCount = IC;
+//     mesh_handle NewHandle = NextAvailableMeshHandle(OpenGL);
+//     OpenGL->HandleToMesh[NewHandle] = Mesh;
 
-    return NewHandle;
-}
+//     return NewHandle;
+// }
 
 mesh_handle OpenGLUploadMesh(open_gl *OpenGL, PNUV2_vertex *VB, uint32 VC, uint32 *IB, uint32 IC)
 {

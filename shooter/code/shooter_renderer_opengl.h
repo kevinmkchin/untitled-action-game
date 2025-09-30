@@ -43,8 +43,8 @@ struct alignas(16) open_gl_model_instance
     int32 PointLightsCount;         // 4       : 160
     real32 PointLightsAttLin[4];    // 4*4=16  : 176
     real32 PointLightsAttQuad[4];   // 4*4=16  : 192
-    render_descriptor Descriptor;   // 8       : 200
-    uint64 _padding_;               // 8       : 208
+    render_descriptor Descriptor;   // 12      : 204
+    uint32 _padding_;               // 4       : 208
 
     // bool operator<(const open_gl_model_instance &Other) const
     // {
@@ -105,7 +105,7 @@ void OpenGLActivatePipeline(open_gl *OpenGL, rendering_pipeline Pipeline);
 
 void OpenGLGetPerInstanceDataArray(open_gl *OpenGL, open_gl_model_instance **OutArray, uint32 **OutCount);
 
-mesh_handle OpenGLUploadMesh(open_gl *OpenGL, PNUV1_vertex *VB, uint32 VC, uint32 *IB, uint32 IC);
+// mesh_handle OpenGLUploadMesh(open_gl *OpenGL, PNUV1_vertex *VB, uint32 VC, uint32 *IB, uint32 IC);
 mesh_handle OpenGLUploadMesh(open_gl *OpenGL, PNUV2_vertex *VB, uint32 VC, uint32 *IB, uint32 IC);
 void OpenGLDrawMesh(open_gl *OpenGL, mesh_handle MeshHandle);
 void OpenGLDrawMeshInstanced(open_gl *OpenGL, mesh_handle MeshHandle, uint32 Count);

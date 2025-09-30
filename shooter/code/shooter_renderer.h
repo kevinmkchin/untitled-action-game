@@ -18,12 +18,12 @@ enum pixel_format
     BGRA_Float,
 };
 
-struct PNUV1_vertex
-{
-    vec3 XYZ;
-    vec3 IJK;
-    vec2 UV0;
-};
+// struct PNUV1_vertex
+// {
+//     vec3 XYZ;
+//     vec3 IJK;
+//     vec2 UV0;
+// };
 
 struct PNUV2_vertex
 {
@@ -37,11 +37,13 @@ struct render_descriptor
 {
     mesh_handle    Mesh;
     texture_handle Albedo;
+    texture_handle Lightmap;
 
     bool operator==(render_descriptor &Other)
     {
         bool Result = Mesh == Other.Mesh &&
-                      Albedo == Other.Albedo;
+                      Albedo == Other.Albedo &&
+                      Lightmap == Other.Lightmap;
         return Result;
     }
     bool operator!=(render_descriptor &Other)
@@ -58,7 +60,6 @@ struct render_item
     render_descriptor Descriptor;
     bool32 UseLightCubes; // TODO(Kevin): branch on UseLightCubes
     bool32 UseLightmap;
-    texture_handle Lightmap;
     vec3 WorldPosition;
     quat WorldRotation;
     vec3 WorldScale;
@@ -100,9 +101,10 @@ struct renderer
 
     platform_api PlatformAPI;
 
-    rendering_pipeline WorldGeometryTest;
     rendering_pipeline StaticLit;
     // TODO(Kevin): rendering_pipeline SkinnedLit;
+
+    texture_handle WhiteTexture_1x1;
 
     uint32 StaticLitItemsMaxCount;
 
@@ -111,7 +113,7 @@ struct renderer
     // from the game layer. Therefore, renderer MUST be constructed to have a valid vtable
     // ptr. C-style function table will be more stable, but for now this is more convenient.
     virtual void PushRenderItems(render_item *RenderItems, uint32 RenderItemsCount);
-    virtual mesh_handle UploadMeshData(PNUV1_vertex *VB, uint32 VC, uint32 *IB, uint32 IC);
+    // virtual mesh_handle UploadMeshData(PNUV1_vertex *VB, uint32 VC, uint32 *IB, uint32 IC);
     virtual mesh_handle UploadMeshData(PNUV2_vertex *VB, uint32 VC, uint32 *IB, uint32 IC);
     virtual texture_handle UploadTexture2DData(void *Bitmap, uint32 W, uint32 H, pixel_format Format, 
                                                bool32 LinearFiltering);

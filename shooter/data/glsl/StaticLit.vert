@@ -1,10 +1,11 @@
-#version 460
+#version 430
 
 // NOTE(Kevin): All worldspace, lit, mesh-based entities are instanced via this shader!
 
 layout (location = 0) in vec3 Model_Position;
 layout (location = 1) in vec3 Model_Normal;
-layout (location = 2) in vec2 Model_UV;
+layout (location = 2) in vec2 Model_UV0;
+layout (location = 3) in vec2 Model_UV1;
 
 struct model_instance_data_t
 {
@@ -23,14 +24,13 @@ layout(std430, binding = 0) buffer InstanceDataSSBO
     model_instance_data_t Instances[];
 };
 
-// the base instance is used (calculated on CPU by SSBO offset / sizeof(model_instance_data_t)) so that
-// any number of arbitrary types can be allocated on the 
 uniform int BaseInstanceIndex;
 uniform mat4 ProjFromView;
 uniform mat4 ViewFromWorld;
 
 out flat int InstanceIndex;
-out vec2 TexCoords;
+out vec2 UV0;
+out vec2 UV1;
 out vec3 WorldPos;
 out vec3 WorldNormal;
 
@@ -41,6 +41,7 @@ void main()
     vec4 World_Position = WorldFromModel * vec4(Model_Position, 1.0);
     WorldPos = World_Position.xyz;
     WorldNormal = transpose(inverse(mat3(WorldFromModel))) * Model_Normal;
-    TexCoords = Model_UV;
+    UV0 = Model_UV0;
+    UV1 = Model_UV1;
     gl_Position = ProjFromView * ViewFromWorld * World_Position;
 }
