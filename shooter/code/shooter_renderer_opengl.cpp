@@ -554,16 +554,17 @@ void OpenGLSSBOBindTo(n_buffered_ssbo *SSBO, GLuint BindingIndex)
 
 ssbo_frame_chunk OpenGLSSBOBeginFrame(n_buffered_ssbo *SSBO)
 {
-    SSBO->CurrentFrame = (SSBO->CurrentFrame + 1) % SSBO->NumFrames;
+    // NOTE(Kevin): When a fence becomes signaled, you can be certain that 
+    // the GPU has completed all commands issued before the fence was created.
+    GLenum Status = GL_UNSIGNALED;
+    while (Status != GL_ALREADY_SIGNALED && 
+           Status != GL_CONDITION_SATISFIED && 
+           SSBO->FrameSyncObjects[SSBO->CurrentFrame] != nullptr)
+    {
+        Status = glClientWaitSync(SSBO->FrameSyncObjects[SSBO->CurrentFrame], GL_SYNC_FLUSH_COMMANDS_BIT, 1);
+    }
 
-    // IMPORTANT See note in OpenGLSSBOEndFrame
-    // // When a fence becomes signaled, you can be certain that the GPU has completed all 
-    // // OpenGL commands issued before the fence was created.
-    // GLenum Status = GL_UNSIGNALED;
-    // while (Status != GL_ALREADY_SIGNALED && Status != GL_CONDITION_SATISFIED && SSBO->FrameSyncObjects[SSBO->CurrentFrame] != nullptr)
-    // {
-    //     Status = glClientWaitSync(SSBO->FrameSyncObjects[SSBO->CurrentFrame], GL_SYNC_FLUSH_COMMANDS_BIT, 1);
-    // }
+    SSBO->CurrentFrame = (SSBO->CurrentFrame + 1) % SSBO->NumFrames;
 
     umm GlobalOffset = SSBO->CurrentFrame * SSBO->FrameChunkSize;
 
@@ -575,17 +576,15 @@ ssbo_frame_chunk OpenGLSSBOBeginFrame(n_buffered_ssbo *SSBO)
 
 void OpenGLSSBOEndFrame(n_buffered_ssbo *SSBO)
 {
-    // IMPORTANT
-    // NOTE(Kevin) 2025-03-31: Maybe this is a bug on my GPU, but calling glFenceSync
-    //      is leaking memory. In Task Manager and Visual Studio can observe memory rising
-    //      every frame this is called even if glDeleteSync is also called...
-    //      hopefully this issue doesn't persist when I port to Vulkan.
-    //      ACTUALLY when VSYNC is ON it does not leak memory. Which makes me think it's something
-    //      to do with the CPU submitting jobs too quickly maybe. ChatGPT says this is expected on
-    //      NVIDIA cards it is a backpressure problem. Hopefully the issue goes away when the CPU
-    //      is taking longer to complete the frame and CPU GPU work is more balanced.
-    // glDeleteSync(SSBO->FrameSyncObjects[SSBO->CurrentFrame]);
-    // SSBO->FrameSyncObjects[SSBO->CurrentFrame] = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+    // IMPORTANT !!!
+    // NOTE(Kevin) 2025-03-31: Maybe this is a bug in my Nvidia driver, but calling glFenceSync
+    // is leaking memory when the game is rendering thousands of frames per second. In Task Manager
+    // and Visual Studio can observe memory rising every frame this is called even if glDeleteSync
+    // is also called. When VSYNC is ON and the framerate is capped, it does not leak memory. Which 
+    // makes me think it's something to do with the CPU submitting jobs too quickly maybe. ChatGPT
+    // says this is expected on NVIDIA cards it is a backpressure problem.
+    glDeleteSync(SSBO->FrameSyncObjects[SSBO->CurrentFrame]);
+    SSBO->FrameSyncObjects[SSBO->CurrentFrame] = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
 }
 
 
