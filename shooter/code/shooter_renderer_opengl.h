@@ -21,10 +21,19 @@ struct open_gl_mesh
 
 struct open_gl_texture
 {
-    uint32 Id;
+    uint32 ID;
     GLenum TargetFormat;
     GLenum SourceFormat;
     GLenum PixelDataType;
+};
+
+struct open_gl_framebuffer
+{
+    uint32 FBO;
+    open_gl_texture ColorTex;
+    open_gl_texture DepthTex;
+    uint32 Width;
+    uint32 Height;
 };
 
 struct alignas(16) open_gl_model_instance
@@ -96,6 +105,8 @@ struct open_gl
     open_gl_shader *Shaders[16];
     uint32 ShadersCount;
 
+    open_gl_framebuffer RenderTargetGame;
+
     n_buffered_ssbo PerInstanceDataSSBO;
     ssbo_frame_chunk PerInstanceDataFrameChunk;
     uint32 PerInstanceDataCount;
@@ -111,11 +122,17 @@ void OpenGLDrawMesh(open_gl *OpenGL, mesh_handle MeshHandle);
 void OpenGLDrawMeshInstanced(open_gl *OpenGL, mesh_handle MeshHandle, uint32 Count);
 void OpenGLDeleteMesh(open_gl *OpenGL, mesh_handle MeshHandle);
 
-texture_handle OpenGLUploadTexture2D(open_gl *OpenGL, void *bitmap, uint32 w, uint32 h, 
+texture_handle OpenGLUploadTexture2D(open_gl *OpenGL, void *Bitmap, uint32 W, uint32 H, 
                                      pixel_format Format, bool32 LinearFiltering);
 void OpenGLBindTexture2D(open_gl *OpenGL, uint32 Slot, texture_handle TextureHandle);
-void OpenGLUpdateTexture2D(open_gl *OpenGL, texture_handle TextureHandle, void *bitmap, uint32 w, uint32 h);
+void OpenGLUpdateTexture2D(open_gl *OpenGL, texture_handle TextureHandle, void *Bitmap, uint32 W, uint32 H);
 void OpenGLDeleteGPUTexture2D(open_gl *OpenGL, texture_handle TextureHandle);
+
+void OpenGLCreateFramebuffer(open_gl_framebuffer *Framebuffer, uint32 W, uint32 H,
+                             GLenum TargetFormat = GL_RGBA, GLenum SourceFormat = GL_RGBA,
+                             GLenum PixelType = GL_UNSIGNED_BYTE);
+void OpenGLResizeFramebuffer(open_gl_framebuffer *Framebuffer, uint32 W, uint32 H);
+void OpenGLDeleteFramebuffer(open_gl_framebuffer *Framebuffer);
 
 void OpenGLSSBOInitialize(n_buffered_ssbo *SSBO, memory_index FrameChunkSizeBytes, uint32 NumFrames = 3);
 void OpenGLSSBODelete(n_buffered_ssbo *SSBO);

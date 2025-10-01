@@ -3,6 +3,15 @@
 #define GL3W_IMPLEMENTATION
 #include "../ext/gl3w.h"
 
+global uint32 PreviousBackBufferW;
+global uint32 PreviousBackBufferH;
+
+internal void OpenGLUpdatePreviousBackBufferSize(uint32 W, uint32 H)
+{
+    PreviousBackBufferW = W;
+    PreviousBackBufferH = H;
+}
+
 internal void OpenGLInit(open_gl *OpenGL)
 {
     renderer *RendererFrontend = &(OpenGL->Header);
@@ -19,6 +28,10 @@ internal void OpenGLInit(open_gl *OpenGL)
     DEBUGPlatformFreeFileMemory(0, TestFSRead.Contents);
     RendererFrontend->StaticLit.ShaderID = 0;
     RendererFrontend->StaticLit.DepthTest = true;
+
+    Assert(OpenGL->Header.BackBufferW > 0 && OpenGL->Header.BackBufferH > 0);
+    OpenGLUpdatePreviousBackBufferSize(OpenGL->Header.BackBufferW, OpenGL->Header.BackBufferH);
+    OpenGLCreateFramebuffer(&OpenGL->RenderTargetGame, OpenGL->Header.BackBufferW, OpenGL->Header.BackBufferH);
 
     RendererFrontend->StaticLitItemsMaxCount = 2000;
     OpenGLSSBOInitialize(&(OpenGL->PerInstanceDataSSBO), 
@@ -47,13 +60,22 @@ internal void OpenGLBeginFrame(open_gl *OpenGL)
 {
     OpenGL->PerInstanceDataFrameChunk = OpenGLSSBOBeginFrame(&(OpenGL->PerInstanceDataSSBO));
     OpenGL->PerInstanceDataCount = 0;
+
+    if (PreviousBackBufferW != OpenGL->Header.BackBufferW ||
+        PreviousBackBufferH != OpenGL->Header.BackBufferH)
+    {
+        OpenGLResizeFramebuffer(&OpenGL->RenderTargetGame, OpenGL->Header.BackBufferW, OpenGL->Header.BackBufferH);
+    }
+    OpenGLUpdatePreviousBackBufferSize(OpenGL->Header.BackBufferW, OpenGL->Header.BackBufferH);
 }
 
 internal void OpenGLEndFrame(open_gl *OpenGL)
 {
     renderer *RendererFrontend = &(OpenGL->Header);
 
-    glViewport(0, 0, OpenGL->Header.BackBufferW, OpenGL->Header.BackBufferH);
+    open_gl_framebuffer *RenderTarget = &OpenGL->RenderTargetGame;
+    glBindFramebuffer(GL_FRAMEBUFFER, RenderTarget->FBO);
+    glViewport(0, 0, RenderTarget->Width, RenderTarget->Height);
     glClearColor(0.674f, 0.847f, 1.0f, 1.f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -127,6 +149,14 @@ internal void OpenGLEndFrame(open_gl *OpenGL)
     }
 
     OpenGLSSBOEndFrame(&(OpenGL->PerInstanceDataSSBO));
+
+    //
+    // NOTE(Kevin): Composite render targets to default framebuffer / backbuffer
+    //
+    glBlitNamedFramebuffer(OpenGL->RenderTargetGame.FBO, 0,
+                           0, 0, OpenGL->RenderTargetGame.Width, OpenGL->RenderTargetGame.Height, // Source rect
+                           0, 0, OpenGL->Header.BackBufferW, OpenGL->Header.BackBufferH, // Dest rect
+                           GL_COLOR_BUFFER_BIT, GL_NEAREST);
 }
 
 internal mesh_handle NextAvailableMeshHandle(open_gl *OpenGL)
@@ -332,9 +362,9 @@ texture_handle OpenGLUploadTexture2D(open_gl *OpenGL, void *Bitmap, uint32 W, ui
         break;
     }
 
-    glGenTextures(1, &Texture.Id);   // generate texture and grab texture id
+    glGenTextures(1, &Texture.ID);   // generate texture and grab texture ID
 
-    glBindTexture(GL_TEXTURE_2D, Texture.Id);
+    glBindTexture(GL_TEXTURE_2D, Texture.ID);
     // https://registry.khronos.org/OpenGL-Refpages/gl4/html/glTexImage2D.xhtml
     glTexImage2D(
             GL_TEXTURE_2D,            // texture target type
@@ -416,7 +446,73 @@ void OpenGLBindTexture2D(open_gl *OpenGL, uint32 Slot, texture_handle TextureHan
     }
 
     glActiveTexture(TextureUnit);
-    glBindTexture(GL_TEXTURE_2D, Texture.Id);
+    glBindTexture(GL_TEXTURE_2D, Texture.ID);
+}
+
+void OpenGLCreateFramebuffer(open_gl_framebuffer *Framebuffer, uint32 W, uint32 H,
+                             GLenum TargetFormat, GLenum SourceFormat, GLenum PixelType)
+{
+    *Framebuffer = {};
+    Framebuffer->Width = W;
+    Framebuffer->Height = H;
+    Framebuffer->ColorTex.TargetFormat = TargetFormat;
+    Framebuffer->ColorTex.SourceFormat = SourceFormat;
+    Framebuffer->ColorTex.PixelDataType = PixelType;
+    Framebuffer->DepthTex.TargetFormat = GL_DEPTH_COMPONENT;
+    Framebuffer->DepthTex.SourceFormat = GL_DEPTH_COMPONENT;
+    Framebuffer->DepthTex.PixelDataType = GL_FLOAT;
+
+    glGenTextures(1, &Framebuffer->ColorTex.ID);
+    glBindTexture(GL_TEXTURE_2D, Framebuffer->ColorTex.ID);
+    glTexImage2D(GL_TEXTURE_2D, 0, Framebuffer->ColorTex.TargetFormat, Framebuffer->Width, Framebuffer->Height, 0, 
+                 Framebuffer->ColorTex.SourceFormat, Framebuffer->ColorTex.PixelDataType, nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+
+    glGenTextures(1, &Framebuffer->DepthTex.ID);
+    glBindTexture(GL_TEXTURE_2D, Framebuffer->DepthTex.ID);
+    glTexImage2D(GL_TEXTURE_2D, 0, Framebuffer->DepthTex.TargetFormat, Framebuffer->Width, Framebuffer->Height, 0, 
+                 Framebuffer->DepthTex.SourceFormat, Framebuffer->DepthTex.PixelDataType, nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+
+    glGenFramebuffers(1, &Framebuffer->FBO);
+    glBindFramebuffer(GL_FRAMEBUFFER, Framebuffer->FBO);
+    glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, Framebuffer->ColorTex.ID, 0);
+    glFramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, Framebuffer->DepthTex.ID, 0);
+
+    Assert(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
+void OpenGLResizeFramebuffer(open_gl_framebuffer *Framebuffer, uint32 W, uint32 H)
+{
+    if (Framebuffer->Width == W && Framebuffer->Height == H)
+    {
+        return;
+    }
+
+    Framebuffer->Width = W;
+    Framebuffer->Height = H;
+
+    glBindTexture(GL_TEXTURE_2D, Framebuffer->ColorTex.ID);
+    glTexImage2D(GL_TEXTURE_2D, 0, Framebuffer->ColorTex.TargetFormat, Framebuffer->Width, Framebuffer->Height, 0, 
+                 Framebuffer->ColorTex.SourceFormat, Framebuffer->ColorTex.PixelDataType, nullptr);
+    glBindTexture(GL_TEXTURE_2D, Framebuffer->DepthTex.ID);
+    glTexImage2D(GL_TEXTURE_2D, 0, Framebuffer->DepthTex.TargetFormat, Framebuffer->Width, Framebuffer->Height, 0, 
+                 Framebuffer->DepthTex.SourceFormat, Framebuffer->DepthTex.PixelDataType, nullptr);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, Framebuffer->FBO);
+    Assert(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
+void OpenGLDeleteFramebuffer(open_gl_framebuffer *Framebuffer)
+{
+    glDeleteTextures(1, &Framebuffer->ColorTex.ID);
+    glDeleteTextures(1, &Framebuffer->DepthTex.ID);
+    glDeleteFramebuffers(1, &Framebuffer->FBO);
 }
 
 void OpenGLSSBOInitialize(n_buffered_ssbo *SSBO, umm FrameChunkSizeBytes, uint32 NumFrames)
@@ -740,6 +836,15 @@ Win32InitOpenGL(HDC WindowDC /* TODO(Kevin): platform limits?*/)
         // LogMessage("GL_VERSION %s", glGetString(GL_VERSION));
         
         PlatformOpenGLSetVSync(OpenGL, true);
+
+        HWND Window = WindowFromDC(WindowDC);
+        RECT ClientRect;
+        GetClientRect(Window, &ClientRect);
+        int WindowWidth = ClientRect.right - ClientRect.left;
+        int WindowHeight = ClientRect.bottom - ClientRect.top;
+        OpenGL->Header.BackBufferW = SafeCastToUInt32(WindowWidth);
+        OpenGL->Header.BackBufferH = SafeCastToUInt32(WindowHeight);
+
         OpenGLInit(OpenGL);
     }
 

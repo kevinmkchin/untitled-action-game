@@ -971,10 +971,10 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
 
                     Win32ProcessPendingMessages(&Win32State, NewKeyboardController);
 
-                    Win32BeginFrame(Renderer);
                     win32_window_dimension Dimensions = Win32GetWindowDimension(Window);
                     Renderer->BackBufferW = SafeCastToUInt32(Dimensions.Width);
                     Renderer->BackBufferH = SafeCastToUInt32(Dimensions.Height);
+                    Win32BeginFrame(Renderer);
 
                     POINT MouseP;
                     // TODO(Kevin): Handle failure case
