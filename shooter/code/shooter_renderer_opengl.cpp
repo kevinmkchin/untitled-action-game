@@ -554,6 +554,8 @@ void OpenGLSSBOBindTo(n_buffered_ssbo *SSBO, GLuint BindingIndex)
 
 ssbo_frame_chunk OpenGLSSBOBeginFrame(n_buffered_ssbo *SSBO)
 {
+    SSBO->CurrentFrame = (SSBO->CurrentFrame + 1) % SSBO->NumFrames;
+
     // NOTE(Kevin): When a fence becomes signaled, you can be certain that 
     // the GPU has completed all commands issued before the fence was created.
     GLenum Status = GL_UNSIGNALED;
@@ -563,8 +565,6 @@ ssbo_frame_chunk OpenGLSSBOBeginFrame(n_buffered_ssbo *SSBO)
     {
         Status = glClientWaitSync(SSBO->FrameSyncObjects[SSBO->CurrentFrame], GL_SYNC_FLUSH_COMMANDS_BIT, 1);
     }
-
-    SSBO->CurrentFrame = (SSBO->CurrentFrame + 1) % SSBO->NumFrames;
 
     umm GlobalOffset = SSBO->CurrentFrame * SSBO->FrameChunkSize;
 
