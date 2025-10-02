@@ -66,6 +66,7 @@ struct buffer
 };
 typedef buffer string;
 
+// NOTE(Kevin): These macros conflict with definitions in iostream.h if I ever use that
 #define internal static             // static functions are internal to the translation unit
 #define global static               // global static variable
 #define local_persist static        // local static variable

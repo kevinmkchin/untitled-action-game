@@ -3,9 +3,6 @@
 
 #include "../ext/gl3w.h"
 #include "shooter_renderer.h"
-#include "shooter_renderer_opengl_shaders.h"
-
-// TODO(Kevin): Framebuffer objects
 
 //
 // NOTE(Kevin): Rendering backend services to the rendering frontend
@@ -34,6 +31,19 @@ struct open_gl_framebuffer
     open_gl_texture DepthTex;
     uint32 Width;
     uint32 Height;
+};
+
+struct vertex_attribute
+{
+    GLenum Format;
+    uint32 NumComponents;
+    uint32 Offset;
+};
+
+struct vertex_descriptor
+{
+    size_t ByteSize; // stride
+    vertex_attribute Attrib[5];
 };
 
 struct alignas(16) open_gl_model_instance
@@ -77,12 +87,41 @@ struct ssbo_frame_chunk
 struct n_buffered_ssbo
 {
     GLuint BufferObject;
+
     void *MappedPtr;
     umm FrameChunkSize;
     umm TotalSize;
     uint32 NumFrames;
     uint32 CurrentFrame;
     GLsync FrameSyncObjects[5];
+};
+
+struct vstream_frame_chunk
+{
+    void *WriteTo;
+    memory_index ChunkSizeBytes;
+};
+
+struct persistent_vertex_stream
+{
+    GLuint VAO;
+    GLuint VBO;
+    memory_index VertexSize;
+    static constexpr GLuint BindingIndex = 0;
+
+    void *MappedPtr;
+    umm FrameChunkSize;
+    umm TotalSize;
+    uint32 NumFrames;
+    uint32 CurrentFrame;
+    GLsync FrameSyncObjects[5];
+};
+
+struct gui_vstream_item
+{
+    umm OffsetBytes;
+    uint32 VertexCount;
+    texture_handle ColorTexture;
 };
 
 struct open_gl
@@ -102,19 +141,28 @@ struct open_gl
     mesh_handle FreeTextureHandles[512];
     uint32 FreeTextureHandlesCount;
 
-    open_gl_shader *Shaders[16];
+    struct open_gl_shader *Shaders[16];
     uint32 ShadersCount;
+    struct open_gl_shader *FinalCompositeShader;
 
     open_gl_framebuffer RenderTargetGame;
+    open_gl_framebuffer RenderTargetGui;
 
-    n_buffered_ssbo PerInstanceDataSSBO;
-    ssbo_frame_chunk PerInstanceDataFrameChunk;
-    uint32 PerInstanceDataCount;
+    n_buffered_ssbo             PerInstanceDataSSBO;
+    ssbo_frame_chunk            PerInstanceDataFrameChunk;
+    uint32                      PerInstanceDataCount;
+
+    persistent_vertex_stream    GuiVertexStream;
+    vstream_frame_chunk         GuiVertexStreamFrameChunk;
+    gui_vstream_item            GuiVertexStreamItems[1024];
+    uint32                      GuiVertexStreamItemsCount;
 };
 
 void OpenGLActivatePipeline(open_gl *OpenGL, rendering_pipeline Pipeline);
 
 void OpenGLGetPerInstanceDataArray(open_gl *OpenGL, open_gl_model_instance **OutArray, uint32 **OutCount);
+void OpenGLGetGuiVertexStreamFrame(open_gl *OpenGL, vstream_frame_chunk *OutVertexStreamFrame);
+void OpenGLGetGuiVertexStreamItemsArray(open_gl *OpenGL, gui_vstream_item** OutArray, uint32 **OutCount);
 
 // mesh_handle OpenGLUploadMesh(open_gl *OpenGL, PNUV1_vertex *VB, uint32 VC, uint32 *IB, uint32 IC);
 mesh_handle OpenGLUploadMesh(open_gl *OpenGL, PNUV2_vertex *VB, uint32 VC, uint32 *IB, uint32 IC);
@@ -128,7 +176,7 @@ void OpenGLBindTexture2D(open_gl *OpenGL, uint32 Slot, texture_handle TextureHan
 void OpenGLUpdateTexture2D(open_gl *OpenGL, texture_handle TextureHandle, void *Bitmap, uint32 W, uint32 H);
 void OpenGLDeleteGPUTexture2D(open_gl *OpenGL, texture_handle TextureHandle);
 
-void OpenGLCreateFramebuffer(open_gl_framebuffer *Framebuffer, uint32 W, uint32 H,
+void OpenGLCreateFramebuffer(open_gl_framebuffer *Framebuffer, uint32 W, uint32 H, bool32 DepthAttachment,
                              GLenum TargetFormat = GL_RGBA, GLenum SourceFormat = GL_RGBA,
                              GLenum PixelType = GL_UNSIGNED_BYTE);
 void OpenGLResizeFramebuffer(open_gl_framebuffer *Framebuffer, uint32 W, uint32 H);
@@ -139,6 +187,13 @@ void OpenGLSSBODelete(n_buffered_ssbo *SSBO);
 void OpenGLSSBOBindTo(n_buffered_ssbo *SSBO, GLuint BindingIndex);
 ssbo_frame_chunk OpenGLSSBOBeginFrame(n_buffered_ssbo *SSBO);
 void OpenGLSSBOEndFrame(n_buffered_ssbo *SSBO);
+
+void OpenGLVertexStreamInitialize(persistent_vertex_stream *Stream, uint32 VertexCountPerFrame,
+                                  vertex_descriptor VertexDescriptor, uint32 NumFrames = 3);
+void OpenGLVertexStreamDelete(persistent_vertex_stream *Stream);
+vstream_frame_chunk OpenGLVertexStreamBeginFrame(persistent_vertex_stream *Stream);
+void OpenGLVertexStreamDraw(persistent_vertex_stream *Stream, umm OffsetBytes, uint32 VertexCount);
+void OpenGLVertexStreamEndFrame(persistent_vertex_stream *Stream);
 
 #ifdef SHOOTER_PLATFORM_WIN32
 

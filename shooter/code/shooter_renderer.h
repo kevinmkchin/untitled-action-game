@@ -7,6 +7,7 @@
 // and the renderer+assetman systems implement ways to upload them and render them?
 typedef uint32 mesh_handle;
 typedef uint32 texture_handle;
+#define InvalidHandle 0xFFFFFFFF
 
 enum pixel_format
 {
@@ -102,7 +103,7 @@ struct renderer
     platform_api PlatformAPI;
 
     rendering_pipeline StaticLit;
-    // TODO(Kevin): rendering_pipeline SkinnedLit;
+    rendering_pipeline UIPipeline;
 
     texture_handle WhiteTexture_1x1;
 
@@ -113,6 +114,7 @@ struct renderer
     // from the game layer. Therefore, renderer MUST be constructed to have a valid vtable
     // ptr. C-style function table will be more stable, but for now this is more convenient.
     virtual void PushRenderItems(render_item *RenderItems, uint32 RenderItemsCount);
+    virtual void PushGuiDrawRequests(memory_arena Scratch, struct gui_draw_request *Requests, uint32 RequestsCount);
     // virtual mesh_handle UploadMeshData(PNUV1_vertex *VB, uint32 VC, uint32 *IB, uint32 IC);
     virtual mesh_handle UploadMeshData(PNUV2_vertex *VB, uint32 VC, uint32 *IB, uint32 IC);
     virtual texture_handle UploadTexture2DData(void *Bitmap, uint32 W, uint32 H, pixel_format Format, 

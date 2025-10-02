@@ -7,6 +7,73 @@
 #include <unordered_map>
 #include <string>
 
+global char* FinalCompositeVS =
+    "#version 330\n"
+    "layout(location = 0) in vec2 pos;\n"
+    "layout(location = 1) in vec2 uv;\n"
+    "out vec2 texcoord;\n"
+    "void main()\n"
+    "{\n"
+    "    gl_Position = vec4(pos, 0, 1.0);\n"
+    "    texcoord = uv;\n"
+    "}\n";
+
+global char* FinalCompositeFS =
+    "#version 330\n"
+    "uniform sampler2D screen_texture;\n"
+    "in vec2 texcoord;\n"
+    "out vec4 color;\n"
+    "void main()\n"
+    "{\n"
+    "    vec4 in_color = texture(screen_texture, texcoord);\n"
+    "    color = in_color;\n"
+    "}\n";
+
+global float FinalCompositeQuadVertices[16] =
+{
+    //  x   y    u    v
+    -1.0f, -1.0f, 0.0f, 0.0f,
+    1.0f, -1.0f, 1.0f, 0.0f,
+    -1.0f, 1.0f, 0.0f, 1.0f,
+    1.0f, 1.0f, 1.0f, 1.0f
+};
+
+global uint32 FinalCompositeQuadIndices[6] =
+{
+    0, 1, 3,
+    0, 3, 2
+};
+
+internal open_gl_mesh FinalCompositeQuadMesh()
+{
+    GLsizei StrideInBytes = sizeof(float)*4;
+    GLsizeiptr VertexBufferSzInBytes = (GLsizeiptr)sizeof(float)*ArrayCount(FinalCompositeQuadVertices);
+    GLsizeiptr IndexBufferSzInBytes = (GLsizeiptr)sizeof(uint32)*ArrayCount(FinalCompositeQuadIndices);
+
+    open_gl_mesh Mesh = {};
+
+    glGenVertexArrays(1, &Mesh.VAO);
+    glBindVertexArray(Mesh.VAO);
+    glGenBuffers(1, &Mesh.VBO);
+    glBindBuffer(GL_ARRAY_BUFFER, Mesh.VBO);
+    glBufferData(GL_ARRAY_BUFFER, VertexBufferSzInBytes, FinalCompositeQuadVertices, GL_STATIC_DRAW);
+
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, StrideInBytes, 0);
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, StrideInBytes, (void*)(sizeof(float)*2));
+
+    glGenBuffers(1, &Mesh.IBO);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, Mesh.IBO);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, IndexBufferSzInBytes, FinalCompositeQuadIndices, GL_STATIC_DRAW);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
+
+    Mesh.IndicesCount = ArrayCount(FinalCompositeQuadIndices);
+
+    return Mesh;
+}
+
 struct open_gl_shader
 {
     GLuint ProgramId;

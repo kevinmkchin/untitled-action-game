@@ -2,9 +2,11 @@
 #include "shooter_shared.h"
 #define GL3W_IMPLEMENTATION
 #include "../ext/gl3w.h"
+#include "shooter_renderer_opengl_shaders.h"
 
 global uint32 PreviousBackBufferW;
 global uint32 PreviousBackBufferH;
+global open_gl_mesh FinalCompositeQuad;
 
 internal void OpenGLUpdatePreviousBackBufferSize(uint32 W, uint32 H)
 {
@@ -16,29 +18,64 @@ internal void OpenGLInit(open_gl *OpenGL)
 {
     renderer *RendererFrontend = &(OpenGL->Header);
 
+    FinalCompositeQuad = FinalCompositeQuadMesh();
+
+    // TODO(Kevin): This is just test code! Get rid of new! Constructor required for std::unordered_map bullshit
+    OpenGL->Shaders[0] = new open_gl_shader();
+    OpenGL->FinalCompositeShader = OpenGL->Shaders[0];
+    ++OpenGL->ShadersCount;
+    GLCreateShaderProgram(*(OpenGL->FinalCompositeShader), FinalCompositeVS, FinalCompositeFS);
+
     debug_read_file_result TestVSRead = DEBUGPlatformReadEntireFile(0, "../data/glsl/StaticLit.vert");
     debug_read_file_result TestFSRead = DEBUGPlatformReadEntireFile(0, "../data/glsl/StaticLit.frag");
     char *TestVS = (char *)TestVSRead.Contents;
     char *TestFS = (char *)TestFSRead.Contents;
-    // TODO(Kevin): This is just test code! Get rid of new! Constructor required for std::unordered_map bullshit
-    OpenGL->Shaders[0] = new open_gl_shader();
+    OpenGL->Shaders[1] = new open_gl_shader();
     ++OpenGL->ShadersCount;
-    GLCreateShaderProgram(*(OpenGL->Shaders[0]), TestVS, TestFS);
+    GLCreateShaderProgram(*(OpenGL->Shaders[1]), TestVS, TestFS);
     DEBUGPlatformFreeFileMemory(0, TestVSRead.Contents);
     DEBUGPlatformFreeFileMemory(0, TestFSRead.Contents);
-    RendererFrontend->StaticLit.ShaderID = 0;
+    RendererFrontend->StaticLit.ShaderID = 1;
     RendererFrontend->StaticLit.DepthTest = true;
+
+    TestVSRead = DEBUGPlatformReadEntireFile(0, "../data/glsl/UI.vert");
+    TestFSRead = DEBUGPlatformReadEntireFile(0, "../data/glsl/UI.frag");
+    TestVS = (char *)TestVSRead.Contents;
+    TestFS = (char *)TestFSRead.Contents;
+    OpenGL->Shaders[2] = new open_gl_shader();
+    ++OpenGL->ShadersCount;
+    GLCreateShaderProgram(*(OpenGL->Shaders[2]), TestVS, TestFS);
+    DEBUGPlatformFreeFileMemory(0, TestVSRead.Contents);
+    DEBUGPlatformFreeFileMemory(0, TestFSRead.Contents);
+    RendererFrontend->UIPipeline.ShaderID = 2;
+    RendererFrontend->UIPipeline.DepthTest = false;
+
 
     Assert(OpenGL->Header.BackBufferW > 0 && OpenGL->Header.BackBufferH > 0);
     OpenGLUpdatePreviousBackBufferSize(OpenGL->Header.BackBufferW, OpenGL->Header.BackBufferH);
-    OpenGLCreateFramebuffer(&OpenGL->RenderTargetGame, OpenGL->Header.BackBufferW, OpenGL->Header.BackBufferH);
+    OpenGLCreateFramebuffer(&OpenGL->RenderTargetGame, OpenGL->Header.BackBufferW, OpenGL->Header.BackBufferH, true);
+    OpenGLCreateFramebuffer(&OpenGL->RenderTargetGui, OpenGL->Header.BackBufferW, OpenGL->Header.BackBufferH, false);
 
     RendererFrontend->StaticLitItemsMaxCount = 2000;
     OpenGLSSBOInitialize(&(OpenGL->PerInstanceDataSSBO), 
                          sizeof(open_gl_model_instance)*RendererFrontend->StaticLitItemsMaxCount, 3);
 
+    vertex_descriptor GuiVertexDesc = {};
+    GuiVertexDesc.ByteSize = sizeof(gui_vertex);
+    GuiVertexDesc.Attrib[0].Format = GL_FLOAT;
+    GuiVertexDesc.Attrib[0].NumComponents = 2;
+    GuiVertexDesc.Attrib[0].Offset = 0;
+    GuiVertexDesc.Attrib[1].Format = GL_FLOAT;
+    GuiVertexDesc.Attrib[1].NumComponents = 2;
+    GuiVertexDesc.Attrib[1].Offset = offsetof(gui_vertex, UV0);
+    GuiVertexDesc.Attrib[2].Format = GL_FLOAT;
+    GuiVertexDesc.Attrib[2].NumComponents = 4;
+    GuiVertexDesc.Attrib[2].Offset = offsetof(gui_vertex, Color);
+    uint32 MaxGuiVertexCountPerFrame = 10000;
+    OpenGLVertexStreamInitialize(&(OpenGL->GuiVertexStream), MaxGuiVertexCountPerFrame, GuiVertexDesc, 3);
+
     OpenGL->FreeMeshHandlesCount = ArrayCount(OpenGL->FreeMeshHandles);
-    for (int32 FreeHandle = 0; 
+    for (int32 FreeHandle = 0;
          FreeHandle < SafeCastToInt32(OpenGL->FreeMeshHandlesCount);
          ++FreeHandle)
     {
@@ -61,10 +98,14 @@ internal void OpenGLBeginFrame(open_gl *OpenGL)
     OpenGL->PerInstanceDataFrameChunk = OpenGLSSBOBeginFrame(&(OpenGL->PerInstanceDataSSBO));
     OpenGL->PerInstanceDataCount = 0;
 
+    OpenGL->GuiVertexStreamFrameChunk = OpenGLVertexStreamBeginFrame(&(OpenGL->GuiVertexStream));
+    OpenGL->GuiVertexStreamItemsCount = 0;
+
     if (PreviousBackBufferW != OpenGL->Header.BackBufferW ||
         PreviousBackBufferH != OpenGL->Header.BackBufferH)
     {
         OpenGLResizeFramebuffer(&OpenGL->RenderTargetGame, OpenGL->Header.BackBufferW, OpenGL->Header.BackBufferH);
+        OpenGLResizeFramebuffer(&OpenGL->RenderTargetGui, OpenGL->Header.BackBufferW, OpenGL->Header.BackBufferH);
     }
     OpenGLUpdatePreviousBackBufferSize(OpenGL->Header.BackBufferW, OpenGL->Header.BackBufferH);
 }
@@ -73,9 +114,8 @@ internal void OpenGLEndFrame(open_gl *OpenGL)
 {
     renderer *RendererFrontend = &(OpenGL->Header);
 
-    open_gl_framebuffer *RenderTarget = &OpenGL->RenderTargetGame;
-    glBindFramebuffer(GL_FRAMEBUFFER, RenderTarget->FBO);
-    glViewport(0, 0, RenderTarget->Width, RenderTarget->Height);
+    glBindFramebuffer(GL_FRAMEBUFFER, OpenGL->RenderTargetGame.FBO);
+    glViewport(0, 0, OpenGL->RenderTargetGame.Width, OpenGL->RenderTargetGame.Height);
     glClearColor(0.674f, 0.847f, 1.0f, 1.f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -151,12 +191,54 @@ internal void OpenGLEndFrame(open_gl *OpenGL)
     OpenGLSSBOEndFrame(&(OpenGL->PerInstanceDataSSBO));
 
     //
+    // NOTE(Kevin): Gui layer
+    //
+    glBindFramebuffer(GL_FRAMEBUFFER, OpenGL->RenderTargetGui.FBO);
+    glViewport(0, 0, OpenGL->RenderTargetGui.Width, OpenGL->RenderTargetGui.Height);
+    glClearColor(0.960f, 0.760f, 0.760f, 0.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    OpenGLActivatePipeline(OpenGL, RendererFrontend->UIPipeline);
+    open_gl_shader *UIShader = OpenGL->Shaders[RendererFrontend->UIPipeline.ShaderID];
+
+    mat4 ClipFromScreen2D = ProjectionMatrixOrthographicNoZ(0.f, (real32)OpenGL->RenderTargetGui.Width, 
+                                                            (real32)OpenGL->RenderTargetGui.Height, 0.f);
+
+    GLBindMatrix4fv(*UIShader, "ClipFromScreen2D", 1, ClipFromScreen2D.ptr());
+
+    for (uint32 GuiItemIndex = 0; 
+         GuiItemIndex < OpenGL->GuiVertexStreamItemsCount; 
+         ++GuiItemIndex)
+    {
+        gui_vstream_item Item = OpenGL->GuiVertexStreamItems[GuiItemIndex];
+        OpenGLBindTexture2D(OpenGL, 0, Item.ColorTexture);
+        OpenGLVertexStreamDraw(&OpenGL->GuiVertexStream, Item.OffsetBytes, Item.VertexCount);
+    }
+
+    //
     // NOTE(Kevin): Composite render targets to default framebuffer / backbuffer
     //
-    glBlitNamedFramebuffer(OpenGL->RenderTargetGame.FBO, 0,
-                           0, 0, OpenGL->RenderTargetGame.Width, OpenGL->RenderTargetGame.Height, // Source rect
-                           0, 0, OpenGL->Header.BackBufferW, OpenGL->Header.BackBufferH, // Dest rect
-                           GL_COLOR_BUFFER_BIT, GL_NEAREST);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glUseProgram(OpenGL->FinalCompositeShader->ProgramId);
+    glViewport(0, 0, OpenGL->Header.BackBufferW, OpenGL->Header.BackBufferH);
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+    glEnable(GL_BLEND);
+    glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_SRC_ALPHA, GL_ONE);
+    glDisable(GL_DEPTH_TEST);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, OpenGL->RenderTargetGame.ColorTex.ID);
+    glBindVertexArray(FinalCompositeQuad.VAO);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, FinalCompositeQuad.IBO);
+    glDrawElements(GL_TRIANGLES, FinalCompositeQuad.IndicesCount, GL_UNSIGNED_INT, 0);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, OpenGL->RenderTargetGui.ColorTex.ID);
+    glBindVertexArray(FinalCompositeQuad.VAO);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, FinalCompositeQuad.IBO);
+    glDrawElements(GL_TRIANGLES, FinalCompositeQuad.IndicesCount, GL_UNSIGNED_INT, 0);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
 }
 
 internal mesh_handle NextAvailableMeshHandle(open_gl *OpenGL)
@@ -200,6 +282,17 @@ void OpenGLGetPerInstanceDataArray(open_gl *OpenGL, open_gl_model_instance **Out
 {
     *OutArray = (open_gl_model_instance *)OpenGL->PerInstanceDataFrameChunk.WriteTo;
     *OutCount = &OpenGL->PerInstanceDataCount;
+}
+
+void OpenGLGetGuiVertexStreamFrame(open_gl *OpenGL, vstream_frame_chunk *OutVertexStreamFrame)
+{
+    *OutVertexStreamFrame = OpenGL->GuiVertexStreamFrameChunk;
+}
+
+void OpenGLGetGuiVertexStreamItemsArray(open_gl *OpenGL, gui_vstream_item **OutArray, uint32 **OutCount)
+{
+    *OutArray = OpenGL->GuiVertexStreamItems;
+    *OutCount = &OpenGL->GuiVertexStreamItemsCount;
 }
 
 // mesh_handle OpenGLUploadMesh(open_gl *OpenGL, PNUV1_vertex *VB, uint32 VC, uint32 *IB, uint32 IC)
@@ -449,7 +542,7 @@ void OpenGLBindTexture2D(open_gl *OpenGL, uint32 Slot, texture_handle TextureHan
     glBindTexture(GL_TEXTURE_2D, Texture.ID);
 }
 
-void OpenGLCreateFramebuffer(open_gl_framebuffer *Framebuffer, uint32 W, uint32 H,
+void OpenGLCreateFramebuffer(open_gl_framebuffer *Framebuffer, uint32 W, uint32 H, bool32 DepthAttachment,
                              GLenum TargetFormat, GLenum SourceFormat, GLenum PixelType)
 {
     *Framebuffer = {};
@@ -458,9 +551,13 @@ void OpenGLCreateFramebuffer(open_gl_framebuffer *Framebuffer, uint32 W, uint32 
     Framebuffer->ColorTex.TargetFormat = TargetFormat;
     Framebuffer->ColorTex.SourceFormat = SourceFormat;
     Framebuffer->ColorTex.PixelDataType = PixelType;
-    Framebuffer->DepthTex.TargetFormat = GL_DEPTH_COMPONENT;
-    Framebuffer->DepthTex.SourceFormat = GL_DEPTH_COMPONENT;
-    Framebuffer->DepthTex.PixelDataType = GL_FLOAT;
+
+    if (DepthAttachment)
+    {
+        Framebuffer->DepthTex.TargetFormat = GL_DEPTH_COMPONENT;
+        Framebuffer->DepthTex.SourceFormat = GL_DEPTH_COMPONENT;
+        Framebuffer->DepthTex.PixelDataType = GL_FLOAT;
+    }
 
     glGenTextures(1, &Framebuffer->ColorTex.ID);
     glBindTexture(GL_TEXTURE_2D, Framebuffer->ColorTex.ID);
@@ -469,17 +566,24 @@ void OpenGLCreateFramebuffer(open_gl_framebuffer *Framebuffer, uint32 W, uint32 
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 
-    glGenTextures(1, &Framebuffer->DepthTex.ID);
-    glBindTexture(GL_TEXTURE_2D, Framebuffer->DepthTex.ID);
-    glTexImage2D(GL_TEXTURE_2D, 0, Framebuffer->DepthTex.TargetFormat, Framebuffer->Width, Framebuffer->Height, 0, 
-                 Framebuffer->DepthTex.SourceFormat, Framebuffer->DepthTex.PixelDataType, nullptr);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    if (DepthAttachment)
+    {
+        glGenTextures(1, &Framebuffer->DepthTex.ID);
+        glBindTexture(GL_TEXTURE_2D, Framebuffer->DepthTex.ID);
+        glTexImage2D(GL_TEXTURE_2D, 0, Framebuffer->DepthTex.TargetFormat, Framebuffer->Width, Framebuffer->Height, 0, 
+                     Framebuffer->DepthTex.SourceFormat, Framebuffer->DepthTex.PixelDataType, nullptr);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    }
 
     glGenFramebuffers(1, &Framebuffer->FBO);
     glBindFramebuffer(GL_FRAMEBUFFER, Framebuffer->FBO);
     glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, Framebuffer->ColorTex.ID, 0);
-    glFramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, Framebuffer->DepthTex.ID, 0);
+
+    if (DepthAttachment)
+    {
+       glFramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, Framebuffer->DepthTex.ID, 0);
+    }
 
     Assert(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
 
@@ -499,9 +603,13 @@ void OpenGLResizeFramebuffer(open_gl_framebuffer *Framebuffer, uint32 W, uint32 
     glBindTexture(GL_TEXTURE_2D, Framebuffer->ColorTex.ID);
     glTexImage2D(GL_TEXTURE_2D, 0, Framebuffer->ColorTex.TargetFormat, Framebuffer->Width, Framebuffer->Height, 0, 
                  Framebuffer->ColorTex.SourceFormat, Framebuffer->ColorTex.PixelDataType, nullptr);
-    glBindTexture(GL_TEXTURE_2D, Framebuffer->DepthTex.ID);
-    glTexImage2D(GL_TEXTURE_2D, 0, Framebuffer->DepthTex.TargetFormat, Framebuffer->Width, Framebuffer->Height, 0, 
-                 Framebuffer->DepthTex.SourceFormat, Framebuffer->DepthTex.PixelDataType, nullptr);
+
+    if (Framebuffer->DepthTex.ID)
+    {
+        glBindTexture(GL_TEXTURE_2D, Framebuffer->DepthTex.ID);
+        glTexImage2D(GL_TEXTURE_2D, 0, Framebuffer->DepthTex.TargetFormat, Framebuffer->Width, Framebuffer->Height, 0, 
+                     Framebuffer->DepthTex.SourceFormat, Framebuffer->DepthTex.PixelDataType, nullptr);
+    }
 
     glBindFramebuffer(GL_FRAMEBUFFER, Framebuffer->FBO);
     Assert(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
@@ -510,8 +618,14 @@ void OpenGLResizeFramebuffer(open_gl_framebuffer *Framebuffer, uint32 W, uint32 
 
 void OpenGLDeleteFramebuffer(open_gl_framebuffer *Framebuffer)
 {
-    glDeleteTextures(1, &Framebuffer->ColorTex.ID);
-    glDeleteTextures(1, &Framebuffer->DepthTex.ID);
+    if (Framebuffer->ColorTex.ID)
+    {
+        glDeleteTextures(1, &Framebuffer->ColorTex.ID);
+    }
+    if (Framebuffer->DepthTex.ID)
+    {
+        glDeleteTextures(1, &Framebuffer->DepthTex.ID);
+    }
     glDeleteFramebuffers(1, &Framebuffer->FBO);
 }
 
@@ -541,9 +655,8 @@ void OpenGLSSBODelete(n_buffered_ssbo *SSBO)
     if (SSBO->BufferObject)
     {
         glDeleteBuffers(1, &(SSBO->BufferObject));
-        SSBO->BufferObject = 0;
-        SSBO->MappedPtr = 0;
-        // TODO(Kevin): probably glDeleteSync
+        // TODO(Kevin): Should we delete the fences?
+        *SSBO = {};
     }
 }
 
@@ -586,6 +699,99 @@ void OpenGLSSBOEndFrame(n_buffered_ssbo *SSBO)
     glDeleteSync(SSBO->FrameSyncObjects[SSBO->CurrentFrame]);
     SSBO->FrameSyncObjects[SSBO->CurrentFrame] = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
 }
+
+void OpenGLVertexStreamInitialize(persistent_vertex_stream *Stream, uint32 VertexCountPerFrame,
+                                  vertex_descriptor VertexDescriptor, uint32 NumFrames)
+{
+    Stream->VertexSize = VertexDescriptor.ByteSize;
+    Stream->NumFrames = NumFrames;
+    Stream->FrameChunkSize = VertexCountPerFrame * VertexDescriptor.ByteSize;
+    Stream->TotalSize = NumFrames * Stream->FrameChunkSize;
+
+    glGenVertexArrays(1, &Stream->VAO);
+    glBindVertexArray(Stream->VAO);
+
+    GLsizei StrideInBytes = (GLsizei)Stream->VertexSize;
+    for (uint32 AttribIndex = 0; 
+         AttribIndex < ArrayCount(VertexDescriptor.Attrib);
+         ++AttribIndex)
+    {
+        vertex_attribute Attrib = VertexDescriptor.Attrib[AttribIndex];
+        if (Attrib.NumComponents > 0)
+        {
+            glEnableVertexAttribArray(AttribIndex);
+            glVertexAttribFormat(AttribIndex, Attrib.NumComponents, Attrib.Format, GL_FALSE, Attrib.Offset);
+            glVertexAttribBinding(AttribIndex, Stream->BindingIndex);
+        }
+    }
+
+    glGenBuffers(1, &Stream->VBO);
+    glBindBuffer(GL_ARRAY_BUFFER, Stream->VBO);
+
+    // TODO(Kevin): Compress the persistent mapping, triple buffering / fencing code with SSBO code
+    glBufferStorage(GL_ARRAY_BUFFER, Stream->TotalSize, 0,
+        GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT);
+    Stream->MappedPtr = glMapBufferRange(GL_ARRAY_BUFFER, 0, Stream->TotalSize,
+        GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT);
+    glBindVertexBuffer(Stream->BindingIndex, Stream->VBO, 0, StrideInBytes);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+    glBindVertexArray(0);
+}
+
+void OpenGLVertexStreamDelete(persistent_vertex_stream *Stream)
+{
+    glDeleteVertexArrays(1, &Stream->VAO);
+    glDeleteBuffers(1, &Stream->VBO);
+    // TODO(Kevin): Should we delete the fences?
+    *Stream = {};
+}
+
+vstream_frame_chunk OpenGLVertexStreamBeginFrame(persistent_vertex_stream *Stream)
+{
+    Stream->CurrentFrame = (Stream->CurrentFrame + 1) % Stream->NumFrames;
+
+    // NOTE(Kevin): When a fence becomes signaled, you can be certain that 
+    // the GPU has completed all commands issued before the fence was created.
+    GLenum Status = GL_UNSIGNALED;
+    while (Status != GL_ALREADY_SIGNALED && 
+           Status != GL_CONDITION_SATISFIED && 
+           Stream->FrameSyncObjects[Stream->CurrentFrame] != nullptr)
+    {
+        Status = glClientWaitSync(Stream->FrameSyncObjects[Stream->CurrentFrame], GL_SYNC_FLUSH_COMMANDS_BIT, 1);
+    }
+
+    umm GlobalOffset = Stream->CurrentFrame * Stream->FrameChunkSize;
+
+    vstream_frame_chunk Result;
+    Result.WriteTo = ((uint8 *)Stream->MappedPtr) + GlobalOffset;
+    Result.ChunkSizeBytes = Stream->FrameChunkSize;
+    return Result;
+}
+
+void OpenGLVertexStreamDraw(persistent_vertex_stream *Stream, umm OffsetBytes, uint32 VertexCount)
+{
+    if (VertexCount < 1)
+    {
+        return;
+    }
+
+    umm FrameIndex = Stream->CurrentFrame % Stream->NumFrames;
+    umm OffsetInBytes = FrameIndex * Stream->FrameChunkSize + OffsetBytes;
+    GLsizei StrideInBytes = (GLsizei)Stream->VertexSize;
+
+    glBindVertexArray(Stream->VAO);
+    glBindVertexBuffer(Stream->BindingIndex, Stream->VBO, OffsetInBytes, StrideInBytes);
+    glDrawArrays(GL_TRIANGLES, 0, VertexCount);
+    glBindVertexArray(0);
+}
+
+void OpenGLVertexStreamEndFrame(persistent_vertex_stream *Stream)
+{
+    glDeleteSync(Stream->FrameSyncObjects[Stream->CurrentFrame]);
+    Stream->FrameSyncObjects[Stream->CurrentFrame] = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+}
+
 
 
 #ifdef SHOOTER_PLATFORM_WIN32

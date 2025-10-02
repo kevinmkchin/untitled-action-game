@@ -1,6 +1,7 @@
 #include "shooter.h"
 #include "shooter_renderer.h"
 #include "shooter_shared.h"
+#include "shooter_gui.h"
 
 internal void
 GameOutputSound(game_state *GameState, game_sound_output_buffer *SoundBuffer, int ToneHz)
@@ -310,9 +311,12 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         RendererAPI->UploadTexture2DData(TestBmp2.Pixels, TestBmp2.Width, TestBmp2.Height, BGRA_U8, false);
 
         // TODO(Kevin): Load this default white lightmap from inside renderer code! Not from game code!
+        // White_1x1 should have texture handle 0 so it is the default texture
         loaded_bitmap White_1x1 = DEBUGLoadBMP(Thread, Memory->PlatformAPI.DEBUGPlatformReadEntireFile, "white_1x1.bmp");
         RendererAPI->WhiteTexture_1x1 = 
             RendererAPI->UploadTexture2DData(White_1x1.Pixels, White_1x1.Width, White_1x1.Height, BGRA_U8, false);
+
+        RendererAPI->UploadTexture2DData(GameState->Backdrop.Pixels, GameState->Backdrop.Width, GameState->Backdrop.Height, BGRA_U8, false);
 
         Memory->IsInitialized = true;
     }
@@ -369,6 +373,21 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     Item1->WorldScale = vec3(1.0f,1.0f,1.0f);
 
     RendererAPI->PushRenderItems((render_item *)RenderItemsStart, RenderItemsCount);
+
+    gui_draw_request TestGuiDrawRequest[4] = {};
+    TestGuiDrawRequest[0].Rect = { 200, 200, 100, 100 };
+    TestGuiDrawRequest[0].Color = vec4(1.0f, 1.0f, 1.0f, 1.0f);
+    TestGuiDrawRequest[0].Texture = 2;
+    TestGuiDrawRequest[1].Rect = { 300, 300, 100, 100 };
+    TestGuiDrawRequest[1].Color = vec4(1.0f, 0.0f, 1.0f, 1.0f);
+    TestGuiDrawRequest[1].Texture = InvalidHandle;
+    TestGuiDrawRequest[2].Rect = { 400, 400, 100, 100 };
+    TestGuiDrawRequest[2].Color = vec4(0.0f, 1.0f, 1.0f, 1.0f);
+    TestGuiDrawRequest[2].Texture = InvalidHandle;
+    TestGuiDrawRequest[3].Rect = { 500, 100, 800, 400 };
+    TestGuiDrawRequest[3].Color = vec4(1.0f, 1.0f, 1.0f, 1.0f);
+    TestGuiDrawRequest[3].Texture = 4;
+    RendererAPI->PushGuiDrawRequests(GameState->ScratchArena, TestGuiDrawRequest, 4);
 }
 
 extern "C" GAME_GET_SOUND_SAMPLES(GameGetSoundSamples)
