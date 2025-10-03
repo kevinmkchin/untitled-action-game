@@ -40,6 +40,7 @@
 //
 #include <stdint.h>
 #include <stddef.h>
+#include <float.h>
 
 typedef int8_t int8;
 typedef int16_t int16;

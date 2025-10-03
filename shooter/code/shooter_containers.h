@@ -1,7 +1,6 @@
 #pragma once
 
-#include <mutex>
-#include <iostream>
+#include <mutex> // shit is slow to compile
 
 template<typename T, int C> struct carray
 {
@@ -34,12 +33,12 @@ template<typename T, int C> struct carray
     // Set the bits of the entire buffer to 0
     void MemsetZero();
 
-    T& operator[](int Index) { ASSERT(0 <= Index && Index <= (int)Count); return Data[Index]; }
-    T& operator[](unsigned int Index) { ASSERT(Index <= (unsigned int)Count); return Data[Index]; }
-    T& operator[](size_t Index) { ASSERT(Index <= (size_t)Count); return Data[Index]; }
-    const T& operator[](int Index) const { ASSERT(0 <= Index && Index <= (int)Count); return Data[Index]; }
-    const T& operator[](unsigned int Index) const { ASSERT(Index <= (unsigned int)Count); return Data[Index]; }
-    const T& operator[](size_t Index) const { ASSERT(Index <= (size_t)Count); return Data[Index]; }
+    T& operator[](int Index) { Assert(0 <= Index && Index <= (int)Count); return Data[Index]; }
+    T& operator[](unsigned int Index) { Assert(Index <= (unsigned int)Count); return Data[Index]; }
+    T& operator[](size_t Index) { Assert(Index <= (size_t)Count); return Data[Index]; }
+    const T& operator[](int Index) const { Assert(0 <= Index && Index <= (int)Count); return Data[Index]; }
+    const T& operator[](unsigned int Index) const { Assert(Index <= (unsigned int)Count); return Data[Index]; }
+    const T& operator[](size_t Index) const { Assert(Index <= (size_t)Count); return Data[Index]; }
 };
 
 template<typename T, int C>

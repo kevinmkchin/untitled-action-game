@@ -33,7 +33,7 @@ struct mesh_collider
 
     collider_base Base;
     vec3 *PointCloud;
-    u32 PointCount;
+    uint32 PointCount;
 };
 
 struct flatpoly_collider
@@ -45,13 +45,13 @@ struct flatpoly_collider
 
     collider_base Base;
     vec3 *PointCloud;
-    u32 PointCount;
+    uint32 PointCount;
 };
 
 struct gjk_simplex
 {
     vec3 Vertices[4];
-    u32 VertexCount; // its dimension + 1
+    uint32 VertexCount; // its dimension + 1
 };
 
 bool GJK(collider_base *A, collider_base *B, gjk_simplex *OutSimplex);

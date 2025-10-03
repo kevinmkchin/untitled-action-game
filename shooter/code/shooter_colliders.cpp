@@ -1,6 +1,5 @@
 #include "shooter_colliders.h"
-#include "shooter_containers.h"
-#include "shooter_containers.cpp"
+#include "shooter_shared.h"
 
 /// GJK
 
@@ -14,11 +13,11 @@ vec3 FindFurthestPointOnConvexShell(collider_base *Collider, vec3 Direction)
         {
             mesh_collider *Mesh = (mesh_collider *)Collider;
 
-            ASSERT(Mesh->PointCloud);
-            ASSERT(Mesh->PointCount > 0);
+            Assert(Mesh->PointCloud);
+            Assert(Mesh->PointCount > 0);
 
             float MaxDistanceSoFar = -FLT_MAX;
-            for (u32 i = 0; i < Mesh->PointCount; ++i)
+            for (uint32 i = 0; i < Mesh->PointCount; ++i)
             {
                 vec3 WorldPoint = Mesh->PointCloud[i];
                 float Dist = Dot(WorldPoint, Direction);
@@ -34,8 +33,8 @@ vec3 FindFurthestPointOnConvexShell(collider_base *Collider, vec3 Direction)
         {
             flatpoly_collider *FlatPoly = (flatpoly_collider *)Collider;
 
-            ASSERT(FlatPoly->PointCloud);
-            ASSERT(FlatPoly->PointCount > 0);
+            Assert(FlatPoly->PointCloud);
+            Assert(FlatPoly->PointCount > 0);
 
             float MaxDistanceSoFar = -FLT_MAX;
 #if 0
@@ -44,7 +43,7 @@ vec3 FindFurthestPointOnConvexShell(collider_base *Collider, vec3 Direction)
             vec3 c = FlatPoly->PointCloud[2];
             vec3 n = Normalize(Cross(b-a, c-a));
 #endif
-            for (u32 i = 0; i < FlatPoly->PointCount; ++i)
+            for (uint32 i = 0; i < FlatPoly->PointCount; ++i)
             {
                 vec3 WorldPoint = FlatPoly->PointCloud[i];
                 float Dist = Dot(WorldPoint, Direction);
@@ -66,7 +65,7 @@ vec3 FindFurthestPointOnConvexShell(collider_base *Collider, vec3 Direction)
         } break;
 
         case collider_type::invalid:
-        default: ASSERT(0); break;
+        default: Assert(0); break;
     }
 
     return FurthestPoint;
@@ -94,10 +93,8 @@ vec3 GJKSupportFunction(collider_base *A, collider_base *B, vec3 Direction)
 
 bool GJKLine(gjk_simplex *Capture, vec3 *Direction)
 {
-#if SHOOTER_SLOWCODE
-    ASSERT(Capture && Direction);
-    ASSERT(Capture->VertexCount == 2);
-#endif
+    Assert(Capture && Direction);
+    Assert(Capture->VertexCount == 2);
     vec3 A = Capture->Vertices[0];
     vec3 B = Capture->Vertices[1];
     vec3 AB = B - A;
@@ -128,10 +125,8 @@ bool GJKLine(gjk_simplex *Capture, vec3 *Direction)
 
 bool GJKTriangle(gjk_simplex *Capture, vec3 *Direction)
 {
-#if SHOOTER_SLOWCODE
-    ASSERT(Capture && Direction);
-    ASSERT(Capture->VertexCount == 3);
-#endif
+    Assert(Capture && Direction);
+    Assert(Capture->VertexCount == 3);
     vec3 A = Capture->Vertices[0];
     vec3 B = Capture->Vertices[1];
     vec3 C = Capture->Vertices[2];
@@ -200,10 +195,8 @@ bool GJKTriangle(gjk_simplex *Capture, vec3 *Direction)
 
 bool GJKTetrahedron(gjk_simplex *Capture, vec3 *Direction)
 {
-#if SHOOTER_SLOWCODE
-    ASSERT(Capture && Direction);
-    ASSERT(Capture->VertexCount == 4);
-#endif
+    Assert(Capture && Direction);
+    Assert(Capture->VertexCount == 4);
     vec3 A = Capture->Vertices[0];
     vec3 B = Capture->Vertices[1];
     vec3 C = Capture->Vertices[2];
@@ -266,7 +259,7 @@ bool GJKNextSimplex(gjk_simplex *Capture, vec3 *OutNextDirection)
         case 2: return GJKLine(Capture, OutNextDirection);
         case 3: return GJKTriangle(Capture, OutNextDirection);
         case 4: return GJKTetrahedron(Capture, OutNextDirection);
-        default: ASSERT(0); return false;
+        default: Assert(0); return false;
     }
 }
 
@@ -330,17 +323,16 @@ struct epa_edge
     int IndexB;
 };
 
-epa_face EPABuildFace(carray<vec3, EPA_MAX_VERTICES> *Vertices,
-                      int Index0, int Index1, int Index2)
+epa_face EPABuildFace(vec3 *Vertices, int Index0, int Index1, int Index2)
 {
     epa_face Result;
     Result.Indices[0] = Index0;
     Result.Indices[1] = Index1;
     Result.Indices[2] = Index2;
 
-    vec3 A = (*Vertices)[Index0];
-    vec3 B = (*Vertices)[Index1];
-    vec3 C = (*Vertices)[Index2];
+    vec3 A = Vertices[Index0];
+    vec3 B = Vertices[Index1];
+    vec3 C = Vertices[Index2];
     Result.Normal = Normalize(Cross(B - A, C - A));
 
     // Distance from origin is the Component of vector(origin To A) projected onto the normal
@@ -366,7 +358,7 @@ bool EPAEdgeEquals(epa_edge Lhs, epa_edge Rhs)
     }
 }
 
-void EPAKeepEdgeIfUnique(carray<epa_edge, EPA_MAX_EDGES> *UniqueEdges, int IndexA, int IndexB)
+void EPAKeepEdgeIfUnique(epa_edge *UniqueEdges, uint32 *UniqueEdgesCount, int IndexA, int IndexB)
 {
     epa_edge Edge;
     // Index order matters for reconstruction later. For edge comparison,
@@ -375,54 +367,54 @@ void EPAKeepEdgeIfUnique(carray<epa_edge, EPA_MAX_EDGES> *UniqueEdges, int Index
     Edge.IndexA = IndexA;
     Edge.IndexB = IndexB;
 
-    int ExistingEdgeIndex = 0;
-    for (; ExistingEdgeIndex < UniqueEdges->Count; ++ExistingEdgeIndex)
+    uint32 ExistingEdgeIndex = 0;
+    for (; ExistingEdgeIndex < *UniqueEdgesCount; ++ExistingEdgeIndex)
     {
-        if (EPAEdgeEquals(Edge, (*UniqueEdges)[ExistingEdgeIndex]))
+        if (EPAEdgeEquals(Edge, UniqueEdges[ExistingEdgeIndex]))
         {
             break;
         }
     }
 
-    if (ExistingEdgeIndex == UniqueEdges->Count)
+    if (ExistingEdgeIndex == *UniqueEdgesCount)
     {
-        UniqueEdges->Put(Edge);
+        Assert(*UniqueEdgesCount < EPA_MAX_EDGES);
+        UniqueEdges[(*UniqueEdgesCount)++] = Edge;
     }
     else
     {
         // shared edge so it shouldn't exist; remove the previously added edge
-        // TODO(KEVIN): DeleteSwap AFTER CHECKING REWRITE WORKS
-        UniqueEdges->Delete(ExistingEdgeIndex);
+        UniqueEdges[ExistingEdgeIndex] = UniqueEdges[--(*UniqueEdgesCount)];
     }
 }
 
 epa_result EPA(collider_base *A, collider_base *B, gjk_simplex *Simplex)
 {
-#if SHOOTER_SLOWCODE
-    ASSERT(Simplex->VertexCount == 4);
-#endif
+    Assert(Simplex->VertexCount == 4);
 
     // The initial polytope
-    carray<vec3, EPA_MAX_VERTICES> Vertices;
-    memcpy(Vertices.Data, Simplex->Vertices, sizeof(Simplex->Vertices));
-    Vertices.Count = Simplex->VertexCount;
+    vec3 Vertices[EPA_MAX_VERTICES] = {};
+    uint32 VerticesCount = Simplex->VertexCount;
+    Copy(Vertices, Simplex->Vertices, sizeof(Simplex->Vertices));
 
-    carray<epa_face, EPA_MAX_FACES> Faces;
-    Faces.Put(EPABuildFace(&Vertices, 0, 1, 2));
-    Faces.Put(EPABuildFace(&Vertices, 0, 3, 1));
-    Faces.Put(EPABuildFace(&Vertices, 0, 2, 3));
-    Faces.Put(EPABuildFace(&Vertices, 1, 3, 2));
+    epa_face Faces[EPA_MAX_FACES] = {};
+    uint32 FacesCount = 4;
+    Faces[0] = EPABuildFace(Vertices, 0, 1, 2);
+    Faces[1] = EPABuildFace(Vertices, 0, 3, 1);
+    Faces[2] = EPABuildFace(Vertices, 0, 2, 3);
+    Faces[3] = EPABuildFace(Vertices, 1, 3, 2);
 
     vec3 NearestFaceNormal;
     float NearestFaceDist = FLT_MAX;
 
-    carray<epa_edge, EPA_MAX_EDGES> UniqueEdges;
+    epa_edge UniqueEdges[EPA_MAX_EDGES] = {};
+    uint32 UniqueEdgesCount = 0;
 
-    for (u32 EPAIterations = 0;; ++EPAIterations)
+    for (uint32 EPAIterations = 0;; ++EPAIterations)
     {
         // Find the nearest face
         NearestFaceDist = FLT_MAX;
-        for (int FaceIndex = 0; FaceIndex < Faces.Count; ++FaceIndex)
+        for (uint32 FaceIndex = 0; FaceIndex < FacesCount; ++FaceIndex)
         {
             epa_face Face = Faces[FaceIndex];
             if (Face.DistFromOrigin < NearestFaceDist)
@@ -455,9 +447,9 @@ epa_result EPA(collider_base *A, collider_base *B, gjk_simplex *Simplex)
 
         if (GJKAbsoluteFloat(DistAlongSearchDirection - NearestFaceDist) > EPA_DISTANCE_EPSILON)
         {
-            UniqueEdges.ResetCount();
+            UniqueEdgesCount = 0;
             // Delete faces; Remember edges that are shared with undeleted faces
-            for (int FaceIndex = 0; FaceIndex < Faces.Count; ++FaceIndex)
+            for (uint32 FaceIndex = 0; FaceIndex < FacesCount; ++FaceIndex)
             {
                 epa_face Face = Faces[FaceIndex];
 
@@ -468,31 +460,33 @@ epa_result EPA(collider_base *A, collider_base *B, gjk_simplex *Simplex)
                     int Index1 = Face.Indices[1];
                     int Index2 = Face.Indices[2];
 
-                    EPAKeepEdgeIfUnique(&UniqueEdges, Index0, Index1);
-                    EPAKeepEdgeIfUnique(&UniqueEdges, Index1, Index2);
-                    EPAKeepEdgeIfUnique(&UniqueEdges, Index2, Index0);
+                    EPAKeepEdgeIfUnique(UniqueEdges, &UniqueEdgesCount, Index0, Index1);
+                    EPAKeepEdgeIfUnique(UniqueEdges, &UniqueEdgesCount, Index1, Index2);
+                    EPAKeepEdgeIfUnique(UniqueEdges, &UniqueEdgesCount, Index2, Index0);
 
-                    Faces.DeleteSwap(FaceIndex);
+                    Faces[FaceIndex] = Faces[--FacesCount];
                     --FaceIndex;
                 }
             }
-            // TODO(Kevin): Do I need this fallback? or can I just assert here
-            if (UniqueEdges.Count == 0)
+            // TODO(Kevin): Do I need this fallback? or can I just Assert here
+            if (UniqueEdgesCount == 0)
             {
                 NearestFaceNormal = vec3(0.f, 0.f, 0.f);
                 NearestFaceDist = 0.f;
                 break;
             }
 
-            Vertices.Put(SupportP);
+            Assert(VerticesCount < EPA_MAX_VERTICES);
+            Vertices[VerticesCount++] = SupportP;
 
             // Reconstruction
-            for (int EdgeIndex = 0; EdgeIndex < UniqueEdges.Count; ++EdgeIndex)
+            for (uint32 EdgeIndex = 0; EdgeIndex < UniqueEdgesCount; ++EdgeIndex)
             {
                 int Index0 = UniqueEdges[EdgeIndex].IndexA;
                 int Index1 = UniqueEdges[EdgeIndex].IndexB;
-                int Index2 = Vertices.Count-1;
-                Faces.Put(EPABuildFace(&Vertices, Index0, Index1, Index2));
+                int Index2 = VerticesCount-1;
+                Assert(FacesCount < EPA_MAX_FACES);
+                Faces[FacesCount++] = EPABuildFace(Vertices, Index0, Index1, Index2);
             }
         }
         else

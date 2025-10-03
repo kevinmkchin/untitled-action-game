@@ -1,5 +1,7 @@
 #include "shooter_containers.h"
 
+#include <iostream> // will cause conflict with my global / internal #defines
+
 void manual_heap::Init(size_t Size)
 {
     // Allocate 16-byte aligned memory for SIMD compatibility
