@@ -40,6 +40,7 @@
 //
 #include <stdint.h>
 #include <stddef.h>
+#include <limits.h>
 #include <float.h>
 
 typedef int8_t int8;
@@ -59,6 +60,21 @@ typedef double real64;
 typedef size_t memory_index;
 typedef uintptr_t umm; // Unsigned Machine-sized integer for pointer arithmetic
 typedef intptr_t smm; // Signed Machine-sized integer for pointer arithmetic
+
+typedef int8 s8;
+typedef int8 b8;
+typedef int16 s16;
+typedef int32 s32;
+typedef int64 s64;
+typedef bool32 b32;
+
+typedef uint8 u8;
+typedef uint16 u16;
+typedef uint32 u32;
+typedef uint64 u64;
+
+typedef real32 f32;
+typedef real64 f64;
 
 struct buffer
 {
@@ -87,6 +103,9 @@ typedef buffer string;
 #define Terabytes(Value) (Gigabytes(Value)*1024LL)
 
 #define ArrayCount(Array) (sizeof(Array) / sizeof((Array)[0]))
+
+#define Minimum(A, B) ((A < B) ? (A) : (B))
+#define Maximum(A, B) ((A > B) ? (A) : (B))
 
 inline uint32
 SafeTruncateUInt64(uint64 Value)

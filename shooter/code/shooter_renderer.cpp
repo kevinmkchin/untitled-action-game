@@ -2,6 +2,12 @@
 #include "shooter_renderer_opengl.h"
 #include "shooter_gui.h"
 
+void renderer::GetRenderTargetDimensions(uint32 *Width, uint32 *Height)
+{
+    *Width = BackBufferW;
+    *Height = BackBufferH;
+}
+
 void renderer::PushRenderItems(render_item *RenderItems, uint32 RenderItemsCount)
 {
     // TODO(Kevin): Sort render items
@@ -70,6 +76,7 @@ void renderer::PushGuiDrawRequests(memory_arena Scratch, gui_draw_request *Reque
         gui_draw_request *Request = &Requests[Index];
 
         // TODO(Kevin): generate the vertex buffer
+        // Either create the vertex buffer at in scratch memory then copy or write into VertexStreamFrame directly
         real32 Left = (real32)Request->Rect.X;
         real32 Top = (real32)Request->Rect.Y;
         real32 Bottom = (real32)Request->Rect.Y + Request->Rect.H;
@@ -102,6 +109,10 @@ void renderer::PushGuiDrawRequests(memory_arena Scratch, gui_draw_request *Reque
         *GuiStreamItem = {};
         GuiStreamItem->OffsetBytes = OffsetBytes;
         GuiStreamItem->VertexCount = GuiItemVerticesCount;
+        GuiStreamItem->ScissorX = Request->Scissor.X;
+        GuiStreamItem->ScissorY = Request->Scissor.Y;
+        GuiStreamItem->ScissorW = Request->Scissor.W;
+        GuiStreamItem->ScissorH = Request->Scissor.H;
         if (Request->Texture != InvalidHandle)
         {
             GuiStreamItem->ColorTexture = Request->Texture;

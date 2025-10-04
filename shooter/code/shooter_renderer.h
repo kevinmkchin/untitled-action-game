@@ -113,6 +113,7 @@ struct renderer
     // definition. vtable essentially provides the function table of callable services
     // from the game layer. Therefore, renderer MUST be constructed to have a valid vtable
     // ptr. C-style function table will be more stable, but for now this is more convenient.
+    virtual void GetRenderTargetDimensions(uint32 *Width, uint32 *Height);
     virtual void PushRenderItems(render_item *RenderItems, uint32 RenderItemsCount);
     virtual void PushGuiDrawRequests(memory_arena Scratch, struct gui_draw_request *Requests, uint32 RequestsCount);
     // virtual mesh_handle UploadMeshData(PNUV1_vertex *VB, uint32 VC, uint32 *IB, uint32 IC);

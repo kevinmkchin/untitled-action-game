@@ -120,8 +120,10 @@ struct persistent_vertex_stream
 struct gui_vstream_item
 {
     umm OffsetBytes;
-    uint32 VertexCount;
+    u32 VertexCount;
     texture_handle ColorTexture;
+    s32 ScissorX, ScissorY;
+    u32 ScissorW, ScissorH;
 };
 
 struct open_gl

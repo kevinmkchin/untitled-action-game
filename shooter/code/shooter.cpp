@@ -2,6 +2,7 @@
 #include "shooter_renderer.h"
 #include "shooter_shared.h"
 #include "shooter_gui.h"
+#include "shooter_gui.cpp"
 
 internal void
 GameOutputSound(game_state *GameState, game_sound_output_buffer *SoundBuffer, int ToneHz)
@@ -134,6 +135,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     Assert(sizeof(game_state) <= Memory->PermanentStorageSize);
 
     game_state *GameState = (game_state *)Memory->PermanentStorage;
+    gui_state *GuiState = (gui_state *)Memory->TransientStorage;
     if (!Memory->IsInitialized)
     {
         GameState->Backdrop = DEBUGLoadBMP(Thread, Memory->PlatformAPI.DEBUGPlatformReadEntireFile, "test/test_background.bmp");
@@ -182,8 +184,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         InitializeArena(&GameState->WorldArena, Memory->PermanentStorageSize - sizeof(game_state),
                         (uint8 *)Memory->PermanentStorage + sizeof(game_state));
 
-        InitializeArena(&GameState->ScratchArena, Memory->TransientStorageSize,
-                        (uint8 *)Memory->TransientStorage);
+        InitializeArena(&GameState->ScratchArena, Memory->TransientStorageSize - sizeof(gui_state),
+                        (uint8 *)Memory->TransientStorage + sizeof(gui_state));
 
         char *MapFilename = "../../wd/buildtest.map";
         debug_read_file_result MapReadResult = Memory->PlatformAPI.DEBUGPlatformReadEntireFile(Thread, MapFilename);
@@ -374,20 +376,20 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
     RendererAPI->PushRenderItems((render_item *)RenderItemsStart, RenderItemsCount);
 
-    gui_draw_request TestGuiDrawRequest[4] = {};
-    TestGuiDrawRequest[0].Rect = { 200, 200, 100, 100 };
-    TestGuiDrawRequest[0].Color = vec4(1.0f, 1.0f, 1.0f, 1.0f);
-    TestGuiDrawRequest[0].Texture = 2;
-    TestGuiDrawRequest[1].Rect = { 300, 300, 100, 100 };
-    TestGuiDrawRequest[1].Color = vec4(1.0f, 0.0f, 1.0f, 1.0f);
-    TestGuiDrawRequest[1].Texture = InvalidHandle;
-    TestGuiDrawRequest[2].Rect = { 400, 400, 100, 100 };
-    TestGuiDrawRequest[2].Color = vec4(0.0f, 1.0f, 1.0f, 1.0f);
-    TestGuiDrawRequest[2].Texture = InvalidHandle;
-    TestGuiDrawRequest[3].Rect = { 500, 100, 800, 400 };
-    TestGuiDrawRequest[3].Color = vec4(1.0f, 1.0f, 1.0f, 1.0f);
-    TestGuiDrawRequest[3].Texture = 4;
-    RendererAPI->PushGuiDrawRequests(GameState->ScratchArena, TestGuiDrawRequest, 4);
+    uint32 CanvasW, CanvasH;
+    RendererAPI->GetRenderTargetDimensions(&CanvasW, &CanvasH);
+    GuiBeginFrame(GuiState, CanvasW, CanvasH);
+    GuiPushScissor(GuiState, { 250, 250, 1000, 100 });
+    GuiPanel(GuiState, { 200, 200, 100, 100 }, 2);
+    GuiPushScissor(GuiState, { 200, 200, 600, 125 });
+    GuiPanel(GuiState, { 300, 300, 100, 100 }, vec4(1.0f, 0.0f, 1.0f, 1.0f));
+    GuiPanel(GuiState, { 500, 100, 800, 400 }, 4);
+    GuiPopScissor(GuiState);
+    GuiPopScissor(GuiState);
+    GuiPanel(GuiState, { 400, 400, 100, 100 }, vec4(0.0f, 1.0f, 1.0f, 1.0f));
+    GuiPanel(GuiState, { Input->MouseX, Input->MouseY, 16, 16 }, vec4(1.0f, 1.0f, 0.0f, 1.0f));
+
+    RendererAPI->PushGuiDrawRequests(GameState->ScratchArena, GuiState->DrawRequests, GuiState->DrawRequestsCount);
 }
 
 extern "C" GAME_GET_SOUND_SAMPLES(GameGetSoundSamples)

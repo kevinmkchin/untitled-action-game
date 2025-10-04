@@ -141,9 +141,6 @@ typedef GAME_GET_SOUND_SAMPLES(game_get_sound_samples);
 // platform layer does not need to know about these:
 //
 
-#define Minimum(A, B) ((A < B) ? (A) : (B))
-#define Maximum(A, B) ((A > B) ? (A) : (B))
-
 struct memory_arena
 {
     memory_index Size;

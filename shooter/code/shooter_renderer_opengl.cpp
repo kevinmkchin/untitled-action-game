@@ -143,7 +143,7 @@ internal void OpenGLEndFrame(open_gl *OpenGL)
     //     RuntimeMap->Player.Weapon.MuzzleFlash.y, 
     //     RuntimeMap->Player.Weapon.MuzzleFlash.z, 
     //     RuntimeMap->Player.Weapon.MuzzleFlash.w);
-    vec3 DirectionToSun = vec3(-1,1,1);
+    vec3 DirectionToSun = Normalize(vec3(-1,2,0.5f));
     GLBind3f(*StaticLitShader, "DirectionToSun", DirectionToSun.x, DirectionToSun.y, DirectionToSun.z);
 
     if (OpenGL->PerInstanceDataCount > 0)
@@ -206,14 +206,34 @@ internal void OpenGLEndFrame(open_gl *OpenGL)
 
     GLBindMatrix4fv(*UIShader, "ClipFromScreen2D", 1, ClipFromScreen2D.ptr());
 
+    glEnable(GL_SCISSOR_TEST);
+    u32 PrevScissorX = 0xFFFFFFFF;
+    u32 PrevScissorY = 0xFFFFFFFF;
+    u32 PrevScissorW = 0xFFFFFFFF;
+    u32 PrevScissorH = 0xFFFFFFFF;
     for (uint32 GuiItemIndex = 0; 
          GuiItemIndex < OpenGL->GuiVertexStreamItemsCount; 
          ++GuiItemIndex)
     {
         gui_vstream_item Item = OpenGL->GuiVertexStreamItems[GuiItemIndex];
+        u32 ScissorX = Item.ScissorX;
+        u32 ScissorY = Item.ScissorY;
+        u32 ScissorW = Item.ScissorW;
+        u32 ScissorH = Item.ScissorH;
+        if (ScissorX != PrevScissorX || ScissorY != PrevScissorY ||
+            ScissorW != PrevScissorW || ScissorH != PrevScissorH)
+        {
+            glScissor(ScissorX, OpenGL->RenderTargetGui.Height-ScissorY-ScissorH, ScissorW, ScissorH);
+            PrevScissorX = ScissorX;
+            PrevScissorY = ScissorY;
+            PrevScissorW = ScissorW;
+            PrevScissorH = ScissorH;
+        }
+
         OpenGLBindTexture2D(OpenGL, 0, Item.ColorTexture);
         OpenGLVertexStreamDraw(&OpenGL->GuiVertexStream, Item.OffsetBytes, Item.VertexCount);
     }
+    glDisable(GL_SCISSOR_TEST);
 
     //
     // NOTE(Kevin): Composite render targets to default framebuffer / backbuffer

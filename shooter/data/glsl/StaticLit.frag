@@ -36,6 +36,12 @@ uniform vec3 DirectionToSun;
 // world normal -> directional ambient contribution
 float AmbientLight(vec3 WorldNormal)
 {
+    /*
+
+        Ambient Cube
+
+    */
+
     vec3 NSquared = WorldNormal * WorldNormal;
     ivec3 IsNegative = ivec3(WorldNormal.x < 0.0, WorldNormal.y < 0.0, WorldNormal.z < 0.0);
     float LinearColor = NSquared.x * Instances[BaseInstanceIndex + InstanceIndex].AmbientCube[IsNegative.x] 
@@ -47,7 +53,14 @@ float AmbientLight(vec3 WorldNormal)
 // world pos normal -> direct light contribution
 float DiffuseLight(vec3 WorldPos, vec3 WorldNormal)
 {
-    /* Half-Lambertian Diffuse Shading Model */
+    /*
+
+        Half-Lambertian Diffuse
+
+        Softens diffuse contribution from light sources to prevent backsides of characters
+        and props from looking too flat. Purely non-physical but pleasing to the eye.
+
+    */
 
     float DirectLight = 0.f;
 
