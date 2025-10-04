@@ -3,6 +3,8 @@
 #include "shooter_shared.h"
 #include "shooter_gui.h"
 #include "shooter_gui.cpp"
+#define STB_SPRINTF_IMPLEMENTATION
+#include <stb_sprintf.h>
 
 internal void
 GameOutputSound(game_state *GameState, game_sound_output_buffer *SoundBuffer, int ToneHz)
@@ -135,6 +137,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     Assert(sizeof(game_state) <= Memory->PermanentStorageSize);
 
     game_state *GameState = (game_state *)Memory->PermanentStorage;
+    ResetArena(&GameState->ScratchArena);
     gui_state *GuiState = (gui_state *)Memory->TransientStorage;
     if (!Memory->IsInitialized)
     {
@@ -337,7 +340,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
     // TODO(Kevin): draw 10 cubes and have it go through static lit pipeline
     uint32 RenderItemsCount = 12;
-    uint8 *RenderItemsStart = GameState->ScratchArena.Base;
+    uint8 *RenderItemsStart = ArenaCurrentAddress(&GameState->ScratchArena);
 
     for (uint32 i = 0; i < RenderItemsCount - 2; ++i)
     {
@@ -378,7 +381,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
     uint32 CanvasW, CanvasH;
     RendererAPI->GetRenderTargetDimensions(&CanvasW, &CanvasH);
-    GuiBeginFrame(GuiState, CanvasW, CanvasH);
+    GuiBeginFrame(GuiState, CanvasW, CanvasH, &GameState->ScratchArena);
     GuiPushScissor(GuiState, { 250, 250, 1000, 100 });
     GuiPanel(GuiState, { 200, 200, 100, 100 }, 2);
     GuiPushScissor(GuiState, { 200, 200, 600, 125 });
@@ -389,7 +392,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     GuiPanel(GuiState, { 400, 400, 100, 100 }, vec4(0.0f, 1.0f, 1.0f, 1.0f));
     GuiPanel(GuiState, { Input->MouseX, Input->MouseY, 16, 16 }, vec4(1.0f, 1.0f, 0.0f, 1.0f));
 
-    RendererAPI->PushGuiDrawRequests(GameState->ScratchArena, GuiState->DrawRequests, GuiState->DrawRequestsCount);
+    RendererAPI->PushGuiDrawRequests(&GameState->ScratchArena, GuiState->DrawRequests, GuiState->DrawRequestsCount);
 }
 
 extern "C" GAME_GET_SOUND_SAMPLES(GameGetSoundSamples)

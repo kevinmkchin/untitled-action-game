@@ -1,7 +1,7 @@
 #ifndef SHOOTER_RENDERER_OPENGL_H
 #define SHOOTER_RENDERER_OPENGL_H
 
-#include "../ext/gl3w.h"
+#include "gl3w.h"
 #include "shooter_renderer.h"
 
 //

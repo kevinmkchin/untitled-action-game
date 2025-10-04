@@ -156,6 +156,18 @@ InitializeArena(memory_arena *Arena, memory_index Size, uint8 *Base)
     Arena->Used = 0;
 }
 
+internal void
+ResetArena(memory_arena *Arena)
+{
+    Arena->Used = 0;
+}
+
+internal uint8 *
+ArenaCurrentAddress(memory_arena *Arena)
+{
+    return Arena->Base + Arena->Used;
+}
+
 #define PushStruct(Arena, type) (type *)PushSize_(Arena, sizeof(type))
 #define PushArray(Arena, Count, type) (type *)PushSize_(Arena, (Count)*sizeof(type))
 void *

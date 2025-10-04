@@ -39,7 +39,7 @@ global int64 GlobalPerfCountFrequency;
 global bool32 DEBUGGlobalShowCursor;
 global WINDOWPLACEMENT GlobalWindowPosition = {sizeof(GlobalWindowPosition)};
 #if HANDMADE_INTERNAL
-#include "../ext/renderdoc_app.h"
+#include "renderdoc_app.h"
 global RENDERDOC_API_1_6_0 *RenderDocAPI = NULL;
 #endif
 

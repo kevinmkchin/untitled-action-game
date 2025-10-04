@@ -1,4 +1,5 @@
 #include "shooter_gui.h"
+#include "stb_sprintf.h"
 
 // /* Immediate-mode state helpers */
 // bool IsActive(ui_id id);
@@ -81,13 +82,62 @@ void GuiPanel(gui_state *GuiState, gui_rect Rect, texture_handle Image)
     }
 }
 
+void GuiTextFmt(gui_state *GuiState, int32 X, int32 Y, int32 FontSize, gui_alignment Align,
+                bool32 PutNewLinesAbove, vec4 TextColor, char *TextFmt, ...)
+{
+    if (TextFmt)
+    {
+        char *CurrentAddress = (char *)ArenaCurrentAddress(GuiState->Scratch);
+
+        va_list ArgPtr;
+        va_start(ArgPtr, TextFmt);
+        int TextLength = vsprintf(CurrentAddress, TextFmt, ArgPtr);
+        va_end(ArgPtr);
+
+        GuiText(GuiState, X, Y, FontSize, Align, PutNewLinesAbove, TextColor, CurrentAddress);
+    }
+}
+
+void GuiText(gui_state *GuiState, int32 X, int32 Y, int32 FontSize, gui_alignment Align,
+             bool32 PutNewLinesAbove, vec4 TextColor, char *Text)
+{
+    if (Text == NULL)
+    {
+        return;
+    }
+
+    gui_draw_request *DrawRequest = NextDrawRequest(GuiState);
+    if (DrawRequest)
+    {
+        char *CurrentAddress = (char *)ArenaCurrentAddress(GuiState->Scratch);
+        int TextLength = StringLength(Text);
+        if (CurrentAddress != Text)
+        {
+            // NOTE(Kevin): If string is at same location as CurrentAddress, then we only need
+            // to move the used index by the text length. No need for copy.
+            Copy(CurrentAddress, Text, TextLength);
+        }
+        PushArray(GuiState->Scratch, TextLength+1, char); // to move the used index
+
+        DrawRequest->Color = TextColor;
+        DrawRequest->Text = CurrentAddress;
+        DrawRequest->X;
+        DrawRequest->Y;
+        DrawRequest->FontSize;
+        DrawRequest->Align = Align;
+        DrawRequest->PutNewLinesAbove = PutNewLinesAbove;
+        // TODO(Kevin): font info
+    }
+}
+
 void GuiInitialize(gui_state *GuiState)
 {
 
 }
 
-void GuiBeginFrame(gui_state *GuiState, u32 CanvasWidth, u32 CanvasHeight)
+void GuiBeginFrame(gui_state *GuiState, u32 CanvasWidth, u32 CanvasHeight, memory_arena *Scratch)
 {
+    GuiState->Scratch = Scratch;
     GuiState->DrawRequestsCount = 0;
     GuiState->ScissorStackCount = 0;
     GuiPushScissor(GuiState, { 0, 0, CanvasWidth, CanvasHeight });

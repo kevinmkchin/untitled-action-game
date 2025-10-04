@@ -62,7 +62,7 @@ void renderer::PushRenderItems(render_item *RenderItems, uint32 RenderItemsCount
     }
 }
 
-void renderer::PushGuiDrawRequests(memory_arena Scratch, gui_draw_request *Requests, uint32 RequestsCount)
+void renderer::PushGuiDrawRequests(memory_arena *Scratch, gui_draw_request *Requests, uint32 RequestsCount)
 {
     vstream_frame_chunk VertexStreamFrame;
     OpenGLGetGuiVertexStreamFrame((open_gl *)this, &VertexStreamFrame);

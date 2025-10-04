@@ -1,7 +1,7 @@
 #include "shooter_renderer_opengl.h"
 #include "shooter_shared.h"
 #define GL3W_IMPLEMENTATION
-#include "../ext/gl3w.h"
+#include "gl3w.h"
 #include "shooter_renderer_opengl_shaders.h"
 
 global uint32 PreviousBackBufferW;
