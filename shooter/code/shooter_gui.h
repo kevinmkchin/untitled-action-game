@@ -29,6 +29,12 @@ struct gui_rect
     u32 W, H;
 };
 
+enum gui_font
+{
+    GuiFontCurses6x9,
+    GuiFontAnikki8x8,
+};
+
 struct gui_vertex
 {
     vec2 PixelP; // 0,0 is top left
@@ -36,11 +42,18 @@ struct gui_vertex
     vec4 Color;
 };
 
+enum gui_draw_type
+{
+    GuiDrawRect,
+    GuiDrawText
+};
+
 struct gui_draw_request
 {
     gui_rect Scissor;
     vec4 Color;
-    // TODO(Kevin): This union needs to be discriminated probably with an enum otherwise accesses are fucked
+
+    gui_draw_type DrawType;
     union
     {
         struct
@@ -51,7 +64,9 @@ struct gui_draw_request
         struct
         {
             char *Text;
-            int32 X, Y, FontSize;
+            s32 X, Y;
+            u32 FontSize;
+            font_handle Font;
             gui_alignment Align;
             bool32 PutNewLinesAbove;
         };
@@ -69,6 +84,8 @@ struct gui_state
     u32 ScissorStackCount;
 
     memory_arena *Scratch;
+
+    font_handle Fonts[2];
 };
 
 void GuiPushScissor(gui_state *GuiState, gui_rect Scissor);
@@ -78,12 +95,11 @@ void GuiPanel(gui_state *GuiState, gui_rect Rect, vec4 RGBA);
 void GuiPanel(gui_state *GuiState, gui_rect Rect, texture_handle Image);
 // void GuiButton(u32 ID, gui_rect Rect, vec4 RGBA, vec4 RGBAHovered, vec4 RGBAActive);
 // void GuiCheckbox(u32 ID, gui_rect Rect, int32 Inset, bool32 *Value, vec4 RGBABackground, vec4 RGBAForeground);
-void GuiTextFmt(gui_state *GuiState, int32 X, int32 Y, int32 FontSize, gui_alignment Align,
+void GuiTextFmt(gui_state *GuiState, s32 X, s32 Y, u32 FontSize, gui_font FontIndex, gui_alignment Align,
                 bool32 PutNewLinesAbove, vec4 TextColor, char *TextFmt, ...);
-void GuiText(gui_state *GuiState, int32 X, int32 Y, int32 FontSize, gui_alignment Align,
+void GuiText(gui_state *GuiState, s32 X, s32 Y, u32 FontSize, gui_font FontIndex, gui_alignment Align,
              bool32 PutNewLinesAbove, vec4 TextColor, char *Text);
 
-void GuiInitialize(gui_state *GuiState);
 void GuiBeginFrame(gui_state *GuiState, u32 CanvasWidth, u32 CanvasHeight, memory_arena *Scratch);
 
 #endif // SHOOTER_GUI_H

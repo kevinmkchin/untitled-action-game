@@ -130,6 +130,30 @@ DEBUGLoadBMP(thread_context *Thread, debug_platform_read_entire_file *ReadEntire
     return Result;
 }
 
+internal font_handle
+CreateBitmapFont(loaded_bitmap Bitmap, renderer *RendererAPI)
+{
+    u32 *Pixels = Bitmap.Pixels;
+    for (s32 Y = 0; Y < Bitmap.Height; ++Y)
+    {
+        for (s32 X = 0; X < Bitmap.Width; ++X)
+        {
+            if (((*Pixels >> 16) & 0xFF) > 0)
+            {
+                *Pixels = 0xFFFFFFFF;
+            }
+            else
+            {
+                *Pixels = 0x00000000;
+            }
+            ++Pixels;
+        }
+    }
+
+    font_handle Result = RendererAPI->CreateBitmapFont_ExtendedASCII(Bitmap.Pixels, Bitmap.Width, Bitmap.Height, BGRA_U8, 3);
+    return Result;
+}
+
 extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 {
     Assert((&Input->Controllers[0].Terminator - &Input->Controllers[0].Buttons[0]) == 
@@ -323,6 +347,14 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
         RendererAPI->UploadTexture2DData(GameState->Backdrop.Pixels, GameState->Backdrop.Width, GameState->Backdrop.Height, BGRA_U8, false);
 
+        loaded_bitmap CustomFont0Bmp = DEBUGLoadBMP(Thread, Memory->PlatformAPI.DEBUGPlatformReadEntireFile, "fonts/anikki_8x8.bmp");
+        font_handle RenderFont0 = CreateBitmapFont(CustomFont0Bmp, RendererAPI);
+        GuiState->Fonts[GuiFontCurses6x9] = RenderFont0;
+
+        loaded_bitmap CustomFont1Bmp = DEBUGLoadBMP(Thread, Memory->PlatformAPI.DEBUGPlatformReadEntireFile, "fonts/custom_font_0_6x9.bmp");
+        font_handle RenderFont1 = CreateBitmapFont(CustomFont1Bmp, RendererAPI);
+        GuiState->Fonts[GuiFontAnikki8x8] = RenderFont1;
+
         Memory->IsInitialized = true;
     }
 
@@ -338,7 +370,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         }
     }
 
-    // TODO(Kevin): draw 10 cubes and have it go through static lit pipeline
+    // NOTE(Kevin): This is all renderer and gui test code
     uint32 RenderItemsCount = 12;
     uint8 *RenderItemsStart = ArenaCurrentAddress(&GameState->ScratchArena);
 
@@ -391,6 +423,10 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     GuiPopScissor(GuiState);
     GuiPanel(GuiState, { 400, 400, 100, 100 }, vec4(0.0f, 1.0f, 1.0f, 1.0f));
     GuiPanel(GuiState, { Input->MouseX, Input->MouseY, 16, 16 }, vec4(1.0f, 1.0f, 0.0f, 1.0f));
+    GuiText(GuiState, 50, 160, 36, GuiFontAnikki8x8, Align_Left, false, vec4(0,1,0,1), "Hello world");
+    GuiText(GuiState, 50, 200, 36, GuiFontCurses6x9, Align_Left, false, vec4(0,1,1,0.5f), "Hello world");
+
+    GuiPanel(GuiState, { 500, 100, 600, 600 }, 6);
 
     RendererAPI->PushGuiDrawRequests(&GameState->ScratchArena, GuiState->DrawRequests, GuiState->DrawRequestsCount);
 }

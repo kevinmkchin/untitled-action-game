@@ -2,11 +2,13 @@
 #define SHOOTER_RENDERER_H
 
 #include "shooter_types.h"
+#include "shooter_vertext.h"
 
 // TODO(Kevin): Should these mesh/texture handles, render items live on the game side?
 // and the renderer+assetman systems implement ways to upload them and render them?
 typedef uint32 mesh_handle;
 typedef uint32 texture_handle;
+typedef uint32 font_handle;
 #define InvalidHandle 0xFFFFFFFF
 
 enum pixel_format
@@ -18,13 +20,6 @@ enum pixel_format
     BGRA_U8,
     BGRA_Float,
 };
-
-// struct PNUV1_vertex
-// {
-//     vec3 XYZ;
-//     vec3 IJK;
-//     vec2 UV0;
-// };
 
 struct PNUV2_vertex
 {
@@ -89,6 +84,12 @@ struct rendering_pipeline
     // Render targets formats (color, depth attachment formats)
 };
 
+struct renderer_font
+{
+    vtxt_font FontInfo;
+    texture_handle FontAtlasHandle;
+};
+
 //
 // NOTE(Kevin): Renderer Frontend
 //
@@ -109,6 +110,9 @@ struct renderer
 
     uint32 StaticLitItemsMaxCount;
 
+    renderer_font HandleToFont[8];
+    u32 FontCount;
+
     // NOTE(Kevin): Service APIs to the game must be virtual to avoid linking with
     // definition. vtable essentially provides the function table of callable services
     // from the game layer. Therefore, renderer MUST be constructed to have a valid vtable
@@ -116,10 +120,12 @@ struct renderer
     virtual void GetRenderTargetDimensions(uint32 *Width, uint32 *Height);
     virtual void PushRenderItems(render_item *RenderItems, uint32 RenderItemsCount);
     virtual void PushGuiDrawRequests(memory_arena *Scratch, struct gui_draw_request *Requests, uint32 RequestsCount);
-    // virtual mesh_handle UploadMeshData(PNUV1_vertex *VB, uint32 VC, uint32 *IB, uint32 IC);
     virtual mesh_handle UploadMeshData(PNUV2_vertex *VB, uint32 VC, uint32 *IB, uint32 IC);
     virtual texture_handle UploadTexture2DData(void *Bitmap, uint32 W, uint32 H, pixel_format Format, 
                                                bool32 LinearFiltering);
+
+    virtual font_handle CreateBitmapFont_ExtendedASCII(void *Bitmap, u32 W, u32 H, pixel_format Format, u32 NewLineGap);
+
 };
 
 /*

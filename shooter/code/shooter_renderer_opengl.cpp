@@ -315,40 +315,6 @@ void OpenGLGetGuiVertexStreamItemsArray(open_gl *OpenGL, gui_vstream_item **OutA
     *OutCount = &OpenGL->GuiVertexStreamItemsCount;
 }
 
-// mesh_handle OpenGLUploadMesh(open_gl *OpenGL, PNUV1_vertex *VB, uint32 VC, uint32 *IB, uint32 IC)
-// {
-//     GLsizei StrideInBytes = sizeof(PNUV1_vertex);
-//     GLsizeiptr VertexBufferSzInBytes = (GLsizeiptr)sizeof(PNUV1_vertex)*VC;
-//     GLsizeiptr IndexBufferSzInBytes = (GLsizeiptr)sizeof(uint32)*IC;
-
-//     open_gl_mesh Mesh = {};
-
-//     glGenVertexArrays(1, &Mesh.VAO);
-//     glBindVertexArray(Mesh.VAO);
-//     glGenBuffers(1, &Mesh.VBO);
-//     glBindBuffer(GL_ARRAY_BUFFER, Mesh.VBO);
-//     glBufferData(GL_ARRAY_BUFFER, VertexBufferSzInBytes, VB, GL_STATIC_DRAW);
-
-//     glEnableVertexAttribArray(0);
-//     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, StrideInBytes, 0);
-//     glEnableVertexAttribArray(1);
-//     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, StrideInBytes, (void*)offsetof(PNUV1_vertex, IJK));
-//     glEnableVertexAttribArray(2);
-//     glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, StrideInBytes, (void*)offsetof(PNUV1_vertex, UV0));
-
-//     glGenBuffers(1, &Mesh.IBO);
-//     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, Mesh.IBO);
-//     glBufferData(GL_ELEMENT_ARRAY_BUFFER, IndexBufferSzInBytes, IB, GL_STATIC_DRAW);
-//     glBindBuffer(GL_ARRAY_BUFFER, 0);
-//     glBindVertexArray(0);
-
-//     Mesh.IndicesCount = IC;
-//     mesh_handle NewHandle = NextAvailableMeshHandle(OpenGL);
-//     OpenGL->HandleToMesh[NewHandle] = Mesh;
-
-//     return NewHandle;
-// }
-
 mesh_handle OpenGLUploadMesh(open_gl *OpenGL, PNUV2_vertex *VB, uint32 VC, uint32 *IB, uint32 IC)
 {
     GLsizei StrideInBytes = sizeof(PNUV2_vertex);
@@ -523,6 +489,13 @@ texture_handle OpenGLUploadTexture2D(open_gl *OpenGL, void *Bitmap, uint32 W, ui
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, MinFilterMode);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, MagFilterMode);
+
+    // NOTE(Kevin): Set GBA swizzle if SourceFormat is only RED component
+    if (Texture.SourceFormat == GL_RED)
+    {
+        GLint RRRR[] = { GL_RED, GL_RED, GL_RED, GL_RED };
+        glTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_RGBA, RRRR);
+    }
 
     glBindTexture(GL_TEXTURE_2D, 0);
 

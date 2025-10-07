@@ -117,6 +117,8 @@ void main()
     FinalColor = ShadeDynamicModel(FinalColor, WorldPos, normalize(WorldNormal));
     FinalColor *= LightmapValue;
 
+    // TODO(Kevin): remove this branch -> muzzle flash should just be a regular dynamic point light
+    // or just always apply without branch
     if (MuzzleFlash.w > 0.0)
     {
         vec3 ToLight = MuzzleFlash.xyz - WorldPos;

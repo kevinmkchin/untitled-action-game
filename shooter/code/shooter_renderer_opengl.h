@@ -166,7 +166,6 @@ void OpenGLGetPerInstanceDataArray(open_gl *OpenGL, open_gl_model_instance **Out
 void OpenGLGetGuiVertexStreamFrame(open_gl *OpenGL, vstream_frame_chunk *OutVertexStreamFrame);
 void OpenGLGetGuiVertexStreamItemsArray(open_gl *OpenGL, gui_vstream_item** OutArray, uint32 **OutCount);
 
-// mesh_handle OpenGLUploadMesh(open_gl *OpenGL, PNUV1_vertex *VB, uint32 VC, uint32 *IB, uint32 IC);
 mesh_handle OpenGLUploadMesh(open_gl *OpenGL, PNUV2_vertex *VB, uint32 VC, uint32 *IB, uint32 IC);
 void OpenGLDrawMesh(open_gl *OpenGL, mesh_handle MeshHandle);
 void OpenGLDrawMeshInstanced(open_gl *OpenGL, mesh_handle MeshHandle, uint32 Count);

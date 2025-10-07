@@ -65,6 +65,7 @@ void GuiPanel(gui_state *GuiState, gui_rect Rect, vec4 RGBA)
     gui_draw_request *DrawRequest = NextDrawRequest(GuiState);
     if (DrawRequest)
     {
+        DrawRequest->DrawType = GuiDrawRect;
         DrawRequest->Color = RGBA;
         DrawRequest->Rect = Rect;
         DrawRequest->Texture = InvalidHandle;
@@ -76,13 +77,14 @@ void GuiPanel(gui_state *GuiState, gui_rect Rect, texture_handle Image)
     gui_draw_request *DrawRequest = NextDrawRequest(GuiState);
     if (DrawRequest)
     {
+        DrawRequest->DrawType = GuiDrawRect;
         DrawRequest->Color = vec4(1.0f,1.0f,1.0f,1.0f);
         DrawRequest->Rect = Rect;
         DrawRequest->Texture = Image;
     }
 }
 
-void GuiTextFmt(gui_state *GuiState, int32 X, int32 Y, int32 FontSize, gui_alignment Align,
+void GuiTextFmt(gui_state *GuiState, s32 X, s32 Y, u32 FontSize, gui_font FontIndex, gui_alignment Align,
                 bool32 PutNewLinesAbove, vec4 TextColor, char *TextFmt, ...)
 {
     if (TextFmt)
@@ -94,11 +96,11 @@ void GuiTextFmt(gui_state *GuiState, int32 X, int32 Y, int32 FontSize, gui_align
         int TextLength = vsprintf(CurrentAddress, TextFmt, ArgPtr);
         va_end(ArgPtr);
 
-        GuiText(GuiState, X, Y, FontSize, Align, PutNewLinesAbove, TextColor, CurrentAddress);
+        GuiText(GuiState, X, Y, FontSize, FontIndex, Align, PutNewLinesAbove, TextColor, CurrentAddress);
     }
 }
 
-void GuiText(gui_state *GuiState, int32 X, int32 Y, int32 FontSize, gui_alignment Align,
+void GuiText(gui_state *GuiState, s32 X, s32 Y, u32 FontSize, gui_font FontIndex, gui_alignment Align,
              bool32 PutNewLinesAbove, vec4 TextColor, char *Text)
 {
     if (Text == NULL)
@@ -119,20 +121,16 @@ void GuiText(gui_state *GuiState, int32 X, int32 Y, int32 FontSize, gui_alignmen
         }
         PushArray(GuiState->Scratch, TextLength+1, char); // to move the used index
 
+        DrawRequest->DrawType = GuiDrawText;
         DrawRequest->Color = TextColor;
         DrawRequest->Text = CurrentAddress;
-        DrawRequest->X;
-        DrawRequest->Y;
-        DrawRequest->FontSize;
+        DrawRequest->X = X;
+        DrawRequest->Y = Y;
+        DrawRequest->FontSize = FontSize;
+        DrawRequest->Font = GuiState->Fonts[FontIndex];
         DrawRequest->Align = Align;
         DrawRequest->PutNewLinesAbove = PutNewLinesAbove;
-        // TODO(Kevin): font info
     }
-}
-
-void GuiInitialize(gui_state *GuiState)
-{
-
 }
 
 void GuiBeginFrame(gui_state *GuiState, u32 CanvasWidth, u32 CanvasHeight, memory_arena *Scratch)
