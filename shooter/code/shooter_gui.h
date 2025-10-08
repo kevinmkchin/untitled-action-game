@@ -11,6 +11,7 @@
 
     Handles input and generates draw requests
     Does not do any auto-styling -> all styling is up to the user
+    User provides element ID
 
     Keep it dead simple -> no ordering just painter's alg
 
@@ -73,6 +74,13 @@ struct gui_draw_request
     };
 };
 
+struct gui_persist_state
+{
+    u32 Active;
+    u32 Hovered;
+    u32 HoveredNextFrame;
+};
+
 struct gui_state
 {
     #define MAX_GUI_DRAW_REQUESTS 1000
@@ -83,23 +91,38 @@ struct gui_state
     gui_rect ScissorStack[MAX_SCISSOR_STACK];
     u32 ScissorStackCount;
 
+    s32 MouseX;
+    s32 MouseY;
+    bool32 LMBWentDown;
+    bool32 LMBWentUp;
+    bool32 RMBWentDown;
+    bool32 RMBWentUp;
+
     memory_arena *Scratch;
 
     font_handle Fonts[2];
+
+    gui_persist_state InteractionState;
 };
+
+bool32 GuiIsAnyElementActive(gui_state *GuiState);
+bool32 GuiBehaviourButton(gui_state *GuiState, u32 ID, gui_rect Rect);
 
 void GuiPushScissor(gui_state *GuiState, gui_rect Scissor);
 void GuiPopScissor(gui_state *GuiState);
 
 void GuiPanel(gui_state *GuiState, gui_rect Rect, vec4 RGBA);
 void GuiPanel(gui_state *GuiState, gui_rect Rect, texture_handle Image);
-// void GuiButton(u32 ID, gui_rect Rect, vec4 RGBA, vec4 RGBAHovered, vec4 RGBAActive);
+bool32 GuiButton(gui_state *GuiState, u32 ID, gui_rect Rect, vec4 RGBA, vec4 RGBAHovered, vec4 RGBAActive);
+bool32 GuiButton(gui_state *GuiState, u32 ID, gui_rect Rect, texture_handle Image, 
+                 texture_handle ImageHovered, texture_handle ImageActive);
 // void GuiCheckbox(u32 ID, gui_rect Rect, int32 Inset, bool32 *Value, vec4 RGBABackground, vec4 RGBAForeground);
 void GuiTextFmt(gui_state *GuiState, s32 X, s32 Y, u32 FontSize, gui_font FontIndex, gui_alignment Align,
                 bool32 PutNewLinesAbove, vec4 TextColor, char *TextFmt, ...);
 void GuiText(gui_state *GuiState, s32 X, s32 Y, u32 FontSize, gui_font FontIndex, gui_alignment Align,
              bool32 PutNewLinesAbove, vec4 TextColor, char *Text);
 
-void GuiBeginFrame(gui_state *GuiState, u32 CanvasWidth, u32 CanvasHeight, memory_arena *Scratch);
+void GuiBeginFrame(gui_state *GuiState, u32 CanvasWidth, u32 CanvasHeight, memory_arena *Scratch,
+                   s32 MouseX, s32 MouseY, game_button_state LMB, game_button_state RMB);
 
 #endif // SHOOTER_GUI_H

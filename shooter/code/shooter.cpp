@@ -413,7 +413,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
     uint32 CanvasW, CanvasH;
     RendererAPI->GetRenderTargetDimensions(&CanvasW, &CanvasH);
-    GuiBeginFrame(GuiState, CanvasW, CanvasH, &GameState->ScratchArena);
+    GuiBeginFrame(GuiState, CanvasW, CanvasH, &GameState->ScratchArena, 
+                  Input->MouseX, Input->MouseY, Input->MouseButtons[0], Input->MouseButtons[1]);
     GuiPushScissor(GuiState, { 250, 250, 1000, 100 });
     GuiPanel(GuiState, { 200, 200, 100, 100 }, 2);
     GuiPushScissor(GuiState, { 200, 200, 600, 125 });
@@ -427,6 +428,12 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     GuiText(GuiState, 50, 200, 36, GuiFontCurses6x9, Align_Left, false, vec4(0,1,1,0.5f), "Hello world");
 
     GuiPanel(GuiState, { 500, 100, 600, 600 }, 6);
+
+    if (GuiButton(GuiState, 1, {100, 500, 200, 200}, vec4(0.0f,0.7f,0.0f,1.0f), 
+                  vec4(0.0f,0.5f,0.0f,1.0f), vec4(0.0f,1.0f,0.0f,1.0f)))
+    {
+        GuiPanel(GuiState, { 500, 500, 200, 200 }, vec4(0,0,1,1));
+    }
 
     RendererAPI->PushGuiDrawRequests(&GameState->ScratchArena, GuiState->DrawRequests, GuiState->DrawRequestsCount);
 }

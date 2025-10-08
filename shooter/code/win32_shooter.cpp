@@ -984,6 +984,11 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                     NewInput->MouseX = MouseP.x;
                     NewInput->MouseY = MouseP.y;
                     NewInput->MouseZ = 0; // TODO(Kevin): Support mousewheel
+                    NewInput->MouseButtons[0].EndedDown = OldInput->MouseButtons[0].EndedDown;
+                    NewInput->MouseButtons[1].EndedDown = OldInput->MouseButtons[1].EndedDown;
+                    NewInput->MouseButtons[2].EndedDown = OldInput->MouseButtons[2].EndedDown;
+                    NewInput->MouseButtons[3].EndedDown = OldInput->MouseButtons[3].EndedDown;
+                    NewInput->MouseButtons[4].EndedDown = OldInput->MouseButtons[4].EndedDown;
                     Win32ProcessKeyboardMessage(&NewInput->MouseButtons[0],
                         GetKeyState(VK_LBUTTON) & (1 << 15));
                     Win32ProcessKeyboardMessage(&NewInput->MouseButtons[1],

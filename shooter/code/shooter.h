@@ -74,6 +74,7 @@ struct game_input
 {
     game_button_state MouseButtons[5];
     int32 MouseX, MouseY, MouseZ;
+    // TODO(Kevin): Normalized mouse delta? for StickAverageX and Y?
 
     real32 dtForFrame;
 
