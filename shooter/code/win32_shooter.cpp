@@ -106,7 +106,7 @@ DEBUG_PLATFORM_READ_ENTIRE_FILE(DEBUGPlatformReadEntireFile)
         LARGE_INTEGER FileSize;
         if(GetFileSizeEx(FileHandle, &FileSize))
         {
-            uint32 FileSize32 = SafeTruncateUInt64(FileSize.QuadPart);
+            uint32 FileSize32 = SafeTruncateU64(FileSize.QuadPart);
             Result.Contents = VirtualAlloc(0, FileSize32, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
             if (Result.Contents)
             {
@@ -972,8 +972,8 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                     Win32ProcessPendingMessages(&Win32State, NewKeyboardController);
 
                     win32_window_dimension Dimensions = Win32GetWindowDimension(Window);
-                    Renderer->BackBufferW = SafeCastToUInt32(Dimensions.Width);
-                    Renderer->BackBufferH = SafeCastToUInt32(Dimensions.Height);
+                    Renderer->BackBufferW = SafeCastToU32(Dimensions.Width);
+                    Renderer->BackBufferH = SafeCastToU32(Dimensions.Height);
                     Win32BeginFrame(Renderer);
 
                     POINT MouseP;

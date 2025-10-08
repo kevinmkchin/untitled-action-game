@@ -76,20 +76,20 @@ internal void OpenGLInit(open_gl *OpenGL)
 
     OpenGL->FreeMeshHandlesCount = ArrayCount(OpenGL->FreeMeshHandles);
     for (int32 FreeHandle = 0;
-         FreeHandle < SafeCastToInt32(OpenGL->FreeMeshHandlesCount);
+         FreeHandle < SafeCastToS32(OpenGL->FreeMeshHandlesCount);
          ++FreeHandle)
     {
         OpenGL->FreeMeshHandles[OpenGL->FreeMeshHandlesCount - FreeHandle - 1] = 
-            (mesh_handle)SafeCastToUInt32(FreeHandle);
+            (mesh_handle)SafeCastToU32(FreeHandle);
     }
 
     OpenGL->FreeTextureHandlesCount = ArrayCount(OpenGL->FreeTextureHandles);
     for (int32 FreeHandle = 0; 
-         FreeHandle < SafeCastToInt32(OpenGL->FreeTextureHandlesCount);
+         FreeHandle < SafeCastToS32(OpenGL->FreeTextureHandlesCount);
          ++FreeHandle)
     {
         OpenGL->FreeTextureHandles[OpenGL->FreeTextureHandlesCount - FreeHandle - 1] = 
-            (texture_handle)SafeCastToUInt32(FreeHandle);
+            (texture_handle)SafeCastToU32(FreeHandle);
     }
 }
 
@@ -151,7 +151,7 @@ internal void OpenGLEndFrame(open_gl *OpenGL)
         Assert(OpenGL->PerInstanceDataFrameChunk.WriteTo);
 
         OpenGLSSBOBindTo(&(OpenGL->PerInstanceDataSSBO), 0);
-        uint32 BaseInstanceIndex = SafeTruncateUInt64(OpenGL->PerInstanceDataFrameChunk.BaseOffset / 
+        uint32 BaseInstanceIndex = SafeTruncateU64(OpenGL->PerInstanceDataFrameChunk.BaseOffset / 
                                                       sizeof(open_gl_model_instance));
 
         open_gl_model_instance *PerInstanceData = (open_gl_model_instance *)OpenGL->PerInstanceDataFrameChunk.WriteTo;
@@ -168,7 +168,7 @@ internal void OpenGLEndFrame(open_gl *OpenGL)
                 PerInstanceData[PerInstanceDataIndex].Descriptor != CurrentDescriptor)
             {
                 GLBind1i(*StaticLitShader, "BaseInstanceIndex", 
-                         (GLint)SafeCastToInt32(BaseInstanceIndex + CurrentOffsetFromBase));
+                         (GLint)SafeCastToS32(BaseInstanceIndex + CurrentOffsetFromBase));
 
                 OpenGLBindTexture2D(OpenGL, 0, CurrentDescriptor.Albedo);
                 OpenGLBindTexture2D(OpenGL, 1, CurrentDescriptor.Lightmap);
@@ -1040,8 +1040,8 @@ Win32InitOpenGL(HDC WindowDC /* TODO(Kevin): platform limits?*/)
         GetClientRect(Window, &ClientRect);
         int WindowWidth = ClientRect.right - ClientRect.left;
         int WindowHeight = ClientRect.bottom - ClientRect.top;
-        OpenGL->Header.BackBufferW = SafeCastToUInt32(WindowWidth);
-        OpenGL->Header.BackBufferH = SafeCastToUInt32(WindowHeight);
+        OpenGL->Header.BackBufferW = SafeCastToU32(WindowWidth);
+        OpenGL->Header.BackBufferH = SafeCastToU32(WindowHeight);
 
         OpenGLInit(OpenGL);
     }

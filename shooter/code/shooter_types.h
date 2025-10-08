@@ -111,28 +111,28 @@ typedef buffer string;
 #define Minimum(A, B) ((A < B) ? (A) : (B))
 #define Maximum(A, B) ((A > B) ? (A) : (B))
 
-inline uint32
-SafeTruncateUInt64(uint64 Value)
+inline u32
+SafeTruncateU64(u64 Value)
 {
     // TODO(Kevin): Defines for maximum values UInt32Max
     Assert(Value <= 0xFFFFFFFF);
-    uint32 Result = (uint32)Value;
+    u32 Result = (u32)Value;
     return Result;
 }
 
-inline uint32
-SafeCastToUInt32(int32 Value)
+inline u32
+SafeCastToU32(s32 Value)
 {
     Assert(Value >= 0);
-    uint32 Result = (uint32)Value;
+    u32 Result = (u32)Value;
     return Result;
 }
 
-inline int32
-SafeCastToInt32(uint32 Value)
+inline s32
+SafeCastToS32(u32 Value)
 {
     Assert(Value < 0x80000000);
-    int32 Result = (int32)Value;
+    s32 Result = (s32)Value;
     return Result;
 }
 

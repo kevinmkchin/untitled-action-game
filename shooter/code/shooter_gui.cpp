@@ -27,8 +27,8 @@ internal bool32 MouseInside(gui_state *GuiState, gui_rect Rect)
 {
     s32 Left = Rect.X;
     s32 Top = Rect.Y;
-    s32 Right = Left + SafeCastToInt32(Rect.W);
-    s32 Bottom = Top + SafeCastToInt32(Rect.H);
+    s32 Right = Left + SafeCastToS32(Rect.W);
+    s32 Bottom = Top + SafeCastToS32(Rect.H);
 
     if (Left <= GuiState->MouseX && GuiState->MouseX < Right && 
         Top <= GuiState->MouseY && GuiState->MouseY < Bottom)
@@ -102,16 +102,16 @@ void GuiPushScissor(gui_state *GuiState, gui_rect Scissor)
             gui_rect LastScissor = GuiState->ScissorStack[GuiState->ScissorStackCount-1];
             s32 IntersectionMinX = Maximum(LastScissor.X, Scissor.X);
             s32 IntersectionMinY = Maximum(LastScissor.Y, Scissor.Y);
-            s32 IntersectionMaxX = Minimum(LastScissor.X+SafeCastToInt32(LastScissor.W), 
-                                           Scissor.X+SafeCastToInt32(Scissor.W));
-            s32 IntersectionMaxY = Minimum(LastScissor.Y+SafeCastToInt32(LastScissor.H), 
-                                           Scissor.Y+SafeCastToInt32(Scissor.H));
+            s32 IntersectionMaxX = Minimum(LastScissor.X+SafeCastToS32(LastScissor.W), 
+                                           Scissor.X+SafeCastToS32(Scissor.W));
+            s32 IntersectionMaxY = Minimum(LastScissor.Y+SafeCastToS32(LastScissor.H), 
+                                           Scissor.Y+SafeCastToS32(Scissor.H));
             if (IntersectionMinX < IntersectionMaxX &&
                 IntersectionMinY < IntersectionMaxY)
             {
                 NewScissor = { IntersectionMinX, IntersectionMinY,
-                               SafeCastToUInt32(IntersectionMaxX-IntersectionMinX),
-                               SafeCastToUInt32(IntersectionMaxY-IntersectionMinY) };
+                               SafeCastToU32(IntersectionMaxX-IntersectionMinX),
+                               SafeCastToU32(IntersectionMaxY-IntersectionMinY) };
             }
             else
             {

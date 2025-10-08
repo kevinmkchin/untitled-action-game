@@ -97,6 +97,7 @@ struct gui_state
     bool32 LMBWentUp;
     bool32 RMBWentDown;
     bool32 RMBWentUp;
+    // TODO(Kevin): Array of typed keys to read keyboard input from
 
     memory_arena *Scratch;
 

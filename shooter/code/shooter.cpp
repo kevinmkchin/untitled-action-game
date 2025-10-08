@@ -253,7 +253,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             ByteBufferReadBulk(MapBytes, &Position, LightmapDimensions*sizeof(float), LightmapData);
             // TODO(Kevin): Yeah don't create texture resources here...just load all the data first
             // LightmapData should be part of e.g. map_data
-            RendererAPI->UploadTexture2DData(LightmapData, SafeCastToUInt32(LightmapW), SafeCastToUInt32(LightmapH),
+            RendererAPI->UploadTexture2DData(LightmapData, SafeCastToU32(LightmapW), SafeCastToU32(LightmapH),
                                           R_Float, true);
 
             // Light cache volume
