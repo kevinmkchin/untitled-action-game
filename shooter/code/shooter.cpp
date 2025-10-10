@@ -154,6 +154,63 @@ CreateBitmapFont(loaded_bitmap Bitmap, renderer *RendererAPI)
     return Result;
 }
 
+internal void
+PlaceCamera(camera *Camera, vec3 Pos, vec3 Forward)
+{
+    vec3 WorldUp = GM_UP_VECTOR;
+    vec3 WorldRight = GM_RIGHT_VECTOR;
+
+    Camera->P = Pos;
+    Camera->Forward = Normalize(Forward);
+    Camera->Right = Normalize(Cross(Camera->Forward, WorldUp));
+    Camera->Up = Normalize(Cross(Camera->Right, Camera->Forward));
+
+    quat Pitch = RotationFromTo(WorldUp, Camera->Up);
+    quat Yaw = RotationFromTo(WorldRight, Camera->Right);
+    vec3 PitchEuler = QuatToEuler(Pitch);
+    vec3 YawEuler = QuatToEuler(Yaw);
+
+    Camera->EulerRot = PitchEuler + YawEuler;
+    Camera->Orientation = CombineRotations(Pitch, Yaw);
+
+    Camera->ViewPosition = Camera->P;
+    Camera->ViewForward = Camera->Forward;
+    Camera->ViewUp = Camera->Up;
+}
+
+internal mat4
+CameraSpaceFromWorldSpace(camera *Camera)
+{
+    mat4 ViewMatrix = ViewMatrixLookAt(Camera->ViewPosition,
+                                       Camera->ViewPosition + Camera->ViewForward, 
+                                       Camera->ViewUp);
+    return ViewMatrix;
+}
+
+internal void
+MouseLookCamera(camera *Camera, real32 MouseAxisX, real32 MouseAxisY)
+{
+    real32 PitchConstraint = GM_HALFPI-0.0175f;
+    real32 YawDelta = MouseAxisX;
+    real32 PitchDelta = MouseAxisY;
+    Camera->EulerRot.y -= YawDelta;
+    Camera->EulerRot.z -= PitchDelta;
+    if (Camera->EulerRot.z > PitchConstraint)
+        Camera->EulerRot.z = PitchConstraint;
+    if (Camera->EulerRot.z < -PitchConstraint)
+        Camera->EulerRot.z = -PitchConstraint;
+
+    Camera->Orientation = EulerToQuat(Camera->EulerRot);
+    Camera->Forward = Normalize(OrientationToDirection(Camera->Orientation));
+    Camera->Right = Normalize(Cross(Camera->Forward, GM_UP_VECTOR));
+    Camera->Up = Normalize(Cross(Camera->Right, Camera->Forward));
+
+    Camera->ViewPosition = Camera->P;
+    Camera->ViewForward = Camera->Forward;
+    Camera->ViewUp = Camera->Up;
+}
+
+
 extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 {
     Assert((&Input->Controllers[0].Terminator - &Input->Controllers[0].Buttons[0]) == 
@@ -355,9 +412,14 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         font_handle RenderFont1 = CreateBitmapFont(CustomFont1Bmp, RendererAPI);
         GuiState->Fonts[GuiFontAnikki8x8] = RenderFont1;
 
+        PlaceCamera(&GameState->Camera, vec3(-100, 60, 0), vec3(1,-0.1f,0));
+
         Memory->IsInitialized = true;
     }
 
+    //
+    // Input
+    //
     for (int ControllerIndex = 0;
          ControllerIndex < ArrayCount(Input->Controllers);
          ++ControllerIndex)
@@ -369,8 +431,13 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             continue;
         }
     }
+    real32 MouseLookSensitivity = 0.002f;
+    vec2 AdjustedMouseAxes = Input->NormalizedMouseDelta * MouseLookSensitivity;
+    MouseLookCamera(&GameState->Camera, AdjustedMouseAxes.x, AdjustedMouseAxes.y);
 
-    // NOTE(Kevin): This is all renderer and gui test code
+    //
+    // This is all renderer and gui test code
+    //
     uint32 RenderItemsCount = 12;
     uint8 *RenderItemsStart = ArenaCurrentAddress(&GameState->ScratchArena);
 
@@ -409,6 +476,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     Item1->WorldRotation = quat();
     Item1->WorldScale = vec3(1.0f,1.0f,1.0f);
 
+    mat4 ViewFromWorld = CameraSpaceFromWorldSpace(&GameState->Camera);
+    RendererAPI->PushViewMatrix(ViewFromWorld);
     RendererAPI->PushRenderItems((render_item *)RenderItemsStart, RenderItemsCount);
 
     uint32 CanvasW, CanvasH;

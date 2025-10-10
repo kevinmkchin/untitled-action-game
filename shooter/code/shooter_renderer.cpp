@@ -10,6 +10,11 @@ void renderer::GetRenderTargetDimensions(uint32 *Width, uint32 *Height)
     *Height = BackBufferH;
 }
 
+void renderer::PushViewMatrix(mat4 InViewFromWorld)
+{
+    ViewFromWorld = InViewFromWorld;
+}
+
 void renderer::PushRenderItems(render_item *RenderItems, uint32 RenderItemsCount)
 {
     // TODO(Kevin): Sort render items

@@ -585,16 +585,51 @@ ToggleFullscreen(HWND Window)
 }
 
 internal void 
-Win32ProcessPendingMessages(win32_state *State, game_controller_input *KeyboardController)
+Win32ProcessPendingMessages(win32_state *State, game_controller_input *KeyboardController,
+                            win32_raw_mouse_input *RawMouseInput)
 {
     // NOTE(Kevin): Nonqueued messages are sent immediately to the main 
     // window callback and bypass the message queue.
+
+    win32_raw_mouse_input RawMouseInputAccumulator = {};
+    BYTE RawInputBuffer[128];
 
     MSG Message;
     while (PeekMessage(&Message, 0, 0, 0, PM_REMOVE))
     {
         switch (Message.message)
         {
+            case WM_INPUT:
+            {
+                UINT dwSize;
+                GetRawInputData((HRAWINPUT)Message.lParam, RID_INPUT, NULL, &dwSize, sizeof(RAWINPUTHEADER));
+                if (ArrayCount(RawInputBuffer) >= dwSize)
+                {
+                    if (GetRawInputData((HRAWINPUT)Message.lParam, RID_INPUT, 
+                                        RawInputBuffer, &dwSize, sizeof(RAWINPUTHEADER)) != dwSize)
+                    {
+                        OutputDebugStringA(TEXT("GetRawInputData does not return correct size !\n"));
+                    }
+
+                    RAWINPUT *Raw = (RAWINPUT *)RawInputBuffer;
+                    if (Raw->header.dwType == RIM_TYPEMOUSE) 
+                    {
+                        RawMouseInputAccumulator.dMouseX += Raw->data.mouse.lLastX;
+                        RawMouseInputAccumulator.dMouseY += Raw->data.mouse.lLastY;
+                        // raw->data.mouse.usFlags,
+                        // raw->data.mouse.ulButtons, 
+                        // raw->data.mouse.usButtonFlags, 
+                        // raw->data.mouse.usButtonData, 
+                        // raw->data.mouse.ulRawButtons, 
+                        // raw->data.mouse.ulExtraInformation
+                    }
+                }
+                else
+                {
+                    // TODO(Kevin): device packet is larger than the buffer I have
+                }
+            } break;
+
             case WM_QUIT:
             {
                 GlobalRunning = false;
@@ -736,6 +771,8 @@ Win32ProcessPendingMessages(win32_state *State, game_controller_input *KeyboardC
             } break;
         }
     }
+
+    *RawMouseInput = RawMouseInputAccumulator;
 }
 
 inline LARGE_INTEGER 
@@ -835,6 +872,16 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
             NULL);      // Additional application data
         if (Window)
         {
+            RAWINPUTDEVICE Rid;
+            Rid.usUsagePage = 0x01;          // HID_USAGE_PAGE_GENERIC
+            Rid.usUsage = 0x02;              // HID_USAGE_GENERIC_MOUSE
+            Rid.dwFlags = RIDEV_NOLEGACY;    // adds mouse and also ignores legacy mouse messages
+            Rid.hwndTarget = Window;
+            if (!RegisterRawInputDevices(&Rid, 1, sizeof(Rid)))
+            {
+                // TODO(Kevin): Logging. Call GetLastError for the cause of the error
+            }
+
             renderer *Renderer = Win32LoadRenderer(GetDC(Window));
 
             // TODO(Kevin): Grab MonitorRefreshHz from device actually
@@ -969,7 +1016,8 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                     Win32CopyKeyboardEndedDownStates(NewKeyboardController, 
                                                      OldKeyboardController);
 
-                    Win32ProcessPendingMessages(&Win32State, NewKeyboardController);
+                    win32_raw_mouse_input RawMouseInput = {};
+                    Win32ProcessPendingMessages(&Win32State, NewKeyboardController, &RawMouseInput);
 
                     win32_window_dimension Dimensions = Win32GetWindowDimension(Window);
                     Renderer->BackBufferW = SafeCastToU32(Dimensions.Width);
@@ -981,6 +1029,39 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                     GetCursorPos(&MouseP);
                     // TODO(Kevin): Handle failure case
                     ScreenToClient(Window, &MouseP);
+                    bool32 MouseWrapWindow = false;
+                    if (MouseWrapWindow)
+                    {
+                        s32 WrapMargin = 1;
+                        if (MouseP.x < WrapMargin)
+                        {
+                            MouseP.x += Dimensions.Width - WrapMargin;
+                            POINT ScreenMouseP = MouseP;
+                            ClientToScreen(Window, &ScreenMouseP);
+                            SetCursorPos(ScreenMouseP.x, ScreenMouseP.y);
+                        }
+                        if (MouseP.x >= Dimensions.Width - WrapMargin)
+                        {
+                            MouseP.x -= Dimensions.Width - WrapMargin;
+                            POINT ScreenMouseP = MouseP;
+                            ClientToScreen(Window, &ScreenMouseP);
+                            SetCursorPos(ScreenMouseP.x, ScreenMouseP.y);
+                        }
+                        if (MouseP.y < WrapMargin)
+                        {
+                            MouseP.y += Dimensions.Height - WrapMargin;
+                            POINT ScreenMouseP = MouseP;
+                            ClientToScreen(Window, &ScreenMouseP);
+                            SetCursorPos(ScreenMouseP.x, ScreenMouseP.y);
+                        }
+                        if (MouseP.y >= Dimensions.Height - WrapMargin)
+                        {
+                            MouseP.y -= Dimensions.Height - WrapMargin;
+                            POINT ScreenMouseP = MouseP;
+                            ClientToScreen(Window, &ScreenMouseP);
+                            SetCursorPos(ScreenMouseP.x, ScreenMouseP.y);
+                        }
+                    }
                     NewInput->MouseX = MouseP.x;
                     NewInput->MouseY = MouseP.y;
                     NewInput->MouseZ = 0; // TODO(Kevin): Support mousewheel
@@ -989,6 +1070,7 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                     NewInput->MouseButtons[2].EndedDown = OldInput->MouseButtons[2].EndedDown;
                     NewInput->MouseButtons[3].EndedDown = OldInput->MouseButtons[3].EndedDown;
                     NewInput->MouseButtons[4].EndedDown = OldInput->MouseButtons[4].EndedDown;
+                    NewInput->NormalizedMouseDelta = { (real32)RawMouseInput.dMouseX, (real32)RawMouseInput.dMouseY };
                     Win32ProcessKeyboardMessage(&NewInput->MouseButtons[0],
                         GetKeyState(VK_LBUTTON) & (1 << 15));
                     Win32ProcessKeyboardMessage(&NewInput->MouseButtons[1],

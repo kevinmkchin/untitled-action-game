@@ -74,7 +74,8 @@ struct game_input
 {
     game_button_state MouseButtons[5];
     int32 MouseX, MouseY, MouseZ;
-    // TODO(Kevin): Normalized mouse delta? for StickAverageX and Y?
+    vec2 NormalizedMouseDelta; // Mouse analog to StickAvergeX/Y
+    // TODO(Kevin): Key presses can probably come in a big array here? for GUI and things
 
     real32 dtForFrame;
 
@@ -192,10 +193,28 @@ struct loaded_bitmap
     uint32 *Pixels;
 };
 
+struct camera
+{
+    vec3 P;
+    vec3 EulerRot; // Roll, Yaw, Pitch
+    vec3 Forward;
+    vec3 Right;
+    vec3 Up;
+    quat Orientation;
+
+    // Used for ViewMatrix calculation i.e. rendering
+    // This lets me shake or tilt the camera for rendering only
+    vec3 ViewPosition;
+    vec3 ViewForward;
+    vec3 ViewUp;
+};
+
 struct game_state
 {
     memory_arena WorldArena;
     memory_arena ScratchArena;
+
+    camera Camera;
 
     real32 tSine;
     loaded_bitmap Backdrop;

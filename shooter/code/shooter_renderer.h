@@ -113,11 +113,14 @@ struct renderer
     renderer_font HandleToFont[8];
     u32 FontCount;
 
+    mat4 ViewFromWorld;
+
     // NOTE(Kevin): Service APIs to the game must be virtual to avoid linking with
     // definition. vtable essentially provides the function table of callable services
     // from the game layer. Therefore, renderer MUST be constructed to have a valid vtable
     // ptr. C-style function table will be more stable, but for now this is more convenient.
     virtual void GetRenderTargetDimensions(uint32 *Width, uint32 *Height);
+    virtual void PushViewMatrix(mat4 ViewFromWorld);
     virtual void PushRenderItems(render_item *RenderItems, uint32 RenderItemsCount);
     virtual void PushGuiDrawRequests(memory_arena *Scratch, struct gui_draw_request *Requests, uint32 RequestsCount);
     virtual mesh_handle UploadMeshData(PNUV2_vertex *VB, uint32 VC, uint32 *IB, uint32 IC);
