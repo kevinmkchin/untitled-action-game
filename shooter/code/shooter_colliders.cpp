@@ -3,7 +3,7 @@
 
 /// GJK
 
-vec3 FindFurthestPointOnConvexShell(collider_base *Collider, vec3 Direction)
+internal vec3 FindFurthestPointOnConvexShell(collider_base *Collider, vec3 Direction)
 {
     vec3 FurthestPoint = {};
 
@@ -75,7 +75,7 @@ vec3 FindFurthestPointOnConvexShell(collider_base *Collider, vec3 Direction)
 #define GJKSameDirection(Dir, A_to_Origin) (Dot(Dir, A_to_Origin) > 0.f)
 #define GJKAbsoluteFloat(A) ((A) < 0.f ? (-(A)) : (A))
 
-void GJKSimplexPushFront(gjk_simplex *Simplex, vec3 P)
+internal void GJKSimplexPushFront(gjk_simplex *Simplex, vec3 P)
 {
     Simplex->Vertices[3] = Simplex->Vertices[2];
     Simplex->Vertices[2] = Simplex->Vertices[1];
@@ -84,14 +84,14 @@ void GJKSimplexPushFront(gjk_simplex *Simplex, vec3 P)
     Simplex->VertexCount = GJKMin(Simplex->VertexCount + 1, 4);
 }
 
-vec3 GJKSupportFunction(collider_base *A, collider_base *B, vec3 Direction)
+internal vec3 GJKSupportFunction(collider_base *A, collider_base *B, vec3 Direction)
 {
     // https://en.wikipedia.org/wiki/Support_function
     return FindFurthestPointOnConvexShell(A, Direction) - 
            FindFurthestPointOnConvexShell(B, -Direction);
 }
 
-bool GJKLine(gjk_simplex *Capture, vec3 *Direction)
+internal bool32 GJKLine(gjk_simplex *Capture, vec3 *Direction)
 {
     Assert(Capture && Direction);
     Assert(Capture->VertexCount == 2);
@@ -123,7 +123,7 @@ bool GJKLine(gjk_simplex *Capture, vec3 *Direction)
     return false;
 }
 
-bool GJKTriangle(gjk_simplex *Capture, vec3 *Direction)
+internal bool32 GJKTriangle(gjk_simplex *Capture, vec3 *Direction)
 {
     Assert(Capture && Direction);
     Assert(Capture->VertexCount == 3);
@@ -193,7 +193,7 @@ bool GJKTriangle(gjk_simplex *Capture, vec3 *Direction)
     return false;
 }
 
-bool GJKTetrahedron(gjk_simplex *Capture, vec3 *Direction)
+internal bool32 GJKTetrahedron(gjk_simplex *Capture, vec3 *Direction)
 {
     Assert(Capture && Direction);
     Assert(Capture->VertexCount == 4);
@@ -249,7 +249,7 @@ bool GJKTetrahedron(gjk_simplex *Capture, vec3 *Direction)
     return true;
 }
 
-bool GJKNextSimplex(gjk_simplex *Capture, vec3 *OutNextDirection)
+internal bool32 GJKNextSimplex(gjk_simplex *Capture, vec3 *OutNextDirection)
 {
     // Checks to see what the next simplex should be and what direction
     // to search in next.
@@ -263,7 +263,7 @@ bool GJKNextSimplex(gjk_simplex *Capture, vec3 *OutNextDirection)
     }
 }
 
-bool GJK(collider_base *A, collider_base *B, gjk_simplex *OutSimplex)
+bool32 GJK(collider_base *A, collider_base *B, gjk_simplex *OutSimplex)
 {
     // NOTE(Kevin): Returns true if the origin is captured by the simplex
     // during GJK algorithm. OutSimplex is populated during the algorithm.
@@ -323,7 +323,7 @@ struct epa_edge
     int IndexB;
 };
 
-epa_face EPABuildFace(vec3 *Vertices, int Index0, int Index1, int Index2)
+internal epa_face EPABuildFace(vec3 *Vertices, int Index0, int Index1, int Index2)
 {
     epa_face Result;
     Result.Indices[0] = Index0;
@@ -346,7 +346,7 @@ epa_face EPABuildFace(vec3 *Vertices, int Index0, int Index1, int Index2)
     return Result;
 }
 
-bool EPAEdgeEquals(epa_edge Lhs, epa_edge Rhs)
+internal bool32 EPAEdgeEquals(epa_edge Lhs, epa_edge Rhs)
 {
     if (Lhs.IndexA == Rhs.IndexA)
     {
@@ -358,7 +358,7 @@ bool EPAEdgeEquals(epa_edge Lhs, epa_edge Rhs)
     }
 }
 
-void EPAKeepEdgeIfUnique(epa_edge *UniqueEdges, uint32 *UniqueEdgesCount, int IndexA, int IndexB)
+internal void EPAKeepEdgeIfUnique(epa_edge *UniqueEdges, uint32 *UniqueEdgesCount, int IndexA, int IndexB)
 {
     epa_edge Edge;
     // Index order matters for reconstruction later. For edge comparison,

@@ -1066,6 +1066,12 @@ void
 Win32EndFrame(renderer *Renderer)
 {
     OpenGLEndFrame((open_gl *)Renderer);
+    // NOTE(Kevin): Relying on just SwapIntervals feels really bad with DWM composition on
+    // modern windows...lots of stuttering. Putting a DwmFlush before SwapBuffers (or after?)
+    // seems to reduce stuttering to the point it is not noticeable, but it shouldn't be used
+    // as a game-pacing primitive (why?).
+    // DXGI flip model seems to be best option for presenting on Windows...
+    // https://learn.microsoft.com/en-us/windows/win32/direct3ddxgi/for-best-performance--use-dxgi-flip-model
     SwapBuffers(wglGetCurrentDC());
 }
 

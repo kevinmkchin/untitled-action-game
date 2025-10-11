@@ -1,6 +1,7 @@
 #pragma once
 
 #include "shooter_types.h"
+#include "shooter_colliders.h"
 
 // the game is the services to the operating system level to produce the graphics
 // and sound necessary to play the game
@@ -15,7 +16,7 @@
 
 struct thread_context
 {
-    int Placeholder;
+    s32 Placeholder;
 };
 
 /*
@@ -24,15 +25,15 @@ struct thread_context
 
 struct game_sound_output_buffer
 {
-    // 2 channel 16-bit int PCM 
-    int SamplesPerSecond;
-    int SampleCount;
+    // 2 channel 16-bit integer PCM 
+    s32 SamplesPerSecond;
+    s32 SampleCount;
     void *Samples;
 };
 
 struct game_button_state
 {
-    int HalfTransitionCount;
+    s32 HalfTransitionCount;
     bool32 EndedDown;
 };
 
@@ -81,7 +82,7 @@ struct game_input
 
     game_controller_input Controllers[5];
 };
-inline game_controller_input *GetController(game_input *Input, int unsigned ControllerIndex)
+inline game_controller_input *GetController(game_input *Input, u32 ControllerIndex)
 {
     Assert(ControllerIndex < ArrayCount(Input->Controllers));
     game_controller_input *Result = &Input->Controllers[ControllerIndex];
@@ -186,6 +187,15 @@ PushSize_(memory_arena *Arena, memory_index Size)
 #include "shooter_renderer.h"
 #include "shooter_intrinsics.h"
 
+// TODO(Kevin): entity
+// struct entity
+// {
+//     vec3 P;
+//     mesh_handle    RenderMesh;
+//     texture_handle RenderAlbedo;
+//     texture_handle RenderLightmap;
+// };
+
 struct loaded_bitmap
 {
     int32 Width;
@@ -209,12 +219,33 @@ struct camera
     vec3 ViewUp;
 };
 
+struct game_map
+{
+    vec3 PlayerStartPosition;
+    vec3 PlayerStartRotation; // maybe should be "PlayerStartFacing"
+
+    int32 LightmapW, LightmapH;
+    real32 *LightmapData;
+
+    vec3 ColliderPoints[5000];
+    u32 ColliderPointsCount;
+    flatpoly_collider Colliders[500];
+    u32 CollidersCount;
+};
+// Serialize(game_map *GameMap, , bool32 IsReading);
+
 struct game_state
 {
     memory_arena WorldArena;
     memory_arena ScratchArena;
 
+    game_map Map;
+
     camera Camera;
+    vec3 PlayerControllerRoot;
+    real32 PlayerYVel;
+    vec3 PlayerWalkDirectionRight;
+    vec3 PlayerWalkDirectionForward;
 
     real32 tSine;
     loaded_bitmap Backdrop;

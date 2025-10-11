@@ -37,6 +37,7 @@ Platform Layer TODO
 global bool GlobalRunning;
 global int64 GlobalPerfCountFrequency;
 global bool32 DEBUGGlobalShowCursor;
+global HCURSOR GlobalCursorArrow;
 global WINDOWPLACEMENT GlobalWindowPosition = {sizeof(GlobalWindowPosition)};
 #if HANDMADE_INTERNAL
 #include "renderdoc_app.h"
@@ -374,14 +375,22 @@ Win32MainWindowCallback(HWND Window, UINT Message, WPARAM WParam, LPARAM LParam)
 
         case WM_SETCURSOR:
         {
-            if (DEBUGGlobalShowCursor)
+            if (LOWORD(LParam) == HTCLIENT)
             {
-                Result = DefWindowProcA(Window, Message, WParam, LParam);
+                if (DEBUGGlobalShowCursor)
+                {
+                    SetCursor(GlobalCursorArrow);
+                }
+                else
+                {
+                    SetCursor(0);
+                }
+
+                Result = TRUE;
             }
             else
             {
-                SetCursor(0);
-                Result = TRUE;
+                Result = DefWindowProcA(Window, Message, WParam, LParam);
             }
         } break;
 
@@ -599,6 +608,23 @@ Win32ProcessPendingMessages(win32_state *State, game_controller_input *KeyboardC
     {
         switch (Message.message)
         {
+            case WM_QUIT:
+            {
+                GlobalRunning = false;
+            } break;
+
+            case WM_ACTIVATEAPP:
+            {
+                if (Message.wParam == TRUE)
+                {
+
+                }
+                else
+                {
+                    Win32ClearKeyboardEndedDownStates(KeyboardController);
+                }
+            } break;
+
             case WM_INPUT:
             {
                 UINT dwSize;
@@ -630,21 +656,9 @@ Win32ProcessPendingMessages(win32_state *State, game_controller_input *KeyboardC
                 }
             } break;
 
-            case WM_QUIT:
+            case WM_MOUSEMOVE:
             {
-                GlobalRunning = false;
-            } break;
-
-            case WM_ACTIVATEAPP:
-            {
-                if (Message.wParam == TRUE)
-                {
-
-                }
-                else
-                {
-                    Win32ClearKeyboardEndedDownStates(KeyboardController);
-                }
+                // NOTE(Kevin): Ignore for raw input
             } break;
 
             case WM_MOUSEWHEEL:
@@ -845,12 +859,13 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
 #if HANDMADE_INTERNAL
     DEBUGGlobalShowCursor = true;
 #endif
+    GlobalCursorArrow = LoadCursor(0, IDC_ARROW);
 
     WNDCLASSA WindowClass = {};
     WindowClass.style = CS_HREDRAW|CS_VREDRAW;
     WindowClass.lpfnWndProc = Win32MainWindowCallback;
     WindowClass.hInstance = Instance;
-    WindowClass.hCursor = LoadCursor(0, IDC_CROSS);
+    WindowClass.hCursor = GlobalCursorArrow;
     //WindowClass.hIcon = ;
     WindowClass.lpszClassName = "ShooterGameWindowClass";
 
@@ -875,7 +890,7 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
             RAWINPUTDEVICE Rid;
             Rid.usUsagePage = 0x01;          // HID_USAGE_PAGE_GENERIC
             Rid.usUsage = 0x02;              // HID_USAGE_GENERIC_MOUSE
-            Rid.dwFlags = RIDEV_NOLEGACY;    // adds mouse and also ignores legacy mouse messages
+            Rid.dwFlags = 0x0;
             Rid.hwndTarget = Window;
             if (!RegisterRawInputDevices(&Rid, 1, sizeof(Rid)))
             {

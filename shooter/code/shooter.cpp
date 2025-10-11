@@ -3,6 +3,7 @@
 #include "shooter_shared.h"
 #include "shooter_gui.h"
 #include "shooter_gui.cpp"
+#include "shooter_colliders.cpp"
 #define STB_SPRINTF_IMPLEMENTATION
 #include <stb_sprintf.h>
 
@@ -155,23 +156,15 @@ CreateBitmapFont(loaded_bitmap Bitmap, renderer *RendererAPI)
 }
 
 internal void
-PlaceCamera(camera *Camera, vec3 Pos, vec3 Forward)
+PlaceCamera(camera *Camera, vec3 Pos, vec3 EulerRot)
 {
-    vec3 WorldUp = GM_UP_VECTOR;
-    vec3 WorldRight = GM_RIGHT_VECTOR;
-
     Camera->P = Pos;
-    Camera->Forward = Normalize(Forward);
-    Camera->Right = Normalize(Cross(Camera->Forward, WorldUp));
+    Camera->EulerRot = EulerRot;
+
+    Camera->Orientation = EulerToQuat(Camera->EulerRot);
+    Camera->Forward = Normalize(OrientationToDirection(Camera->Orientation));
+    Camera->Right = Normalize(Cross(Camera->Forward, GM_UP_VECTOR));
     Camera->Up = Normalize(Cross(Camera->Right, Camera->Forward));
-
-    quat Pitch = RotationFromTo(WorldUp, Camera->Up);
-    quat Yaw = RotationFromTo(WorldRight, Camera->Right);
-    vec3 PitchEuler = QuatToEuler(Pitch);
-    vec3 YawEuler = QuatToEuler(Yaw);
-
-    Camera->EulerRot = PitchEuler + YawEuler;
-    Camera->Orientation = CombineRotations(Pitch, Yaw);
 
     Camera->ViewPosition = Camera->P;
     Camera->ViewForward = Camera->Forward;
@@ -200,14 +193,119 @@ MouseLookCamera(camera *Camera, real32 MouseAxisX, real32 MouseAxisY)
     if (Camera->EulerRot.z < -PitchConstraint)
         Camera->EulerRot.z = -PitchConstraint;
 
-    Camera->Orientation = EulerToQuat(Camera->EulerRot);
-    Camera->Forward = Normalize(OrientationToDirection(Camera->Orientation));
-    Camera->Right = Normalize(Cross(Camera->Forward, GM_UP_VECTOR));
-    Camera->Up = Normalize(Cross(Camera->Right, Camera->Forward));
+    PlaceCamera(Camera, Camera->P, Camera->EulerRot);
+}
 
-    Camera->ViewPosition = Camera->P;
-    Camera->ViewForward = Camera->Forward;
-    Camera->ViewUp = Camera->Up;
+// NOTE(Kevin): Having sort of cylindrical mesh appears to help with avoiding ghost collisions along walls.
+vec3 PlayerColliderPoints[] = {
+    vec3(8.0000f  , 0.f,  0.0000f  ),
+    vec3(7.3910f  , 0.f,  3.0615f  ),
+    vec3(5.6569f  , 0.f,  5.6569f  ),
+    vec3(3.0615f  , 0.f,  7.3910f  ),
+    vec3(0.0000f  , 0.f,  8.0000f  ),
+    vec3(-3.0615f , 0.f,  7.3910f  ),
+    vec3(-5.6569f , 0.f,  5.6569f  ),
+    vec3(-7.3910f , 0.f,  3.0615f  ),
+    vec3(-8.0000f , 0.f,  0.0000f  ),
+    vec3(-7.3910f , 0.f,  -3.0615f ),
+    vec3(-5.6569f , 0.f,  -5.6569f ),
+    vec3(-3.0615f , 0.f,  -7.3910f ),
+    vec3(0.0000f  , 0.f,  -8.0000f ),
+    vec3(3.0615f  , 0.f,  -7.3910f ),
+    vec3(5.6569f  , 0.f,  -5.6569f ),
+    vec3(7.3910f  , 0.f,  -3.0615f ),
+    vec3(8.0000f  , 47.f,  0.0000f  ),
+    vec3(7.3910f  , 47.f,  3.0615f  ),
+    vec3(5.6569f  , 47.f,  5.6569f  ),
+    vec3(3.0615f  , 47.f,  7.3910f  ),
+    vec3(0.0000f  , 47.f,  8.0000f  ),
+    vec3(-3.0615f , 47.f,  7.3910f  ),
+    vec3(-5.6569f , 47.f,  5.6569f  ),
+    vec3(-7.3910f , 47.f,  3.0615f  ),
+    vec3(-8.0000f , 47.f,  0.0000f  ),
+    vec3(-7.3910f , 47.f,  -3.0615f ),
+    vec3(-5.6569f , 47.f,  -5.6569f ),
+    vec3(-3.0615f , 47.f,  -7.3910f ),
+    vec3(0.0000f  , 47.f,  -8.0000f ),
+    vec3(3.0615f  , 47.f,  -7.3910f ),
+    vec3(5.6569f  , 47.f,  -5.6569f ),
+    vec3(7.3910f  , 47.f,  -3.0615f )
+};
+vec3 WorldPlayerColliderPoints[ArrayCount(PlayerColliderPoints)];
+mesh_collider WorldPlayerCollider;
+internal mesh_collider *
+PlayerColliderAtPos(vec3 PlayerP)
+{
+    for (u32 Index = 0; Index < ArrayCount(WorldPlayerColliderPoints); ++Index)
+    {
+        WorldPlayerColliderPoints[Index] = PlayerColliderPoints[Index] + PlayerP;
+    }
+
+    WorldPlayerCollider.PointCloud = WorldPlayerColliderPoints;
+    WorldPlayerCollider.PointCount = ArrayCount(WorldPlayerColliderPoints);
+
+    return &WorldPlayerCollider;
+}
+
+struct collision_result
+{
+    vec3 Normal;
+    real32 Depth;
+    bool32 HasCollision;
+};
+
+internal vec3
+ResolvePlayerCollisions(game_map *Map, vec3 PlayerTestP)
+{
+    vec3 Result = {};
+
+    mesh_collider *PlayerCollider = PlayerColliderAtPos(PlayerTestP);
+
+    for (u32 MapColliderIndex = 0; 
+         MapColliderIndex < Map->CollidersCount;
+         ++MapColliderIndex)
+    {
+        collision_result CollisionResult = {};
+
+        flatpoly_collider MapFaceCollider = Map->Colliders[MapColliderIndex];
+
+        gjk_simplex CaptureSimplex;
+
+        CollisionResult.HasCollision = GJK((collider_base *)&MapFaceCollider,
+                                  (collider_base *)PlayerCollider, 
+                                  &CaptureSimplex);
+
+        if (CollisionResult.HasCollision)
+        {
+            epa_result EPAResult = EPA((collider_base *)&MapFaceCollider,
+                                       (collider_base *)PlayerCollider,
+                                       &CaptureSimplex);
+
+            CollisionResult.Normal = EPAResult.NearestFaceNormal;
+            CollisionResult.Depth = EPAResult.NearestFaceDist;
+
+            vec3 MapFaceP0 = MapFaceCollider.PointCloud[0];
+            vec3 MapFaceP1 = MapFaceCollider.PointCloud[1];
+            vec3 MapFaceP2 = MapFaceCollider.PointCloud[2];
+            vec3 MapFaceN = Normalize(Cross(MapFaceP1-MapFaceP0, MapFaceP2-MapFaceP0));
+
+            vec3 ResolutionVector = CollisionResult.Normal * CollisionResult.Depth;
+            bool32 ResolvingSameDirAsFaceNormal = Dot(MapFaceN, CollisionResult.Normal) > 0.001f;
+            if (ResolvingSameDirAsFaceNormal)
+            {
+                // Registered
+                Result += ResolutionVector;
+                PlayerTestP += ResolutionVector;
+                PlayerCollider = PlayerColliderAtPos(PlayerTestP);
+            }
+            else
+            {
+                // Ignored
+            }
+        }
+    }
+
+    return Result;
 }
 
 
@@ -349,8 +447,27 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             size_t numColliderPoints, numColliderSpans;
             ByteBufferRead(MapBytes, &Position, size_t, &numColliderPoints);
             ByteBufferRead(MapBytes, &Position, size_t, &numColliderSpans);
-            ByteBufferReadBulk(MapBytes, &Position, sizeof(vec3)*numColliderPoints, 0);//MapInfo->LoadingLevelColliderPoints.data, 
-            ByteBufferReadBulk(MapBytes, &Position, sizeof(uint32)*numColliderSpans, 0);//MapInfo->LoadingLevelColliderSpans.data, 
+            GameState->Map.ColliderPointsCount = SafeTruncateU64(numColliderPoints);
+
+            u32 *Scratch = (u32 *)ArenaCurrentAddress(&GameState->ScratchArena);
+            ByteBufferReadBulk(MapBytes, &Position, sizeof(vec3)*numColliderPoints,
+                               GameState->Map.ColliderPoints);
+            ByteBufferReadBulk(MapBytes, &Position, sizeof(u32)*numColliderSpans,
+                               Scratch);
+            for (memory_index SpanOffset = 0;
+                 SpanOffset < numColliderPoints;
+                 ++Scratch)
+            {
+                u32 Span = *Scratch;
+
+                flatpoly_collider Collider;
+                Collider.PointCloud = (GameState->Map.ColliderPoints + SpanOffset);
+                Collider.PointCount = Span;
+                GameState->Map.Colliders[GameState->Map.CollidersCount++] = Collider;
+
+                SpanOffset += Span;
+            }
+
             // vertex buffers
             size_t numVertexBufs;
             ByteBufferRead(MapBytes, &Position, size_t, &numVertexBufs);
@@ -365,13 +482,6 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 PNUV2_vertex *vb = (PNUV2_vertex *)malloc(sizeof(float)*FloatValuesCount);
                 uint32 *ib = (uint32 *)malloc(sizeof(uint32)*FloatValuesCount);
                 ByteBufferReadBulk(MapBytes, &Position, sizeof(float)*FloatValuesCount, vb);
-
-                // face_batch_t FaceBatch;
-                // FaceBatch.ColorTexture = Assets.GetTextureById(texturePersistId).gputex;
-                // FaceBatch.LightMapTexture = LevelLightmapTexture;
-                // CreateFaceBatch(&FaceBatch);
-                // RebindFaceBatch(&FaceBatch, sizeof(float)*VertexCount, vb.data());
-                // MapInfo->GameLevelFaceBatches.push_back(FaceBatch);
 
                 // TODO(Kevin): Since this is a hack to work w vertex buffers without index buffers,
                 // maybe have one array with uint32s from 0 ... some big N to reuse instead of creating
@@ -412,7 +522,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         font_handle RenderFont1 = CreateBitmapFont(CustomFont1Bmp, RendererAPI);
         GuiState->Fonts[GuiFontAnikki8x8] = RenderFont1;
 
-        PlaceCamera(&GameState->Camera, vec3(-100, 60, 0), vec3(1,-0.1f,0));
+        GameState->PlayerControllerRoot = vec3(-100, 0.1f, 0);
+        PlaceCamera(&GameState->Camera, vec3(-100, 60, 0), vec3(0,0,0));
 
         Memory->IsInitialized = true;
     }
@@ -420,6 +531,10 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     //
     // Input
     //
+    real32 MouseLookSensitivity = 0.002f;
+    vec2 AdjustedMouseAxes = Input->NormalizedMouseDelta * MouseLookSensitivity;
+    MouseLookCamera(&GameState->Camera, AdjustedMouseAxes.x, AdjustedMouseAxes.y);
+
     for (int ControllerIndex = 0;
          ControllerIndex < ArrayCount(Input->Controllers);
          ++ControllerIndex)
@@ -430,10 +545,98 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         {
             continue;
         }
+
+        if (ControllerIndex == 0)
+        {
+            bool32 FlyCam = false;
+            if (FlyCam)
+            {
+                vec3 PositionDelta;
+                real32 MoveSpeed = 350.f;
+                real32 MoveIncrement = MoveSpeed * Input->dtForFrame;
+                if (Controller->MoveUp.EndedDown)
+                {
+                    PositionDelta += GameState->Camera.Forward * MoveIncrement;
+                }
+                if (Controller->MoveDown.EndedDown)
+                {
+                    PositionDelta += -GameState->Camera.Forward * MoveIncrement;
+                }
+                if (Controller->MoveLeft.EndedDown)
+                {
+                    PositionDelta += -GameState->Camera.Right * MoveIncrement;
+                }
+                if (Controller->MoveRight.EndedDown)
+                {
+                    PositionDelta += GameState->Camera.Right * MoveIncrement;
+                }
+                if (Controller->LeftShoulder.EndedDown)
+                {
+                    PositionDelta += -GM_UP_VECTOR * MoveIncrement;
+                }
+                if (Controller->RightShoulder.EndedDown)
+                {
+                    PositionDelta += GM_UP_VECTOR * MoveIncrement;
+                }
+                GameState->Camera.P += PositionDelta;
+                GameState->Camera.ViewPosition = GameState->Camera.P;
+            }
+            else
+            {
+                PlaceCamera(&GameState->Camera,
+                            GameState->PlayerControllerRoot + vec3(0,40,0),
+                            GameState->Camera.EulerRot);
+                // GameState->Camera.P = GameState->PlayerControllerRoot + vec3(0,40,0);
+                // GameState->Camera.ViewPosition = GameState->Camera.P;
+
+                GameState->PlayerWalkDirectionRight = GameState->Camera.Right;
+                GameState->PlayerWalkDirectionForward = Normalize(Cross(GM_UP_VECTOR, GameState->Camera.Right));
+
+                vec3 PlayerHorizontalVector;
+                if (Controller->MoveUp.EndedDown)
+                    PlayerHorizontalVector += GameState->PlayerWalkDirectionForward;
+                if (Controller->MoveDown.EndedDown)
+                    PlayerHorizontalVector += -GameState->PlayerWalkDirectionForward;
+                if (Controller->MoveLeft.EndedDown)
+                    PlayerHorizontalVector += -GameState->PlayerWalkDirectionRight;
+                if (Controller->MoveRight.EndedDown)
+                    PlayerHorizontalVector += GameState->PlayerWalkDirectionRight;
+
+                vec3 TestPlayerRoot = GameState->PlayerControllerRoot;
+
+                // NOTE(Kevin): Moving in smaller increments before resolving collision to
+                // avoid tunneling and erroneous collision resolution vectors (that resolve
+                // player into walls). Heuristically, 50 seems to be a safe value, for current
+                // player radius of 8.
+                real32 MoveStepVelocity = 50.f;
+                TestPlayerRoot += PlayerHorizontalVector * MoveStepVelocity * Input->dtForFrame;
+                TestPlayerRoot += ResolvePlayerCollisions(&GameState->Map, TestPlayerRoot);
+                TestPlayerRoot += PlayerHorizontalVector * MoveStepVelocity * Input->dtForFrame;
+                TestPlayerRoot += ResolvePlayerCollisions(&GameState->Map, TestPlayerRoot);
+                TestPlayerRoot += PlayerHorizontalVector * MoveStepVelocity * Input->dtForFrame;
+                TestPlayerRoot += ResolvePlayerCollisions(&GameState->Map, TestPlayerRoot);
+                TestPlayerRoot += PlayerHorizontalVector * MoveStepVelocity * Input->dtForFrame;
+                TestPlayerRoot += ResolvePlayerCollisions(&GameState->Map, TestPlayerRoot);
+                // TestPlayerRoot += PlayerHorizontalVector * MoveStepVelocity * Input->dtForFrame;
+                // TestPlayerRoot += ResolvePlayerCollisions(&GameState->Map, TestPlayerRoot);
+
+                if (Controller->ActionDown.EndedDown && Controller->ActionDown.HalfTransitionCount > 0)
+                {
+                    GameState->PlayerYVel = 160.f;
+                }
+                GameState->PlayerYVel -= 314.f * Input->dtForFrame; // 9.81 m/s * 32 units/m ~= 314 units/s
+                TestPlayerRoot.y += GameState->PlayerYVel * Input->dtForFrame;
+                vec3 VerticalResolutionVector = ResolvePlayerCollisions(&GameState->Map, TestPlayerRoot);
+                if (AbsoluteValue(Dot(Normalize(VerticalResolutionVector), GM_UP_VECTOR)) > 0.1f)
+                {
+                    GameState->PlayerYVel = 0.0f;
+                }
+                TestPlayerRoot += VerticalResolutionVector;
+
+                GameState->PlayerControllerRoot = TestPlayerRoot;
+            }
+        }
     }
-    real32 MouseLookSensitivity = 0.002f;
-    vec2 AdjustedMouseAxes = Input->NormalizedMouseDelta * MouseLookSensitivity;
-    MouseLookCamera(&GameState->Camera, AdjustedMouseAxes.x, AdjustedMouseAxes.y);
 
     //
     // This is all renderer and gui test code

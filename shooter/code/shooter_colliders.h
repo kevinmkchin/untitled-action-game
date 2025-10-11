@@ -1,7 +1,11 @@
 #pragma once
 
+#include "shooter_types.h"
+#include "gmath.h"
+
 enum class collider_type
 {
+    invalid,
     mesh,
     flatpoly,
     // TODO(Kevin): aabb should be GJK acceptible collider type too
@@ -10,7 +14,6 @@ enum class collider_type
     // the aabb cells that overlap with the aabb of the flatpoly. during
     // baking, i should prob narrow down the aabb cells first (broadphase)
     // before checking the narrowed down cells against the flatpoly using GJK
-    invalid
 };
 
 struct collider_base
@@ -54,7 +57,7 @@ struct gjk_simplex
     uint32 VertexCount; // its dimension + 1
 };
 
-bool GJK(collider_base *A, collider_base *B, gjk_simplex *OutSimplex);
+bool32 GJK(collider_base *A, collider_base *B, gjk_simplex *OutSimplex);
 
 struct epa_result
 {
