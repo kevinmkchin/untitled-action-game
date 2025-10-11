@@ -15,12 +15,15 @@ Platform Layer TODO
 #define SHOOTER_PLATFORM_WIN32
 #define SHOOTER_WIN32_OPEN_CONSOLE 0
 #define SHOOTER_WIN32_FORCE_OFF_DWM_DPI_SCALING 1
+#define SHOOTER_DX11 1
 
 #include "shooter.h"
 
+// #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <stdio.h>
 #include <malloc.h>
+#include <new> // for placement new...
 #if SHOOTER_WIN32_FORCE_OFF_DWM_DPI_SCALING
 #include <shellscalingapi.h>
 #endif
@@ -32,7 +35,11 @@ Platform Layer TODO
 #include "shooter_shared.h"
 #include "shooter_renderer.h"
 #include "shooter_renderer.cpp"
+#if SHOOTER_DX11
+#include "shooter_renderer_dx11.h"
+#else
 #include "shooter_renderer_opengl.h"
+#endif
 
 global bool GlobalRunning;
 global int64 GlobalPerfCountFrequency;
@@ -165,7 +172,11 @@ DEBUG_PLATFORM_WRITE_ENTIRE_FILE(DEBUGPlatformWriteEntireFile)
     return Result;
 }
 
+#if SHOOTER_DX11
+#include "shooter_renderer_dx11.cpp"
+#else
 #include "shooter_renderer_opengl.cpp"
+#endif
 
 inline FILETIME
 Win32GetLastWriteTime(char *Filepath)
@@ -286,7 +297,6 @@ Win32GetWindowDimension(HWND Window)
 {
     win32_window_dimension Result;
 
-    // NOTE(Kevin): This will be the dimensions of the OpenGL backbuffer
     RECT ClientRect;
     GetClientRect(Window, &ClientRect);
     Result.Width = ClientRect.right - ClientRect.left;
@@ -1317,6 +1327,7 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
 #endif
                 }
 
+                // These are reference count releases...do I need to?
                 AudioRenderClient->Release();
                 AudioClient->Release();
                 DefaultAudioDevice->Release();
