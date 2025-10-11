@@ -4,6 +4,8 @@
 #include "gl3w.h"
 #include "shooter_renderer_opengl_shaders.h"
 
+#pragma comment(lib, "opengl32.lib")
+
 global uint32 PreviousBackBufferW;
 global uint32 PreviousBackBufferH;
 global open_gl_mesh FinalCompositeQuad;
@@ -261,7 +263,8 @@ internal void OpenGLEndFrame(open_gl *OpenGL)
     glBindVertexArray(0);
 }
 
-internal mesh_handle NextAvailableMeshHandle(open_gl *OpenGL)
+internal mesh_handle 
+NextAvailableMeshHandle(open_gl *OpenGL)
 {
     Assert(OpenGL->FreeMeshHandlesCount > 0);
     mesh_handle FreeHandle = OpenGL->FreeMeshHandles[--OpenGL->FreeMeshHandlesCount];

@@ -1,5 +1,9 @@
 #include "shooter_renderer.h"
+#if SHOOTER_DX11
+#include "shooter_renderer_dx11.h"
+#else
 #include "shooter_renderer_opengl.h"
+#endif
 #include "shooter_gui.h"
 #define VERTEXT_IMPLEMENTATION
 #include "shooter_vertext.h"
@@ -207,7 +211,11 @@ void renderer::PushGuiDrawRequests(memory_arena *Scratch, gui_draw_request *Requ
 mesh_handle renderer::UploadMeshData(PNUV2_vertex *VB, uint32 VC, uint32 *IB, uint32 IC)
 {
     mesh_handle Result = InvalidHandle;
-    // Result = OpenGLUploadMesh((open_gl *)this, VB, VC, IB, IC);
+#if SHOOTER_DX11
+    Result = DX11UploadMesh((dx11 *)this, VB, VC, IB, IC);
+#else
+    Result = OpenGLUploadMesh((open_gl *)this, VB, VC, IB, IC);
+#endif
     return Result;
 }
 
@@ -215,7 +223,11 @@ texture_handle renderer::UploadTexture2DData(void *Bitmap, uint32 W, uint32 H,
                                              pixel_format Format, bool32 LinearFiltering)
 {
     texture_handle Result = InvalidHandle;
-    // Result = OpenGLUploadTexture2D((open_gl *)this, Bitmap, W, H, Format, LinearFiltering);
+#if SHOOTER_DX11
+    Result = DX11UploadTexture2D((dx11 *)this, Bitmap, W, H, Format, LinearFiltering);
+#else
+    Result = OpenGLUploadTexture2D((open_gl *)this, Bitmap, W, H, Format, LinearFiltering);
+#endif
     return Result;
 }
 

@@ -175,7 +175,7 @@ texture_handle OpenGLUploadTexture2D(open_gl *OpenGL, void *Bitmap, uint32 W, ui
                                      pixel_format Format, bool32 LinearFiltering);
 void OpenGLBindTexture2D(open_gl *OpenGL, uint32 Slot, texture_handle TextureHandle);
 void OpenGLUpdateTexture2D(open_gl *OpenGL, texture_handle TextureHandle, void *Bitmap, uint32 W, uint32 H);
-void OpenGLDeleteGPUTexture2D(open_gl *OpenGL, texture_handle TextureHandle);
+void OpenGLDeleteTexture2D(open_gl *OpenGL, texture_handle TextureHandle);
 
 void OpenGLCreateFramebuffer(open_gl_framebuffer *Framebuffer, uint32 W, uint32 H, bool32 DepthAttachment,
                              GLenum TargetFormat = GL_RGBA, GLenum SourceFormat = GL_RGBA,
