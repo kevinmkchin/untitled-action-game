@@ -30,6 +30,28 @@ struct dx11_structured_buffer
     ID3D11ShaderResourceView *SRV;
 };
 
+struct dx11_vertex_stream
+{
+    ID3D11Buffer *Buffer;
+    u32 Capacity;
+    u32 Cursor;
+};
+
+struct vstream_frame_chunk
+{
+    void *WriteTo;
+    memory_index ChunkSizeBytes;
+};
+
+struct gui_vstream_item
+{
+    umm OffsetBytes;
+    u32 VertexCount;
+    texture_handle ColorTexture;
+    s32 ScissorX, ScissorY;
+    u32 ScissorW, ScissorH;
+};
+
 struct alignas(16) static_lit_model_instance
 {
     mat4 WorldFromModel;            // 64      : 64
@@ -54,6 +76,11 @@ struct alignas(16) static_lit_cb1
     u32 BaseInstance;
 };
 
+struct alignas(16) ui_cb0
+{
+    mat4 ClipFromScreen2D;
+};
+
 struct dx11
 {
     renderer Header;
@@ -61,6 +88,7 @@ struct dx11
     D3D_FEATURE_LEVEL ObtainedFeatureLevel;
     DXGI_FORMAT       BackBufferFormat;
     bool32            AllowVRRTearing;
+    u32               FramesInFlight;
     // TODO(Kevin): These should be ->Release on shutdown
     IDXGISwapChain1 *SwapChain;
     ID3D11Device *Device;
@@ -72,12 +100,20 @@ struct dx11
     ID3D11DepthStencilView *DepthStencilView;
 
     ID3D11RasterizerState *MainRasterState;
+    ID3D11DepthStencilState *YesDepthNoStencilState;
+    ID3D11DepthStencilState *NoDepthNoStencilState;
+    ID3D11BlendState *AlphaBlendState;
 
     ID3D11VertexShader *StaticLitVS;
     ID3D11PixelShader *StaticLitPS;
-    ID3D11InputLayout *PNUV2_InputLayout;
+    ID3D11InputLayout *PNUV2_IL;
     ID3D11Buffer *StaticLitCB0;
     ID3D11Buffer *StaticLitCB1;
+
+    ID3D11VertexShader *UIVS;
+    ID3D11PixelShader *UIPS;
+    ID3D11InputLayout *UIIL;
+    ID3D11Buffer *UICB0;
 
     // TODO(Kevin): Create these once per material style and reuse
     ID3D11SamplerState *AnisotropicSampler;
@@ -95,14 +131,23 @@ struct dx11
     static_lit_model_instance *PerInstanceDataChunk;
     u32 PerInstanceDataCount;
 
+    dx11_vertex_stream UIVertexStream;
+    gui_vertex         GuiVertexStreamStaging[10000];
+    u32                GuiVertexStreamStagingCount;
+    gui_vstream_item   GuiVertexStreamItems[1024];
+    u32                GuiVertexStreamItemsCount;
+
     HWND Window;
 };
 
 void DX11GetWritablePerInstanceDataArray(dx11 *DX, static_lit_model_instance **OutArray, u32 **OutCount);
-// void DX11GetGuiVertexStreamFrame(open_gl *OpenGL, vstream_frame_chunk *OutVertexStreamFrame);
-// void DX11GetGuiVertexStreamItemsArray(open_gl *OpenGL, gui_vstream_item** OutArray, u32 **OutCount);
+void DX11GetGuiVertexStreamFrame(dx11 *DX, vstream_frame_chunk *OutVertexStreamFrame, u32 **VertexStagingCount);
+void DX11GetGuiVertexStreamItemsArray(dx11 *DX, gui_vstream_item **OutArray, u32 **OutCount);
 
+mesh_handle DX11UploadMesh(dx11 *DX, ID3D11InputLayout *IL, void *VB, 
+                           u32 VertexStride, u32 VC, u32 *IB, u32 IC);
 mesh_handle DX11UploadMesh(dx11 *DX, PNUV2_vertex *VB, u32 VC, u32 *IB, u32 IC);
+void DX11BindToInputAssembler(dx11 *DX, dx11_mesh Mesh);
 void DX11DrawMesh(dx11 *DX, mesh_handle MeshHandle);
 void DX11DrawMeshInstanced(dx11 *DX, mesh_handle MeshHandle, u32 Count);
 void DX11DeleteMesh(dx11 *DX, mesh_handle MeshHandle);
@@ -112,6 +157,9 @@ texture_handle DX11UploadTexture2D(dx11 *DX, void *Bitmap, u32 W, u32 H,
 void DX11BindTexture2D(dx11 *DX, u32 Slot, texture_handle TextureHandle);
 void DX11UpdateTexture2D(dx11 *DX, texture_handle TextureHandle, void *Bitmap, u32 W, u32 H);
 void DX11DeleteTexture2D(dx11 *DX, texture_handle TextureHandle);
+
+void DX11CreateVertexStream(dx11 *DX, dx11_vertex_stream *VStream, u32 SizeBytes);
+u32 DX11VertexStreamAlloc(dx11 *DX, dx11_vertex_stream *VStream, u32 SizeBytes, void *Vertices);
 
 #ifdef SHOOTER_PLATFORM_WIN32
 

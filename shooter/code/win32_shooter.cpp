@@ -16,7 +16,7 @@ Platform Layer TODO
 #define SHOOTER_WIN32_OPEN_CONSOLE 0
 #define SHOOTER_WIN32_FORCE_OFF_DWM_DPI_SCALING 1
 #define SHOOTER_DX11 1
-#define SHOOTER_LOAD_RENDERDOC 0
+#define SHOOTER_LOAD_RENDERDOC 1
 
 #include "shooter.h"
 
@@ -1358,3 +1358,4 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
 
     return 0;
 }
+    

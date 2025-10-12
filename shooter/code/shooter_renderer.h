@@ -29,6 +29,13 @@ struct PNUV2_vertex
     vec2 UV1;
 };
 
+struct gui_vertex
+{
+    vec2 PixelP; // 0,0 is top left
+    vec2 UV0;
+    vec4 Color;
+};
+
 struct render_descriptor
 {
     mesh_handle    Mesh;

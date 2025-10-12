@@ -36,13 +36,6 @@ enum gui_font
     GuiFontAnikki8x8,
 };
 
-struct gui_vertex
-{
-    vec2 PixelP; // 0,0 is top left
-    vec2 UV0;
-    vec4 Color;
-};
-
 enum gui_draw_type
 {
     GuiDrawRect,

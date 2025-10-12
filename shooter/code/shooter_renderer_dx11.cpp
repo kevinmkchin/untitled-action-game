@@ -66,10 +66,33 @@ DX11UpdateConstantBuffer(dx11 *DX, ID3D11Buffer *ConstantBuffer, void *Data, u32
 }
 
 internal void
+DEBUGDX11CreateShaderSetFromFile(dx11 *DX, LPCWSTR VSFileName, ID3D11VertexShader **VS, 
+                                 LPCWSTR PSFileName, ID3D11PixelShader **PS,
+                                 D3D11_INPUT_ELEMENT_DESC *ILDesc, u32 ILDescCount,
+                                 ID3D11InputLayout **IL)
+{
+    ComPtr<ID3DBlob> VSBlob, PSBlob, Err;
+
+    HRESULT HR = D3DCompileFromFile(VSFileName, NULL, NULL, "main", "vs_5_0", 0, 0, &VSBlob, &Err);
+    FailDx11HRESULT(HR, "Failed to compile from file vertex shader.", DX->Window);
+    HR = D3DCompileFromFile(PSFileName, NULL, NULL, "main", "ps_5_0", 0, 0, &PSBlob, &Err);
+    FailDx11HRESULT(HR, "Failed to compile from file pixel shader.", DX->Window);
+    // TODO(Kevin): (char *)Err->GetBufferPointer()
+    HR = DX->Device->CreateVertexShader(VSBlob->GetBufferPointer(), VSBlob->GetBufferSize(), NULL, VS);
+    FailDx11HRESULT(HR, "Failed to create vertex shader.", DX->Window);
+    HR = DX->Device->CreatePixelShader(PSBlob->GetBufferPointer(), PSBlob->GetBufferSize(), NULL, PS);
+    FailDx11HRESULT(HR, "Failed to create pixel shader.", DX->Window);
+
+    HR = DX->Device->CreateInputLayout(ILDesc, ILDescCount, VSBlob->GetBufferPointer(),
+                                       VSBlob->GetBufferSize(), IL);
+    FailDx11HRESULT(HR, "Failed to create Input Layout object.", DX->Window);
+}
+
+internal void
 DX11Init(dx11 *DX)
 {
     //
-    // NOTE(Kevin): Rasterizer State
+    // Rasterizer State and Depth Stencil State
     //
     D3D11_RASTERIZER_DESC RasterDesc = {};
     RasterDesc.FillMode = D3D11_FILL_SOLID;  // D3D11_FILL_SOLID or D3D11_FILL_WIREFRAME
@@ -86,47 +109,67 @@ DX11Init(dx11 *DX)
     HRESULT HR = DX->Device->CreateRasterizerState(&RasterDesc, &DX->MainRasterState);
     FailDx11HRESULT(HR, "Failed to CreateRasterizerState", DX->Window);
 
-    //
-    // NOTE(Kevin): Shaders
-    //
-    ComPtr<ID3DBlob> VSBlob, PSBlob, Err;
+    D3D11_DEPTH_STENCIL_DESC DepthStencilStateDesc = {};
+    DepthStencilStateDesc.DepthEnable = TRUE;
+    DepthStencilStateDesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
+    DepthStencilStateDesc.DepthFunc = D3D11_COMPARISON_LESS;
+    DepthStencilStateDesc.StencilEnable = FALSE;
 
-    // TODO(Kevin): For shipping, use precompiled .cso blobs.
-    HR = D3DCompileFromFile(L"../data/hlsl/vStaticLit.hlsl", NULL, NULL, "main", "vs_5_0", 0, 0, &VSBlob, &Err);
-    FailDx11HRESULT(HR, "Failed", DX->Window);
-    HR = D3DCompileFromFile(L"../data/hlsl/pStaticLit.hlsl", NULL, NULL, "main", "ps_5_0", 0, 0, &PSBlob, &Err);
-    FailDx11HRESULT(HR, "Failed", DX->Window);
-    // TODO(Kevin): (char *)Err->GetBufferPointer()
+    DX->Device->CreateDepthStencilState(&DepthStencilStateDesc, &DX->YesDepthNoStencilState);
 
-    HR = DX->Device->CreateVertexShader(VSBlob->GetBufferPointer(), VSBlob->GetBufferSize(), NULL, 
-                                        &DX->StaticLitVS);
-    FailDx11HRESULT(HR, "Failed to create vertex shader", DX->Window);
-    HR = DX->Device->CreatePixelShader(PSBlob->GetBufferPointer(), PSBlob->GetBufferSize(), NULL,
-                                       &DX->StaticLitPS);
-    FailDx11HRESULT(HR, "Failed to create pixel shader", DX->Window);
+    DepthStencilStateDesc = {};
+    DepthStencilStateDesc.DepthEnable = FALSE;
+    DepthStencilStateDesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
+
+    DX->Device->CreateDepthStencilState(&DepthStencilStateDesc, &DX->NoDepthNoStencilState);
+
+    D3D11_RENDER_TARGET_BLEND_DESC RtBlendDesc = {};
+    RtBlendDesc.BlendEnable = TRUE;
+    RtBlendDesc.SrcBlend       = D3D11_BLEND_SRC_ALPHA;     // Src.rgb * Src.a
+    RtBlendDesc.DestBlend      = D3D11_BLEND_INV_SRC_ALPHA; // Dest.rgb * (1 - Src.a)
+    RtBlendDesc.BlendOp        = D3D11_BLEND_OP_ADD;
+    RtBlendDesc.SrcBlendAlpha  = D3D11_BLEND_ONE;           // Src.a * 1
+    RtBlendDesc.DestBlendAlpha = D3D11_BLEND_ZERO;          // Dest.a * 0
+    RtBlendDesc.BlendOpAlpha   = D3D11_BLEND_OP_ADD;
+    RtBlendDesc.RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+
+    D3D11_BLEND_DESC BlendDesc = {};
+    BlendDesc.AlphaToCoverageEnable = FALSE;
+    BlendDesc.IndependentBlendEnable = FALSE;
+    BlendDesc.RenderTarget[0] = RtBlendDesc;
+
+    DX->Device->CreateBlendState(&BlendDesc, &DX->AlphaBlendState);
 
     //
-    // NOTE(Kevin): Constant buffers
+    // Shaders, Input Layouts, Constant Buffers
     //
-    DX11CreateConstantBuffer(DX, &DX->StaticLitCB0, sizeof(static_lit_cb0));
-    DX11CreateConstantBuffer(DX, &DX->StaticLitCB1, sizeof(static_lit_cb1));
-
-    //
-    // NOTE(Kevin): Input Layouts
-    //
-    D3D11_INPUT_ELEMENT_DESC PNUV2_InputLayout[] =
+    D3D11_INPUT_ELEMENT_DESC PNUV2_IL[] =
     {
         {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0,   D3D11_INPUT_PER_VERTEX_DATA, 0},
         {"NORMAL",   0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12,  D3D11_INPUT_PER_VERTEX_DATA, 0},
         {"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT,    0, 24,  D3D11_INPUT_PER_VERTEX_DATA, 0},
         {"TEXCOORD", 1, DXGI_FORMAT_R32G32_FLOAT,    0, 32,  D3D11_INPUT_PER_VERTEX_DATA, 0},
     };
-    DX->Device->CreateInputLayout(PNUV2_InputLayout, ArrayCount(PNUV2_InputLayout),
-                                  VSBlob->GetBufferPointer(), VSBlob->GetBufferSize(), 
-                                  &DX->PNUV2_InputLayout);
+    // TODO(Kevin): For shipping, use precompiled .cso blobs.
+    DEBUGDX11CreateShaderSetFromFile(DX, L"../data/hlsl/vStaticLit.hlsl", &DX->StaticLitVS,
+                                     L"../data/hlsl/pStaticLit.hlsl", &DX->StaticLitPS,
+                                     PNUV2_IL, ArrayCount(PNUV2_IL), &DX->PNUV2_IL);
+    DX11CreateConstantBuffer(DX, &DX->StaticLitCB0, sizeof(static_lit_cb0));
+    DX11CreateConstantBuffer(DX, &DX->StaticLitCB1, sizeof(static_lit_cb1));
+
+    D3D11_INPUT_ELEMENT_DESC UIIL[] =
+    {
+        {"POSITION", 0, DXGI_FORMAT_R32G32_FLOAT,       0, 0,  D3D11_INPUT_PER_VERTEX_DATA, 0},
+        {"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT,       0, 8,  D3D11_INPUT_PER_VERTEX_DATA, 0},
+        {"COLOR",    0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 16, D3D11_INPUT_PER_VERTEX_DATA, 0},
+    };
+    DEBUGDX11CreateShaderSetFromFile(DX, L"../data/hlsl/vUI.hlsl", &DX->UIVS,
+                                     L"../data/hlsl/pUI.hlsl", &DX->UIPS,
+                                     UIIL, ArrayCount(UIIL), &DX->UIIL);
+    DX11CreateConstantBuffer(DX, &DX->UICB0, sizeof(ui_cb0));
 
     //
-    // NOTE(Kevin): Samplers
+    // Samplers
     //
     D3D11_SAMPLER_DESC Desc = {};
     Desc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
@@ -144,7 +187,7 @@ DX11Init(dx11 *DX)
     DX->Device->CreateSamplerState(&Desc, &DX->PointSampler);
 
     //
-    // NOTE(Kevin): Per Instance Data Buffers
+    // Per Instance Data Buffers
     //
     DX->Header.StaticLitItemsMaxCount = 8000;
     umm PerInstanceDataChunkByteSize = sizeof(static_lit_model_instance)*DX->Header.StaticLitItemsMaxCount;
@@ -170,7 +213,14 @@ DX11Init(dx11 *DX)
     FailDx11HRESULT(HR, "Failed to create PerInstanceData shader resource view!", DX->Window);
 
     //
-    // NOTE(Kevin): Handle values
+    // UI Vertex Stream
+    //
+    u32 WorstCaseUIBytesPerFrame = sizeof(DX->GuiVertexStreamStaging);
+    u32 UIVertexStreamSizeBytes = WorstCaseUIBytesPerFrame * (DX->FramesInFlight + 1);
+    DX11CreateVertexStream(DX, &DX->UIVertexStream, UIVertexStreamSizeBytes);
+
+    //
+    // Handle values
     //
     DX->FreeMeshHandlesCount = ArrayCount(DX->FreeMeshHandles);
     for (s32 FreeHandle = 0;
@@ -195,6 +245,8 @@ internal void
 DX11BeginFrame(dx11 *DX)
 {
     DX->PerInstanceDataCount = 0;
+    DX->GuiVertexStreamStagingCount = 0;
+    DX->GuiVertexStreamItemsCount = 0;
 }
 
 internal void
@@ -205,8 +257,6 @@ DX11EndFrame(dx11 *DX)
     DX->Context->ClearDepthStencilView(DX->DepthStencilView, D3D11_CLEAR_DEPTH|D3D11_CLEAR_STENCIL, 1.0f, 0);
 
     // Bind and set viewport
-    DX->Context->RSSetState(DX->MainRasterState);
-
     ID3D11RenderTargetView *RenderTargetViews[] =
     {
         DX->RenderTargetView
@@ -222,18 +272,21 @@ DX11EndFrame(dx11 *DX)
     Viewport.MaxDepth = 1.0f;
     DX->Context->RSSetViewports(1, &Viewport);
 
+    //
+    // StaticLit
+    //
     real32 AspectRatio = real32(DX->Header.BackBufferW) / real32(DX->Header.BackBufferH);
     real32 FOVX = 90.f;
     real32 FOVYRad = HorizontalFOVToVerticalFOV(FOVX*GM_DEG2RAD, AspectRatio);
     // NOTE(Kevin): In DirectX, the Z clip planes are from 0 to W
     mat4 ClipFromView = ClipSpaceFromCameraSpace_PerspectiveProjection(FOVYRad, AspectRatio, 4.f, 3200.f, true);
 
-    //
-    //
-    //
-
     mat4 ProjFromWorld = ClipFromView * DX->Header.ViewFromWorld;
     vec3 DirectionToSun = Normalize(vec3(-1,2,0.5f));
+
+    DX->Context->RSSetState(DX->MainRasterState);
+    DX->Context->OMSetDepthStencilState(DX->YesDepthNoStencilState, 0);
+    DX->Context->OMSetBlendState(DX->AlphaBlendState, NULL, 0xFFFFFFFF);
 
     DX->Context->VSSetShader(DX->StaticLitVS, NULL, 0);
     DX->Context->PSSetShader(DX->StaticLitPS, NULL, 0);
@@ -290,7 +343,71 @@ DX11EndFrame(dx11 *DX)
     }
 
     //
+    // UI
     //
+
+    DX->Context->RSSetState(DX->MainRasterState);
+    DX->Context->OMSetDepthStencilState(DX->NoDepthNoStencilState, 0);
+    DX->Context->OMSetBlendState(DX->AlphaBlendState, NULL, 0xFFFFFFFF);
+
+    DX->Context->VSSetShader(DX->UIVS, NULL, 0);
+    DX->Context->PSSetShader(DX->UIPS, NULL, 0);
+
+    gui_vertex *UIVertices = DX->GuiVertexStreamStaging;
+    u32 UIVertexCount = DX->GuiVertexStreamStagingCount;
+    u32 UIVertexStride = sizeof(gui_vertex);
+    u32 UIVerticesSize = UIVertexStride * UIVertexCount;
+    u32 VStreamOffset = DX11VertexStreamAlloc(DX, &DX->UIVertexStream, UIVerticesSize, UIVertices);
+    u32 VStreamStartIndex = VStreamOffset / UIVertexStride;
+
+    dx11_mesh MeshInfo = {};
+    MeshInfo.VB = DX->UIVertexStream.Buffer;
+    MeshInfo.VertexStride = UIVertexStride;
+    MeshInfo.Layout = DX->UIIL;
+    DX11BindToInputAssembler(DX, MeshInfo);
+
+    mat4 ClipFromScreen2D = ProjectionMatrixOrthographicNoZ(0.f, (real32)DX->Header.BackBufferW, 
+                                                            (real32)DX->Header.BackBufferH, 0.f);
+
+    ui_cb0 UIDrawParams =
+    {
+        ClipFromScreen2D
+    };
+    DX11UpdateConstantBuffer(DX, DX->UICB0, &UIDrawParams, sizeof(UIDrawParams), true, 0, false, 0);
+
+    // glEnable(GL_SCISSOR_TEST);
+    // u32 PrevScissorX = 0xFFFFFFFF;
+    // u32 PrevScissorY = 0xFFFFFFFF;
+    // u32 PrevScissorW = 0xFFFFFFFF;
+    // u32 PrevScissorH = 0xFFFFFFFF;
+    for (uint32 GuiItemIndex = 0; 
+         GuiItemIndex < DX->GuiVertexStreamItemsCount; 
+         ++GuiItemIndex)
+    {
+        gui_vstream_item Item = DX->GuiVertexStreamItems[GuiItemIndex];
+        // u32 ScissorX = Item.ScissorX;
+        // u32 ScissorY = Item.ScissorY;
+        // u32 ScissorW = Item.ScissorW;
+        // u32 ScissorH = Item.ScissorH;
+        // if (ScissorX != PrevScissorX || ScissorY != PrevScissorY ||
+        //     ScissorW != PrevScissorW || ScissorH != PrevScissorH)
+        // {
+        //     glScissor(ScissorX, DX11->RenderTargetGui.Height-ScissorY-ScissorH, ScissorW, ScissorH);
+        //     PrevScissorX = ScissorX;
+        //     PrevScissorY = ScissorY;
+        //     PrevScissorW = ScissorW;
+        //     PrevScissorH = ScissorH;
+        // }
+
+        u32 LocalVertexCount = Item.VertexCount;
+        u32 LocalIndexOffset = SafeTruncateU64(Item.OffsetBytes) / UIVertexStride;
+        DX11BindTexture2D(DX, 0, Item.ColorTexture);
+        DX->Context->Draw(LocalVertexCount, VStreamStartIndex + LocalIndexOffset);
+    }
+    // glDisable(GL_SCISSOR_TEST);
+
+    //
+    // Presentation
     //
 
     bool32 VsyncEnabled = true;
@@ -336,21 +453,36 @@ NextAvailableTextureHandle(dx11 *DX)
     return FreeHandle;
 }
 
-void
-DX11GetWritablePerInstanceDataArray(dx11 *DX, static_lit_model_instance **OutArray, u32 **OutCount)
+void DX11GetWritablePerInstanceDataArray(dx11 *DX, static_lit_model_instance **OutArray, u32 **OutCount)
 {
     // NOTE(Kevin): The out array is offset by the data count as to not overwrite the existing data.
     *OutArray = ((static_lit_model_instance *)DX->PerInstanceDataChunk) + DX->PerInstanceDataCount;
     *OutCount = &DX->PerInstanceDataCount;
 }
 
+void DX11GetGuiVertexStreamFrame(dx11 *DX, vstream_frame_chunk *OutVertexStreamFrame, u32 **VertexStagingCount)
+{
+    vstream_frame_chunk Result;
+    Result.WriteTo = DX->GuiVertexStreamStaging;
+    Result.ChunkSizeBytes = sizeof(DX->GuiVertexStreamStaging);
+    *OutVertexStreamFrame = Result;
+    *VertexStagingCount = &DX->GuiVertexStreamStagingCount;
+}
+
+void DX11GetGuiVertexStreamItemsArray(dx11 *DX, gui_vstream_item **OutArray, u32 **OutCount)
+{
+    *OutArray = DX->GuiVertexStreamItems;
+    *OutCount = &DX->GuiVertexStreamItemsCount;
+}
+
 mesh_handle
-DX11UploadMesh(dx11 *DX, PNUV2_vertex *VB, u32 VC, u32 *IB, u32 IC)
+DX11UploadMesh(dx11 *DX, ID3D11InputLayout *IL, void *VB, 
+               u32 VertexStride, u32 VC, u32 *IB, u32 IC)
 {
     dx11_mesh Mesh = {};
 
-    Mesh.VertexStride = sizeof(PNUV2_vertex);
-    Mesh.Layout = DX->PNUV2_InputLayout;
+    Mesh.VertexStride = VertexStride;
+    Mesh.Layout = IL;
 
     D3D11_BUFFER_DESC VBDesc;
     VBDesc.Usage            = D3D11_USAGE_DEFAULT;
@@ -391,7 +523,14 @@ DX11UploadMesh(dx11 *DX, PNUV2_vertex *VB, u32 VC, u32 *IB, u32 IC)
     return NewHandle;
 }
 
-internal void
+mesh_handle
+DX11UploadMesh(dx11 *DX, PNUV2_vertex *VB, u32 VC, u32 *IB, u32 IC)
+{
+    mesh_handle Result = DX11UploadMesh(DX, DX->PNUV2_IL, VB, sizeof(PNUV2_vertex), VC, IB, IC);
+    return Result;
+}
+
+void
 DX11BindToInputAssembler(dx11 *DX, dx11_mesh Mesh)
 {
     DX->Context->IASetInputLayout(Mesh.Layout);
@@ -400,8 +539,11 @@ DX11BindToInputAssembler(dx11 *DX, dx11_mesh Mesh)
     UINT Strides[] = { Mesh.VertexStride };
     UINT Offsets[] = { 0 };
     DX->Context->IASetVertexBuffers(StartSlot, NumBuffers, &Mesh.VB, Strides, Offsets);
-    UINT IBOffset = 0;
-    DX->Context->IASetIndexBuffer(Mesh.IB, DXGI_FORMAT_R32_UINT, IBOffset);
+    if (Mesh.IB)
+    {
+        UINT IBOffset = 0;
+        DX->Context->IASetIndexBuffer(Mesh.IB, DXGI_FORMAT_R32_UINT, IBOffset);
+    }
     DX->Context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 }
 
@@ -499,7 +641,8 @@ texture_handle DX11UploadTexture2D(dx11 *DX, void *Bitmap, u32 W, u32 H,
     TexDesc.MiscFlags = D3D11_RESOURCE_MISC_GENERATE_MIPS;
 
     // TODO(Kevin): Check HRESULTs
-    DX->Device->CreateTexture2D(&TexDesc, NULL, &Texture.Texture);
+    HRESULT HR = DX->Device->CreateTexture2D(&TexDesc, NULL, &Texture.Texture);
+    FailDx11HRESULT(HR, "Failed to CreateTexture2D.", DX->Window);
     DX->Context->UpdateSubresource(Texture.Texture, 0, NULL, Bitmap, SrcRowPitchBytes, 0);
 
     D3D11_SHADER_RESOURCE_VIEW_DESC SRVDesc = {};
@@ -509,7 +652,9 @@ texture_handle DX11UploadTexture2D(dx11 *DX, void *Bitmap, u32 W, u32 H,
     SRVDesc.Texture2D.MipLevels = (UINT)-1; // -1 = all mipmap levels
 
     DX->Device->CreateShaderResourceView(Texture.Texture, &SRVDesc, &Texture.SRV);
+    FailDx11HRESULT(HR, "Failed to CreateShaderResourceView for Texture2D.", DX->Window);
     DX->Context->GenerateMips(Texture.SRV);
+    FailDx11HRESULT(HR, "Failed to generate mips.", DX->Window);
 
     if (LinearFiltering)
     {
@@ -565,6 +710,48 @@ void DX11DeleteTexture2D(dx11 *DX, texture_handle TextureHandle)
     DX->FreeTextureHandles[DX->FreeTextureHandlesCount++] = TextureHandle;
 }
 
+void DX11CreateVertexStream(dx11 *DX, dx11_vertex_stream *VStream, u32 SizeBytes)
+{
+    D3D11_BUFFER_DESC BufferDesc = {};
+    BufferDesc.ByteWidth = SizeBytes;
+    BufferDesc.Usage = D3D11_USAGE_DYNAMIC;
+    BufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+    BufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+
+    HRESULT HR = DX->Device->CreateBuffer(&BufferDesc, nullptr, &VStream->Buffer);
+    FailDx11HRESULT(HR, "Failed to create vertex stream.", DX->Window);
+
+    VStream->Capacity = SizeBytes;
+    VStream->Cursor = 0;
+}
+
+u32 DX11VertexStreamAlloc(dx11 *DX, dx11_vertex_stream *VStream, u32 SizeBytes, void *Vertices)
+{
+    Assert(SizeBytes < VStream->Capacity);
+
+    D3D11_MAPPED_SUBRESOURCE MappedSubRes = {};
+
+    if (VStream->Cursor == 0 || VStream->Cursor + SizeBytes > VStream->Capacity)
+    {
+        // MAP_WRITE_DISCARD: write into new allocation while the GPU is still reading older ones
+        DX->Context->Map(VStream->Buffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &MappedSubRes);
+        VStream->Cursor = 0;
+    }
+    else
+    {
+        // MAP_WRITE_NO_OVERWRITE: append into unused space of the same allocation
+        DX->Context->Map(VStream->Buffer, 0, D3D11_MAP_WRITE_NO_OVERWRITE, 0, &MappedSubRes);
+    }
+
+    u32 Offset = VStream->Cursor;
+
+    Copy((uint8_t*)MappedSubRes.pData + Offset, Vertices, SizeBytes);
+    DX->Context->Unmap(VStream->Buffer, 0);
+
+    VStream->Cursor += SizeBytes;
+
+    return Offset;
+}
 
 #ifdef SHOOTER_PLATFORM_WIN32
 
@@ -618,15 +805,23 @@ DX11CreateDeviceAndSwapchain(dx11 *DX, HWND Window)
         Factory5->Release();
     }
 
-    u32 FramesInFlight = 1;
+    DX->FramesInFlight = 1;
     IDXGIDevice1 *dxgiDevice;
     HResult = DX->Device->QueryInterface(__uuidof(IDXGIDevice1), (void**)&dxgiDevice);
     if (SUCCEEDED(HResult))
     {
         FailDx11HRESULT(HResult, "Failed to set maximum frame latency.", DX->Window, false);
-        HResult = dxgiDevice->SetMaximumFrameLatency(FramesInFlight);
+        HResult = dxgiDevice->SetMaximumFrameLatency(DX->FramesInFlight);
         FailDx11HRESULT(HResult, "Failed to set maximum frame latency.", DX->Window, false);
+        if (FAILED(HResult))
+        {
+            DX->FramesInFlight = 3;
+        }
         dxgiDevice->Release();
+    }
+    else
+    {
+        DX->FramesInFlight = 3;
     }
 
     DX->BackBufferFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
@@ -759,11 +954,20 @@ Win32ReleaseRenderer(renderer *Renderer)
     DX11ReleaseCOM(DX->PerInstanceDataSB.SRV);
 
     DX11ReleaseCOM(DX->MainRasterState);
+    DX11ReleaseCOM(DX->YesDepthNoStencilState);
+    DX11ReleaseCOM(DX->NoDepthNoStencilState);
+    DX11ReleaseCOM(DX->AlphaBlendState);
+
     DX11ReleaseCOM(DX->StaticLitVS);
     DX11ReleaseCOM(DX->StaticLitPS);
-    DX11ReleaseCOM(DX->PNUV2_InputLayout);
+    DX11ReleaseCOM(DX->PNUV2_IL);
     DX11ReleaseCOM(DX->StaticLitCB0);
     DX11ReleaseCOM(DX->StaticLitCB1);
+
+    DX11ReleaseCOM(DX->UIVS);
+    DX11ReleaseCOM(DX->UIPS);
+    DX11ReleaseCOM(DX->UIIL);
+    DX11ReleaseCOM(DX->UICB0);
 
     DX11ReleaseCOM(DX->AnisotropicSampler);
     DX11ReleaseCOM(DX->PointSampler);

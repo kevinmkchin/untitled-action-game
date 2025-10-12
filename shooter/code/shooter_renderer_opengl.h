@@ -96,12 +96,6 @@ struct n_buffered_ssbo
     GLsync FrameSyncObjects[5];
 };
 
-struct vstream_frame_chunk
-{
-    void *WriteTo;
-    memory_index ChunkSizeBytes;
-};
-
 struct persistent_vertex_stream
 {
     GLuint VAO;
@@ -115,15 +109,6 @@ struct persistent_vertex_stream
     uint32 NumFrames;
     uint32 CurrentFrame;
     GLsync FrameSyncObjects[5];
-};
-
-struct gui_vstream_item
-{
-    umm OffsetBytes;
-    u32 VertexCount;
-    texture_handle ColorTexture;
-    s32 ScissorX, ScissorY;
-    u32 ScissorW, ScissorH;
 };
 
 struct open_gl
