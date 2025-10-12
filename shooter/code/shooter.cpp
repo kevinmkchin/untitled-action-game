@@ -174,9 +174,9 @@ PlaceCamera(camera *Camera, vec3 Pos, vec3 EulerRot)
 internal mat4
 CameraSpaceFromWorldSpace(camera *Camera)
 {
-    mat4 ViewMatrix = ViewMatrixLookAt(Camera->ViewPosition,
-                                       Camera->ViewPosition + Camera->ViewForward, 
-                                       Camera->ViewUp);
+    mat4 ViewMatrix = CameraSpaceMatrixLookAt(Camera->ViewPosition,
+                                              Camera->ViewPosition + Camera->ViewForward, 
+                                              Camera->ViewUp);
     return ViewMatrix;
 }
 

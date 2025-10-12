@@ -5,6 +5,23 @@
 #pragma comment(lib, "dxgi.lib")
 #pragma comment(lib, "d3dcompiler.lib")
 
+#define DX11ReleaseCOM(ObjectPtr)\
+    do {\
+        if (ObjectPtr)\
+        {\
+            (ObjectPtr)->Release();\
+            (ObjectPtr) = NULL;\
+        }\
+    } while (0);
+
+#ifdef SHOOTER_PLATFORM_WIN32
+internal void *
+Win32RendererAlloc(umm Size)
+{
+    void *Result = VirtualAlloc(0, Size, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
+    return Result;
+}
+#endif
 
 internal void
 FailDx11HRESULT(HRESULT HResult, char *Message, HWND Window, bool32 Fatal = true)
@@ -19,8 +36,41 @@ FailDx11HRESULT(HRESULT HResult, char *Message, HWND Window, bool32 Fatal = true
 }
 
 internal void
+DX11CreateConstantBuffer(dx11 *DX, ID3D11Buffer **ConstantBuffer, u32 ByteSize)
+{
+    D3D11_BUFFER_DESC ConstantBufferDesc = {};
+    ConstantBufferDesc.ByteWidth      = ByteSize;
+    ConstantBufferDesc.Usage          = D3D11_USAGE_DYNAMIC;
+    ConstantBufferDesc.BindFlags      = D3D11_BIND_CONSTANT_BUFFER;
+    ConstantBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+    HRESULT HR = DX->Device->CreateBuffer(&ConstantBufferDesc, NULL, ConstantBuffer);
+    FailDx11HRESULT(HR, "Failed to create constant buffer!", DX->Window);
+}
+
+internal void
+DX11UpdateConstantBuffer(dx11 *DX, ID3D11Buffer *ConstantBuffer, void *Data, u32 ByteSize,
+                         bool32 PassToVS, u32 VSBufferSlot, bool32 PassToPS, u32 PSBufferSlot)
+{
+    D3D11_MAPPED_SUBRESOURCE MappedSubResource;
+    DX->Context->Map(ConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &MappedSubResource);
+    Copy(MappedSubResource.pData, Data, ByteSize);
+    DX->Context->Unmap(ConstantBuffer, 0);
+    if (PassToVS)
+    {
+        DX->Context->VSSetConstantBuffers(VSBufferSlot, 1, &ConstantBuffer);
+    }
+    if (PassToPS)
+    {
+        DX->Context->PSSetConstantBuffers(PSBufferSlot, 1, &ConstantBuffer);
+    }
+}
+
+internal void
 DX11Init(dx11 *DX)
 {
+    //
+    // NOTE(Kevin): Rasterizer State
+    //
     D3D11_RASTERIZER_DESC RasterDesc = {};
     RasterDesc.FillMode = D3D11_FILL_SOLID;  // D3D11_FILL_SOLID or D3D11_FILL_WIREFRAME
     RasterDesc.CullMode = D3D11_CULL_BACK;   // D3D11_CULL_NONE, D3D11_CULL_FRONT, D3D11_CULL_BACK
@@ -36,15 +86,17 @@ DX11Init(dx11 *DX)
     HRESULT HR = DX->Device->CreateRasterizerState(&RasterDesc, &DX->MainRasterState);
     FailDx11HRESULT(HR, "Failed to CreateRasterizerState", DX->Window);
 
-
+    //
+    // NOTE(Kevin): Shaders
+    //
     ComPtr<ID3DBlob> VSBlob, PSBlob, Err;
 
     // TODO(Kevin): For shipping, use precompiled .cso blobs.
     HR = D3DCompileFromFile(L"../data/hlsl/vStaticLit.hlsl", NULL, NULL, "main", "vs_5_0", 0, 0, &VSBlob, &Err);
-    FailDx11HRESULT(HR, "Failed to compile vStaticLit.hlsl", DX->Window);
+    FailDx11HRESULT(HR, "Failed", DX->Window);
     HR = D3DCompileFromFile(L"../data/hlsl/pStaticLit.hlsl", NULL, NULL, "main", "ps_5_0", 0, 0, &PSBlob, &Err);
-    FailDx11HRESULT(HR, "Failed to compile pStaticLit.hlsl", DX->Window);
-    // TODO(Kevin): Check Err
+    FailDx11HRESULT(HR, "Failed", DX->Window);
+    // TODO(Kevin): (char *)Err->GetBufferPointer()
 
     HR = DX->Device->CreateVertexShader(VSBlob->GetBufferPointer(), VSBlob->GetBufferSize(), NULL, 
                                         &DX->StaticLitVS);
@@ -53,7 +105,15 @@ DX11Init(dx11 *DX)
                                        &DX->StaticLitPS);
     FailDx11HRESULT(HR, "Failed to create pixel shader", DX->Window);
 
+    //
+    // NOTE(Kevin): Constant buffers
+    //
+    DX11CreateConstantBuffer(DX, &DX->StaticLitCB0, sizeof(static_lit_cb0));
+    DX11CreateConstantBuffer(DX, &DX->StaticLitCB1, sizeof(static_lit_cb1));
 
+    //
+    // NOTE(Kevin): Input Layouts
+    //
     D3D11_INPUT_ELEMENT_DESC PNUV2_InputLayout[] =
     {
         {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0,   D3D11_INPUT_PER_VERTEX_DATA, 0},
@@ -65,7 +125,9 @@ DX11Init(dx11 *DX)
                                   VSBlob->GetBufferPointer(), VSBlob->GetBufferSize(), 
                                   &DX->PNUV2_InputLayout);
 
-
+    //
+    // NOTE(Kevin): Samplers
+    //
     D3D11_SAMPLER_DESC Desc = {};
     Desc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
     Desc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
@@ -81,7 +143,35 @@ DX11Init(dx11 *DX)
     Desc.Filter = D3D11_FILTER_MIN_MAG_MIP_POINT;
     DX->Device->CreateSamplerState(&Desc, &DX->PointSampler);
 
+    //
+    // NOTE(Kevin): Per Instance Data Buffers
+    //
+    DX->Header.StaticLitItemsMaxCount = 8000;
+    umm PerInstanceDataChunkByteSize = sizeof(static_lit_model_instance)*DX->Header.StaticLitItemsMaxCount;
+    DX->PerInstanceDataChunk = (static_lit_model_instance *)Win32RendererAlloc(PerInstanceDataChunkByteSize);
 
+    D3D11_BUFFER_DESC InstanceDataBufferDesc = {};
+    InstanceDataBufferDesc.Usage = D3D11_USAGE_DEFAULT;
+    InstanceDataBufferDesc.ByteWidth = SafeTruncateU64(PerInstanceDataChunkByteSize);
+    InstanceDataBufferDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+    InstanceDataBufferDesc.MiscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
+    InstanceDataBufferDesc.StructureByteStride = sizeof(static_lit_model_instance);
+
+    HR = DX->Device->CreateBuffer(&InstanceDataBufferDesc, NULL, &DX->PerInstanceDataSB.Buffer);
+    FailDx11HRESULT(HR, "Failed to create PerInstanceData buffer!", DX->Window);
+
+    D3D11_SHADER_RESOURCE_VIEW_DESC SRVDesc = {};
+    SRVDesc.ViewDimension = D3D11_SRV_DIMENSION_BUFFER;
+    SRVDesc.Format = DXGI_FORMAT_UNKNOWN;
+    SRVDesc.Buffer.FirstElement = 0;
+    SRVDesc.Buffer.NumElements  = DX->Header.StaticLitItemsMaxCount;
+
+    HR = DX->Device->CreateShaderResourceView(DX->PerInstanceDataSB.Buffer, &SRVDesc, &DX->PerInstanceDataSB.SRV);
+    FailDx11HRESULT(HR, "Failed to create PerInstanceData shader resource view!", DX->Window);
+
+    //
+    // NOTE(Kevin): Handle values
+    //
     DX->FreeMeshHandlesCount = ArrayCount(DX->FreeMeshHandles);
     for (s32 FreeHandle = 0;
          FreeHandle < SafeCastToS32(DX->FreeMeshHandlesCount);
@@ -99,6 +189,12 @@ DX11Init(dx11 *DX)
         DX->FreeTextureHandles[DX->FreeTextureHandlesCount - FreeHandle - 1] = 
             (texture_handle)SafeCastToU32(FreeHandle);
     }
+}
+
+internal void
+DX11BeginFrame(dx11 *DX)
+{
+    DX->PerInstanceDataCount = 0;
 }
 
 internal void
@@ -129,53 +225,69 @@ DX11EndFrame(dx11 *DX)
     real32 AspectRatio = real32(DX->Header.BackBufferW) / real32(DX->Header.BackBufferH);
     real32 FOVX = 90.f;
     real32 FOVYRad = HorizontalFOVToVerticalFOV(FOVX*GM_DEG2RAD, AspectRatio);
-    // TODO(Kevin): Z has to be 0 to 1
-    mat4 ClipFromView = ProjectionMatrixPerspective(FOVYRad, AspectRatio, 4.f, 3200.f);
+    // NOTE(Kevin): In DirectX, the Z clip planes are from 0 to W
+    mat4 ClipFromView = ClipSpaceFromCameraSpace_PerspectiveProjection(FOVYRad, AspectRatio, 4.f, 3200.f, true);
 
     //
     //
     //
 
-    // Constant buffer: must be multiple of 16 bytes
-    struct alignas(16) camera_cb
-    {
-        mat4 ProjView;
-    };
-    local_persist ID3D11Buffer *CameraCB = NULL;
-    if (!CameraCB)
-    {
-        D3D11_BUFFER_DESC ConstantBufferDesc = {};
-        ConstantBufferDesc.ByteWidth      = sizeof(camera_cb);
-        ConstantBufferDesc.Usage          = D3D11_USAGE_DYNAMIC;
-        ConstantBufferDesc.BindFlags      = D3D11_BIND_CONSTANT_BUFFER;
-        ConstantBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-        HRESULT HR = DX->Device->CreateBuffer(&ConstantBufferDesc, NULL, &CameraCB);
-        FailDx11HRESULT(HR, "Failed to create constant buffer", DX->Window);
-    }
+    mat4 ProjFromWorld = ClipFromView * DX->Header.ViewFromWorld;
+    vec3 DirectionToSun = Normalize(vec3(-1,2,0.5f));
 
-    // Update per-frame (Map/Unmap with WRITE_DISCARD)
-    camera_cb CBData = { ClipFromView * DX->Header.ViewFromWorld };
-    D3D11_MAPPED_SUBRESOURCE MappedSubResource;
-    DX->Context->Map(CameraCB, 0, D3D11_MAP_WRITE_DISCARD, 0, &MappedSubResource);
-    Copy(MappedSubResource.pData, &CBData, sizeof(CBData));
-    DX->Context->Unmap(CameraCB, 0);
-
-    // Shaders
     DX->Context->VSSetShader(DX->StaticLitVS, NULL, 0);
     DX->Context->PSSetShader(DX->StaticLitPS, NULL, 0);
 
-    // Constant buffers to VS slot b0
-    ID3D11Buffer *ConstantBuffers[] =
+    if (DX->PerInstanceDataCount > 0)
     {
-        CameraCB
-    };
-    DX->Context->VSSetConstantBuffers(0, ArrayCount(ConstantBuffers), ConstantBuffers);
+        static_lit_model_instance *PerInstanceData = DX->PerInstanceDataChunk;
 
-    texture_handle Albedo = 2;
-    texture_handle Lightmap = DX->Header.WhiteTexture_1x1;
-    DX11BindTexture2D(DX, 0, Albedo);
-    DX11BindTexture2D(DX, 1, Lightmap);
-    DX11DrawMesh(DX, 0);
+        DX->Context->UpdateSubresource(DX->PerInstanceDataSB.Buffer, 0, NULL, PerInstanceData, 0, 0);
+        u32 StructuredBufferSlot = 0;
+        DX->Context->VSSetShaderResources(StructuredBufferSlot, 1, &DX->PerInstanceDataSB.SRV);
+        DX->Context->PSSetShaderResources(StructuredBufferSlot, 1, &DX->PerInstanceDataSB.SRV);
+
+        uint32 CurrentDescriptorCount = 0;
+        uint32 CurrentOffsetFromBase = 0;
+        render_descriptor CurrentDescriptor = PerInstanceData[0].Descriptor;
+
+        static_lit_cb0 DrawParams0 =
+        {
+            ProjFromWorld,
+            DirectionToSun,
+        };
+        DX11UpdateConstantBuffer(DX, DX->StaticLitCB0, &DrawParams0, sizeof(DrawParams0), true, 0, true, 0);
+
+        for (uint32 PerInstanceDataIndex = 0;
+             PerInstanceDataIndex <= DX->PerInstanceDataCount; 
+             ++PerInstanceDataIndex)
+        {
+            if (PerInstanceDataIndex == DX->PerInstanceDataCount ||
+                PerInstanceData[PerInstanceDataIndex].Descriptor != CurrentDescriptor)
+            {
+                static_lit_cb1 DrawParams1 =
+                {
+                    CurrentOffsetFromBase
+                };
+                DX11UpdateConstantBuffer(DX, DX->StaticLitCB1, &DrawParams1, sizeof(DrawParams1), true, 1, false, 0);
+
+                DX11BindTexture2D(DX, 0, CurrentDescriptor.Albedo);
+                DX11BindTexture2D(DX, 1, CurrentDescriptor.Lightmap);
+                DX11DrawMeshInstanced(DX, CurrentDescriptor.Mesh, CurrentDescriptorCount);
+
+                if (PerInstanceDataIndex == DX->PerInstanceDataCount)
+                {
+                    break;
+                }
+
+                CurrentOffsetFromBase += CurrentDescriptorCount;
+                CurrentDescriptor = PerInstanceData[PerInstanceDataIndex].Descriptor;
+                CurrentDescriptorCount = 0;
+            }
+
+            ++CurrentDescriptorCount;
+        }
+    }
 
     //
     //
@@ -192,6 +304,9 @@ DX11EndFrame(dx11 *DX)
     HRESULT HResult = DX->SwapChain->Present(SyncInterval, PresentFlags);
     if (HResult == DXGI_ERROR_DEVICE_REMOVED || HResult == DXGI_ERROR_DEVICE_RESET)
     {
+        // NOTE(Kevin): This is if a video card has been physically removed from the computer,
+        // or a driver upgrade for the video card has occurred.
+        FailDx11HRESULT(HResult, "DX11 device removed or reset! Attempting to recreate.", DX->Window, false);
         // TODO(Kevin): Device lost — recreate device and size-dependent resources
         Assert(0);
         // g_rtv.Reset(); g_dsv.Reset(); g_ds.Reset(); DX->SwapChain.Reset();
@@ -219,6 +334,14 @@ NextAvailableTextureHandle(dx11 *DX)
     Assert(DX->FreeTextureHandlesCount > 0);
     texture_handle FreeHandle = DX->FreeTextureHandles[--DX->FreeTextureHandlesCount];
     return FreeHandle;
+}
+
+void
+DX11GetWritablePerInstanceDataArray(dx11 *DX, static_lit_model_instance **OutArray, u32 **OutCount)
+{
+    // NOTE(Kevin): The out array is offset by the data count as to not overwrite the existing data.
+    *OutArray = ((static_lit_model_instance *)DX->PerInstanceDataChunk) + DX->PerInstanceDataCount;
+    *OutCount = &DX->PerInstanceDataCount;
 }
 
 mesh_handle
@@ -268,14 +391,9 @@ DX11UploadMesh(dx11 *DX, PNUV2_vertex *VB, u32 VC, u32 *IB, u32 IC)
     return NewHandle;
 }
 
-void
-DX11DrawMesh(dx11 *DX, mesh_handle MeshHandle)
+internal void
+DX11BindToInputAssembler(dx11 *DX, dx11_mesh Mesh)
 {
-    dx11_mesh Mesh = DX->HandleToMesh[MeshHandle];
-
-    Assert(Mesh.IndicesCount > 0);
-
-    // IA stage
     DX->Context->IASetInputLayout(Mesh.Layout);
     UINT StartSlot = 0;
     UINT NumBuffers = 1;
@@ -285,8 +403,17 @@ DX11DrawMesh(dx11 *DX, mesh_handle MeshHandle)
     UINT IBOffset = 0;
     DX->Context->IASetIndexBuffer(Mesh.IB, DXGI_FORMAT_R32_UINT, IBOffset);
     DX->Context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+}
 
-    // Minimal fixed-function state (rasterizer/depth/blend use defaults if not set)
+void
+DX11DrawMesh(dx11 *DX, mesh_handle MeshHandle)
+{
+    dx11_mesh Mesh = DX->HandleToMesh[MeshHandle];
+
+    Assert(Mesh.IndicesCount > 0);
+
+    DX11BindToInputAssembler(DX, Mesh);
+
     UINT StartIndexLocation = 0;
     INT BaseVertexLocation = 0;
     DX->Context->DrawIndexed(Mesh.IndicesCount, StartIndexLocation, BaseVertexLocation);
@@ -295,7 +422,15 @@ DX11DrawMesh(dx11 *DX, mesh_handle MeshHandle)
 void
 DX11DrawMeshInstanced(dx11 *DX, mesh_handle MeshHandle, u32 Count)
 {
+    dx11_mesh Mesh = DX->HandleToMesh[MeshHandle];
 
+    Assert(Mesh.IndicesCount > 0);
+
+    DX11BindToInputAssembler(DX, Mesh);
+
+    UINT StartIndexLocation = 0;
+    INT BaseVertexLocation = 0;
+    DX->Context->DrawIndexedInstanced(Mesh.IndicesCount, Count, StartIndexLocation, BaseVertexLocation, 0);
 }
 
 void
@@ -303,16 +438,8 @@ DX11DeleteMesh(dx11 *DX, mesh_handle MeshHandle)
 {
     dx11_mesh Mesh = DX->HandleToMesh[MeshHandle];
 
-    if (Mesh.IB != 0)
-    {
-        Mesh.IB->Release();
-        Mesh.IB = 0;
-    }
-    if (Mesh.VB != 0)
-    {
-        Mesh.VB->Release();
-        Mesh.VB = 0;
-    }
+    DX11ReleaseCOM(Mesh.IB);
+    DX11ReleaseCOM(Mesh.VB);
     Mesh.IndicesCount = 0;
 
     DX->FreeMeshHandles[DX->FreeMeshHandlesCount++] = MeshHandle;
@@ -403,6 +530,11 @@ void DX11BindTexture2D(dx11 *DX, u32 Slot, texture_handle TextureHandle)
 {
     dx11_texture Texture = DX->HandleToTexture[TextureHandle];
 
+    //
+    // NOTE(Kevin): First 8 texture SRV slots are reserved for StructuredBuffers
+    //
+    u32 TextureSRVSlotStart = 8;
+
     // SRVs & samplers to PS slots
     ID3D11ShaderResourceView *SRVs[] =
     {
@@ -413,7 +545,7 @@ void DX11BindTexture2D(dx11 *DX, u32 Slot, texture_handle TextureHandle)
         Texture.Sampler
     };
 
-    DX->Context->PSSetShaderResources(Slot, ArrayCount(SRVs), SRVs);
+    DX->Context->PSSetShaderResources(TextureSRVSlotStart+Slot, ArrayCount(SRVs), SRVs);
     DX->Context->PSSetSamplers(Slot, ArrayCount(Samplers), Samplers);
 }
 
@@ -425,19 +557,16 @@ void DX11UpdateTexture2D(dx11 *DX, texture_handle TextureHandle, void *Bitmap, u
 
 void DX11DeleteTexture2D(dx11 *DX, texture_handle TextureHandle)
 {
-    // TODO(Kevin): Implement
-    Assert(0);
+    dx11_texture Texture = DX->HandleToTexture[TextureHandle];
+
+    DX11ReleaseCOM(Texture.Texture);
+    DX11ReleaseCOM(Texture.SRV);
+
+    DX->FreeTextureHandles[DX->FreeTextureHandlesCount++] = TextureHandle;
 }
 
 
 #ifdef SHOOTER_PLATFORM_WIN32
-
-internal void *
-Win32RendererAlloc(umm Size)
-{
-    void *Result = VirtualAlloc(0, Size, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
-    return Result;
-}
 
 internal void
 DX11CreateDeviceAndSwapchain(dx11 *DX, HWND Window)
@@ -600,13 +729,63 @@ Win32LoadRenderer(HDC WindowDC)
 void
 Win32BeginFrame(renderer *Renderer)
 {
-    // OpenGLBeginFrame((open_gl *)Renderer);
+    DX11BeginFrame((dx11 *)Renderer);
 }
 
 void
 Win32EndFrame(renderer *Renderer)
 {
     DX11EndFrame((dx11 *)Renderer);
+}
+
+void
+Win32ReleaseRenderer(renderer *Renderer)
+{
+    dx11 *DX = (dx11 *)Renderer;
+
+    DX->Context->ClearState();
+    DX->Context->Flush();
+
+    for (u32 Mesh = 0; Mesh < ArrayCount(DX->HandleToMesh); ++Mesh)
+    {
+        DX11DeleteMesh(DX, Mesh);
+    }
+    for (u32 Texture = 0; Texture < ArrayCount(DX->HandleToTexture); ++Texture)
+    {
+       DX11DeleteTexture2D(DX, Texture);
+    }
+
+    DX11ReleaseCOM(DX->PerInstanceDataSB.Buffer);
+    DX11ReleaseCOM(DX->PerInstanceDataSB.SRV);
+
+    DX11ReleaseCOM(DX->MainRasterState);
+    DX11ReleaseCOM(DX->StaticLitVS);
+    DX11ReleaseCOM(DX->StaticLitPS);
+    DX11ReleaseCOM(DX->PNUV2_InputLayout);
+    DX11ReleaseCOM(DX->StaticLitCB0);
+    DX11ReleaseCOM(DX->StaticLitCB1);
+
+    DX11ReleaseCOM(DX->AnisotropicSampler);
+    DX11ReleaseCOM(DX->PointSampler);
+
+    DX11ReleaseCOM(DX->RenderTargetView);
+    DX11ReleaseCOM(DX->DepthTexture);
+    DX11ReleaseCOM(DX->DepthStencilView);
+
+    // TODO(Kevin): DX->SwapChain->SetFullscreenState
+
+    DX11ReleaseCOM(DX->Factory2);
+    DX11ReleaseCOM(DX->SwapChain);
+    DX11ReleaseCOM(DX->Context);
+#if HANDMADE_INTERNAL
+    ID3D11Debug *DebugLayer;
+    if (SUCCEEDED(DX->Device->QueryInterface(__uuidof(ID3D11Debug), (void**)&DebugLayer)))
+    {
+        DebugLayer->ReportLiveDeviceObjects(D3D11_RLDO_DETAIL | D3D11_RLDO_IGNORE_INTERNAL);
+        DebugLayer->Release();
+    }
+#endif
+    DX11ReleaseCOM(DX->Device);
 }
 
 #endif // SHOOTER_PLATFORM_WIN32

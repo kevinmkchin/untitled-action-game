@@ -24,6 +24,36 @@ struct dx11_texture
     DXGI_FORMAT Format;
 };
 
+struct dx11_structured_buffer
+{
+    ID3D11Buffer *Buffer;
+    ID3D11ShaderResourceView *SRV;
+};
+
+struct alignas(16) static_lit_model_instance
+{
+    mat4 WorldFromModel;            // 64      : 64
+    vec4 PointLightsPos[4];         // 64      : 128
+    real32 AmbientCube[6];          // 4*6=24  : 152
+    s32 DoSunLight;                 // 4       : 156
+    s32 PointLightsCount;           // 4       : 160
+    real32 PointLightsAttLin[4];    // 4*4=16  : 176
+    real32 PointLightsAttQuad[4];   // 4*4=16  : 192
+    render_descriptor Descriptor;   // 12      : 204
+    u32 _padding_;                  // 4       : 208
+};
+
+struct alignas(16) static_lit_cb0
+{
+    mat4 ProjFromWorld;
+    vec3 DirectionToSun;
+};
+
+struct alignas(16) static_lit_cb1
+{
+    u32 BaseInstance;
+};
+
 struct dx11
 {
     renderer Header;
@@ -46,6 +76,8 @@ struct dx11
     ID3D11VertexShader *StaticLitVS;
     ID3D11PixelShader *StaticLitPS;
     ID3D11InputLayout *PNUV2_InputLayout;
+    ID3D11Buffer *StaticLitCB0;
+    ID3D11Buffer *StaticLitCB1;
 
     // TODO(Kevin): Create these once per material style and reuse
     ID3D11SamplerState *AnisotropicSampler;
@@ -53,24 +85,32 @@ struct dx11
 
     dx11_mesh HandleToMesh[1024];
     mesh_handle FreeMeshHandles[1024];
-    uint32 FreeMeshHandlesCount;
+    u32 FreeMeshHandlesCount;
 
     dx11_texture HandleToTexture[512];
     mesh_handle FreeTextureHandles[512];
-    uint32 FreeTextureHandlesCount;
+    u32 FreeTextureHandlesCount;
+
+    dx11_structured_buffer PerInstanceDataSB;
+    static_lit_model_instance *PerInstanceDataChunk;
+    u32 PerInstanceDataCount;
 
     HWND Window;
 };
 
-mesh_handle DX11UploadMesh(dx11 *DX, PNUV2_vertex *VB, uint32 VC, uint32 *IB, uint32 IC);
+void DX11GetWritablePerInstanceDataArray(dx11 *DX, static_lit_model_instance **OutArray, u32 **OutCount);
+// void DX11GetGuiVertexStreamFrame(open_gl *OpenGL, vstream_frame_chunk *OutVertexStreamFrame);
+// void DX11GetGuiVertexStreamItemsArray(open_gl *OpenGL, gui_vstream_item** OutArray, u32 **OutCount);
+
+mesh_handle DX11UploadMesh(dx11 *DX, PNUV2_vertex *VB, u32 VC, u32 *IB, u32 IC);
 void DX11DrawMesh(dx11 *DX, mesh_handle MeshHandle);
-void DX11DrawMeshInstanced(dx11 *DX, mesh_handle MeshHandle, uint32 Count);
+void DX11DrawMeshInstanced(dx11 *DX, mesh_handle MeshHandle, u32 Count);
 void DX11DeleteMesh(dx11 *DX, mesh_handle MeshHandle);
 
-texture_handle DX11UploadTexture2D(dx11 *DX, void *Bitmap, uint32 W, uint32 H, 
+texture_handle DX11UploadTexture2D(dx11 *DX, void *Bitmap, u32 W, u32 H, 
                                      pixel_format Format, bool32 LinearFiltering);
-void DX11BindTexture2D(dx11 *DX, uint32 Slot, texture_handle TextureHandle);
-void DX11UpdateTexture2D(dx11 *DX, texture_handle TextureHandle, void *Bitmap, uint32 W, uint32 H);
+void DX11BindTexture2D(dx11 *DX, u32 Slot, texture_handle TextureHandle);
+void DX11UpdateTexture2D(dx11 *DX, texture_handle TextureHandle, void *Bitmap, u32 W, u32 H);
 void DX11DeleteTexture2D(dx11 *DX, texture_handle TextureHandle);
 
 #ifdef SHOOTER_PLATFORM_WIN32
@@ -78,6 +118,7 @@ void DX11DeleteTexture2D(dx11 *DX, texture_handle TextureHandle);
 renderer *Win32LoadRenderer(HDC WindowDC);
 void Win32BeginFrame(renderer *Renderer);
 void Win32EndFrame(renderer *Renderer);
+void Win32ReleaseRenderer(renderer *Renderer);
 
 #endif // SHOOTER_PLATFORM_WIN32
 

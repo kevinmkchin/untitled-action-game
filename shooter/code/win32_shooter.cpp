@@ -16,6 +16,7 @@ Platform Layer TODO
 #define SHOOTER_WIN32_OPEN_CONSOLE 0
 #define SHOOTER_WIN32_FORCE_OFF_DWM_DPI_SCALING 1
 #define SHOOTER_DX11 1
+#define SHOOTER_LOAD_RENDERDOC 0
 
 #include "shooter.h"
 
@@ -260,7 +261,7 @@ Win32LoadXInput()
 internal void
 Win32LoadRenderDoc()
 {
-#if HANDMADE_INTERNAL
+#if SHOOTER_LOAD_RENDERDOC && HANDMADE_INTERNAL
     LoadLibrary("renderdoc.dll");
     if (HMODULE RenderDocModule = GetModuleHandleA("renderdoc.dll"))
     {
@@ -867,7 +868,7 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
 #endif
 
 #if HANDMADE_INTERNAL
-    DEBUGGlobalShowCursor = true;
+    DEBUGGlobalShowCursor = false;
 #endif
     GlobalCursorArrow = LoadCursor(0, IDC_ARROW);
 
@@ -1332,7 +1333,7 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
 #endif
                 }
 
-                // These are reference count releases...do I need to?
+                Win32ReleaseRenderer(Renderer);
                 AudioRenderClient->Release();
                 AudioClient->Release();
                 DefaultAudioDevice->Release();

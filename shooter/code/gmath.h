@@ -3,6 +3,10 @@
     // TODO(Kevin): PascalCase variables
     // TODO(Kevin): review where the handedness and application order is baked into the implementation...
     // can I modify it?
+    //              - In camera space having -Z as forward, +X as right, +Y as up
+    //              - and subsequently clip space transformation using the same handedness
+    //              - The only other thing is rotation I believe?
+    // TODO(Kevin): Revisit orthographic projection matrix to set 0 as near z clip plane
     // TODO(Kevin): What am I actually using from math? sinf, cosf, sqrtf, asinf, acosf, atan2f
     // TODO(Kevin): SIMD
     // TODO(Kevin): Slerp tests are shit - comparing against incorrect implementation...also result even 
@@ -528,12 +532,27 @@ inline mat4 ScaleMatrix(vec3 scale);
 inline mat3 ScaleMatrix2D(vec2 scale);
 
 /** Creates a 4x4 matrix for a symetric perspective-view frustum based on the default handedness and default near and far clip planes definition.
-    fovy: Specifies the field of view angle in the y direction. Expressed in radians.
-    aspect: Specifies the aspect ratio that determines the field of view in the x direction. The aspect ratio is the ratio of x (width) to y (height).
-    nearclip: Specifies the distance from the viewer to the near clipping plane (always positive).
-    farclip: Specifies the distance from the viewer to the far clipping plane (always positive).
-    https://www.khronos.org/registry/OpenGL-Refpages/gl2.1/xhtml/gluPerspective.xml */
-inline mat4 ProjectionMatrixPerspective(float fovy, float aspect, float nearclip, float farclip);
+
+
+/*
+    Projection
+
+    Clip space is the coordinate space before perspective divide (W) where the viewing frustum
+    is defined by the clipping planes at -W <= X <= W, -W <= Y <= W, Z_NEAR_CLIP <= Z <= W.
+    Z_NEAR_CLIP is 0 in DirectX and Vulkan, -W in OpenGL.
+
+    See CameraSpaceMatrixLookAt for camera/view space definition. Uses the same handedness as camera space (RH).
+
+    Perspective divide is performed by the GPU to get Normalized Device Coordinates.
+
+    VerticalFOV:  Specifies the field of view angle in the y direction. Expressed in radians.
+    AspectRatio:  Specifies the aspect ratio that determines the field of view in the x direction. (width / height).
+    NearClip:     Specifies the distance from the viewer to the near clipping plane (always positive).
+    FarClip:      Specifies the distance from the viewer to the far clipping plane (always positive).
+    NearClipZero: Sets Z_NEAR_CLIP to 0 instead of -W
+*/
+inline mat4 ClipSpaceFromCameraSpace_PerspectiveProjection(float VerticalFOV, float AspectRatio,
+                                                           float NearClip, float FarClip, bool NearClipZero);
 
 /** Creates a 4x4 matrix for an orthographic parallel viewing volume, using right-handed coordinates.
     https://www.khronos.org/registry/OpenGL-Refpages/gl2.1/xhtml/glOrtho.xml
@@ -556,8 +575,19 @@ inline mat4 ProjectionMatrixOrthographicNoZ(float left, float right, float botto
     vec4s which includes a Z coordinate which is discarded. */
 inline mat3 ProjectionMatrixOrthographic2D(float left, float right, float bottom, float top);
 
-/** Creates a 4x4 ViewMatrix at eye looking at target. */
-inline mat4 ViewMatrixLookAt(vec3 const& eye, vec3 const& target, vec3 const& eyeUpVector);
+/*
+
+    View
+
+    This matrix takes points into camera-relative coordinate space.
+
+    In camera/view space:
+        Right = +X
+        Up = +Y
+        Forward = -Z
+
+*/
+inline mat4 CameraSpaceMatrixLookAt(vec3 const& eye, vec3 const& target, vec3 const& eyeUpVector);
 
 /** Checks if Dot product of a and b is within +/- tolerance */
 inline bool Similar(quat a, quat b, float tolerance = 0.0001f);
@@ -1150,17 +1180,21 @@ inline mat3 ScaleMatrix2D(vec2 scale) // TODO(Kevin): NEED TESTS
     return ret;
 }
 
-inline mat4 ProjectionMatrixPerspective(float fovy, float aspect, float nearclip, float farclip)
+inline mat4 ClipSpaceFromCameraSpace_PerspectiveProjection(float VerticalFOV, float AspectRatio,
+                                                           float NearClip, float FarClip, bool NearClipZero)
 {
-    float const tanHalfFovy = tanf(fovy / 2.f);
+    float TanHalfVerticalFOV = tanf(VerticalFOV / 2.0f);
 
     mat4 Result;
-    Result[0][0] = 1.f / (aspect * tanHalfFovy);
-    Result[1][1] = 1.f / (tanHalfFovy);
-    Result[2][2] = -(farclip + nearclip) / (farclip - nearclip);
+    Result[0][0] = 1.f / (AspectRatio * TanHalfVerticalFOV);
+    Result[1][1] = 1.f / (TanHalfVerticalFOV);
     Result[2][3] = -1.f;
-    Result[3][2] = -(2.f * farclip * nearclip) / (farclip - nearclip);
     Result[3][3] = 0.f;
+
+    float ZNearClip = NearClipZero ? 0.0f : -1.0f;
+    Result[2][2] = (FarClip + (-ZNearClip * NearClip)) / (NearClip - FarClip);
+    Result[3][2] = ((FarClip + (-ZNearClip * FarClip)) * NearClip) / (NearClip - FarClip);
+
     return Result;
 }
 
@@ -1198,33 +1232,25 @@ inline mat3 ProjectionMatrixOrthographic2D(float left, float right, float bottom
     return ret;
 }
 
-inline mat4 ViewMatrixLookAt(vec3 const& eye, vec3 const& target, vec3 const& eyeUpVector)
+inline mat4 CameraSpaceMatrixLookAt(vec3 const& eye, vec3 const& target, vec3 const& eyeUpVector)
 {
-    vec3 const direction = Normalize(target - eye);
-    vec3 const right = Normalize(Cross(direction, eyeUpVector));
-    vec3 const up = Cross(right, direction);
+    vec3 Direction = Normalize(target - eye);
+    vec3 Right = Normalize(Cross(Direction, eyeUpVector));
+    vec3 Up = Cross(Right, Direction); // Magnitude is equal to Sin(Theta between Direction and Right) = 1
 
-    mat4 ret = mat4();
-    ret.Empty();
+    mat4 Result = {};
 
-    ret[0][0] = right.x;
-    ret[1][0] = right.y;
-    ret[2][0] = right.z;
+    // Standard basis vectors for world coordinate space transformed into camera space
+    vec4 WorldXAxisInCameraSpace = vec4(Right.x, Up.x, -Direction.x, 0.f);
+    vec4 WorldYAxisInCameraSpace = vec4(Right.y, Up.y, -Direction.y, 0.f);
+    vec4 WorldZAxisInCameraSpace = vec4(Right.z, Up.z, -Direction.z, 0.f);
+    vec4 WorldCameraPosInCameraSpace = vec4(-Dot(Right, eye), -Dot(Up, eye), Dot(Direction, eye), 1.f);
+    Result[0] = WorldXAxisInCameraSpace;
+    Result[1] = WorldYAxisInCameraSpace;
+    Result[2] = WorldZAxisInCameraSpace;
+    Result[3] = WorldCameraPosInCameraSpace;
 
-    ret[0][1] = up.x;
-    ret[1][1] = up.y;
-    ret[2][1] = up.z;
-
-    ret[0][2] = -direction.x;
-    ret[1][2] = -direction.y;
-    ret[2][2] = -direction.z;
-
-    ret[3][0] = -Dot(right, eye);
-    ret[3][1] = -Dot(up, eye);
-    ret[3][2] = Dot(direction, eye);
-    ret[3][3] = 1.f;
-
-    return ret;
+    return Result;
 }
 
 inline mat4 mat4::GetTranspose() const
