@@ -102,7 +102,7 @@ DX11Init(dx11 *DX)
     RasterDesc.DepthBiasClamp = 0.0f;
     RasterDesc.SlopeScaledDepthBias = 0.0f;
     RasterDesc.DepthClipEnable = TRUE;
-    RasterDesc.ScissorEnable = FALSE;
+    RasterDesc.ScissorEnable = TRUE;
     RasterDesc.MultisampleEnable = FALSE;
     RasterDesc.AntialiasedLineEnable = FALSE;
 
@@ -375,36 +375,46 @@ DX11EndFrame(dx11 *DX)
     };
     DX11UpdateConstantBuffer(DX, DX->UICB0, &UIDrawParams, sizeof(UIDrawParams), true, 0, false, 0);
 
-    // glEnable(GL_SCISSOR_TEST);
-    // u32 PrevScissorX = 0xFFFFFFFF;
-    // u32 PrevScissorY = 0xFFFFFFFF;
-    // u32 PrevScissorW = 0xFFFFFFFF;
-    // u32 PrevScissorH = 0xFFFFFFFF;
+    u32 PrevScissorX = 0xFFFFFFFF;
+    u32 PrevScissorY = 0xFFFFFFFF;
+    u32 PrevScissorW = 0xFFFFFFFF;
+    u32 PrevScissorH = 0xFFFFFFFF;
     for (uint32 GuiItemIndex = 0; 
          GuiItemIndex < DX->GuiVertexStreamItemsCount; 
          ++GuiItemIndex)
     {
         gui_vstream_item Item = DX->GuiVertexStreamItems[GuiItemIndex];
-        // u32 ScissorX = Item.ScissorX;
-        // u32 ScissorY = Item.ScissorY;
-        // u32 ScissorW = Item.ScissorW;
-        // u32 ScissorH = Item.ScissorH;
-        // if (ScissorX != PrevScissorX || ScissorY != PrevScissorY ||
-        //     ScissorW != PrevScissorW || ScissorH != PrevScissorH)
-        // {
-        //     glScissor(ScissorX, DX11->RenderTargetGui.Height-ScissorY-ScissorH, ScissorW, ScissorH);
-        //     PrevScissorX = ScissorX;
-        //     PrevScissorY = ScissorY;
-        //     PrevScissorW = ScissorW;
-        //     PrevScissorH = ScissorH;
-        // }
+        u32 ScissorX = Item.ScissorX;
+        u32 ScissorY = Item.ScissorY;
+        u32 ScissorW = Item.ScissorW;
+        u32 ScissorH = Item.ScissorH;
+        if (ScissorX != PrevScissorX || ScissorY != PrevScissorY ||
+            ScissorW != PrevScissorW || ScissorH != PrevScissorH)
+        {
+            D3D11_RECT Scissor;
+            Scissor.left = ScissorX;
+            Scissor.top = ScissorY;
+            Scissor.right = ScissorX + ScissorW;
+            Scissor.bottom = ScissorY + ScissorH;
+            DX->Context->RSSetScissorRects(1, &Scissor);
+            PrevScissorX = ScissorX;
+            PrevScissorY = ScissorY;
+            PrevScissorW = ScissorW;
+            PrevScissorH = ScissorH;
+        }
 
         u32 LocalVertexCount = Item.VertexCount;
         u32 LocalIndexOffset = SafeTruncateU64(Item.OffsetBytes) / UIVertexStride;
         DX11BindTexture2D(DX, 0, Item.ColorTexture);
         DX->Context->Draw(LocalVertexCount, VStreamStartIndex + LocalIndexOffset);
     }
-    // glDisable(GL_SCISSOR_TEST);
+
+    D3D11_RECT Scissor;
+    Scissor.left = 0;
+    Scissor.top = 0;
+    Scissor.right = DX->Header.BackBufferW;
+    Scissor.bottom = DX->Header.BackBufferH;
+    DX->Context->RSSetScissorRects(1, &Scissor);
 
     //
     // Presentation
