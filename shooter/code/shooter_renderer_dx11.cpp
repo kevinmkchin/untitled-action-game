@@ -7,14 +7,14 @@
 
 
 internal void
-FailDx11HRESULT(HRESULT HResult, char *Message, HWND Window)
+FailDx11HRESULT(HRESULT HResult, char *Message, HWND Window, bool32 Fatal = true)
 {
     if (FAILED(HResult))
     {
         char Buf[512];
         snprintf(Buf, sizeof(Buf), "%s (HRESULT=0x%08X)\n", Message, (unsigned)HResult);
-        MessageBoxA(Window, Buf, "D3D11 Error", MB_ICONERROR | MB_OK);
-        Assert(0);
+        MessageBox(Window, Buf, "D3D11 Error", MB_ICONERROR | MB_OK);
+        Assert(!Fatal);
     }
 }
 
@@ -201,7 +201,7 @@ DX11EndFrame(dx11 *DX)
     }
     else
     {
-        FailDx11HRESULT(HResult, "Present failed", DX->Window);
+        FailDx11HRESULT(HResult, "Present failed!", DX->Window);
     }
 }
 
@@ -478,7 +478,7 @@ DX11CreateDeviceAndSwapchain(dx11 *DX, HWND Window)
     // Check tearing support
     DX->AllowVRRTearing = false;
     IDXGIFactory5 *Factory5;
-    HResult = DX->Factory2->QueryInterface(__uuidof(IDXGIFactory5), reinterpret_cast<void**>(&Factory5));
+    HResult = DX->Factory2->QueryInterface(__uuidof(IDXGIFactory5), (void**)&Factory5);
     if (SUCCEEDED(HResult))
     {
         BOOL AllowVRRTearing = FALSE;
@@ -487,6 +487,17 @@ DX11CreateDeviceAndSwapchain(dx11 *DX, HWND Window)
             DX->AllowVRRTearing = AllowVRRTearing == TRUE;
         }
         Factory5->Release();
+    }
+
+    u32 FramesInFlight = 1;
+    IDXGIDevice1 *dxgiDevice;
+    HResult = DX->Device->QueryInterface(__uuidof(IDXGIDevice1), (void**)&dxgiDevice);
+    if (SUCCEEDED(HResult))
+    {
+        FailDx11HRESULT(HResult, "Failed to set maximum frame latency.", DX->Window, false);
+        HResult = dxgiDevice->SetMaximumFrameLatency(FramesInFlight);
+        FailDx11HRESULT(HResult, "Failed to set maximum frame latency.", DX->Window, false);
+        dxgiDevice->Release();
     }
 
     DX->BackBufferFormat = DXGI_FORMAT_R8G8B8A8_UNORM;

@@ -907,6 +907,11 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                 // TODO(Kevin): Logging. Call GetLastError for the cause of the error
             }
 
+            // NOTE(Kevin): Flush message queue so I can open MessageBox
+            game_controller_input DummyController;
+            win32_raw_mouse_input DummyRawInput;
+            Win32ProcessPendingMessages(&Win32State, &DummyController, &DummyRawInput);
+
             renderer *Renderer = Win32LoadRenderer(GetDC(Window));
 
             // TODO(Kevin): Grab MonitorRefreshHz from device actually
