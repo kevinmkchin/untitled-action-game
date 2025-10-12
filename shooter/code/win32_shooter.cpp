@@ -15,7 +15,6 @@ Platform Layer TODO
 #define SHOOTER_PLATFORM_WIN32
 #define SHOOTER_WIN32_OPEN_CONSOLE 0
 #define SHOOTER_WIN32_FORCE_OFF_DWM_DPI_SCALING 1
-#define SHOOTER_DX11 1
 #define SHOOTER_LOAD_RENDERDOC 1
 
 #include "shooter.h"
@@ -36,11 +35,8 @@ Platform Layer TODO
 #include "shooter_shared.h"
 #include "shooter_renderer.h"
 #include "shooter_renderer.cpp"
-#if SHOOTER_DX11
 #include "shooter_renderer_dx11.h"
-#else
-#include "shooter_renderer_opengl.h"
-#endif
+#include "shooter_renderer_dx11.cpp"
 
 global bool GlobalRunning;
 global int64 GlobalPerfCountFrequency;
@@ -172,12 +168,6 @@ DEBUG_PLATFORM_WRITE_ENTIRE_FILE(DEBUGPlatformWriteEntireFile)
 
     return Result;
 }
-
-#if SHOOTER_DX11
-#include "shooter_renderer_dx11.cpp"
-#else
-#include "shooter_renderer_opengl.cpp"
-#endif
 
 inline FILETIME
 Win32GetLastWriteTime(char *Filepath)
