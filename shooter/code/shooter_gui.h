@@ -15,6 +15,36 @@
 
     Keep it dead simple -> no ordering just painter's alg
 
+Usage
+
+    uint32 CanvasW, CanvasH;
+    RendererAPI->GetRenderTargetDimensions(&CanvasW, &CanvasH);
+    GuiBeginFrame(GuiState, CanvasW, CanvasH, &GameState->ScratchArena, 
+                  Input->MouseX, Input->MouseY, Input->MouseButtons[0], Input->MouseButtons[1]);
+    GuiPushScissor(GuiState, { 250, 250, 1000, 100 });
+    GuiPanel(GuiState, { 200, 200, 100, 100 }, 2);
+    GuiPushScissor(GuiState, { 200, 200, 600, 125 });
+    GuiPanel(GuiState, { 300, 300, 100, 100 }, vec4(1.0f, 0.0f, 1.0f, 1.0f));
+    GuiPanel(GuiState, { 500, 100, 800, 400 }, 4);
+    GuiPopScissor(GuiState);
+    GuiPopScissor(GuiState);
+    GuiPanel(GuiState, { 400, 400, 100, 100 }, vec4(0.0f, 1.0f, 1.0f, 1.0f));
+    GuiText(GuiState, 50, 160, 36, GuiFontAnikki8x8, Align_Left, false, vec4(0,1,0,1), "Hello world");
+    GuiText(GuiState, 50, 200, 36, GuiFontCurses6x9, Align_Left, false, vec4(0,1,1,0.5f), "Hello world");
+
+    GuiPanel(GuiState, { 500, 100, 600, 600 }, 6);
+
+    if (GuiButton(GuiState, 1, {100, 500, 200, 200}, vec4(0.0f,0.7f,0.0f,1.0f), 
+                  vec4(0.0f,0.5f,0.0f,1.0f), vec4(0.0f,1.0f,0.0f,1.0f)))
+    {
+        GuiPanel(GuiState, { 500, 500, 200, 200 }, vec4(0,0,1,1));
+    }
+
+    GuiPanel(GuiState, { Input->MouseX, Input->MouseY, 16, 16 }, vec4(1.0f, 1.0f, 0.0f, 1.0f));
+
+    RendererAPI->PushGuiDrawRequests(&GameState->ScratchArena, GuiState->DrawRequests, GuiState->DrawRequestsCount);
+
+
 */
 
 enum gui_alignment
@@ -76,6 +106,8 @@ struct gui_persist_state
 
 struct gui_state
 {
+    u32 CallOrder; // TODO(Kevin): Can we use low 24 bits for call order and high 8 bits for "depth"? then sort draw requests by that
+
     #define MAX_GUI_DRAW_REQUESTS 1000
     gui_draw_request DrawRequests[MAX_GUI_DRAW_REQUESTS];
     u32 DrawRequestsCount;

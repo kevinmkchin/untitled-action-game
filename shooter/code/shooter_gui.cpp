@@ -247,6 +247,9 @@ void GuiBeginFrame(gui_state *GuiState, u32 CanvasWidth, u32 CanvasHeight, memor
                    s32 MouseX, s32 MouseY, game_button_state LMB, game_button_state RMB)
 {
     GuiState->Scratch = Scratch;
+
+    GuiState->CallOrder = 0;
+
     GuiState->DrawRequestsCount = 0;
     GuiState->ScissorStackCount = 0;
     GuiPushScissor(GuiState, { 0, 0, CanvasWidth, CanvasHeight });
