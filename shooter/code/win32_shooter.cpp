@@ -1044,6 +1044,22 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                     Renderer->BackBufferH = SafeCastToU32(Dimensions.Height);
                     Win32BeginFrame(Renderer);
 
+#if 0
+                    // Frames in Flight visualizer
+                    u32 StartX = 400;
+                    local_persist s32 X = 100;
+                    POINT ScreenP;
+                    ScreenP.x = X;
+                    ScreenP.y = 1000;
+                    ClientToScreen(Window, &ScreenP);
+                    SetCursorPos(ScreenP.x, ScreenP.y);
+                    X += 20;
+                    if (X > 2000)
+                    {
+                        X = 100;
+                    }
+#endif
+
                     POINT MouseP;
                     // TODO(Kevin): Handle failure case
                     GetCursorPos(&MouseP);
