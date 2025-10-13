@@ -5,6 +5,9 @@
 #pragma comment(lib, "dxgi.lib")
 #pragma comment(lib, "d3dcompiler.lib")
 
+global u32 PreviousBackBufferW;
+global u32 PreviousBackBufferH;
+
 #define DX11ReleaseCOM(ObjectPtr)\
     do {\
         if (ObjectPtr)\
@@ -21,6 +24,9 @@ Win32RendererAlloc(umm Size)
     void *Result = VirtualAlloc(0, Size, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
     return Result;
 }
+
+internal void
+DX11CreateDeviceAndSwapchain(dx11 *DX, HWND Window);
 #endif
 
 internal void
@@ -33,6 +39,45 @@ FailDx11HRESULT(HRESULT HResult, char *Message, HWND Window, bool32 Fatal = true
         MessageBox(Window, Buf, "D3D11 Error", MB_ICONERROR | MB_OK);
         Assert(!Fatal);
     }
+}
+
+internal void
+DX11CreateSizeDependentResources(dx11 *DX, UINT W, UINT H)
+{
+    DX->Context->OMSetRenderTargets(0, NULL, NULL);
+    DX11ReleaseCOM(DX->RenderTargetView);
+    DX11ReleaseCOM(DX->DepthStencilView);
+    DX11ReleaseCOM(DX->DepthTexture);
+
+    UINT SwapChainFlags = DX->AllowVRRTearing ? DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING : 0;
+    HRESULT HResult = DX->SwapChain->ResizeBuffers(0, W, H, DX->BackBufferFormat, SwapChainFlags);
+    FailDx11HRESULT(HResult, "SwapChain->ResizeBuffers failed", DX->Window);
+
+    ComPtr<ID3D11Texture2D> BackBufferTexture;
+    HResult = DX->SwapChain->GetBuffer(0, IID_PPV_ARGS(&BackBufferTexture));
+    FailDx11HRESULT(HResult, "GetBuffer(0) failed", DX->Window);
+    HResult = DX->Device->CreateRenderTargetView(BackBufferTexture.Get(), NULL, &DX->RenderTargetView);
+    FailDx11HRESULT(HResult, "Create RenderTargetView failed", DX->Window);
+
+    D3D11_TEXTURE2D_DESC DepthStencilDesc = {};
+    DepthStencilDesc.Width = W;
+    DepthStencilDesc.Height = H;
+    DepthStencilDesc.MipLevels = 1;
+    DepthStencilDesc.ArraySize = 1;
+    DepthStencilDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+    DepthStencilDesc.SampleDesc.Count = 1;
+    DepthStencilDesc.Usage = D3D11_USAGE_DEFAULT;
+    DepthStencilDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+
+    HResult = DX->Device->CreateTexture2D(&DepthStencilDesc, NULL, &DX->DepthTexture);
+    FailDx11HRESULT(HResult, "Create depth texture failed", DX->Window);
+    HResult = DX->Device->CreateDepthStencilView(DX->DepthTexture, NULL, &DX->DepthStencilView);
+    FailDx11HRESULT(HResult, "Create DepthStencilView failed", DX->Window);
+
+    PreviousBackBufferW = W;
+    PreviousBackBufferH = H;
+
+    OutputDebugStringA("DX11: Resized swapchain and render target view.\n");
 }
 
 internal void
@@ -247,6 +292,15 @@ DX11BeginFrame(dx11 *DX)
     DX->PerInstanceDataCount = 0;
     DX->GuiVertexStreamStagingCount = 0;
     DX->GuiVertexStreamItemsCount = 0;
+
+    if (PreviousBackBufferW != DX->Header.BackBufferW ||
+        PreviousBackBufferH != DX->Header.BackBufferH)
+    {
+        if (DX->Header.BackBufferW > 0 && DX->Header.BackBufferH > 0)
+        {
+            DX11CreateSizeDependentResources(DX, DX->Header.BackBufferW, DX->Header.BackBufferH);
+        }
+    }
 }
 
 internal void
@@ -263,22 +317,21 @@ DX11EndFrame(dx11 *DX)
     };
     DX->Context->OMSetRenderTargets(ArrayCount(RenderTargetViews), RenderTargetViews, DX->DepthStencilView);
 
-    D3D11_VIEWPORT Viewport = {};
-    Viewport.TopLeftX = 0.0f;
-    Viewport.TopLeftY = 0.0f;
-    Viewport.Width = (real32)DX->Header.BackBufferW;
-    Viewport.Height = (real32)DX->Header.BackBufferH;
-    Viewport.MinDepth = 0.0f;
-    Viewport.MaxDepth = 1.0f;
-    DX->Context->RSSetViewports(1, &Viewport);
+    D3D11_VIEWPORT MainViewport = {};
+    MainViewport.TopLeftX = 0.0f;
+    MainViewport.TopLeftY = 0.0f;
+    MainViewport.Width = (real32)PreviousBackBufferW;
+    MainViewport.Height = (real32)PreviousBackBufferH;
+    MainViewport.MinDepth = 0.0f;
+    MainViewport.MaxDepth = 1.0f;
+    DX->Context->RSSetViewports(1, &MainViewport);
 
     //
     // StaticLit
     //
-    real32 AspectRatio = real32(DX->Header.BackBufferW) / real32(DX->Header.BackBufferH);
+    real32 AspectRatio = real32(PreviousBackBufferW) / real32(PreviousBackBufferH);
     real32 FOVX = 90.f;
     real32 FOVYRad = HorizontalFOVToVerticalFOV(FOVX*GM_DEG2RAD, AspectRatio);
-    // NOTE(Kevin): In DirectX, the Z clip planes are from 0 to W
     mat4 ClipFromView = ClipSpaceFromCameraSpace_PerspectiveProjection(FOVYRad, AspectRatio, 4.f, 3200.f, true);
 
     mat4 ProjFromWorld = ClipFromView * DX->Header.ViewFromWorld;
@@ -366,8 +419,8 @@ DX11EndFrame(dx11 *DX)
     MeshInfo.Layout = DX->UIIL;
     DX11BindToInputAssembler(DX, MeshInfo);
 
-    mat4 ClipFromScreen2D = ProjectionMatrixOrthographicNoZ(0.f, (real32)DX->Header.BackBufferW, 
-                                                            (real32)DX->Header.BackBufferH, 0.f);
+    mat4 ClipFromScreen2D = ProjectionMatrixOrthographicNoZ(0.f, (real32)PreviousBackBufferW, 
+                                                            (real32)PreviousBackBufferH, 0.f);
 
     ui_cb0 UIDrawParams =
     {
@@ -412,8 +465,8 @@ DX11EndFrame(dx11 *DX)
     D3D11_RECT Scissor;
     Scissor.left = 0;
     Scissor.top = 0;
-    Scissor.right = DX->Header.BackBufferW;
-    Scissor.bottom = DX->Header.BackBufferH;
+    Scissor.right = PreviousBackBufferW;
+    Scissor.bottom = PreviousBackBufferH;
     DX->Context->RSSetScissorRects(1, &Scissor);
 
     //
@@ -434,12 +487,12 @@ DX11EndFrame(dx11 *DX)
         // NOTE(Kevin): This is if a video card has been physically removed from the computer,
         // or a driver upgrade for the video card has occurred.
         FailDx11HRESULT(HResult, "DX11 device removed or reset! Attempting to recreate.", DX->Window, false);
-        // TODO(Kevin): Device lost — recreate device and size-dependent resources
-        Assert(0);
-        // g_rtv.Reset(); g_dsv.Reset(); g_ds.Reset(); DX->SwapChain.Reset();
-        // g_context.Reset(); g_device.Reset(); g_factory2.Reset();
-        // DX11CreateDeviceAndSwapchain();
-        // DX11CreateSizeDependentResources(g_width, g_height);
+
+        Win32ReleaseRenderer((renderer *)DX);
+
+        DX11CreateDeviceAndSwapchain(DX, DX->Window);
+        DX11CreateSizeDependentResources(DX, DX->Header.BackBufferW, DX->Header.BackBufferH);
+        DX11Init(DX);
     }
     else
     {
@@ -792,14 +845,30 @@ DX11CreateDeviceAndSwapchain(dx11 *DX, HWND Window)
                                         &DX->Context);
     FailDx11HRESULT(HResult, "D3D11CreateDevice failed", Window);
 
-    // Create DXGI factory
-    UINT FactoryFlags = 0;
-#if HANDMADE_INTERNAL
-    FactoryFlags |= DXGI_CREATE_FACTORY_DEBUG;
-#endif
-    HResult = CreateDXGIFactory2(FactoryFlags, IID_PPV_ARGS(&DX->Factory2));
-    FailDx11HRESULT(HResult, "CreateDXGIFactory2 failed", Window);
-    Assert(DX->Factory2);
+    DX->FramesInFlight = 1;
+    ComPtr<IDXGIDevice1> DXGIDevice;
+    HResult = DX->Device->QueryInterface(__uuidof(IDXGIDevice1), (void**)&DXGIDevice);
+    if (SUCCEEDED(HResult))
+    {
+        FailDx11HRESULT(HResult, "Failed to set maximum frame latency.", DX->Window, false);
+        HResult = DXGIDevice->SetMaximumFrameLatency(DX->FramesInFlight);
+        FailDx11HRESULT(HResult, "Failed to set maximum frame latency.", DX->Window, false);
+        if (FAILED(HResult))
+        {
+            DX->FramesInFlight = 3;
+        }
+    }
+    else
+    {
+        DX->FramesInFlight = 3;
+    }
+
+    // Get DXGI factory
+    ComPtr<IDXGIAdapter> DXGIAdapter;
+    HResult = DXGIDevice->GetAdapter(&DXGIAdapter);
+    FailDx11HRESULT(HResult, "Failed to get IDXGIAdapter from IDXGIDevice1.", Window);
+    HResult = DXGIAdapter->GetParent(IID_PPV_ARGS(&DX->Factory2));
+    FailDx11HRESULT(HResult, "Failed to get IDXGIFactory2 from IDXGIAdapter.", Window);
 
     // Check tearing support
     DX->AllowVRRTearing = false;
@@ -813,25 +882,6 @@ DX11CreateDeviceAndSwapchain(dx11 *DX, HWND Window)
             DX->AllowVRRTearing = AllowVRRTearing == TRUE;
         }
         Factory5->Release();
-    }
-
-    DX->FramesInFlight = 1;
-    IDXGIDevice1 *dxgiDevice;
-    HResult = DX->Device->QueryInterface(__uuidof(IDXGIDevice1), (void**)&dxgiDevice);
-    if (SUCCEEDED(HResult))
-    {
-        FailDx11HRESULT(HResult, "Failed to set maximum frame latency.", DX->Window, false);
-        HResult = dxgiDevice->SetMaximumFrameLatency(DX->FramesInFlight);
-        FailDx11HRESULT(HResult, "Failed to set maximum frame latency.", DX->Window, false);
-        if (FAILED(HResult))
-        {
-            DX->FramesInFlight = 3;
-        }
-        dxgiDevice->Release();
-    }
-    else
-    {
-        DX->FramesInFlight = 3;
     }
 
     DX->BackBufferFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
@@ -860,56 +910,7 @@ DX11CreateDeviceAndSwapchain(dx11 *DX, HWND Window)
                                                    &DX->SwapChain);
     FailDx11HRESULT(HResult, "CreateSwapChainForHwnd failed", Window);
 
-    // Make-windowed full-screen transitions use DXGI
     DX->Factory2->MakeWindowAssociation(Window, DXGI_MWA_NO_ALT_ENTER);
-}
-
-internal void
-DX11CreateSizeDependentResources(dx11 *DX, UINT W, UINT H, HWND Window)
-{
-    DX->Context->OMSetRenderTargets(0, NULL, NULL);
-    if (DX->RenderTargetView)
-    {
-        DX->RenderTargetView->Release();
-        DX->RenderTargetView = NULL;
-    }
-    if (DX->DepthStencilView)
-    {
-        DX->DepthStencilView->Release();
-        DX->DepthStencilView = NULL;
-    }
-    if (DX->DepthTexture)
-    {
-        DX->DepthTexture->Release();
-        DX->DepthTexture = NULL;
-    }
-
-    // Resize swapchain buffers (0 keeps current count/format)
-    UINT SwapChainFlags = DX->AllowVRRTearing ? DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING : 0;
-    HRESULT HResult = DX->SwapChain->ResizeBuffers(0, W, H, DX->BackBufferFormat, SwapChainFlags);
-    FailDx11HRESULT(HResult, "ResizeBuffers failed", Window);
-
-    // Acquire backbuffer and create RTV
-    ID3D11Texture2D *BackBufferTexture;
-    HResult = DX->SwapChain->GetBuffer(0, IID_PPV_ARGS(&BackBufferTexture));
-    FailDx11HRESULT(HResult, "GetBuffer(0) failed", Window);
-    HResult = DX->Device->CreateRenderTargetView(BackBufferTexture, NULL, &DX->RenderTargetView);
-    FailDx11HRESULT(HResult, "Create RenderTargetView failed", Window);
-
-    // Create depth-stencil (24/8)
-    D3D11_TEXTURE2D_DESC DepthStencilDesc = {};
-    DepthStencilDesc.Width = W;
-    DepthStencilDesc.Height = H;
-    DepthStencilDesc.MipLevels = 1;
-    DepthStencilDesc.ArraySize = 1;
-    DepthStencilDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
-    DepthStencilDesc.SampleDesc.Count = 1;
-    DepthStencilDesc.Usage = D3D11_USAGE_DEFAULT;
-    DepthStencilDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
-    HResult = DX->Device->CreateTexture2D(&DepthStencilDesc, NULL, &DX->DepthTexture);
-    FailDx11HRESULT(HResult, "Create depth texture failed", Window);
-    HResult = DX->Device->CreateDepthStencilView(DX->DepthTexture, NULL, &DX->DepthStencilView);
-    FailDx11HRESULT(HResult, "Create DepthStencilView failed", Window);
 }
 
 renderer *
@@ -925,7 +926,7 @@ Win32LoadRenderer(HDC WindowDC)
     UINT Height = ClientRect.bottom - ClientRect.top;
 
     DX11CreateDeviceAndSwapchain(DX, DX->Window);
-    DX11CreateSizeDependentResources(DX, Width, Height, DX->Window);
+    DX11CreateSizeDependentResources(DX, Width, Height);
     DX11Init(DX);
 
     return (renderer *)DX;

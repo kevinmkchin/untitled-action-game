@@ -565,8 +565,8 @@ Win32PlayBackInput(win32_state *State, game_input *NewInput)
 internal void
 ToggleFullscreen(HWND Window)
 {
-    // NOTE(Kevin): This follows Raymond Chen's prescription
-    // for fullscreen toggling, see:
+    // NOTE(Kevin): This is borderless windowed fullscreen recommended for DXGI flip model.
+    // This follows Raymond Chen's prescription for fullscreen toggling, see:
     // http://blogs.msdn.com/b/oldnewthing/archive/2010/04/12/9994016.aspx
 
     DWORD Style = GetWindowLong(Window, GWL_STYLE);
