@@ -858,7 +858,7 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
 #endif
 
 #if HANDMADE_INTERNAL
-    DEBUGGlobalShowCursor = false;
+    DEBUGGlobalShowCursor = true;
 #endif
     GlobalCursorArrow = LoadCursor(0, IDC_ARROW);
 
@@ -1029,10 +1029,9 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
 
                     NewInput->dtForFrame = TargetSecondsPerFrame;
 
-                    // TODO(Kevin): Zeroing macro
                     game_controller_input *OldKeyboardController = GetController(OldInput, 0);
                     game_controller_input *NewKeyboardController = GetController(NewInput, 0);
-                    *NewKeyboardController = {};
+                    ZeroStruct(*NewKeyboardController);
                     NewKeyboardController->IsConnected = true;
                     Win32CopyKeyboardEndedDownStates(NewKeyboardController, 
                                                      OldKeyboardController);
@@ -1308,7 +1307,7 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                     game_input *Temp = NewInput;
                     NewInput = OldInput;
                     OldInput = Temp;
-                    *NewInput = {};
+                    ZeroStruct(*NewInput);
 
                     LARGE_INTEGER EndCounter = Win32GetWallClock();
                     real32 MSPerFrame = 1000.f*Win32GetSecondsElapsed(LastCounter, EndCounter);
