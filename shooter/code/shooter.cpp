@@ -308,6 +308,44 @@ ResolvePlayerCollisions(game_map *Map, vec3 PlayerTestP)
     return Result;
 }
 
+internal entity_handle
+AddEntity(game_state *GameState)
+{
+    entity_handle EntityHandle = 0;
+
+    if (GameState->FreeEntityHandlesCount > 0)
+    {
+        EntityHandle = GameState->FreeEntityHandles[--GameState->FreeEntityHandlesCount];
+
+        entity *Entity = &(GameState->Entities[EntityHandle]);
+        ZeroStruct(*Entity);
+        Entity->Alive = true;
+        Entity->Orientation = quat();
+        Entity->Scale = vec3(1,1,1);
+    }
+
+    return EntityHandle;
+}
+
+internal entity *
+GetEntity(game_state *GameState, entity_handle Index)
+{
+    entity *Result = 0;
+
+    if (Index > 0 && Index < GameState->EntitiesCount)
+    {
+        Result = &(GameState->Entities[Index]);
+    }
+    else
+    {
+        // TODO(Kevin): Logging warning
+        Assert(0);
+
+        Result = &(GameState->Entities[0]);
+    }
+
+    return Result;
+}
 
 extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 {
@@ -316,10 +354,29 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     Assert(sizeof(game_state) <= Memory->PermanentStorageSize);
 
     game_state *GameState = (game_state *)Memory->PermanentStorage;
+    gui_state *GuiState = (gui_state *)((uint8 *)Memory->PermanentStorage + sizeof(game_state));
     ResetArena(&GameState->ScratchArena);
-    gui_state *GuiState = (gui_state *)Memory->TransientStorage;
     if (!Memory->IsInitialized)
     {
+        InitializeArena(&GameState->WorldArena, Memory->PermanentStorageSize - sizeof(game_state) - sizeof(gui_state),
+                        (uint8 *)Memory->PermanentStorage + sizeof(game_state) + sizeof(gui_state));
+
+        InitializeArena(&GameState->ScratchArena, Memory->TransientStorageSize,
+                        (uint8 *)Memory->TransientStorage);
+
+        GameState->EntitiesCount = ArrayCount(GameState->Entities);
+        GameState->FreeEntityHandlesCount = ArrayCount(GameState->FreeEntityHandles);
+        Assert(ArrayCount(GameState->Entities) == ArrayCount(GameState->FreeEntityHandles));
+        for (s32 FreeHandle = 0;
+             FreeHandle < SafeCastToS32(GameState->FreeEntityHandlesCount);
+             ++FreeHandle)
+        {
+            GameState->FreeEntityHandles[GameState->FreeEntityHandlesCount - FreeHandle - 1] = 
+                (entity_handle)SafeCastToU32(FreeHandle);
+        }
+
+        AddEntity(GameState); // NOTE(Kevin): Reserve entity slot 0 for the null entity
+
         GameState->Backdrop = DEBUGLoadBMP(Thread, Memory->PlatformAPI.DEBUGPlatformReadEntireFile, "test/test_background.bmp");
 
         PNUV2_vertex CubeVB[] = {
@@ -361,13 +418,29 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             { {  16.0f,  16.0f, -16.0f }, { 0.0f, 0.0f, -1.0f }, { 0.0f, 1.0f }, { 0.0f, 1.0f } },
         };
         uint32 CubeIB[] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35 };
-        RendererAPI->UploadMeshData(CubeVB, ArrayCount(CubeVB), CubeIB, ArrayCount(CubeIB));
+        mesh_handle CubeMesh = RendererAPI->UploadMeshData(CubeVB, ArrayCount(CubeVB), CubeIB, ArrayCount(CubeIB));
 
-        InitializeArena(&GameState->WorldArena, Memory->PermanentStorageSize - sizeof(game_state),
-                        (uint8 *)Memory->PermanentStorage + sizeof(game_state));
+        // TODO(Kevin): Release bitmap memory
+        loaded_bitmap TestBmp = DEBUGLoadBMP(Thread, Memory->PlatformAPI.DEBUGPlatformReadEntireFile, "test_1.bmp");
+        texture_handle Test1Texture = RendererAPI->UploadTexture2DData(TestBmp.Pixels, TestBmp.Width, TestBmp.Height, BGRA_U8, false);
 
-        InitializeArena(&GameState->ScratchArena, Memory->TransientStorageSize - sizeof(gui_state),
-                        (uint8 *)Memory->TransientStorage + sizeof(gui_state));
+        loaded_bitmap TestBmp2 = DEBUGLoadBMP(Thread, Memory->PlatformAPI.DEBUGPlatformReadEntireFile, "default_8x8.bmp");
+        texture_handle DefaultTexture = RendererAPI->UploadTexture2DData(TestBmp2.Pixels, TestBmp2.Width, TestBmp2.Height, BGRA_U8, false);
+
+        // TODO(Kevin): Load this default white lightmap from inside renderer code! Not from game code!
+        // White_1x1 should have texture handle 0 so it is the default texture
+        loaded_bitmap White_1x1 = DEBUGLoadBMP(Thread, Memory->PlatformAPI.DEBUGPlatformReadEntireFile, "white_1x1.bmp");
+        RendererAPI->WhiteTexture_1x1 = RendererAPI->UploadTexture2DData(White_1x1.Pixels, White_1x1.Width, White_1x1.Height, BGRA_U8, false);
+
+        texture_handle BackdropTexture = RendererAPI->UploadTexture2DData(GameState->Backdrop.Pixels, GameState->Backdrop.Width, GameState->Backdrop.Height, BGRA_U8, false);
+
+        loaded_bitmap CustomFont0Bmp = DEBUGLoadBMP(Thread, Memory->PlatformAPI.DEBUGPlatformReadEntireFile, "fonts/anikki_8x8.bmp");
+        font_handle RenderFont0 = CreateBitmapFont(CustomFont0Bmp, RendererAPI);
+        GuiState->Fonts[GuiFontCurses6x9] = RenderFont0;
+
+        loaded_bitmap CustomFont1Bmp = DEBUGLoadBMP(Thread, Memory->PlatformAPI.DEBUGPlatformReadEntireFile, "fonts/custom_font_0_6x9.bmp");
+        font_handle RenderFont1 = CreateBitmapFont(CustomFont1Bmp, RendererAPI);
+        GuiState->Fonts[GuiFontAnikki8x8] = RenderFont1;
 
         char *MapFilename = "../../wd/buildtest.map";
         debug_read_file_result MapReadResult = Memory->PlatformAPI.DEBUGPlatformReadEntireFile(Thread, MapFilename);
@@ -408,8 +481,9 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             ByteBufferReadBulk(MapBytes, &Position, LightmapDimensions*sizeof(float), LightmapData);
             // TODO(Kevin): Yeah don't create texture resources here...just load all the data first
             // LightmapData should be part of e.g. map_data
-            RendererAPI->UploadTexture2DData(LightmapData, SafeCastToU32(LightmapW), SafeCastToU32(LightmapH),
-                                          R_Float, true);
+            texture_handle MapGeometryLightmap = 
+                RendererAPI->UploadTexture2DData(LightmapData, SafeCastToU32(LightmapW), 
+                                                 SafeCastToU32(LightmapH), R_Float, true);
 
             // Light cache volume
             uint32 TotalCubeCount;
@@ -491,39 +565,39 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                     ib[VertexIndex] = VertexIndex;
                 }
 
-                RendererAPI->UploadMeshData(vb, VertexCount, ib, VertexCount);
+                mesh_handle MapGeometry = RendererAPI->UploadMeshData(vb, VertexCount, ib, VertexCount);
                 free(vb);
                 free(ib);
-            }
 
+                // TODO(Kevin): Map geometry does not need to be entity if I don't want
+                entity_handle EntityIndex = AddEntity(GameState);
+                entity *Entity = GetEntity(GameState, EntityIndex);
+                Entity->Visible = true;
+                Entity->RenderMesh = MapGeometry;
+                Entity->RenderAlbedo = DefaultTexture;
+                Entity->RenderLightmap = MapGeometryLightmap;
+            }
 
             Memory->PlatformAPI.DEBUGPlatformFreeFileMemory(Thread, MapReadResult.Contents);
         }
 
-        loaded_bitmap TestBmp = DEBUGLoadBMP(Thread, Memory->PlatformAPI.DEBUGPlatformReadEntireFile, "test_1.bmp");
-        RendererAPI->UploadTexture2DData(TestBmp.Pixels, TestBmp.Width, TestBmp.Height, BGRA_U8, false);
+        GameState->PlayerEntityHandle = AddEntity(GameState);
+        entity *Player = GetEntity(GameState, GameState->PlayerEntityHandle);
+        Player->P = vec3(-100, 0.1f, 0);
 
-        loaded_bitmap TestBmp2 = DEBUGLoadBMP(Thread, Memory->PlatformAPI.DEBUGPlatformReadEntireFile, "default_8x8.bmp");
-        RendererAPI->UploadTexture2DData(TestBmp2.Pixels, TestBmp2.Width, TestBmp2.Height, BGRA_U8, false);
-
-        // TODO(Kevin): Load this default white lightmap from inside renderer code! Not from game code!
-        // White_1x1 should have texture handle 0 so it is the default texture
-        loaded_bitmap White_1x1 = DEBUGLoadBMP(Thread, Memory->PlatformAPI.DEBUGPlatformReadEntireFile, "white_1x1.bmp");
-        RendererAPI->WhiteTexture_1x1 = 
-            RendererAPI->UploadTexture2DData(White_1x1.Pixels, White_1x1.Width, White_1x1.Height, BGRA_U8, false);
-
-        RendererAPI->UploadTexture2DData(GameState->Backdrop.Pixels, GameState->Backdrop.Width, GameState->Backdrop.Height, BGRA_U8, false);
-
-        loaded_bitmap CustomFont0Bmp = DEBUGLoadBMP(Thread, Memory->PlatformAPI.DEBUGPlatformReadEntireFile, "fonts/anikki_8x8.bmp");
-        font_handle RenderFont0 = CreateBitmapFont(CustomFont0Bmp, RendererAPI);
-        GuiState->Fonts[GuiFontCurses6x9] = RenderFont0;
-
-        loaded_bitmap CustomFont1Bmp = DEBUGLoadBMP(Thread, Memory->PlatformAPI.DEBUGPlatformReadEntireFile, "fonts/custom_font_0_6x9.bmp");
-        font_handle RenderFont1 = CreateBitmapFont(CustomFont1Bmp, RendererAPI);
-        GuiState->Fonts[GuiFontAnikki8x8] = RenderFont1;
-
-        GameState->PlayerControllerRoot = vec3(-100, 0.1f, 0);
         PlaceCamera(&GameState->Camera, vec3(-100, 60, 0), vec3(0,0,0));
+
+        for (u32 i = 0; i < 10; ++i)
+        {
+            entity_handle EntityIndex = AddEntity(GameState);
+            entity *Entity = GetEntity(GameState, EntityIndex);
+            Entity->Visible = true;
+            Entity->RenderMesh = CubeMesh;
+            Entity->RenderAlbedo = i > 4 ? DefaultTexture : Test1Texture;
+            Entity->P = vec3(100, 30, ((real32)(i) * 25) - 125);
+            Entity->Scale = vec3(0.5f, 0.5f, 0.5f);
+            Entity->QueryLightCache = true;
+        }
 
         Memory->IsInitialized = true;
     }
@@ -583,26 +657,23 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             }
             else
             {
-                PlaceCamera(&GameState->Camera,
-                            GameState->PlayerControllerRoot + vec3(0,40,0),
-                            GameState->Camera.EulerRot);
-                // GameState->Camera.P = GameState->PlayerControllerRoot + vec3(0,40,0);
-                // GameState->Camera.ViewPosition = GameState->Camera.P;
+                entity *Player = GetEntity(GameState, GameState->PlayerEntityHandle);
 
-                GameState->PlayerWalkDirectionRight = GameState->Camera.Right;
-                GameState->PlayerWalkDirectionForward = Normalize(Cross(GM_UP_VECTOR, GameState->Camera.Right));
+                PlaceCamera(&GameState->Camera, Player->P + vec3(0,40,0), GameState->Camera.EulerRot);
+                Player->PlayerWalkDirectionRight = GameState->Camera.Right;
+                Player->PlayerWalkDirectionForward = Normalize(Cross(GM_UP_VECTOR, GameState->Camera.Right));
 
                 vec3 PlayerHorizontalVector;
                 if (Controller->MoveUp.EndedDown)
-                    PlayerHorizontalVector += GameState->PlayerWalkDirectionForward;
+                    PlayerHorizontalVector += Player->PlayerWalkDirectionForward;
                 if (Controller->MoveDown.EndedDown)
-                    PlayerHorizontalVector += -GameState->PlayerWalkDirectionForward;
+                    PlayerHorizontalVector += -Player->PlayerWalkDirectionForward;
                 if (Controller->MoveLeft.EndedDown)
-                    PlayerHorizontalVector += -GameState->PlayerWalkDirectionRight;
+                    PlayerHorizontalVector += -Player->PlayerWalkDirectionRight;
                 if (Controller->MoveRight.EndedDown)
-                    PlayerHorizontalVector += GameState->PlayerWalkDirectionRight;
+                    PlayerHorizontalVector += Player->PlayerWalkDirectionRight;
 
-                vec3 TestPlayerRoot = GameState->PlayerControllerRoot;
+                vec3 TestPlayerRoot = Player->P;
 
                 // NOTE(Kevin): Moving in smaller increments before resolving collision to
                 // avoid tunneling and erroneous collision resolution vectors (that resolve
@@ -622,62 +693,51 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
                 if (Controller->ActionDown.EndedDown && Controller->ActionDown.HalfTransitionCount > 0)
                 {
-                    GameState->PlayerYVel = 160.f;
+                    Player->PlayerYVel = 160.f;
                 }
-                GameState->PlayerYVel -= 314.f * Input->dtForFrame; // 9.81 m/s * 32 units/m ~= 314 units/s
-                TestPlayerRoot.y += GameState->PlayerYVel * Input->dtForFrame;
+                Player->PlayerYVel -= 314.f * Input->dtForFrame; // 9.81 m/s * 32 units/m ~= 314 units/s
+                TestPlayerRoot.y += Player->PlayerYVel * Input->dtForFrame;
                 vec3 VerticalResolutionVector = ResolvePlayerCollisions(&GameState->Map, TestPlayerRoot);
                 if (AbsoluteValue(Dot(Normalize(VerticalResolutionVector), GM_UP_VECTOR)) > 0.1f)
                 {
-                    GameState->PlayerYVel = 0.0f;
+                    Player->PlayerYVel = 0.0f;
                 }
                 TestPlayerRoot += VerticalResolutionVector;
 
-                GameState->PlayerControllerRoot = TestPlayerRoot;
+                Player->P = TestPlayerRoot;
             }
         }
     }
 
-    //
-    // This is all renderer and gui test code
-    //
-    uint32 RenderItemsCount = 12;
+    uint32 RenderItemsCount = 0;
     uint8 *RenderItemsStart = ArenaCurrentAddress(&GameState->ScratchArena);
 
-    for (uint32 i = 0; i < RenderItemsCount - 2; ++i)
+    for (entity_handle EntityIndex = 1;
+         EntityIndex < GameState->EntitiesCount;
+         ++EntityIndex)
     {
-        render_item *Item = PushStruct(&GameState->ScratchArena, render_item);
-        *Item = {};
-        Item->Descriptor.Mesh = 0;
-        Item->Descriptor.Albedo = i > 4 ? 2 : 1;
-        Item->UseLightCubes = true;
-        Item->UseLightmap = false;
-        Item->WorldPosition = vec3(100, 30, (float(i) * 25) - 125);
-        Item->WorldRotation = quat();
-        Item->WorldScale = vec3(0.5f, 0.5f, 0.5f);
+        entity *Entity = GetEntity(GameState, EntityIndex);
+
+        if (Entity->Alive)
+        {
+            if (Entity->Visible)
+            {
+                render_item *RenderItem = PushStruct(&GameState->ScratchArena, render_item);
+
+                *RenderItem = {};
+                RenderItem->Descriptor.Mesh = Entity->RenderMesh;
+                RenderItem->Descriptor.Albedo = Entity->RenderAlbedo;
+                RenderItem->Descriptor.Lightmap = Entity->RenderLightmap;
+                RenderItem->UseLightmap = Entity->RenderLightmap > 0;
+                RenderItem->UseLightCubes = Entity->QueryLightCache;
+                RenderItem->WorldPosition = Entity->P;
+                RenderItem->WorldRotation = Entity->Orientation;
+                RenderItem->WorldScale = Entity->Scale;
+
+                ++RenderItemsCount;
+            }
+        }
     }
-
-    render_item *Item0 = PushStruct(&GameState->ScratchArena, render_item);
-    *Item0 = {};
-    Item0->Descriptor.Mesh = 1;
-    Item0->Descriptor.Albedo = 2;
-    Item0->Descriptor.Lightmap = 0;
-    Item0->UseLightCubes = false;
-    Item0->UseLightmap = true;
-    Item0->WorldPosition = vec3();
-    Item0->WorldRotation = quat();
-    Item0->WorldScale = vec3(1.0f,1.0f,1.0f);
-
-    render_item *Item1 = PushStruct(&GameState->ScratchArena, render_item);
-    *Item1 = {};
-    Item1->Descriptor.Mesh = 2;
-    Item1->Descriptor.Albedo = 2;
-    Item1->Descriptor.Lightmap = 0;
-    Item1->UseLightCubes = false;
-    Item1->UseLightmap = true;
-    Item1->WorldPosition = vec3();
-    Item1->WorldRotation = quat();
-    Item1->WorldScale = vec3(1.0f,1.0f,1.0f);
 
     mat4 ViewFromWorld = CameraSpaceFromWorldSpace(&GameState->Camera);
     RendererAPI->PushViewMatrix(ViewFromWorld);
@@ -687,7 +747,16 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     RendererAPI->GetRenderTargetDimensions(&CanvasW, &CanvasH);
     GuiBeginFrame(GuiState, CanvasW, CanvasH, &GameState->ScratchArena, 
                   Input->MouseX, Input->MouseY, Input->MouseButtons[0], Input->MouseButtons[1]);
-    // NOTE(Kevin): Gui goes here
+
+    u32 CrosshairDotWidth = 6;
+    gui_rect CrosshairOuterRect = {SafeCastToS32(CanvasW / 2 - (CrosshairDotWidth/2)),
+                                   SafeCastToS32(CanvasH / 2 - (CrosshairDotWidth/2)),
+                                   CrosshairDotWidth, CrosshairDotWidth};
+    gui_rect CrosshairInnerRect = {SafeCastToS32(CanvasW / 2 - (CrosshairDotWidth/2) + 1),
+                                   SafeCastToS32(CanvasH / 2 - (CrosshairDotWidth/2) + 1),
+                                   CrosshairDotWidth-2, CrosshairDotWidth-2};
+    GuiPanel(GuiState, CrosshairOuterRect, vec4(0.f,0.f,0.f,0.8f));
+    GuiPanel(GuiState, CrosshairInnerRect, vec4(0.8f,0.8f,0.8f,0.8f));
 
     RendererAPI->PushGuiDrawRequests(&GameState->ScratchArena, GuiState->DrawRequests, GuiState->DrawRequestsCount);
 }

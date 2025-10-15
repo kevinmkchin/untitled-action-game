@@ -187,14 +187,25 @@ PushSize_(memory_arena *Arena, memory_index Size)
 #include "shooter_renderer.h"
 #include "shooter_intrinsics.h"
 
-// TODO(Kevin): entity
-// struct entity
-// {
-//     vec3 P;
-//     mesh_handle    RenderMesh;
-//     texture_handle RenderAlbedo;
-//     texture_handle RenderLightmap;
-// };
+typedef u32 entity_handle;
+struct entity
+{
+    bool32 Alive;
+    bool32 Visible;
+
+    vec3 P;
+    quat Orientation;
+    vec3 Scale;
+
+    mesh_handle    RenderMesh;
+    texture_handle RenderAlbedo;
+    texture_handle RenderLightmap;
+    bool32         QueryLightCache;
+
+    real32 PlayerYVel;
+    vec3 PlayerWalkDirectionRight;
+    vec3 PlayerWalkDirectionForward;
+};
 
 struct loaded_bitmap
 {
@@ -241,11 +252,17 @@ struct game_state
 
     game_map Map;
 
+    // NOTE(Kevin): If I wanted I could add a layer of indirection where referenced entity index
+    // is used to look up the real entity index -> that would let me coalesce the sparse entity
+    // storage for less traversal if I want to support very many entities.
+    entity Entities[1000];
+    u32 EntitiesCount;
+    entity_handle FreeEntityHandles[1000];
+    u32 FreeEntityHandlesCount;
+
     camera Camera;
-    vec3 PlayerControllerRoot;
-    real32 PlayerYVel;
-    vec3 PlayerWalkDirectionRight;
-    vec3 PlayerWalkDirectionForward;
+
+    entity_handle PlayerEntityHandle;
 
     real32 tSine;
     loaded_bitmap Backdrop;

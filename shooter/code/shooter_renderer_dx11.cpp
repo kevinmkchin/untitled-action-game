@@ -133,6 +133,22 @@ DEBUGDX11CreateShaderSetFromFile(dx11 *DX, LPCWSTR VSFileName, ID3D11VertexShade
     FailDx11HRESULT(HR, "Failed to create Input Layout object.", DX->Window);
 }
 
+internal mesh_handle
+UseNextAvailableMeshHandle(dx11 *DX)
+{
+    Assert(DX->FreeMeshHandlesCount > 0);
+    mesh_handle FreeHandle = DX->FreeMeshHandles[--DX->FreeMeshHandlesCount];
+    return FreeHandle;
+}
+
+internal texture_handle
+UseNextAvailableTextureHandle(dx11 *DX)
+{
+    Assert(DX->FreeTextureHandlesCount > 0);
+    texture_handle FreeHandle = DX->FreeTextureHandles[--DX->FreeTextureHandlesCount];
+    return FreeHandle;
+}
+
 internal void
 DX11Init(dx11 *DX)
 {
@@ -275,6 +291,7 @@ DX11Init(dx11 *DX)
         DX->FreeMeshHandles[DX->FreeMeshHandlesCount - FreeHandle - 1] = 
             (mesh_handle)SafeCastToU32(FreeHandle);
     }
+    UseNextAvailableMeshHandle(DX); // NOTE(Kevin): 0 is reserved
 
     DX->FreeTextureHandlesCount = ArrayCount(DX->FreeTextureHandles);
     for (s32 FreeHandle = 0; 
@@ -284,6 +301,8 @@ DX11Init(dx11 *DX)
         DX->FreeTextureHandles[DX->FreeTextureHandlesCount - FreeHandle - 1] = 
             (texture_handle)SafeCastToU32(FreeHandle);
     }
+    UseNextAvailableTextureHandle(DX); // NOTE(Kevin): 0 is reserved
+    // TODO(Kevin): Upload "missing" texture and "default" mesh for the 0 handles
 }
 
 internal void
@@ -500,22 +519,6 @@ DX11EndFrame(dx11 *DX)
     }
 }
 
-internal mesh_handle
-NextAvailableMeshHandle(dx11 *DX)
-{
-    Assert(DX->FreeMeshHandlesCount > 0);
-    mesh_handle FreeHandle = DX->FreeMeshHandles[--DX->FreeMeshHandlesCount];
-    return FreeHandle;
-}
-
-internal texture_handle
-NextAvailableTextureHandle(dx11 *DX)
-{
-    Assert(DX->FreeTextureHandlesCount > 0);
-    texture_handle FreeHandle = DX->FreeTextureHandles[--DX->FreeTextureHandlesCount];
-    return FreeHandle;
-}
-
 void DX11GetWritablePerInstanceDataArray(dx11 *DX, static_lit_model_instance **OutArray, u32 **OutCount)
 {
     // NOTE(Kevin): The out array is offset by the data count as to not overwrite the existing data.
@@ -580,7 +583,7 @@ DX11UploadMesh(dx11 *DX, ID3D11InputLayout *IL, void *VB,
 
     Mesh.IndicesCount = IC;
 
-    mesh_handle NewHandle = NextAvailableMeshHandle(DX);
+    mesh_handle NewHandle = UseNextAvailableMeshHandle(DX);
     DX->HandleToMesh[NewHandle] = Mesh;
 
     return NewHandle;
@@ -728,7 +731,7 @@ texture_handle DX11UploadTexture2D(dx11 *DX, void *Bitmap, u32 W, u32 H,
         Texture.Sampler = DX->PointSampler;
     }
 
-    texture_handle NewHandle = NextAvailableTextureHandle(DX);
+    texture_handle NewHandle = UseNextAvailableTextureHandle(DX);
     DX->HandleToTexture[NewHandle] = Texture;
 
     return NewHandle;

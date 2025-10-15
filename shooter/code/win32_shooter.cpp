@@ -41,6 +41,7 @@ Platform Layer TODO
 global bool GlobalRunning;
 global int64 GlobalPerfCountFrequency;
 global bool32 DEBUGGlobalShowCursor;
+global bool32 DEBUGGlobalMouseCaptured;
 global HCURSOR GlobalCursorArrow;
 global WINDOWPLACEMENT GlobalWindowPosition = {sizeof(GlobalWindowPosition)};
 #if HANDMADE_INTERNAL
@@ -673,8 +674,9 @@ Win32ProcessPendingMessages(win32_state *State, game_controller_input *KeyboardC
             case WM_KEYUP:
             {
                 uint32 VKCode = (uint32)Message.wParam;
-                bool WasDown = (Message.lParam & (1 << 30)) != 0;
-                bool IsDown = (Message.lParam & (1 << 31)) == 0;
+                bool32 WasDown = (Message.lParam & (1 << 30)) != 0;
+                bool32 IsDown = (Message.lParam & (1 << 31)) == 0;
+                bool32 AltKeyDown = (Message.lParam & (1 << 29));
                 if (WasDown != IsDown)
                 {
                     if (VKCode == 'W')
@@ -713,7 +715,7 @@ Win32ProcessPendingMessages(win32_state *State, game_controller_input *KeyboardC
                     {
                         Win32ProcessKeyboardMessage(&KeyboardController->ActionRight, IsDown);
                     }
-                    else if (VKCode == VK_DOWN)
+                    else if (VKCode == VK_SPACE)
                     {
                         Win32ProcessKeyboardMessage(&KeyboardController->ActionDown, IsDown);
                     }
@@ -721,7 +723,7 @@ Win32ProcessPendingMessages(win32_state *State, game_controller_input *KeyboardC
                     {
                         Win32ProcessKeyboardMessage(&KeyboardController->Back, IsDown);
                     }
-                    else if (VKCode == VK_SPACE)
+                    else if (VKCode == VK_DOWN)
                     {
                         Win32ProcessKeyboardMessage(&KeyboardController->Start, IsDown);
                     }
@@ -759,12 +761,19 @@ Win32ProcessPendingMessages(win32_state *State, game_controller_input *KeyboardC
                             }
                         }
                     }
+                    else if (AltKeyDown && VKCode == 'M')
+                    {
+                        if (IsDown)
+                        {
+                            DEBUGGlobalMouseCaptured = !DEBUGGlobalMouseCaptured;
+                            DEBUGGlobalShowCursor = !DEBUGGlobalMouseCaptured;
+                        }
+                    }
 #endif
                 }
 
                 if(IsDown)
                 {
-                    bool32 AltKeyDown = (Message.lParam & (1 << 29));
                     if(AltKeyDown && VKCode == VK_F4)
                     {
                         GlobalRunning = false;
@@ -858,7 +867,8 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
 #endif
 
 #if HANDMADE_INTERNAL
-    DEBUGGlobalShowCursor = true;
+    DEBUGGlobalShowCursor = false;
+    DEBUGGlobalMouseCaptured = true;
 #endif
     GlobalCursorArrow = LoadCursor(0, IDC_ARROW);
 
@@ -1059,6 +1069,14 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                         X = 100;
                     }
 #endif
+
+                    if (DEBUGGlobalMouseCaptured)
+                    {
+                        POINT CenterPoint = { Dimensions.Width/2, Dimensions.Height/2 };
+                        ClientToScreen(Window, &CenterPoint);
+                        SetCursorPos(CenterPoint.x, CenterPoint.y);
+                        DEBUGGlobalShowCursor = false;
+                    }
 
                     POINT MouseP;
                     // TODO(Kevin): Handle failure case
