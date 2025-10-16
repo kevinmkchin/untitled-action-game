@@ -197,6 +197,7 @@ MouseLookCamera(camera *Camera, real32 MouseAxisX, real32 MouseAxisY)
     PlaceCamera(Camera, Camera->P, Camera->EulerRot);
 }
 
+// TODO(Kevin): MOVE THESE!!! These colliders will not survive DLL reload!!!
 // NOTE(Kevin): Having sort of cylindrical mesh appears to help with avoiding ghost collisions along walls.
 vec3 ModelPlayerColliderPoints[CylinderMesh8SidedPointCount];
 vec3 WorldPlayerColliderPoints[ArrayCount(ModelPlayerColliderPoints)];
@@ -374,9 +375,10 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         BuildCylinderMesh8Sided(Cylinder8SidedPointCloud, Cylinder8SidedVB, Cylinder8SidedIB);
         for (u32 Index = 0; Index < ArrayCount(Cylinder8SidedPointCloud); ++Index)
         {
+            vec3 Original = Cylinder8SidedPointCloud[Index];
+
             real32 R = 8.0f;
             real32 H = 47.0f;
-            vec3 Original = Cylinder8SidedPointCloud[Index];
             ModelPlayerColliderPoints[Index] = vec3(Original.X*R, Original.Y*H, Original.Z*R);
         }
 
@@ -624,36 +626,56 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 if (Controller->MoveRight.EndedDown)
                     PlayerHorizontalVector += Player->PlayerWalkDirectionRight;
 
+                vec2 ddP = { PlayerHorizontalVector.x, PlayerHorizontalVector.z };
+                ddP = Normalize(ddP);
+                real32 PlayerHorizontalAcceleration = 3200.0f; // units/s^2
+                real32 MaxHorizontalSpeed = 500.0f;
+                GameState->PlayerMaxUnitsTravelledPerSecond = MaxHorizontalSpeed;
+                real32 DragFactor = PlayerHorizontalAcceleration / MaxHorizontalSpeed;
+                ddP *= PlayerHorizontalAcceleration;
+                ddP = ddP - DragFactor*Player->dHorizontalP; // Hack instead of ODE
+                vec2 PlayerDelta = (0.5f*ddP*Square(Input->dtForFrame) + Player->dHorizontalP*Input->dtForFrame);
+                Player->dHorizontalP = ddP*Input->dtForFrame + Player->dHorizontalP;
+                // NOTE(Kevin): When velocity is sufficiently small set it to zero, otherwise
+                //              I'll keep moving with increasingly small increments until NAN
+                if (Magnitude(Player->dHorizontalP) < 1.f)
+                {
+                    Player->dHorizontalP = vec2();
+                }
+
+                real32 TravelDist = Magnitude(PlayerDelta);
+                vec3 TravelVector = Normalize(vec3(PlayerDelta.X, 0.0f, PlayerDelta.Y));
+
+                GameState->PlayerUnitsTravelledPerSecond = TravelDist / Input->dtForFrame;
+
                 vec3 TestPlayerRoot = Player->P;
 
                 // NOTE(Kevin): Moving in smaller increments before resolving collision to
                 // avoid tunneling and erroneous collision resolution vectors (that resolve
-                // player into walls). Heuristically, 50 seems to be a safe value, for current
-                // player radius of 8.
-                real32 MoveStepVelocity = 50.f;
-                TestPlayerRoot += PlayerHorizontalVector * MoveStepVelocity * Input->dtForFrame;
-                TestPlayerRoot += ResolvePlayerCollisions(&GameState->Map, TestPlayerRoot);
-                TestPlayerRoot += PlayerHorizontalVector * MoveStepVelocity * Input->dtForFrame;
-                TestPlayerRoot += ResolvePlayerCollisions(&GameState->Map, TestPlayerRoot);
-                TestPlayerRoot += PlayerHorizontalVector * MoveStepVelocity * Input->dtForFrame;
-                TestPlayerRoot += ResolvePlayerCollisions(&GameState->Map, TestPlayerRoot);
-                TestPlayerRoot += PlayerHorizontalVector * MoveStepVelocity * Input->dtForFrame;
-                TestPlayerRoot += ResolvePlayerCollisions(&GameState->Map, TestPlayerRoot);
-                // TestPlayerRoot += PlayerHorizontalVector * MoveStepVelocity * Input->dtForFrame;
-                // TestPlayerRoot += ResolvePlayerCollisions(&GameState->Map, TestPlayerRoot);
+                // player into walls).
+                u32 NumSteps = 4;
+                real32 MoveStepVelocity = TravelDist/(real32)NumSteps;
+                for (u32 Step = 0; Step < NumSteps; ++Step)
+                {
+                    TestPlayerRoot += TravelVector * MoveStepVelocity;
+                    vec3 ResolutionVector = ResolvePlayerCollisions(&GameState->Map, TestPlayerRoot);
+                    TestPlayerRoot += ResolutionVector;
+                    // TODO(Kevin): Horizontal velocity is not nullified after hitting wall!
+                }
 
                 if (Controller->ActionDown.EndedDown && Controller->ActionDown.HalfTransitionCount > 0)
                 {
-                    Player->PlayerYVel = 160.f;
+                    Player->dVerticalP = 160.f;
                 }
-                Player->PlayerYVel -= 314.f * Input->dtForFrame; // 9.81 m/s * 32 units/m ~= 314 units/s
-                TestPlayerRoot.y += Player->PlayerYVel * Input->dtForFrame;
-                vec3 VerticalResolutionVector = ResolvePlayerCollisions(&GameState->Map, TestPlayerRoot);
-                if (AbsoluteValue(Dot(Normalize(VerticalResolutionVector), GM_UP_VECTOR)) > 0.1f)
+                Player->dVerticalP -= 314.f * Input->dtForFrame; // 9.81 m/s * 32 units/m ~= 314 units/s
+                TestPlayerRoot.y += Player->dVerticalP * Input->dtForFrame;
+                vec3 ResolutionVector = ResolvePlayerCollisions(&GameState->Map, TestPlayerRoot);
+                TestPlayerRoot += ResolutionVector;
+
+                if (AbsoluteValue(Dot(Normalize(ResolutionVector), GM_UP_VECTOR)) > 0.1f)
                 {
-                    Player->PlayerYVel = 0.0f;
+                    Player->dVerticalP = 0.0f;
                 }
-                TestPlayerRoot += VerticalResolutionVector;
 
                 Player->P = TestPlayerRoot;
             }
@@ -708,6 +730,11 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                                    CrosshairDotWidth-2, CrosshairDotWidth-2};
     GuiPanel(GuiState, CrosshairOuterRect, vec4(0.f,0.f,0.f,0.8f));
     GuiPanel(GuiState, CrosshairInnerRect, vec4(0.8f,0.8f,0.8f,0.8f));
+
+    GuiTextFmt(GuiState, 100, CanvasH-100, 
+               54+u32(36.f*(GameState->PlayerUnitsTravelledPerSecond/GameState->PlayerMaxUnitsTravelledPerSecond)),
+               GuiFontCurses6x9, Align_Left, false, vec4(1,1,1,1),
+               "%f u/s", GameState->PlayerUnitsTravelledPerSecond);
 
     RendererAPI->PushGuiDrawRequests(&GameState->ScratchArena, GuiState->DrawRequests, GuiState->DrawRequestsCount);
 }

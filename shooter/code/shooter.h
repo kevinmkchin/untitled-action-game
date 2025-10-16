@@ -194,6 +194,8 @@ struct entity
     bool32 Visible;
 
     vec3 P;
+    vec2 dHorizontalP;
+    real32 dVerticalP;
     quat Orientation;
     vec3 Scale;
 
@@ -202,7 +204,6 @@ struct entity
     texture_handle RenderLightmap;
     bool32         QueryLightCache;
 
-    real32 PlayerYVel;
     vec3 PlayerWalkDirectionRight;
     vec3 PlayerWalkDirectionForward;
 };
@@ -263,6 +264,9 @@ struct game_state
     camera Camera;
 
     entity_handle PlayerEntityHandle;
+
+    real32 PlayerMaxUnitsTravelledPerSecond;
+    real32 PlayerUnitsTravelledPerSecond;
 
     real32 tSine;
     loaded_bitmap Backdrop;

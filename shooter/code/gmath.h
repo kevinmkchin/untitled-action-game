@@ -86,6 +86,11 @@ Standards:
 #define GM_sign(x) ((x > 0) - (x < 0))
 #define GM_clamp(x, lower, upper) GM_max((lower), GM_min((upper), (x)))
 
+inline float Square(float A)
+{
+    float Result = A*A;
+    return Result;
+}
 
 struct vec4;
 union vec3;
