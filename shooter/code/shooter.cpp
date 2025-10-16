@@ -6,6 +6,7 @@
 #include "shooter_colliders.cpp"
 #define STB_SPRINTF_IMPLEMENTATION
 #include <stb_sprintf.h>
+#include "shooter_meshes.h"
 
 internal void
 GameOutputSound(game_state *GameState, game_sound_output_buffer *SoundBuffer, int ToneHz)
@@ -197,48 +198,15 @@ MouseLookCamera(camera *Camera, real32 MouseAxisX, real32 MouseAxisY)
 }
 
 // NOTE(Kevin): Having sort of cylindrical mesh appears to help with avoiding ghost collisions along walls.
-vec3 PlayerColliderPoints[] = {
-    vec3(8.0000f  , 0.f,  0.0000f  ),
-    vec3(7.3910f  , 0.f,  3.0615f  ),
-    vec3(5.6569f  , 0.f,  5.6569f  ),
-    vec3(3.0615f  , 0.f,  7.3910f  ),
-    vec3(0.0000f  , 0.f,  8.0000f  ),
-    vec3(-3.0615f , 0.f,  7.3910f  ),
-    vec3(-5.6569f , 0.f,  5.6569f  ),
-    vec3(-7.3910f , 0.f,  3.0615f  ),
-    vec3(-8.0000f , 0.f,  0.0000f  ),
-    vec3(-7.3910f , 0.f,  -3.0615f ),
-    vec3(-5.6569f , 0.f,  -5.6569f ),
-    vec3(-3.0615f , 0.f,  -7.3910f ),
-    vec3(0.0000f  , 0.f,  -8.0000f ),
-    vec3(3.0615f  , 0.f,  -7.3910f ),
-    vec3(5.6569f  , 0.f,  -5.6569f ),
-    vec3(7.3910f  , 0.f,  -3.0615f ),
-    vec3(8.0000f  , 47.f,  0.0000f  ),
-    vec3(7.3910f  , 47.f,  3.0615f  ),
-    vec3(5.6569f  , 47.f,  5.6569f  ),
-    vec3(3.0615f  , 47.f,  7.3910f  ),
-    vec3(0.0000f  , 47.f,  8.0000f  ),
-    vec3(-3.0615f , 47.f,  7.3910f  ),
-    vec3(-5.6569f , 47.f,  5.6569f  ),
-    vec3(-7.3910f , 47.f,  3.0615f  ),
-    vec3(-8.0000f , 47.f,  0.0000f  ),
-    vec3(-7.3910f , 47.f,  -3.0615f ),
-    vec3(-5.6569f , 47.f,  -5.6569f ),
-    vec3(-3.0615f , 47.f,  -7.3910f ),
-    vec3(0.0000f  , 47.f,  -8.0000f ),
-    vec3(3.0615f  , 47.f,  -7.3910f ),
-    vec3(5.6569f  , 47.f,  -5.6569f ),
-    vec3(7.3910f  , 47.f,  -3.0615f )
-};
-vec3 WorldPlayerColliderPoints[ArrayCount(PlayerColliderPoints)];
+vec3 ModelPlayerColliderPoints[CylinderMesh8SidedPointCount];
+vec3 WorldPlayerColliderPoints[ArrayCount(ModelPlayerColliderPoints)];
 mesh_collider WorldPlayerCollider;
 internal mesh_collider *
 PlayerColliderAtPos(vec3 PlayerP)
 {
     for (u32 Index = 0; Index < ArrayCount(WorldPlayerColliderPoints); ++Index)
     {
-        WorldPlayerColliderPoints[Index] = PlayerColliderPoints[Index] + PlayerP;
+        WorldPlayerColliderPoints[Index] = ModelPlayerColliderPoints[Index] + PlayerP;
     }
 
     WorldPlayerCollider.PointCloud = WorldPlayerColliderPoints;
@@ -379,45 +347,6 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
         GameState->Backdrop = DEBUGLoadBMP(Thread, Memory->PlatformAPI.DEBUGPlatformReadEntireFile, "test/test_background.bmp");
 
-        PNUV2_vertex CubeVB[] = {
-            { { 16.0f, -16.0f, -16.0f }, { 1.0f, 0.0f, 0.0f }, { 0.0f, 0.0f }, { 0.0f, 0.0f } }, // +X face
-            { { 16.0f,  16.0f, -16.0f }, { 1.0f, 0.0f, 0.0f }, { 0.0f, 1.0f }, { 0.0f, 1.0f } },
-            { { 16.0f,  16.0f,  16.0f }, { 1.0f, 0.0f, 0.0f }, { 1.0f, 1.0f }, { 1.0f, 1.0f } },
-            { { 16.0f, -16.0f, -16.0f }, { 1.0f, 0.0f, 0.0f }, { 0.0f, 0.0f }, { 0.0f, 0.0f } },
-            { { 16.0f,  16.0f,  16.0f }, { 1.0f, 0.0f, 0.0f }, { 1.0f, 1.0f }, { 1.0f, 1.0f } },
-            { { 16.0f, -16.0f,  16.0f }, { 1.0f, 0.0f, 0.0f }, { 1.0f, 0.0f }, { 1.0f, 0.0f } },
-            { { -16.0f, -16.0f,  16.0f }, { -1.0f, 0.0f, 0.0f }, { 0.0f, 0.0f }, { 0.0f, 0.0f } }, // -X face
-            { { -16.0f,  16.0f,  16.0f }, { -1.0f, 0.0f, 0.0f }, { 0.0f, 1.0f }, { 0.0f, 1.0f } },
-            { { -16.0f,  16.0f, -16.0f }, { -1.0f, 0.0f, 0.0f }, { 1.0f, 1.0f }, { 1.0f, 1.0f } },
-            { { -16.0f, -16.0f,  16.0f }, { -1.0f, 0.0f, 0.0f }, { 0.0f, 0.0f }, { 0.0f, 0.0f } },
-            { { -16.0f,  16.0f, -16.0f }, { -1.0f, 0.0f, 0.0f }, { 1.0f, 1.0f }, { 1.0f, 1.0f } },
-            { { -16.0f, -16.0f, -16.0f }, { -1.0f, 0.0f, 0.0f }, { 1.0f, 0.0f }, { 1.0f, 0.0f } },
-            { { -16.0f, 16.0f, -16.0f }, { 0.0f, 1.0f, 0.0f }, { 0.0f, 0.0f }, { 0.0f, 0.0f } }, // +Y face
-            { { -16.0f, 16.0f,  16.0f }, { 0.0f, 1.0f, 0.0f }, { 0.0f, 1.0f }, { 0.0f, 1.0f } },
-            { {  16.0f, 16.0f,  16.0f }, { 0.0f, 1.0f, 0.0f }, { 1.0f, 1.0f }, { 1.0f, 1.0f } },
-            { { -16.0f, 16.0f, -16.0f }, { 0.0f, 1.0f, 0.0f }, { 0.0f, 0.0f }, { 0.0f, 0.0f } },
-            { {  16.0f, 16.0f,  16.0f }, { 0.0f, 1.0f, 0.0f }, { 1.0f, 1.0f }, { 1.0f, 1.0f } },
-            { {  16.0f, 16.0f, -16.0f }, { 0.0f, 1.0f, 0.0f }, { 1.0f, 0.0f }, { 1.0f, 0.0f } },
-            { { -16.0f, -16.0f,  16.0f }, { 0.0f, -1.0f, 0.0f }, { 0.0f, 0.0f }, { 0.0f, 0.0f } }, // -Y face
-            { { -16.0f, -16.0f, -16.0f }, { 0.0f, -1.0f, 0.0f }, { 0.0f, 1.0f }, { 0.0f, 1.0f } },
-            { {  16.0f, -16.0f, -16.0f }, { 0.0f, -1.0f, 0.0f }, { 1.0f, 1.0f }, { 1.0f, 1.0f } },
-            { { -16.0f, -16.0f,  16.0f }, { 0.0f, -1.0f, 0.0f }, { 0.0f, 0.0f }, { 0.0f, 0.0f } },
-            { {  16.0f, -16.0f, -16.0f }, { 0.0f, -1.0f, 0.0f }, { 1.0f, 1.0f }, { 1.0f, 1.0f } },
-            { {  16.0f, -16.0f,  16.0f }, { 0.0f, -1.0f, 0.0f }, { 1.0f, 0.0f }, { 1.0f, 0.0f } },
-            { { -16.0f, -16.0f, 16.0f }, { 0.0f, 0.0f, 1.0f }, { 0.0f, 0.0f }, { 0.0f, 0.0f } }, // +Z face
-            { {  16.0f, -16.0f, 16.0f }, { 0.0f, 0.0f, 1.0f }, { 1.0f, 0.0f }, { 1.0f, 0.0f } },
-            { {  16.0f,  16.0f, 16.0f }, { 0.0f, 0.0f, 1.0f }, { 1.0f, 1.0f }, { 1.0f, 1.0f } },
-            { { -16.0f, -16.0f, 16.0f }, { 0.0f, 0.0f, 1.0f }, { 0.0f, 0.0f }, { 0.0f, 0.0f } },
-            { {  16.0f,  16.0f, 16.0f }, { 0.0f, 0.0f, 1.0f }, { 1.0f, 1.0f }, { 1.0f, 1.0f } },
-            { { -16.0f,  16.0f, 16.0f }, { 0.0f, 0.0f, 1.0f }, { 0.0f, 1.0f }, { 0.0f, 1.0f } },
-            { {  16.0f, -16.0f, -16.0f }, { 0.0f, 0.0f, -1.0f }, { 0.0f, 0.0f }, { 0.0f, 0.0f } }, // -Z face
-            { { -16.0f, -16.0f, -16.0f }, { 0.0f, 0.0f, -1.0f }, { 1.0f, 0.0f }, { 1.0f, 0.0f } },
-            { { -16.0f,  16.0f, -16.0f }, { 0.0f, 0.0f, -1.0f }, { 1.0f, 1.0f }, { 1.0f, 1.0f } },
-            { {  16.0f, -16.0f, -16.0f }, { 0.0f, 0.0f, -1.0f }, { 0.0f, 0.0f }, { 0.0f, 0.0f } },
-            { { -16.0f,  16.0f, -16.0f }, { 0.0f, 0.0f, -1.0f }, { 1.0f, 1.0f }, { 1.0f, 1.0f } },
-            { {  16.0f,  16.0f, -16.0f }, { 0.0f, 0.0f, -1.0f }, { 0.0f, 1.0f }, { 0.0f, 1.0f } },
-        };
-        uint32 CubeIB[] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35 };
         mesh_handle CubeMesh = RendererAPI->UploadMeshData(CubeVB, ArrayCount(CubeVB), CubeIB, ArrayCount(CubeIB));
 
         // TODO(Kevin): Release bitmap memory
@@ -441,6 +370,15 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         loaded_bitmap CustomFont1Bmp = DEBUGLoadBMP(Thread, Memory->PlatformAPI.DEBUGPlatformReadEntireFile, "fonts/custom_font_0_6x9.bmp");
         font_handle RenderFont1 = CreateBitmapFont(CustomFont1Bmp, RendererAPI);
         GuiState->Fonts[GuiFontAnikki8x8] = RenderFont1;
+
+        BuildCylinderMesh8Sided(Cylinder8SidedPointCloud, Cylinder8SidedVB, Cylinder8SidedIB);
+        for (u32 Index = 0; Index < ArrayCount(Cylinder8SidedPointCloud); ++Index)
+        {
+            real32 R = 8.0f;
+            real32 H = 47.0f;
+            vec3 Original = Cylinder8SidedPointCloud[Index];
+            ModelPlayerColliderPoints[Index] = vec3(Original.X*R, Original.Y*H, Original.Z*R);
+        }
 
         char *MapFilename = "../../wd/buildtest.map";
         debug_read_file_result MapReadResult = Memory->PlatformAPI.DEBUGPlatformReadEntireFile(Thread, MapFilename);
@@ -554,7 +492,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 uint32 VertexCount = (uint32)(FloatValuesCount / (sizeof(PNUV2_vertex) / sizeof(float)));
                 // TODO(Kevin): This is test code! won't be using malloc ever.
                 PNUV2_vertex *vb = (PNUV2_vertex *)malloc(sizeof(float)*FloatValuesCount);
-                uint32 *ib = (uint32 *)malloc(sizeof(uint32)*FloatValuesCount);
+                uint32 *ib = (uint32 *)malloc(sizeof(uint32)*VertexCount);
                 ByteBufferReadBulk(MapBytes, &Position, sizeof(float)*FloatValuesCount, vb);
 
                 // TODO(Kevin): Since this is a hack to work w vertex buffers without index buffers,
@@ -598,6 +536,19 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             Entity->Scale = vec3(0.5f, 0.5f, 0.5f);
             Entity->QueryLightCache = true;
         }
+
+        Cylinder8SidedVB, Cylinder8SidedIB;
+        mesh_handle CylinderMesh = RendererAPI->UploadMeshData(Cylinder8SidedVB, CylinderMesh8SidedVertexCount, 
+                                                               Cylinder8SidedIB, CylinderMesh8SidedIndexCount);
+
+        entity_handle EntityIndex = AddEntity(GameState);
+        entity *Entity = GetEntity(GameState, EntityIndex);
+        Entity->Visible = true;
+        Entity->RenderMesh = CylinderMesh;
+        Entity->RenderAlbedo = DefaultTexture;
+        Entity->P = vec3(-400, 30, 0);
+        Entity->Scale = vec3(32.f, 32.f, 32.f);
+        Entity->QueryLightCache = true;
 
         Memory->IsInitialized = true;
     }

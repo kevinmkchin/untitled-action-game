@@ -62,6 +62,23 @@ Standards:
 #define GM_R2D GM_RAD2DEG
 #define GM_DEG2RAD 0.0174532925f  // degrees * GM_DEG2RAD = radians
 #define GM_RAD2DEG 57.2958f       // radians * GM_RAD2DEG = degrees
+#define GMATH_FORWARD GM_FORWARD_VECTOR
+#define GMATH_BACKWARD GM_BACKWARD_VECTOR
+#define GMATH_UP GM_UP_VECTOR
+#define GMATH_DOWN GM_DOWN_VECTOR
+#define GMATH_RIGHT GM_RIGHT_VECTOR
+#define GMATH_LEFT GM_LEFT_VECTOR
+#define GMATH_PI GM_PI
+#define GMATH_ONEOVERPI GM_ONEOVERPI
+#define GMATH_TWOPI GM_TWOPI
+#define GMATH_ONEOVERTWOPI GM_ONEOVERTWOPI
+#define GMATH_HALFPI GM_HALFPI
+#define GMATH_QUARTERPI GM_QUARTERPI
+#define GMATH_D2R GM_D2R
+#define GMATH_R2D GM_R2D
+#define GMATH_DEG2RAD GM_DEG2RAD
+#define GMATH_RAD2DEG GM_RAD2DEG
+
 
 #define GM_min(a, b) ((a) < (b) ? (a) : (b))
 #define GM_max(a, b) ((a) > (b) ? (a) : (b))
@@ -79,14 +96,9 @@ struct quat;
 
 union vec3
 {
-    struct
-    {
-        float x, y, z;
-    };
-    struct
-    {
-        float roll, yaw, pitch;
-    };
+    struct { float X, Y, Z; };
+    struct { float x, y, z; };
+    struct { float roll, yaw, pitch; };
 
     vec3()
         : x(0.f)
@@ -118,13 +130,11 @@ struct vec4
 {
     union
     {
-        struct
-        {
-            float x, y, z;
-        };
-        vec3 xyz;
+        struct { float X, Y, Z; };
+        struct { float x, y, z; };
+        union { vec3 XYZ; vec3 xyz; };
     };
-    float w;
+    union { float W; float w; };
 
     vec4()
         : x(0.f)
@@ -159,8 +169,11 @@ struct vec4
 
 struct vec2
 {
-    float x;
-    float y;
+    union
+    {
+        struct { float X, Y; };
+        struct { float x, y; };
+    };
 
     vec2()
         : x(0.f)
@@ -191,9 +204,11 @@ struct vec2
 
 struct ivec3
 {
-    int x;
-    int y;
-    int z;
+    union
+    {
+        struct { int X, Y, Z; };
+        struct { int x, y, z; };
+    };
 
     ivec3()
         : x(0)
@@ -210,8 +225,11 @@ struct ivec3
 
 struct ivec2
 {
-    int x;
-    int y;
+    union
+    {
+        struct { int X, Y; };
+        struct { int x, y; };
+    };
 
     ivec2()
         : x(0)
@@ -353,10 +371,11 @@ union mat3
 */
 struct quat
 {
-    float w = 0.f;
-    float x = 0.f;
-    float y = 0.f;
-    float z = 0.f;
+    union
+    {
+        struct { float W, X, Y, Z; };
+        struct { float w, x, y, z; };
+    };
 
     /* Constructs an identity quaternion */
     quat()
