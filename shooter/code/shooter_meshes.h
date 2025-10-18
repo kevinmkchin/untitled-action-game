@@ -43,13 +43,10 @@ PNUV2_vertex CubeVB[] = {
 };
 uint32 CubeIB[] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35 };
 
+// NOTE(Kevin): Having sort of cylindrical mesh appears to help with avoiding ghost collisions along walls.
 #define CylinderMesh8SidedVertexCount 66 // 4*8+2+2*8*2
 #define CylinderMesh8SidedIndexCount 96 //6*8+3*8*2
 #define CylinderMesh8SidedPointCount 16 // 2*8
-
-PNUV2_vertex Cylinder8SidedVB[CylinderMesh8SidedVertexCount];
-u32 Cylinder8SidedIB[CylinderMesh8SidedIndexCount];
-vec3 Cylinder8SidedPointCloud[CylinderMesh8SidedPointCount];
 
 void BuildCylinderMesh8Sided(vec3 *PointCloud, PNUV2_vertex *Vertices, u32 *Indices)
 {

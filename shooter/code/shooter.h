@@ -186,10 +186,26 @@ PushSize_(memory_arena *Arena, memory_index Size)
 #include "gmath.h"
 #include "shooter_renderer.h"
 #include "shooter_intrinsics.h"
+#include "shooter_meshes.h"
+
+enum entity_type
+{
+    Entity_Unspecified,
+    Entity_Fiend,
+};
+
+enum enemy_state
+{
+    EnemyState_Idle,
+    EnemyState_Patrol,
+    EnemyState_Chasing,
+    EnemyState_Lunging,
+};
 
 typedef u32 entity_handle;
 struct entity
 {
+    entity_type Type;
     bool32 Alive;
     bool32 Visible;
 
@@ -203,6 +219,8 @@ struct entity
     texture_handle RenderAlbedo;
     texture_handle RenderLightmap;
     bool32         QueryLightCache;
+
+    enemy_state State;
 
     vec3 PlayerWalkDirectionRight;
     vec3 PlayerWalkDirectionForward;
@@ -264,6 +282,10 @@ struct game_state
     camera Camera;
 
     entity_handle PlayerEntityHandle;
+
+    PNUV2_vertex Cylinder8SidedVB[CylinderMesh8SidedVertexCount];
+    u32 Cylinder8SidedIB[CylinderMesh8SidedIndexCount];
+    vec3 Cylinder8SidedPointCloud[CylinderMesh8SidedPointCount];
 
     real32 PlayerMaxUnitsTravelledPerSecond;
     real32 PlayerUnitsTravelledPerSecond;

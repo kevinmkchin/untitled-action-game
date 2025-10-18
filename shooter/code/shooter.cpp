@@ -7,6 +7,7 @@
 #define STB_SPRINTF_IMPLEMENTATION
 #include <stb_sprintf.h>
 #include "shooter_meshes.h"
+#include "shooter_random.h"
 
 internal void
 GameOutputSound(game_state *GameState, game_sound_output_buffer *SoundBuffer, int ToneHz)
@@ -197,17 +198,23 @@ MouseLookCamera(camera *Camera, real32 MouseAxisX, real32 MouseAxisY)
     PlaceCamera(Camera, Camera->P, Camera->EulerRot);
 }
 
-// TODO(Kevin): MOVE THESE!!! These colliders will not survive DLL reload!!!
-// NOTE(Kevin): Having sort of cylindrical mesh appears to help with avoiding ghost collisions along walls.
-vec3 ModelPlayerColliderPoints[CylinderMesh8SidedPointCount];
-vec3 WorldPlayerColliderPoints[ArrayCount(ModelPlayerColliderPoints)];
+inline mat4
+TransformMatrix(vec3 P, quat O, vec3 S)
+{
+    return TranslationMatrix(P) * RotationMatrix(O) * ScaleMatrix(S);
+}
+
+vec3 WorldPlayerColliderPoints[ArrayCount(((game_state *)0)->Cylinder8SidedPointCloud)];
 mesh_collider WorldPlayerCollider;
 internal mesh_collider *
-PlayerColliderAtPos(vec3 PlayerP)
+Cylinder8SidedCollider(game_state *GameState, vec3 P, quat O, vec3 S)
 {
+    mat4 Transform = TransformMatrix(P, O, S);
+
     for (u32 Index = 0; Index < ArrayCount(WorldPlayerColliderPoints); ++Index)
     {
-        WorldPlayerColliderPoints[Index] = ModelPlayerColliderPoints[Index] + PlayerP;
+        WorldPlayerColliderPoints[Index] = 
+            (Transform*vec4(GameState->Cylinder8SidedPointCloud[Index],1.0f)).xyz;
     }
 
     WorldPlayerCollider.PointCloud = WorldPlayerColliderPoints;
@@ -224,11 +231,11 @@ struct collision_result
 };
 
 internal vec3
-ResolvePlayerCollisions(game_map *Map, vec3 PlayerTestP)
+ResolveEntityCollisions(game_state *GameState, game_map *Map, vec3 TestP, quat O, vec3 S)
 {
     vec3 Result = {};
 
-    mesh_collider *PlayerCollider = PlayerColliderAtPos(PlayerTestP);
+    mesh_collider *PlayerCollider = Cylinder8SidedCollider(GameState, TestP, O, S);
 
     for (u32 MapColliderIndex = 0; 
          MapColliderIndex < Map->CollidersCount;
@@ -264,8 +271,8 @@ ResolvePlayerCollisions(game_map *Map, vec3 PlayerTestP)
             {
                 // Registered
                 Result += ResolutionVector;
-                PlayerTestP += ResolutionVector;
-                PlayerCollider = PlayerColliderAtPos(PlayerTestP);
+                TestP += ResolutionVector;
+                PlayerCollider = Cylinder8SidedCollider(GameState, TestP, O, S);
             }
             else
             {
@@ -316,6 +323,63 @@ GetEntity(game_state *GameState, entity_handle Index)
     return Result;
 }
 
+internal void
+MoveEntity(game_state *GameState, entity *Entity, vec2 ddHorizontalP, real32 DragFactor, real32 dt,
+           real32 *OutTravelDist, vec3 *OutTravelVector)
+{
+    vec2 ddP = ddHorizontalP;
+    ddP = ddP - DragFactor*Entity->dHorizontalP; // Hack instead of ODE
+    vec2 PlayerDelta = (0.5f*ddP*Square(dt) + Entity->dHorizontalP*dt);
+    Entity->dHorizontalP = ddP*dt + Entity->dHorizontalP;
+    // NOTE(Kevin): When velocity is sufficiently small set it to zero, otherwise
+    //              I'll keep moving with increasingly small increments until NAN
+    if (Magnitude(Entity->dHorizontalP) < 1.f)
+    {
+        Entity->dHorizontalP = vec2();
+    }
+
+    real32 TravelDist = Magnitude(PlayerDelta);
+    if (OutTravelDist)
+    {
+        *OutTravelDist = TravelDist;
+    }
+    vec3 TravelVector = Normalize(vec3(PlayerDelta.X, 0.0f, PlayerDelta.Y));
+    if (OutTravelVector)
+    {
+        *OutTravelVector = TravelVector;
+    }
+
+    vec3 TestP = Entity->P;
+
+    // NOTE(Kevin): Moving in smaller increments before resolving collision to
+    // avoid tunneling and erroneous collision resolution vectors (that resolve
+    // into walls).
+    u32 NumSteps = 4;
+    real32 MoveStepVelocity = TravelDist/(real32)NumSteps;
+    for (u32 Step = 0; Step < NumSteps; ++Step)
+    {
+        TestP += TravelVector * MoveStepVelocity;
+        vec3 ResolutionVector = ResolveEntityCollisions(GameState, &GameState->Map, TestP,
+                                                        Entity->Orientation, Entity->Scale);
+        TestP += ResolutionVector;
+        // TODO(Kevin): Horizontal velocity is not nullified after hitting wall!
+    }
+
+    Entity->dVerticalP -= 314.f * dt; // 9.81 m/s * 32 units/m ~= 314 units/s
+    TestP.y += Entity->dVerticalP * dt;
+    vec3 ResolutionVector = ResolveEntityCollisions(GameState, &GameState->Map, TestP,
+                                                    Entity->Orientation, Entity->Scale);
+    TestP += ResolutionVector;
+
+    if (AbsoluteValue(Dot(Normalize(ResolutionVector), GM_UP_VECTOR)) > 0.1f)
+    {
+        Entity->dVerticalP = 0.0f;
+    }
+
+    Entity->P = TestP;
+
+}
+
 extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 {
     Assert((&Input->Controllers[0].Terminator - &Input->Controllers[0].Buttons[0]) == 
@@ -364,6 +428,9 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
         texture_handle BackdropTexture = RendererAPI->UploadTexture2DData(GameState->Backdrop.Pixels, GameState->Backdrop.Width, GameState->Backdrop.Height, BGRA_U8, false);
 
+        loaded_bitmap BmpWireframeRed = DEBUGLoadBMP(Thread, Memory->PlatformAPI.DEBUGPlatformReadEntireFile, "wireframe_red.bmp");
+        texture_handle TexWireframeRed = RendererAPI->UploadTexture2DData(BmpWireframeRed.Pixels, BmpWireframeRed.Width, BmpWireframeRed.Height, BGRA_U8, true);
+
         loaded_bitmap CustomFont0Bmp = DEBUGLoadBMP(Thread, Memory->PlatformAPI.DEBUGPlatformReadEntireFile, "fonts/anikki_8x8.bmp");
         font_handle RenderFont0 = CreateBitmapFont(CustomFont0Bmp, RendererAPI);
         GuiState->Fonts[GuiFontCurses6x9] = RenderFont0;
@@ -372,15 +439,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         font_handle RenderFont1 = CreateBitmapFont(CustomFont1Bmp, RendererAPI);
         GuiState->Fonts[GuiFontAnikki8x8] = RenderFont1;
 
-        BuildCylinderMesh8Sided(Cylinder8SidedPointCloud, Cylinder8SidedVB, Cylinder8SidedIB);
-        for (u32 Index = 0; Index < ArrayCount(Cylinder8SidedPointCloud); ++Index)
-        {
-            vec3 Original = Cylinder8SidedPointCloud[Index];
-
-            real32 R = 8.0f;
-            real32 H = 47.0f;
-            ModelPlayerColliderPoints[Index] = vec3(Original.X*R, Original.Y*H, Original.Z*R);
-        }
+        BuildCylinderMesh8Sided(GameState->Cylinder8SidedPointCloud, 
+                                GameState->Cylinder8SidedVB, GameState->Cylinder8SidedIB);
 
         char *MapFilename = "../../wd/buildtest.map";
         debug_read_file_result MapReadResult = Memory->PlatformAPI.DEBUGPlatformReadEntireFile(Thread, MapFilename);
@@ -524,6 +584,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         GameState->PlayerEntityHandle = AddEntity(GameState);
         entity *Player = GetEntity(GameState, GameState->PlayerEntityHandle);
         Player->P = vec3(-100, 0.1f, 0);
+        Player->Scale = vec3(8.f,47.f,8.f);
 
         PlaceCamera(&GameState->Camera, vec3(-100, 60, 0), vec3(0,0,0));
 
@@ -539,17 +600,17 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             Entity->QueryLightCache = true;
         }
 
-        Cylinder8SidedVB, Cylinder8SidedIB;
-        mesh_handle CylinderMesh = RendererAPI->UploadMeshData(Cylinder8SidedVB, CylinderMesh8SidedVertexCount, 
-                                                               Cylinder8SidedIB, CylinderMesh8SidedIndexCount);
+        mesh_handle CylinderMesh = RendererAPI->UploadMeshData(GameState->Cylinder8SidedVB, CylinderMesh8SidedVertexCount, 
+                                                               GameState->Cylinder8SidedIB, CylinderMesh8SidedIndexCount);
 
         entity_handle EntityIndex = AddEntity(GameState);
         entity *Entity = GetEntity(GameState, EntityIndex);
+        Entity->Type = Entity_Fiend;
         Entity->Visible = true;
         Entity->RenderMesh = CylinderMesh;
-        Entity->RenderAlbedo = DefaultTexture;
-        Entity->P = vec3(-400, 30, 0);
-        Entity->Scale = vec3(32.f, 32.f, 32.f);
+        Entity->RenderAlbedo = TexWireframeRed;
+        Entity->P = vec3(-400, 0.01f, 0);
+        Entity->Scale = vec3(16.f, 47.f, 16.f);
         Entity->QueryLightCache = true;
 
         Memory->IsInitialized = true;
@@ -618,66 +679,37 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
                 vec3 PlayerHorizontalVector;
                 if (Controller->MoveUp.EndedDown)
+                {
                     PlayerHorizontalVector += Player->PlayerWalkDirectionForward;
+                }
                 if (Controller->MoveDown.EndedDown)
+                {
                     PlayerHorizontalVector += -Player->PlayerWalkDirectionForward;
+                }
                 if (Controller->MoveLeft.EndedDown)
+                {
                     PlayerHorizontalVector += -Player->PlayerWalkDirectionRight;
+                }
                 if (Controller->MoveRight.EndedDown)
+                {
                     PlayerHorizontalVector += Player->PlayerWalkDirectionRight;
-
-                vec2 ddP = { PlayerHorizontalVector.x, PlayerHorizontalVector.z };
-                ddP = Normalize(ddP);
-                real32 PlayerHorizontalAcceleration = 3200.0f; // units/s^2
-                real32 MaxHorizontalSpeed = 500.0f;
-                GameState->PlayerMaxUnitsTravelledPerSecond = MaxHorizontalSpeed;
-                real32 DragFactor = PlayerHorizontalAcceleration / MaxHorizontalSpeed;
-                ddP *= PlayerHorizontalAcceleration;
-                ddP = ddP - DragFactor*Player->dHorizontalP; // Hack instead of ODE
-                vec2 PlayerDelta = (0.5f*ddP*Square(Input->dtForFrame) + Player->dHorizontalP*Input->dtForFrame);
-                Player->dHorizontalP = ddP*Input->dtForFrame + Player->dHorizontalP;
-                // NOTE(Kevin): When velocity is sufficiently small set it to zero, otherwise
-                //              I'll keep moving with increasingly small increments until NAN
-                if (Magnitude(Player->dHorizontalP) < 1.f)
-                {
-                    Player->dHorizontalP = vec2();
                 }
-
-                real32 TravelDist = Magnitude(PlayerDelta);
-                vec3 TravelVector = Normalize(vec3(PlayerDelta.X, 0.0f, PlayerDelta.Y));
-
-                GameState->PlayerUnitsTravelledPerSecond = TravelDist / Input->dtForFrame;
-
-                vec3 TestPlayerRoot = Player->P;
-
-                // NOTE(Kevin): Moving in smaller increments before resolving collision to
-                // avoid tunneling and erroneous collision resolution vectors (that resolve
-                // player into walls).
-                u32 NumSteps = 4;
-                real32 MoveStepVelocity = TravelDist/(real32)NumSteps;
-                for (u32 Step = 0; Step < NumSteps; ++Step)
-                {
-                    TestPlayerRoot += TravelVector * MoveStepVelocity;
-                    vec3 ResolutionVector = ResolvePlayerCollisions(&GameState->Map, TestPlayerRoot);
-                    TestPlayerRoot += ResolutionVector;
-                    // TODO(Kevin): Horizontal velocity is not nullified after hitting wall!
-                }
-
                 if (Controller->ActionDown.EndedDown && Controller->ActionDown.HalfTransitionCount > 0)
                 {
                     Player->dVerticalP = 160.f;
                 }
-                Player->dVerticalP -= 314.f * Input->dtForFrame; // 9.81 m/s * 32 units/m ~= 314 units/s
-                TestPlayerRoot.y += Player->dVerticalP * Input->dtForFrame;
-                vec3 ResolutionVector = ResolvePlayerCollisions(&GameState->Map, TestPlayerRoot);
-                TestPlayerRoot += ResolutionVector;
 
-                if (AbsoluteValue(Dot(Normalize(ResolutionVector), GM_UP_VECTOR)) > 0.1f)
-                {
-                    Player->dVerticalP = 0.0f;
-                }
+                vec2 ddP = { PlayerHorizontalVector.x, PlayerHorizontalVector.z };
+                ddP = Normalize(ddP);
+                real32 PlayerHorizontalAcceleration = 3200.0f; // units/s^2
+                real32 MaxHorizontalSpeed = 250.0f;
+                real32 DragFactor = PlayerHorizontalAcceleration / MaxHorizontalSpeed;
+                ddP *= PlayerHorizontalAcceleration;
 
-                Player->P = TestPlayerRoot;
+                real32 TravelDist;
+                MoveEntity(GameState, Player, ddP, DragFactor, Input->dtForFrame, &TravelDist, NULL);
+                GameState->PlayerMaxUnitsTravelledPerSecond = MaxHorizontalSpeed;
+                GameState->PlayerUnitsTravelledPerSecond = TravelDist / Input->dtForFrame;
             }
         }
     }
@@ -693,6 +725,53 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
         if (Entity->Alive)
         {
+            switch (Entity->Type)
+            {
+                case Entity_Fiend:
+                {
+                    real32 HorizontalAcceleration = 1000.f;
+                    real32 MaxHorizontalSpeed = 150.f;
+                    real32 DragFactor = HorizontalAcceleration / MaxHorizontalSpeed;
+                    vec2 ddHorizontalP;
+
+                    switch (Entity->State)
+                    {
+                        case EnemyState_Idle:
+                            break;
+                        case EnemyState_Chasing:
+                            entity *Player = GetEntity(GameState, GameState->PlayerEntityHandle);
+                            vec3 ToPlayer = Player->P - Entity->P;
+                            ddHorizontalP = Normalize(vec2(ToPlayer.x, ToPlayer.z));
+                            ddHorizontalP *= HorizontalAcceleration;
+                            break;
+                    }
+
+                    MoveEntity(GameState, Entity, ddHorizontalP, DragFactor, Input->dtForFrame, 0, 0);
+
+                    if (Entity->State == EnemyState_Chasing)
+                    {
+                        local_persist u32 RandomNumberIndex = 0;
+                        u32 RandomChoices = 200;
+                        u32 RandomChoice = RandomNumberTable[(RandomNumberIndex++)%ArrayCount(RandomNumberTable)] % RandomChoices;
+                        if (RandomChoice <= 1)
+                        {
+                            Entity->State = EnemyState_Idle;
+                        }
+                    }
+                    else if (Entity->State == EnemyState_Idle)
+                    {
+                        local_persist u32 RandomNumberIndex = 0;
+                        u32 RandomChoices = 100;
+                        u32 RandomChoice = RandomNumberTable[(RandomNumberIndex++)%ArrayCount(RandomNumberTable)] % RandomChoices;
+                        if (RandomChoice <= 1)
+                        {
+                            Entity->State = EnemyState_Chasing;
+                        }
+                    }
+
+                } break;
+            }
+
             if (Entity->Visible)
             {
                 render_item *RenderItem = PushStruct(&GameState->ScratchArena, render_item);
@@ -734,7 +813,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     GuiTextFmt(GuiState, 100, CanvasH-100, 
                54+u32(36.f*(GameState->PlayerUnitsTravelledPerSecond/GameState->PlayerMaxUnitsTravelledPerSecond)),
                GuiFontCurses6x9, Align_Left, false, vec4(1,1,1,1),
-               "%f u/s", GameState->PlayerUnitsTravelledPerSecond);
+               "%d u/s", RoundReal32ToInt32(GameState->PlayerUnitsTravelledPerSecond));
 
     RendererAPI->PushGuiDrawRequests(&GameState->ScratchArena, GuiState->DrawRequests, GuiState->DrawRequestsCount);
 }

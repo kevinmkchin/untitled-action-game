@@ -617,12 +617,16 @@ Win32ProcessPendingMessages(win32_state *State, game_controller_input *KeyboardC
 
             case WM_ACTIVATEAPP:
             {
+                local_persist bool32 MouseCaptureStateAtDeactivate = DEBUGGlobalMouseCaptured;
                 if (Message.wParam == TRUE)
                 {
-
+                    DEBUGGlobalMouseCaptured = MouseCaptureStateAtDeactivate;
                 }
                 else
                 {
+                    MouseCaptureStateAtDeactivate = DEBUGGlobalMouseCaptured;
+                    DEBUGGlobalMouseCaptured = false;
+
                     Win32ClearKeyboardEndedDownStates(KeyboardController);
                 }
             } break;

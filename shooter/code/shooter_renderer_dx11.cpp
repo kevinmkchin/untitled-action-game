@@ -902,13 +902,11 @@ DX11CreateDeviceAndSwapchain(dx11 *DX, HWND Window)
     SwapChainDesc.AlphaMode = DXGI_ALPHA_MODE_IGNORE;
     SwapChainDesc.Flags = DX->AllowVRRTearing ? DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING : 0;
 
-    // TODO(Kevin): DXGI_SWAP_CHAIN_FULLSCREEN_DESC ?
-
     // Create swap chain for HWND
     HResult = DX->Factory2->CreateSwapChainForHwnd(DX->Device,
                                                    Window,
                                                    &SwapChainDesc,
-                                                   NULL /*fullscreen desc*/,
+                                                   NULL /*DXGI_SWAP_CHAIN_FULLSCREEN_DESC*/,
                                                    NULL /*restrictToOutput*/,
                                                    &DX->SwapChain);
     FailDx11HRESULT(HResult, "CreateSwapChainForHwnd failed", Window);

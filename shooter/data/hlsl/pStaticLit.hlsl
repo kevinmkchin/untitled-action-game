@@ -114,10 +114,12 @@ float3 ShadeDynamicModel(float3 Color, float3 WorldPos, float3 WorldNormal, uint
 
 float4 main(vs_out Input) : SV_Target
 {
-    float3 FinalColor = Tex0.Sample(Sampler0, Input.UV0).xyz;
+    float4 AlbedoTexSample = Tex0.Sample(Sampler0, Input.UV0);
+    float3 Albedo = AlbedoTexSample.xyz;
+    float FinalAlpha = AlbedoTexSample.a;
     float LightMap = Tex1.Sample(Sampler1, Input.UV1).r;
-    FinalColor = ShadeDynamicModel(FinalColor, Input.WorldP, Input.WorldN, Input.InstanceID);
+    float3 FinalColor = ShadeDynamicModel(Albedo, Input.WorldP, Input.WorldN, Input.InstanceID);
     FinalColor = mul(FinalColor, LightMap);
     FinalColor = pow(FinalColor, 1.0/2.6); // gamma correction
-    return float4(FinalColor, 1.0f);
+    return float4(FinalColor, FinalAlpha);
 }
