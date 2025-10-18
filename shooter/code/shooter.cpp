@@ -231,7 +231,7 @@ struct collision_result
 };
 
 internal vec3
-ResolveEntityCollisions(game_state *GameState, game_map *Map, vec3 TestP, quat O, vec3 S)
+ResolveEntityCollisionsWithWorld(game_state *GameState, game_map *Map, vec3 TestP, quat O, vec3 S)
 {
     vec3 Result = {};
 
@@ -327,6 +327,9 @@ internal void
 MoveEntity(game_state *GameState, entity *Entity, vec2 ddHorizontalP, real32 DragFactor, real32 dt,
            real32 *OutTravelDist, vec3 *OutTravelVector)
 {
+    //
+    // Updating velocity
+    //
     vec2 ddP = ddHorizontalP;
     ddP = ddP - DragFactor*Entity->dHorizontalP; // Hack instead of ODE
     vec2 PlayerDelta = (0.5f*ddP*Square(dt) + Entity->dHorizontalP*dt);
@@ -349,6 +352,9 @@ MoveEntity(game_state *GameState, entity *Entity, vec2 ddHorizontalP, real32 Dra
         *OutTravelVector = TravelVector;
     }
 
+    //
+    // Collision checking
+    //
     vec3 TestP = Entity->P;
 
     // NOTE(Kevin): Moving in smaller increments before resolving collision to
@@ -359,16 +365,16 @@ MoveEntity(game_state *GameState, entity *Entity, vec2 ddHorizontalP, real32 Dra
     for (u32 Step = 0; Step < NumSteps; ++Step)
     {
         TestP += TravelVector * MoveStepVelocity;
-        vec3 ResolutionVector = ResolveEntityCollisions(GameState, &GameState->Map, TestP,
-                                                        Entity->Orientation, Entity->Scale);
+        vec3 ResolutionVector = ResolveEntityCollisionsWithWorld(GameState, &GameState->Map, TestP,
+                                                                 Entity->Orientation, Entity->Scale);
         TestP += ResolutionVector;
         // TODO(Kevin): Horizontal velocity is not nullified after hitting wall!
     }
 
     Entity->dVerticalP -= 314.f * dt; // 9.81 m/s * 32 units/m ~= 314 units/s
     TestP.y += Entity->dVerticalP * dt;
-    vec3 ResolutionVector = ResolveEntityCollisions(GameState, &GameState->Map, TestP,
-                                                    Entity->Orientation, Entity->Scale);
+    vec3 ResolutionVector = ResolveEntityCollisionsWithWorld(GameState, &GameState->Map, TestP,
+                                                             Entity->Orientation, Entity->Scale);
     TestP += ResolutionVector;
 
     if (AbsoluteValue(Dot(Normalize(ResolutionVector), GM_UP_VECTOR)) > 0.1f)
@@ -377,7 +383,65 @@ MoveEntity(game_state *GameState, entity *Entity, vec2 ddHorizontalP, real32 Dra
     }
 
     Entity->P = TestP;
+}
 
+internal entity_handle 
+SpawnShooterEntity(game_state *GameState, vec3 SpawnP)
+{
+    entity_handle EntityIndex = AddEntity(GameState);
+
+    entity *Entity = GetEntity(GameState, EntityIndex);
+    Entity->Type = Entity_Shooter;
+    Entity->Visible = true;
+    Entity->RenderMesh = GameState->CylinderMesh;
+    Entity->RenderAlbedo = GameState->TexWireframeRed;
+    Entity->P = SpawnP;
+    Entity->Scale = vec3(16.f, 47.f, 16.f);
+    Entity->QueryLightCache = true;
+    Entity->State = EnemyState_Chasing;
+
+    return EntityIndex;
+}
+
+internal entity_handle
+SpawnFireballEntity(game_state *GameState, vec3 SpawnP, vec3 DirToPlayer)
+{
+    entity_handle EntityIndex = AddEntity(GameState);
+
+    // NOTE(Kevin): The fastest an entity can travel per second without tunneling
+    // through planar walls is:
+    // 
+    //     R = Radius of the entity collider at its thinnest section
+    //     TR = Tick rate
+    //     Steps = Number of steps to take towards destination i.e. collision checks per tick
+    //     Fastest Units Per Second = R * TR * Steps
+    //
+    // This guarantees the collider will intersect the planar wall on at least one step.
+    // TODO(Kevin): If cheaper, might be better to project the hull (cast rays) to check
+    // intersection with wall for continuous collision detection. Could even use artifical
+    // broadphase hull.
+
+    DirToPlayer = Normalize(DirToPlayer);
+    vec2 dHorizontalP = { DirToPlayer.x, DirToPlayer.z };
+    real32 dVerticalP = DirToPlayer.y;
+    real32 FireballSpeed = 1000.f;
+    dHorizontalP *= FireballSpeed;
+    dVerticalP *= FireballSpeed;
+
+    entity *Entity = GetEntity(GameState, EntityIndex);
+    Entity->Type = Entity_Fireball;
+    Entity->Visible = true;
+    Entity->RenderMesh = GameState->CubeMesh;
+    Entity->RenderAlbedo = GameState->TexWireframeRed;
+    Entity->P = SpawnP;
+    Entity->dHorizontalP = dHorizontalP;
+    Entity->dVerticalP = dVerticalP;
+    Entity->Orientation = DirectionToOrientation(DirToPlayer);
+    Entity->Scale = vec3(8.0f,8.0f,8.0f);
+    Entity->QueryLightCache = false; // TODO(Kevin): Force flat lighting
+    Entity->State = EnemyState_Chasing;
+
+    return EntityIndex;
 }
 
 extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
@@ -412,7 +476,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
         GameState->Backdrop = DEBUGLoadBMP(Thread, Memory->PlatformAPI.DEBUGPlatformReadEntireFile, "test/test_background.bmp");
 
-        mesh_handle CubeMesh = RendererAPI->UploadMeshData(CubeVB, ArrayCount(CubeVB), CubeIB, ArrayCount(CubeIB));
+        GameState->CubeMesh = RendererAPI->UploadMeshData(CubeVB, ArrayCount(CubeVB), CubeIB, ArrayCount(CubeIB));
 
         // TODO(Kevin): Release bitmap memory
         loaded_bitmap TestBmp = DEBUGLoadBMP(Thread, Memory->PlatformAPI.DEBUGPlatformReadEntireFile, "test_1.bmp");
@@ -429,7 +493,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         texture_handle BackdropTexture = RendererAPI->UploadTexture2DData(GameState->Backdrop.Pixels, GameState->Backdrop.Width, GameState->Backdrop.Height, BGRA_U8, false);
 
         loaded_bitmap BmpWireframeRed = DEBUGLoadBMP(Thread, Memory->PlatformAPI.DEBUGPlatformReadEntireFile, "wireframe_red.bmp");
-        texture_handle TexWireframeRed = RendererAPI->UploadTexture2DData(BmpWireframeRed.Pixels, BmpWireframeRed.Width, BmpWireframeRed.Height, BGRA_U8, true);
+        GameState->TexWireframeRed = RendererAPI->UploadTexture2DData(BmpWireframeRed.Pixels, BmpWireframeRed.Width, BmpWireframeRed.Height, BGRA_U8, true);
 
         loaded_bitmap CustomFont0Bmp = DEBUGLoadBMP(Thread, Memory->PlatformAPI.DEBUGPlatformReadEntireFile, "fonts/anikki_8x8.bmp");
         font_handle RenderFont0 = CreateBitmapFont(CustomFont0Bmp, RendererAPI);
@@ -593,25 +657,19 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             entity_handle EntityIndex = AddEntity(GameState);
             entity *Entity = GetEntity(GameState, EntityIndex);
             Entity->Visible = true;
-            Entity->RenderMesh = CubeMesh;
+            Entity->RenderMesh = GameState->CubeMesh;
             Entity->RenderAlbedo = i > 4 ? DefaultTexture : Test1Texture;
             Entity->P = vec3(100, 30, ((real32)(i) * 25) - 125);
-            Entity->Scale = vec3(0.5f, 0.5f, 0.5f);
+            Entity->Scale = vec3(1,1,1);
             Entity->QueryLightCache = true;
         }
 
-        mesh_handle CylinderMesh = RendererAPI->UploadMeshData(GameState->Cylinder8SidedVB, CylinderMesh8SidedVertexCount, 
-                                                               GameState->Cylinder8SidedIB, CylinderMesh8SidedIndexCount);
+        GameState->CylinderMesh = RendererAPI->UploadMeshData(GameState->Cylinder8SidedVB, CylinderMesh8SidedVertexCount, 
+                                                              GameState->Cylinder8SidedIB, CylinderMesh8SidedIndexCount);
 
-        entity_handle EntityIndex = AddEntity(GameState);
-        entity *Entity = GetEntity(GameState, EntityIndex);
-        Entity->Type = Entity_Fiend;
-        Entity->Visible = true;
-        Entity->RenderMesh = CylinderMesh;
-        Entity->RenderAlbedo = TexWireframeRed;
-        Entity->P = vec3(-400, 0.01f, 0);
-        Entity->Scale = vec3(16.f, 47.f, 16.f);
-        Entity->QueryLightCache = true;
+        SpawnShooterEntity(GameState, vec3(-400, 0.01f, 0));
+        SpawnShooterEntity(GameState, vec3(400, 0.01f, 0));
+        // SpawnShooterEntity(GameState, vec3(300, 0.01f, -200));
 
         Memory->IsInitialized = true;
     }
@@ -727,8 +785,18 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         {
             switch (Entity->Type)
             {
-                case Entity_Fiend:
+                case Entity_Fireball:
                 {
+                    MoveEntity(GameState, Entity, vec2(0,0), 0, Input->dtForFrame, 0, 0);
+                } break;
+
+                case Entity_Shooter:
+                {
+                    entity *Player = GetEntity(GameState, GameState->PlayerEntityHandle);
+                    vec3 ToPlayer = Player->P - Entity->P;
+                    vec3 DirToPlayer = Normalize(ToPlayer);
+                    vec3 ToPlayerHorizontal = vec3(ToPlayer.x, 0, ToPlayer.z);
+
                     real32 HorizontalAcceleration = 1000.f;
                     real32 MaxHorizontalSpeed = 150.f;
                     real32 DragFactor = HorizontalAcceleration / MaxHorizontalSpeed;
@@ -736,14 +804,30 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
                     switch (Entity->State)
                     {
-                        case EnemyState_Idle:
-                            break;
+                        case EnemyState_Shooting:
+                        {
+                            quat PlayerFacingO = DirectionToOrientation(Normalize(ToPlayerHorizontal));
+                            Entity->Orientation = PlayerFacingO;
+
+                            if (Entity->tShoot > 0.0f)
+                            {
+                                Entity->tShoot -= Input->dtForFrame;
+                            }
+                            if (Entity->tShoot <= 0.0f)
+                            {
+                                vec3 FireballSpawnP = Entity->P + (DirToPlayer*10.f) + vec3(0,23,0);
+                                SpawnFireballEntity(GameState, FireballSpawnP, DirToPlayer);
+                                Entity->tShoot = 0.4f;
+                            }
+                        } break;
                         case EnemyState_Chasing:
-                            entity *Player = GetEntity(GameState, GameState->PlayerEntityHandle);
-                            vec3 ToPlayer = Player->P - Entity->P;
+                        {
+                            quat PlayerFacingO = DirectionToOrientation(Normalize(ToPlayerHorizontal));
+                            Entity->Orientation = PlayerFacingO;
+
                             ddHorizontalP = Normalize(vec2(ToPlayer.x, ToPlayer.z));
                             ddHorizontalP *= HorizontalAcceleration;
-                            break;
+                        } break;
                     }
 
                     MoveEntity(GameState, Entity, ddHorizontalP, DragFactor, Input->dtForFrame, 0, 0);
@@ -755,10 +839,10 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                         u32 RandomChoice = RandomNumberTable[(RandomNumberIndex++)%ArrayCount(RandomNumberTable)] % RandomChoices;
                         if (RandomChoice <= 1)
                         {
-                            Entity->State = EnemyState_Idle;
+                            Entity->State = EnemyState_Shooting;
                         }
                     }
-                    else if (Entity->State == EnemyState_Idle)
+                    else if (Entity->State == EnemyState_Shooting)
                     {
                         local_persist u32 RandomNumberIndex = 0;
                         u32 RandomChoices = 100;

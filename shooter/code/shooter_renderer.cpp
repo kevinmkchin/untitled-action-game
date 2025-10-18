@@ -64,6 +64,11 @@ void renderer::PushRenderItems(render_item *RenderItems, uint32 RenderItemsCount
                 // TODO(Kevin): Whether an instance does sunlight or not is baked into light cube info!
                 InstanceData->DoSunLight = true;
             }
+            else
+            {
+                // TODO(Kevin): later maybe use forced flat ambient term for no lightmap & no light cube
+                InstanceData->DoSunLight = true;
+            }
         }
 
         ++(*InstanceDataArrayCount);

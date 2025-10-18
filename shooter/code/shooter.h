@@ -192,6 +192,8 @@ enum entity_type
 {
     Entity_Unspecified,
     Entity_Fiend,
+    Entity_Shooter,
+    Entity_Fireball,
 };
 
 enum enemy_state
@@ -200,6 +202,7 @@ enum enemy_state
     EnemyState_Patrol,
     EnemyState_Chasing,
     EnemyState_Lunging,
+    EnemyState_Shooting,
 };
 
 typedef u32 entity_handle;
@@ -210,8 +213,8 @@ struct entity
     bool32 Visible;
 
     vec3 P;
-    vec2 dHorizontalP;
-    real32 dVerticalP;
+    vec2 dHorizontalP; // u/s
+    real32 dVerticalP; // u/s
     quat Orientation;
     vec3 Scale;
 
@@ -221,6 +224,7 @@ struct entity
     bool32         QueryLightCache;
 
     enemy_state State;
+    real32 tShoot;
 
     vec3 PlayerWalkDirectionRight;
     vec3 PlayerWalkDirectionForward;
@@ -286,6 +290,10 @@ struct game_state
     PNUV2_vertex Cylinder8SidedVB[CylinderMesh8SidedVertexCount];
     u32 Cylinder8SidedIB[CylinderMesh8SidedIndexCount];
     vec3 Cylinder8SidedPointCloud[CylinderMesh8SidedPointCount];
+
+    mesh_handle CubeMesh;
+    mesh_handle CylinderMesh;
+    texture_handle TexWireframeRed;
 
     real32 PlayerMaxUnitsTravelledPerSecond;
     real32 PlayerUnitsTravelledPerSecond;
