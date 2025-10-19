@@ -829,7 +829,7 @@ inline quat QuatFromEuler_HamiltonProduct_XZY(float X, float Y, float Z)
 }
 #endif
 
-inline quat QuatFromEuler_XZY(float X, float Y, float Z)
+inline quat QuatFromEuler_YZX(float X, float Y, float Z)
 {
     float cx = Cos(X * 0.5f);
     float sx = Sin(X * 0.5f);
@@ -848,9 +848,9 @@ inline quat QuatFromEuler_XZY(float X, float Y, float Z)
     return Result;
 }
 
-inline quat QuatFromEuler_XZY(vec3 EulerAnglesRadian)
+inline quat QuatFromEuler_YZX(vec3 EulerAnglesRadian)
 {
-    return QuatFromEuler_XZY(EulerAnglesRadian.x, EulerAnglesRadian.y, EulerAnglesRadian.z);
+    return QuatFromEuler_YZX(EulerAnglesRadian.x, EulerAnglesRadian.y, EulerAnglesRadian.z);
 }
 
 inline vec3 RotateVector(vec3 Vector, quat Rotation)
@@ -955,7 +955,7 @@ inline quat Slerp(quat From, quat To, float t)
     return Normalize(Add(Scale(Start, Scale0), Scale(End, Scale1)));
 }
 
-inline quat LookRotation(vec3 LookDirection, vec3 Up)
+inline quat LookRotation1(vec3 LookDirection, vec3 Up)
 {
     // NOTE(Kevin): This function has direction semantics built-in
     //              +X = Forward, +Y = Up, +Z = Right
@@ -969,7 +969,24 @@ inline quat LookRotation(vec3 LookDirection, vec3 Up)
     RotationMatrix.columns[1] = vec4(Up, 0);
     RotationMatrix.columns[2] = vec4(Right, 0);
     RotationMatrix.columns[3] = vec4(0,0,0,1);
-    return QuatFromMat4(RotationMatrix);
+    quat Rotation = QuatFromMat4(RotationMatrix);
+    return Rotation;
+}
+
+inline void LookRotation2(vec3 LookDirection, real32 *Yaw, real32 *Pitch)
+{
+    real32 CartesianX = LookDirection.x;
+    real32 CartesianY = -LookDirection.z;
+    *Yaw = ATan2(CartesianY, CartesianX);
+    *Pitch = ATan(LookDirection.y);
+}
+
+inline quat LookRotation3(vec3 LookDirection)
+{
+    real32 Yaw, Pitch;
+    LookRotation2(LookDirection, &Yaw, &Pitch);
+    quat Rotation = QuatFromEuler_YZX(0, Yaw, Pitch);
+    return Rotation;
 }
 
 inline quat OrientationFromDirection(vec3 Direction)

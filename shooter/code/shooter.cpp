@@ -161,11 +161,26 @@ internal void
 PlaceCamera(camera *Camera, vec3 Pos, vec3 EulerRot)
 {
     Camera->P = Pos;
-    // TODO(Kevin): Can I use direction here instead?
     Camera->EulerRot = EulerRot;
-
-    Camera->Orientation = QuatFromEuler_XZY(Camera->EulerRot);
+    Camera->Orientation = QuatFromEuler_YZX(Camera->EulerRot);
     Camera->Forward = Normalize(DirectionFromOrientation(Camera->Orientation));
+    Camera->Right = Normalize(Cross(Camera->Forward, GMATH_UP));
+    Camera->Up = Normalize(Cross(Camera->Right, Camera->Forward));
+
+    Camera->ViewPosition = Camera->P;
+    Camera->ViewForward = Camera->Forward;
+    Camera->ViewUp = Camera->Up;
+}
+
+internal void
+PointCamera(camera *Camera, vec3 Pos, vec3 Forward)
+{
+    Forward = Normalize(Forward);
+
+    Camera->P = Pos;
+    LookRotation2(Forward, &Camera->EulerRot.y, &Camera->EulerRot.z);
+    Camera->Orientation = QuatFromEuler_YZX(Camera->EulerRot);
+    Camera->Forward = Forward;
     Camera->Right = Normalize(Cross(Camera->Forward, GMATH_UP));
     Camera->Up = Normalize(Cross(Camera->Right, Camera->Forward));
 
@@ -486,13 +501,9 @@ SpawnFireballEntity(game_state *GameState, vec3 SpawnP, vec3 DirToPlayer)
     dVerticalP *= FireballSpeed;
 
 #if 1
-    real32 CartesianX = DirToPlayer.x;
-    real32 CartesianY = -DirToPlayer.z;
-    real32 Yaw = ATan2(CartesianY, CartesianX);
-    real32 Pitch = ATan(dVerticalP / FireballSpeed);
-    quat Rotation = QuatFromEuler_XZY(0, Yaw, Pitch);
+    quat Rotation = LookRotation3(DirToPlayer);
 #else
-    quat Rotation = LookRotation(DirToPlayer, GMATH_UP);
+    quat Rotation = LookRotation1(DirToPlayer, GMATH_UP);
 #endif
 
     entity *Entity = GetEntity(GameState, EntityIndex);
@@ -546,16 +557,16 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         GameState->CubeMesh = RendererAPI->UploadMeshData(CubeVB, ArrayCount(CubeVB), CubeIB, ArrayCount(CubeIB));
 
         // TODO(Kevin): Release bitmap memory
+        // TODO(Kevin): Load this default white lightmap from inside renderer code! Not from game code!
+        // NOTE(Kevin): White_1x1 should be loaded first to have texture handle 0
+        loaded_bitmap White_1x1 = DEBUGLoadBMP(Thread, Memory->PlatformAPI.DEBUGPlatformReadEntireFile, "white_1x1.bmp");
+        RendererAPI->WhiteTexture_1x1 = RendererAPI->UploadTexture2DData(White_1x1.Pixels, White_1x1.Width, White_1x1.Height, BGRA_U8, false);
+
         loaded_bitmap TestBmp = DEBUGLoadBMP(Thread, Memory->PlatformAPI.DEBUGPlatformReadEntireFile, "test_1.bmp");
         texture_handle Test1Texture = RendererAPI->UploadTexture2DData(TestBmp.Pixels, TestBmp.Width, TestBmp.Height, BGRA_U8, false);
 
         loaded_bitmap TestBmp2 = DEBUGLoadBMP(Thread, Memory->PlatformAPI.DEBUGPlatformReadEntireFile, "default_8x8.bmp");
         texture_handle DefaultTexture = RendererAPI->UploadTexture2DData(TestBmp2.Pixels, TestBmp2.Width, TestBmp2.Height, BGRA_U8, false);
-
-        // TODO(Kevin): Load this default white lightmap from inside renderer code! Not from game code!
-        // White_1x1 should have texture handle 0 so it is the default texture
-        loaded_bitmap White_1x1 = DEBUGLoadBMP(Thread, Memory->PlatformAPI.DEBUGPlatformReadEntireFile, "white_1x1.bmp");
-        RendererAPI->WhiteTexture_1x1 = RendererAPI->UploadTexture2DData(White_1x1.Pixels, White_1x1.Width, White_1x1.Height, BGRA_U8, false);
 
         texture_handle BackdropTexture = RendererAPI->UploadTexture2DData(GameState->Backdrop.Pixels, GameState->Backdrop.Width, GameState->Backdrop.Height, BGRA_U8, false);
 
@@ -717,7 +728,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         Player->P = vec3(-100, 0.1f, 0);
         Player->Scale = vec3(8.f,47.f,8.f);
 
-        PlaceCamera(&GameState->Camera, vec3(-100, 60, 0), vec3(0,0,0));
+        PointCamera(&GameState->Camera, vec3(-100, 60, 0), vec3(1,0,0));
 
         for (u32 i = 0; i < 10; ++i)
         {
@@ -880,7 +891,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
                 real32 BaseCamOffsetFromPlayerRoot = 40.0f;
                 real32 CamYOffset = BaseCamOffsetFromPlayerRoot + GMATH_min(0.0f, GameState->PlayerViewBobOffset);
-                PlaceCamera(&GameState->Camera, Player->P + vec3(0,CamYOffset,0), GameState->Camera.EulerRot);
+                PointCamera(&GameState->Camera, Player->P + vec3(0,CamYOffset,0), GameState->Camera.Forward);
                 UpdateCameraStrafeTilt(&GameState->Camera, Player->dHorizontalP,
                                        GameState->PlayerMaxUnitsTravelledPerSecond, Input->dtForFrame);
 
@@ -921,7 +932,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                     }
                 } break;
 
-                // case Entity_Shooter:
+                case Entity_Shooter:
                 {
                     entity *Player = GetEntity(GameState, GameState->PlayerEntityHandle);
                     vec3 ToPlayer = Player->P - Entity->P;
@@ -1012,33 +1023,36 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     RendererAPI->PushRenderItems((render_item *)RenderItemsStart, RenderItemsCount);
 
     uint32 CanvasW, CanvasH;
-    // TODO(Kevin): this shit returns 0,0 sometimes
     RendererAPI->GetRenderTargetDimensions(&CanvasW, &CanvasH);
-    GuiBeginFrame(GuiState, CanvasW, CanvasH, &GameState->ScratchArena, 
-                  Input->MouseX, Input->MouseY, Input->MouseButtons[0], Input->MouseButtons[1]);
-
-    u32 CrosshairDotWidth = 6;
-    gui_rect CrosshairOuterRect = {SafeCastToS32(CanvasW / 2 - (CrosshairDotWidth/2)),
-                                   SafeCastToS32(CanvasH / 2 - (CrosshairDotWidth/2)),
-                                   CrosshairDotWidth, CrosshairDotWidth};
-    gui_rect CrosshairInnerRect = {SafeCastToS32(CanvasW / 2 - (CrosshairDotWidth/2) + 1),
-                                   SafeCastToS32(CanvasH / 2 - (CrosshairDotWidth/2) + 1),
-                                   CrosshairDotWidth-2, CrosshairDotWidth-2};
-    GuiPanel(GuiState, CrosshairOuterRect, vec4(0.f,0.f,0.f,0.8f));
-    GuiPanel(GuiState, CrosshairInnerRect, vec4(0.8f,0.8f,0.8f,0.8f));
-
-    GuiTextFmt(GuiState, 100, CanvasH-100, 
-               54+u32(36.f*(GameState->PlayerUnitsTravelledPerSecond/GameState->PlayerMaxUnitsTravelledPerSecond)),
-               GuiFontCurses6x9, Align_Left, false, vec4(1,1,1,1),
-               "%d u/s", RoundReal32ToInt32(GameState->PlayerUnitsTravelledPerSecond));
-
-    entity *Player = GetEntity(GameState, GameState->PlayerEntityHandle);
-    if (Player->IsSupported)
+    if (CanvasW > 0 && CanvasW < UINT32_MAX && 
+        CanvasH > 0 && CanvasH < UINT32_MAX)
     {
-        GuiPanel(GuiState, {40, 40, 128, 128 }, GameState->TexWireframeRed);
-    }
+        GuiBeginFrame(GuiState, CanvasW, CanvasH, &GameState->ScratchArena, 
+                      Input->MouseX, Input->MouseY, Input->MouseButtons[0], Input->MouseButtons[1]);
 
-    RendererAPI->PushGuiDrawRequests(&GameState->ScratchArena, GuiState->DrawRequests, GuiState->DrawRequestsCount);
+        u32 CrosshairDotWidth = 6;
+        gui_rect CrosshairOuterRect = {SafeCastToS32(CanvasW / 2 - (CrosshairDotWidth/2)),
+                                       SafeCastToS32(CanvasH / 2 - (CrosshairDotWidth/2)),
+                                       CrosshairDotWidth, CrosshairDotWidth};
+        gui_rect CrosshairInnerRect = {SafeCastToS32(CanvasW / 2 - (CrosshairDotWidth/2) + 1),
+                                       SafeCastToS32(CanvasH / 2 - (CrosshairDotWidth/2) + 1),
+                                       CrosshairDotWidth-2, CrosshairDotWidth-2};
+        GuiPanel(GuiState, CrosshairOuterRect, vec4(0.f,0.f,0.f,0.8f));
+        GuiPanel(GuiState, CrosshairInnerRect, vec4(0.8f,0.8f,0.8f,0.8f));
+
+        GuiTextFmt(GuiState, 100, CanvasH-100, 
+                   54+u32(36.f*(GameState->PlayerUnitsTravelledPerSecond/GameState->PlayerMaxUnitsTravelledPerSecond)),
+                   GuiFontCurses6x9, Align_Left, false, vec4(1,1,1,1),
+                   "%d u/s", RoundReal32ToInt32(GameState->PlayerUnitsTravelledPerSecond));
+
+        entity *Player = GetEntity(GameState, GameState->PlayerEntityHandle);
+        if (Player->IsSupported)
+        {
+            GuiPanel(GuiState, {40, 40, 128, 128 }, GameState->TexWireframeRed);
+        }
+
+        RendererAPI->PushGuiDrawRequests(&GameState->ScratchArena, GuiState->DrawRequests, GuiState->DrawRequestsCount);
+    }
 }
 
 extern "C" GAME_GET_SOUND_SAMPLES(GameGetSoundSamples)

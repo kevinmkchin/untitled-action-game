@@ -431,9 +431,10 @@ inline mat4 Mat4FromQuat(quat Rotation);
 /* Constructs an orientation quaternion from the rotation matrix */
 inline quat QuatFromMat4(mat4 RotationMatrix);
 /* Apply Euler angle rotations around three orthogonal axes in right handed system in
-   the order X Z Y. Equivalent to Qy * (Qz * Qx) where each Q represent single axis rotation. */
-inline quat QuatFromEuler_XZY(float X, float Y, float Z);
-inline quat QuatFromEuler_XZY(vec3 EulerAnglesRadian);
+   the order X->Z->Y. The order in the function name is applied right to left.
+   Equivalent to Qy * (Qz * Qx) where each Q represent single axis rotation. */
+inline quat QuatFromEuler_YZX(float X, float Y, float Z);
+inline quat QuatFromEuler_YZX(vec3 EulerAnglesRadian);
 /* Rotates vector by the quaternion represented rotation. Rotates around the origin. */
 inline vec3 RotateVector(vec3 Vector, quat Rotation); // TODO(Kevin): NOT TESTED
 /* Creates a unit quaternion which rotates from FromDirection to ToDirection
@@ -444,8 +445,10 @@ inline quat RotationFromTo(vec3 FromDirection, vec3 ToDirection); // TODO(Kevin)
 // inline quat RotationDifference(quat a, quat b); // TODO(Kevin): NOT TESTED
 /* Spherical linear interpolation */
 inline quat Slerp(quat From, quat To, float t); // TODO(Kevin): NOT TESTED -> cuz i made changes to the helpers
-/* Returns a rotation with the specified forward and upwards directions. */
-inline quat LookRotation(vec3 LookDirection, vec3 Up);
+/* Returns a yaw-pitch only rotation with the specified forward and upwards directions. */
+inline quat LookRotation1(vec3 LookDirection, vec3 Up);
+inline void LookRotation2(vec3 LookDirection, real32 *Yaw, real32 *Pitch);
+inline quat LookRotation3(vec3 LookDirection);
 /* Returns an orientation that faces the given direction. The return value represents
    the rotation from the world's forward direction (forward vector) in order to face
    the same direction as the given direction. The resulting orientation will point in
