@@ -215,6 +215,7 @@ struct entity
     vec3 P;
     vec2 dHorizontalP; // u/s
     real32 dVerticalP; // u/s
+    bool32 IsSupported; // by a floor
     quat Orientation;
     vec3 Scale;
 
@@ -251,6 +252,8 @@ struct camera
     vec3 ViewPosition;
     vec3 ViewForward;
     vec3 ViewUp;
+
+    real32 StrafeTilt;
 };
 
 struct game_map
@@ -297,6 +300,9 @@ struct game_state
 
     real32 PlayerMaxUnitsTravelledPerSecond;
     real32 PlayerUnitsTravelledPerSecond;
+    bool32 PlayerViewBobGoingDown;
+    real32 PlayerViewBobOffset;
+    real32 dPlayerViewBobOffset;
 
     real32 tSine;
     loaded_bitmap Backdrop;

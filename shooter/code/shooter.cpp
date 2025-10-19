@@ -161,6 +161,7 @@ internal void
 PlaceCamera(camera *Camera, vec3 Pos, vec3 EulerRot)
 {
     Camera->P = Pos;
+    // TODO(Kevin): Can I use direction here instead?
     Camera->EulerRot = EulerRot;
 
     Camera->Orientation = QuatFromEuler_XZY(Camera->EulerRot);
@@ -171,6 +172,42 @@ PlaceCamera(camera *Camera, vec3 Pos, vec3 EulerRot)
     Camera->ViewPosition = Camera->P;
     Camera->ViewForward = Camera->Forward;
     Camera->ViewUp = Camera->Up;
+}
+
+internal void
+UpdateCameraStrafeTilt(camera *Camera, vec2 dHorizontalP, real32 MaxHorizontalSpeed, real32 dt)
+{
+    // Strafe tilt
+    if (MaxHorizontalSpeed > 0.0f)
+    {
+        real32 TiltSpeed = 15.0f;
+        real32 MaxTilt = 0.035f;
+        real32 DesiredCamTilt = 0.0f;
+        vec2 CamRight = Normalize(vec2(Camera->Right.x, Camera->Right.z));
+
+        real32 StrafeMagnitude = Dot(dHorizontalP, CamRight);
+        StrafeMagnitude = StrafeMagnitude / MaxHorizontalSpeed;
+
+        DesiredCamTilt = StrafeMagnitude * MaxTilt;
+        quat FromTo = RotationFromTo(Camera->ViewUp, Camera->Right);
+
+#if 0
+        quat Tilt = Slerp(quat(), FromTo, DesiredCamTilt);
+        vec3 CameraUpWithSway = RotateVector(Camera->ViewUp, Tilt);
+
+        Camera->ViewUp = CameraUpWithSway;
+#else
+        // NOTE(Kevin): There is already gradual acceleration to the tilt from using
+        //              the strafe magnitude, but I like this extra tilt speed smoothing.
+        //              Makes it feel like I'm speeding up even more than I am.
+        //              Actually...can't tell if I'm getting motion sick...
+        Camera->StrafeTilt = Lerp(Camera->StrafeTilt, DesiredCamTilt, dt * TiltSpeed);
+        quat Tilt = Slerp(quat(), FromTo, Camera->StrafeTilt);
+        vec3 CameraUpWithSway = RotateVector(Camera->ViewUp, Tilt);
+
+        Camera->ViewUp = CameraUpWithSway;
+#endif
+    }
 }
 
 internal mat4
@@ -375,6 +412,7 @@ MoveEntity(game_state *GameState, entity *Entity, vec2 ddHorizontalP, real32 Dra
 
     if (ApplyGravity)
     {
+        Entity->IsSupported = false;
         Entity->dVerticalP -= 314.f * dt; // 9.81 m/s * 32 units/m ~= 314 units/s
     }
     TestP.y += Entity->dVerticalP * dt;
@@ -382,8 +420,16 @@ MoveEntity(game_state *GameState, entity *Entity, vec2 ddHorizontalP, real32 Dra
                                                              Entity->Orientation, Entity->Scale);
     TestP += ResolutionVector;
 
-    if (AbsoluteValue(Dot(Normalize(ResolutionVector), GMATH_UP)) > 0.1f)
+    real32 ResolutionLenAlongUp = Dot(Normalize(ResolutionVector), GMATH_UP);
+    if (AbsoluteValue(ResolutionLenAlongUp) > 0.1f)
     {
+        if (ResolutionLenAlongUp > 0.1f)
+        {
+            // NOTE(Kevin): Since we set IsSupported after vertical movement, we are not able
+            //              to start jumping until the frame after we touch the floor.
+            Entity->IsSupported = true;
+        }
+
         Entity->dVerticalP = 0.0f;
     }
 
@@ -435,7 +481,7 @@ SpawnFireballEntity(game_state *GameState, vec3 SpawnP, vec3 DirToPlayer)
     DirToPlayer = Normalize(DirToPlayer);
     vec2 dHorizontalP = { DirToPlayer.x, DirToPlayer.z };
     real32 dVerticalP = DirToPlayer.y;
-    real32 FireballSpeed = 500.f;
+    real32 FireballSpeed = 700.f;
     dHorizontalP *= FireballSpeed;
     dVerticalP *= FireballSpeed;
 
@@ -458,7 +504,7 @@ SpawnFireballEntity(game_state *GameState, vec3 SpawnP, vec3 DirToPlayer)
     Entity->dHorizontalP = dHorizontalP;
     Entity->dVerticalP = dVerticalP;
     Entity->Orientation = Rotation;
-    Entity->Scale = vec3(12.0f,6.0f,6.0f);
+    Entity->Scale = vec3(12.0f,12.0f,12.0f);
     Entity->QueryLightCache = false; // TODO(Kevin): Force flat lighting
     Entity->State = EnemyState_Chasing;
 
@@ -689,7 +735,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                                                               GameState->Cylinder8SidedIB, CylinderMesh8SidedIndexCount);
 
         SpawnShooterEntity(GameState, vec3(-400, 0.01f, 0));
-        // SpawnShooterEntity(GameState, vec3(400, 0.01f, 0));
+        SpawnShooterEntity(GameState, vec3(400, 0.01f, 0));
         // SpawnShooterEntity(GameState, vec3(300, 0.01f, -200));
 
         Memory->IsInitialized = true;
@@ -698,10 +744,6 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     //
     // Input
     //
-    real32 MouseLookSensitivity = 0.002f;
-    vec2 AdjustedMouseAxes = Input->NormalizedMouseDelta * MouseLookSensitivity;
-    MouseLookCamera(&GameState->Camera, AdjustedMouseAxes.x, AdjustedMouseAxes.y);
-
     for (int ControllerIndex = 0;
          ControllerIndex < ArrayCount(Input->Controllers);
          ++ControllerIndex)
@@ -715,6 +757,10 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
         if (ControllerIndex == 0)
         {
+            real32 MouseLookSensitivity = 0.002f;
+            vec2 AdjustedMouseAxes = Input->NormalizedMouseDelta * MouseLookSensitivity;
+            MouseLookCamera(&GameState->Camera, AdjustedMouseAxes.x, AdjustedMouseAxes.y);
+
             bool32 FlyCam = false;
             if (FlyCam)
             {
@@ -751,39 +797,92 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             else
             {
                 entity *Player = GetEntity(GameState, GameState->PlayerEntityHandle);
-
-                PlaceCamera(&GameState->Camera, Player->P + vec3(0,40,0), GameState->Camera.EulerRot);
+                // NOTE(Kevin): Camera.Right should already be updated from MouseLook!
                 Player->PlayerWalkDirectionRight = GameState->Camera.Right;
                 Player->PlayerWalkDirectionForward = Normalize(Cross(GMATH_UP, GameState->Camera.Right));
 
+                bool32 MoveForward = Controller->MoveUp.EndedDown;
+                bool32 MoveBack = Controller->MoveDown.EndedDown;
+                bool32 StrafeLeft = Controller->MoveLeft.EndedDown;
+                bool32 StrafeRight = Controller->MoveRight.EndedDown;
+                bool32 Jump = Controller->ActionDown.EndedDown && Controller->ActionDown.HalfTransitionCount > 0;
+                bool32 MovingHorizontal = MoveForward | MoveBack | StrafeLeft | StrafeRight;
+
                 vec3 PlayerHorizontalVector;
-                if (Controller->MoveUp.EndedDown)
+                if (MoveForward)
                 {
                     PlayerHorizontalVector += Player->PlayerWalkDirectionForward;
                 }
-                if (Controller->MoveDown.EndedDown)
+                if (MoveBack)
                 {
                     PlayerHorizontalVector += -Player->PlayerWalkDirectionForward;
                 }
-                if (Controller->MoveLeft.EndedDown)
+                if (StrafeLeft)
                 {
                     PlayerHorizontalVector += -Player->PlayerWalkDirectionRight;
                 }
-                if (Controller->MoveRight.EndedDown)
+                if (StrafeRight)
                 {
                     PlayerHorizontalVector += Player->PlayerWalkDirectionRight;
                 }
-                if (Controller->ActionDown.EndedDown && Controller->ActionDown.HalfTransitionCount > 0)
+                if (Jump && Player->IsSupported)
                 {
                     Player->dVerticalP = 160.f;
                 }
 
                 vec2 ddP = { PlayerHorizontalVector.x, PlayerHorizontalVector.z };
                 ddP = Normalize(ddP);
+                bool32 ChangeToOppositeDirection = Dot(ddP, Normalize(Player->dHorizontalP)) < 0.0f;
                 real32 PlayerHorizontalAcceleration = 3200.0f; // units/s^2
-                real32 MaxHorizontalSpeed = 250.0f;
-                real32 DragFactor = PlayerHorizontalAcceleration / MaxHorizontalSpeed;
+                real32 MaxHorizontalSpeed = 350.0f;
                 ddP *= PlayerHorizontalAcceleration;
+                real32 DragFactor = PlayerHorizontalAcceleration / MaxHorizontalSpeed;
+
+                // Bob view up and down while walking
+                real32 MaxBobOffset = -6.f;
+                // NOTE(Kevin): ddPlayerViewBobOffset (a) scales linearly with MaxBobOffset (d)
+                //              given constant time    d = 1/2(at^2) -> (2/t^2)d = a
+                real32 ddPlayerViewBobOffset = 20.f*MaxBobOffset;
+                GameState->PlayerViewBobGoingDown &= MovingHorizontal;
+
+                // NOTE(Kevin): Spamming A D back and forth should nullify the bob
+                if (ChangeToOppositeDirection && GameState->PlayerViewBobGoingDown)
+                {
+                    GameState->PlayerViewBobGoingDown = false;
+                }
+
+                if (GameState->PlayerViewBobGoingDown && Player->IsSupported)
+                {
+                    GameState->PlayerViewBobOffset += GameState->dPlayerViewBobOffset * Input->dtForFrame;
+                    GameState->dPlayerViewBobOffset += ddPlayerViewBobOffset * Input->dtForFrame;
+
+                    if (GameState->PlayerViewBobOffset < MaxBobOffset)
+                    {
+                        GameState->PlayerViewBobOffset = MaxBobOffset;
+                        GameState->PlayerViewBobGoingDown = false;
+                    }
+                }
+                else
+                {
+                    // Bob offset recovery
+                    GameState->PlayerViewBobOffset = Lerp(GameState->PlayerViewBobOffset, (-MaxBobOffset*0.2f), 0.062f);
+                    if (GameState->PlayerViewBobOffset >= 0.0f)
+                    {
+                        GameState->PlayerViewBobOffset = 0.0f;
+                        GameState->dPlayerViewBobOffset = 0.0f;
+
+                        if (MovingHorizontal)
+                        {
+                            GameState->PlayerViewBobGoingDown = true;
+                        }
+                    }
+                }
+
+                real32 BaseCamOffsetFromPlayerRoot = 40.0f;
+                real32 CamYOffset = BaseCamOffsetFromPlayerRoot + GMATH_min(0.0f, GameState->PlayerViewBobOffset);
+                PlaceCamera(&GameState->Camera, Player->P + vec3(0,CamYOffset,0), GameState->Camera.EulerRot);
+                UpdateCameraStrafeTilt(&GameState->Camera, Player->dHorizontalP,
+                                       GameState->PlayerMaxUnitsTravelledPerSecond, Input->dtForFrame);
 
                 real32 TravelDist;
                 MoveEntity(GameState, Player, ddP, DragFactor, Input->dtForFrame, true, &TravelDist, NULL);
@@ -796,6 +895,9 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     uint32 RenderItemsCount = 0;
     uint8 *RenderItemsStart = ArenaCurrentAddress(&GameState->ScratchArena);
 
+    //
+    // Test Code! Entity UpdateAndRender
+    //
     for (entity_handle EntityIndex = 1;
          EntityIndex < GameState->EntitiesCount;
          ++EntityIndex)
@@ -806,6 +908,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         {
             switch (Entity->Type)
             {
+                default: break;
+
                 case Entity_Fireball:
                 {
                     vec3 OldEntityPos = Entity->P;
@@ -817,7 +921,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                     }
                 } break;
 
-                case Entity_Shooter:
+                // case Entity_Shooter:
                 {
                     entity *Player = GetEntity(GameState, GameState->PlayerEntityHandle);
                     vec3 ToPlayer = Player->P - Entity->P;
@@ -857,10 +961,11 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                         } break;
                     }
 
-                    // MoveEntity(GameState, Entity, ddHorizontalP, DragFactor, Input->dtForFrame, true, 0, 0);
+                    MoveEntity(GameState, Entity, ddHorizontalP, DragFactor, Input->dtForFrame, true, 0, 0);
 
                     if (Entity->State == EnemyState_Chasing)
                     {
+                        // TODO(Kevin): These local_persist do not survive DLL reload
                         local_persist u32 RandomNumberIndex = 0;
                         u32 RandomChoices = 200;
                         u32 RandomChoice = RandomNumberTable[(RandomNumberIndex++)%ArrayCount(RandomNumberTable)] % RandomChoices;
@@ -907,6 +1012,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     RendererAPI->PushRenderItems((render_item *)RenderItemsStart, RenderItemsCount);
 
     uint32 CanvasW, CanvasH;
+    // TODO(Kevin): this shit returns 0,0 sometimes
     RendererAPI->GetRenderTargetDimensions(&CanvasW, &CanvasH);
     GuiBeginFrame(GuiState, CanvasW, CanvasH, &GameState->ScratchArena, 
                   Input->MouseX, Input->MouseY, Input->MouseButtons[0], Input->MouseButtons[1]);
@@ -925,6 +1031,12 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                54+u32(36.f*(GameState->PlayerUnitsTravelledPerSecond/GameState->PlayerMaxUnitsTravelledPerSecond)),
                GuiFontCurses6x9, Align_Left, false, vec4(1,1,1,1),
                "%d u/s", RoundReal32ToInt32(GameState->PlayerUnitsTravelledPerSecond));
+
+    entity *Player = GetEntity(GameState, GameState->PlayerEntityHandle);
+    if (Player->IsSupported)
+    {
+        GuiPanel(GuiState, {40, 40, 128, 128 }, GameState->TexWireframeRed);
+    }
 
     RendererAPI->PushGuiDrawRequests(&GameState->ScratchArena, GuiState->DrawRequests, GuiState->DrawRequestsCount);
 }
