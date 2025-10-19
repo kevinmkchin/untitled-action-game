@@ -102,10 +102,24 @@ Sin(real32 Angle)
 }
 
 inline real32
+ASin(real32 X)
+{
+    real32 Theta = asinf(X);
+    return Theta;
+}
+
+inline real32
 Cos(real32 Angle)
 {
     real32 Result = cosf(Angle);
     return Result;
+}
+
+inline real32
+ACos(real32 X)
+{
+    real32 Theta = acosf(X);
+    return Theta;
 }
 
 inline real32
@@ -118,10 +132,11 @@ Tan(real32 Angle)
 inline real32
 ATan(real32 X)
 {
-    real32 Result = atanf(X);
-    return Result;
+    real32 Theta = atanf(X);
+    return Theta;
 }
 
+// Gives the angle between the +X axis and the point (X, Y)
 inline real32
 ATan2(real32 Y, real32 X)
 {

@@ -163,9 +163,9 @@ PlaceCamera(camera *Camera, vec3 Pos, vec3 EulerRot)
     Camera->P = Pos;
     Camera->EulerRot = EulerRot;
 
-    Camera->Orientation = EulerToQuat(Camera->EulerRot);
-    Camera->Forward = Normalize(OrientationToDirection(Camera->Orientation));
-    Camera->Right = Normalize(Cross(Camera->Forward, GM_UP_VECTOR));
+    Camera->Orientation = QuatFromEuler_XZY(Camera->EulerRot);
+    Camera->Forward = Normalize(DirectionFromOrientation(Camera->Orientation));
+    Camera->Right = Normalize(Cross(Camera->Forward, GMATH_UP));
     Camera->Up = Normalize(Cross(Camera->Right, Camera->Forward));
 
     Camera->ViewPosition = Camera->P;
@@ -185,7 +185,7 @@ CameraSpaceFromWorldSpace(camera *Camera)
 internal void
 MouseLookCamera(camera *Camera, real32 MouseAxisX, real32 MouseAxisY)
 {
-    real32 PitchConstraint = GM_HALFPI-0.0175f;
+    real32 PitchConstraint = GMATH_HALFPI-0.0175f;
     real32 YawDelta = MouseAxisX;
     real32 PitchDelta = MouseAxisY;
     Camera->EulerRot.y -= YawDelta;
@@ -325,7 +325,7 @@ GetEntity(game_state *GameState, entity_handle Index)
 
 internal void
 MoveEntity(game_state *GameState, entity *Entity, vec2 ddHorizontalP, real32 DragFactor, real32 dt,
-           real32 *OutTravelDist, vec3 *OutTravelVector)
+           bool32 ApplyGravity, real32 *OutTravelDist, vec3 *OutTravelVector)
 {
     //
     // Updating velocity
@@ -360,6 +360,8 @@ MoveEntity(game_state *GameState, entity *Entity, vec2 ddHorizontalP, real32 Dra
     // NOTE(Kevin): Moving in smaller increments before resolving collision to
     // avoid tunneling and erroneous collision resolution vectors (that resolve
     // into walls).
+    // TODO(Kevin): Auto calculate number of steps based on collider radius and velocity
+    // TODO(Kevin): Should horizontal and vertical checks be separate like this?
     u32 NumSteps = 4;
     real32 MoveStepVelocity = TravelDist/(real32)NumSteps;
     for (u32 Step = 0; Step < NumSteps; ++Step)
@@ -371,18 +373,27 @@ MoveEntity(game_state *GameState, entity *Entity, vec2 ddHorizontalP, real32 Dra
         // TODO(Kevin): Horizontal velocity is not nullified after hitting wall!
     }
 
-    Entity->dVerticalP -= 314.f * dt; // 9.81 m/s * 32 units/m ~= 314 units/s
+    if (ApplyGravity)
+    {
+        Entity->dVerticalP -= 314.f * dt; // 9.81 m/s * 32 units/m ~= 314 units/s
+    }
     TestP.y += Entity->dVerticalP * dt;
     vec3 ResolutionVector = ResolveEntityCollisionsWithWorld(GameState, &GameState->Map, TestP,
                                                              Entity->Orientation, Entity->Scale);
     TestP += ResolutionVector;
 
-    if (AbsoluteValue(Dot(Normalize(ResolutionVector), GM_UP_VECTOR)) > 0.1f)
+    if (AbsoluteValue(Dot(Normalize(ResolutionVector), GMATH_UP)) > 0.1f)
     {
         Entity->dVerticalP = 0.0f;
     }
 
     Entity->P = TestP;
+}
+
+internal void
+DeleteEntity(entity *Entity)
+{
+    Entity->Alive = false;
 }
 
 internal entity_handle 
@@ -424,9 +435,19 @@ SpawnFireballEntity(game_state *GameState, vec3 SpawnP, vec3 DirToPlayer)
     DirToPlayer = Normalize(DirToPlayer);
     vec2 dHorizontalP = { DirToPlayer.x, DirToPlayer.z };
     real32 dVerticalP = DirToPlayer.y;
-    real32 FireballSpeed = 1000.f;
+    real32 FireballSpeed = 500.f;
     dHorizontalP *= FireballSpeed;
     dVerticalP *= FireballSpeed;
+
+#if 1
+    real32 CartesianX = DirToPlayer.x;
+    real32 CartesianY = -DirToPlayer.z;
+    real32 Yaw = ATan2(CartesianY, CartesianX);
+    real32 Pitch = ATan(dVerticalP / FireballSpeed);
+    quat Rotation = QuatFromEuler_XZY(0, Yaw, Pitch);
+#else
+    quat Rotation = LookRotation(DirToPlayer, GMATH_UP);
+#endif
 
     entity *Entity = GetEntity(GameState, EntityIndex);
     Entity->Type = Entity_Fireball;
@@ -436,8 +457,8 @@ SpawnFireballEntity(game_state *GameState, vec3 SpawnP, vec3 DirToPlayer)
     Entity->P = SpawnP;
     Entity->dHorizontalP = dHorizontalP;
     Entity->dVerticalP = dVerticalP;
-    Entity->Orientation = DirectionToOrientation(DirToPlayer);
-    Entity->Scale = vec3(8.0f,8.0f,8.0f);
+    Entity->Orientation = Rotation;
+    Entity->Scale = vec3(12.0f,6.0f,6.0f);
     Entity->QueryLightCache = false; // TODO(Kevin): Force flat lighting
     Entity->State = EnemyState_Chasing;
 
@@ -668,7 +689,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                                                               GameState->Cylinder8SidedIB, CylinderMesh8SidedIndexCount);
 
         SpawnShooterEntity(GameState, vec3(-400, 0.01f, 0));
-        SpawnShooterEntity(GameState, vec3(400, 0.01f, 0));
+        // SpawnShooterEntity(GameState, vec3(400, 0.01f, 0));
         // SpawnShooterEntity(GameState, vec3(300, 0.01f, -200));
 
         Memory->IsInitialized = true;
@@ -718,11 +739,11 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 }
                 if (Controller->LeftShoulder.EndedDown)
                 {
-                    PositionDelta += -GM_UP_VECTOR * MoveIncrement;
+                    PositionDelta += -GMATH_UP * MoveIncrement;
                 }
                 if (Controller->RightShoulder.EndedDown)
                 {
-                    PositionDelta += GM_UP_VECTOR * MoveIncrement;
+                    PositionDelta += GMATH_UP * MoveIncrement;
                 }
                 GameState->Camera.P += PositionDelta;
                 GameState->Camera.ViewPosition = GameState->Camera.P;
@@ -733,7 +754,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
                 PlaceCamera(&GameState->Camera, Player->P + vec3(0,40,0), GameState->Camera.EulerRot);
                 Player->PlayerWalkDirectionRight = GameState->Camera.Right;
-                Player->PlayerWalkDirectionForward = Normalize(Cross(GM_UP_VECTOR, GameState->Camera.Right));
+                Player->PlayerWalkDirectionForward = Normalize(Cross(GMATH_UP, GameState->Camera.Right));
 
                 vec3 PlayerHorizontalVector;
                 if (Controller->MoveUp.EndedDown)
@@ -765,7 +786,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 ddP *= PlayerHorizontalAcceleration;
 
                 real32 TravelDist;
-                MoveEntity(GameState, Player, ddP, DragFactor, Input->dtForFrame, &TravelDist, NULL);
+                MoveEntity(GameState, Player, ddP, DragFactor, Input->dtForFrame, true, &TravelDist, NULL);
                 GameState->PlayerMaxUnitsTravelledPerSecond = MaxHorizontalSpeed;
                 GameState->PlayerUnitsTravelledPerSecond = TravelDist / Input->dtForFrame;
             }
@@ -787,7 +808,13 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             {
                 case Entity_Fireball:
                 {
-                    MoveEntity(GameState, Entity, vec2(0,0), 0, Input->dtForFrame, 0, 0);
+                    vec3 OldEntityPos = Entity->P;
+                    real32 TravelDist;
+                    MoveEntity(GameState, Entity, vec2(0,0), 0, Input->dtForFrame, false, &TravelDist, 0);
+                    if (Magnitude(Entity->P - OldEntityPos) < AbsoluteValue(TravelDist - 0.01f))
+                    {
+                        DeleteEntity(Entity);
+                    }
                 } break;
 
                 case Entity_Shooter:
@@ -806,7 +833,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                     {
                         case EnemyState_Shooting:
                         {
-                            quat PlayerFacingO = DirectionToOrientation(Normalize(ToPlayerHorizontal));
+                            quat PlayerFacingO = OrientationFromDirection(Normalize(ToPlayerHorizontal));
                             Entity->Orientation = PlayerFacingO;
 
                             if (Entity->tShoot > 0.0f)
@@ -822,7 +849,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                         } break;
                         case EnemyState_Chasing:
                         {
-                            quat PlayerFacingO = DirectionToOrientation(Normalize(ToPlayerHorizontal));
+                            quat PlayerFacingO = OrientationFromDirection(Normalize(ToPlayerHorizontal));
                             Entity->Orientation = PlayerFacingO;
 
                             ddHorizontalP = Normalize(vec2(ToPlayer.x, ToPlayer.z));
@@ -830,7 +857,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                         } break;
                     }
 
-                    MoveEntity(GameState, Entity, ddHorizontalP, DragFactor, Input->dtForFrame, 0, 0);
+                    // MoveEntity(GameState, Entity, ddHorizontalP, DragFactor, Input->dtForFrame, true, 0, 0);
 
                     if (Entity->State == EnemyState_Chasing)
                     {

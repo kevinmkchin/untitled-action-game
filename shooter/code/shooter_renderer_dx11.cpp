@@ -350,7 +350,7 @@ DX11EndFrame(dx11 *DX)
     //
     real32 AspectRatio = real32(PreviousBackBufferW) / real32(PreviousBackBufferH);
     real32 FOVX = 90.f;
-    real32 FOVYRad = HorizontalFOVToVerticalFOV(FOVX*GM_DEG2RAD, AspectRatio);
+    real32 FOVYRad = HorizontalFOVToVerticalFOV(FOVX*GMATH_DEG2RAD, AspectRatio);
     mat4 ClipFromView = ClipSpaceFromCameraSpace_PerspectiveProjection(FOVYRad, AspectRatio, 4.f, 3200.f, true);
 
     mat4 ProjFromWorld = ClipFromView * DX->Header.ViewFromWorld;
