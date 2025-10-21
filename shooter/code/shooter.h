@@ -224,6 +224,8 @@ struct entity
     texture_handle RenderLightmap;
     bool32         QueryLightCache;
 
+    real32 AliveSeconds;
+
     enemy_state State;
     real32 tShoot;
 

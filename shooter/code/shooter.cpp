@@ -196,7 +196,7 @@ UpdateCameraStrafeTilt(camera *Camera, vec2 dHorizontalP, real32 MaxHorizontalSp
     if (MaxHorizontalSpeed > 0.0f)
     {
         real32 TiltSpeed = 15.0f;
-        real32 MaxTilt = 0.035f;
+        real32 MaxTilt = 0.015f;
         real32 DesiredCamTilt = 0.0f;
         vec2 CamRight = Normalize(vec2(Camera->Right.x, Camera->Right.z));
 
@@ -348,6 +348,7 @@ AddEntity(game_state *GameState)
         entity *Entity = &(GameState->Entities[EntityHandle]);
         ZeroStruct(*Entity);
         Entity->Alive = true;
+        Entity->AliveSeconds = 0.0f;
         Entity->Orientation = quat();
         Entity->Scale = vec3(1,1,1);
     }
@@ -768,7 +769,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
         if (ControllerIndex == 0)
         {
-            real32 MouseLookSensitivity = 0.002f;
+            real32 MouseLookSensitivity = 0.001f;
             vec2 AdjustedMouseAxes = Input->NormalizedMouseDelta * MouseLookSensitivity;
             MouseLookCamera(&GameState->Camera, AdjustedMouseAxes.x, AdjustedMouseAxes.y);
 
@@ -850,7 +851,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 real32 DragFactor = PlayerHorizontalAcceleration / MaxHorizontalSpeed;
 
                 // Bob view up and down while walking
-                real32 MaxBobOffset = -6.f;
+                real32 MaxBobOffset = -4.6f;
                 // NOTE(Kevin): ddPlayerViewBobOffset (a) scales linearly with MaxBobOffset (d)
                 //              given constant time    d = 1/2(at^2) -> (2/t^2)d = a
                 real32 ddPlayerViewBobOffset = 20.f*MaxBobOffset;
@@ -917,6 +918,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
         if (Entity->Alive)
         {
+            Entity->AliveSeconds += Input->dtForFrame;
+
             switch (Entity->Type)
             {
                 default: break;
@@ -925,10 +928,19 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 {
                     vec3 OldEntityPos = Entity->P;
                     real32 TravelDist;
-                    MoveEntity(GameState, Entity, vec2(0,0), 0, Input->dtForFrame, false, &TravelDist, 0);
+                    MoveEntity(GameState, Entity, vec2(0,0), 0, Input->dtForFrame, false, &TravelDist, 0);                    
                     if (Magnitude(Entity->P - OldEntityPos) < AbsoluteValue(TravelDist - 0.01f))
                     {
                         DeleteEntity(Entity);
+                    }
+                    else
+                    {
+                        if (Entity->AliveSeconds > 3.0f)
+                        {
+                            DeleteEntity(Entity);
+                        }
+                        // CheckCollisionWithPlayer();
+                        // Get player entity's collider, get fireball's collider, check for contact
                     }
                 } break;
 

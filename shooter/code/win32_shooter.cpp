@@ -776,7 +776,7 @@ Win32ProcessPendingMessages(win32_state *State, game_controller_input *KeyboardC
 #endif
                 }
 
-                if(IsDown)
+                if(IsDown && !WasDown)
                 {
                     if(AltKeyDown && VKCode == VK_F4)
                     {
@@ -788,6 +788,13 @@ Win32ProcessPendingMessages(win32_state *State, game_controller_input *KeyboardC
                         {
                             ToggleFullscreen(Message.hwnd);
                         }
+                    }
+                    if (VKCode == VK_F11)
+                    {
+                        if(Message.hwnd)
+                        {
+                            ToggleFullscreen(Message.hwnd);
+                        }                        
                     }
                 }
             } break;
