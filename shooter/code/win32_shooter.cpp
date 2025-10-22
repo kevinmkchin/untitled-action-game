@@ -1005,8 +1005,8 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
             PlatformAPI.DEBUGPlatformWriteEntireFile = DEBUGPlatformWriteEntireFile;
 
             game_memory GameMemory = {};
-            GameMemory.PermanentStorageSize = Megabytes(64);
-            GameMemory.TransientStorageSize = Gigabytes(1);
+            GameMemory.PermanentStorageSize = Megabytes(256);
+            GameMemory.TransientStorageSize = Megabytes(512);
             GameMemory.PlatformAPI = PlatformAPI;
 
 #if HANDMADE_INTERNAL

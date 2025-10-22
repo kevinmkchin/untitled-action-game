@@ -53,8 +53,12 @@ internal vec3 FindFurthestPointOnConvexShell(collider_base *Collider, vec3 Direc
                     MaxDistanceSoFar = Dist;
                 }
 #if 0
-                // I don't think this artificial thickening is helping much
-                Dist = Dot(WorldPoint - n * 1.f, Direction);
+                // NOTE(Kevin): Artificial thickening of the wall like this helps a lot
+                //              to avoid tunneling, but:
+                //              1. I won't be able to only resolve along wall normal
+                //              2. It will be an invisible collider
+                WorldPoint = WorldPoint - n * 16.f;
+                Dist = Dot(WorldPoint, Direction);
                 if (Dist > MaxDistanceSoFar)
                 {
                     FurthestPoint = WorldPoint;
@@ -263,6 +267,10 @@ internal bool32 GJKNextSimplex(gjk_simplex *Capture, vec3 *OutNextDirection)
     }
 }
 
+#if HANDMADE_INTERNAL
+global u32 GJKCallCounter = 0;
+global u32 EPACallCounter = 0;
+#endif
 bool32 GJK(collider_base *A, collider_base *B, gjk_simplex *OutSimplex)
 {
     // NOTE(Kevin): Returns true if the origin is captured by the simplex
@@ -270,7 +278,19 @@ bool32 GJK(collider_base *A, collider_base *B, gjk_simplex *OutSimplex)
     // In the case that GJK returns true, the caller may run EPA with the 
     // capture Simplex.
 
-    *OutSimplex = {};
+#if HANDMADE_INTERNAL
+    ++GJKCallCounter;
+#endif
+
+    gjk_simplex BackupSimplex;
+    if (OutSimplex)
+    {
+        *OutSimplex = {};
+    }
+    else
+    {
+        OutSimplex = &BackupSimplex;
+    }
 
     // TODO(Kevin): make initial search direction `world origin - (A origin - B origin)`
     vec3 Support = GJKSupportFunction(A, B, { 1.f,1.f,1.f });
@@ -391,6 +411,9 @@ internal void EPAKeepEdgeIfUnique(epa_edge *UniqueEdges, uint32 *UniqueEdgesCoun
 epa_result EPA(collider_base *A, collider_base *B, gjk_simplex *Simplex)
 {
     Assert(Simplex->VertexCount == 4);
+#if HANDMADE_INTERNAL
+    ++EPACallCounter;
+#endif
 
     // The initial polytope
     vec3 Vertices[EPA_MAX_VERTICES] = {};

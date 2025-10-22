@@ -256,23 +256,22 @@ TransformMatrix(vec3 P, quat O, vec3 S)
     return TranslationMatrix(P) * RotationMatrix(O) * ScaleMatrix(S);
 }
 
-vec3 WorldPlayerColliderPoints[ArrayCount(((game_state *)0)->Cylinder8SidedPointCloud)];
-mesh_collider WorldPlayerCollider;
-internal mesh_collider *
-Cylinder8SidedCollider(game_state *GameState, vec3 P, quat O, vec3 S)
+internal mesh_collider
+GetTransformedEntityCollider(entity *Entity, vec3 P, quat O, vec3 S, memory_arena *Storage)
 {
     mat4 Transform = TransformMatrix(P, O, S);
 
-    for (u32 Index = 0; Index < ArrayCount(WorldPlayerColliderPoints); ++Index)
+    vec3 *ColliderPoints = (vec3 *)CurrentPtr(Storage);
+    for (u32 Index = 0; Index < Entity->ColliderPointsCount; ++Index)
     {
-        WorldPlayerColliderPoints[Index] = 
-            (Transform*vec4(GameState->Cylinder8SidedPointCloud[Index],1.0f)).xyz;
+        vec3 *ColliderPoint = PushStruct(Storage, vec3);
+        *ColliderPoint = (Transform*vec4(Entity->ColliderPoints[Index],1.0f)).XYZ;
     }
 
-    WorldPlayerCollider.PointCloud = WorldPlayerColliderPoints;
-    WorldPlayerCollider.PointCount = ArrayCount(WorldPlayerColliderPoints);
-
-    return &WorldPlayerCollider;
+    mesh_collider Result;
+    Result.PointCloud = ColliderPoints;
+    Result.PointCount = Entity->ColliderPointsCount;
+    return Result;
 }
 
 struct collision_result
@@ -282,36 +281,49 @@ struct collision_result
     bool32 HasCollision;
 };
 
+internal collision_result
+DoGJKRoutine(collider_base *BodyA, collider_base *BodyB)
+{
+    collision_result CollisionResult = {};
+
+    gjk_simplex CaptureSimplex;
+
+    CollisionResult.HasCollision = GJK(BodyA, BodyB, &CaptureSimplex);
+
+    if (CollisionResult.HasCollision)
+    {
+        epa_result EPAResult = EPA(BodyA, BodyB, &CaptureSimplex);
+
+        CollisionResult.Normal = EPAResult.NearestFaceNormal;
+        CollisionResult.Depth = EPAResult.NearestFaceDist;
+    }
+
+    return CollisionResult;
+}
+
 internal vec3
-ResolveEntityCollisionsWithWorld(game_state *GameState, game_map *Map, vec3 TestP, quat O, vec3 S)
+ResolveEntityCollisionsWithWorld(game_state *GameState, game_map *Map, vec3 TestP, entity *Entity)
 {
     vec3 Result = {};
 
-    mesh_collider *PlayerCollider = Cylinder8SidedCollider(GameState, TestP, O, S);
+    quat O = Entity->Orientation;
+    vec3 S = Entity->ColliderScale;
+
+    temporary_memory TemporaryColliderMemory = BeginTemporaryMemory(&GameState->FrameArena);
+
+    mesh_collider EntityCollider = GetTransformedEntityCollider(Entity, TestP, O, S, &GameState->FrameArena);
 
     for (u32 MapColliderIndex = 0; 
          MapColliderIndex < Map->CollidersCount;
          ++MapColliderIndex)
     {
-        collision_result CollisionResult = {};
-
         flatpoly_collider MapFaceCollider = Map->Colliders[MapColliderIndex];
 
-        gjk_simplex CaptureSimplex;
-
-        CollisionResult.HasCollision = GJK((collider_base *)&MapFaceCollider,
-                                  (collider_base *)PlayerCollider, 
-                                  &CaptureSimplex);
+        collision_result CollisionResult = DoGJKRoutine((collider_base *)&MapFaceCollider,
+                                                        (collider_base *)&EntityCollider);
 
         if (CollisionResult.HasCollision)
         {
-            epa_result EPAResult = EPA((collider_base *)&MapFaceCollider,
-                                       (collider_base *)PlayerCollider,
-                                       &CaptureSimplex);
-
-            CollisionResult.Normal = EPAResult.NearestFaceNormal;
-            CollisionResult.Depth = EPAResult.NearestFaceDist;
-
             vec3 MapFaceP0 = MapFaceCollider.PointCloud[0];
             vec3 MapFaceP1 = MapFaceCollider.PointCloud[1];
             vec3 MapFaceP2 = MapFaceCollider.PointCloud[2];
@@ -324,7 +336,10 @@ ResolveEntityCollisionsWithWorld(game_state *GameState, game_map *Map, vec3 Test
                 // Registered
                 Result += ResolutionVector;
                 TestP += ResolutionVector;
-                PlayerCollider = Cylinder8SidedCollider(GameState, TestP, O, S);
+
+                EndTemporaryMemory(TemporaryColliderMemory);
+                TemporaryColliderMemory = BeginTemporaryMemory(&GameState->FrameArena);
+                EntityCollider = GetTransformedEntityCollider(Entity, TestP, O, S, &GameState->FrameArena);
             }
             else
             {
@@ -332,6 +347,8 @@ ResolveEntityCollisionsWithWorld(game_state *GameState, game_map *Map, vec3 Test
             }
         }
     }
+
+    EndTemporaryMemory(TemporaryColliderMemory);
 
     return Result;
 }
@@ -350,7 +367,7 @@ AddEntity(game_state *GameState)
         Entity->Alive = true;
         Entity->AliveSeconds = 0.0f;
         Entity->Orientation = quat();
-        Entity->Scale = vec3(1,1,1);
+        Entity->RenderScale = vec3(1,1,1);
     }
 
     return EntityHandle;
@@ -420,8 +437,7 @@ MoveEntity(game_state *GameState, entity *Entity, vec2 ddHorizontalP, real32 Dra
     for (u32 Step = 0; Step < NumSteps; ++Step)
     {
         TestP += TravelVector * MoveStepVelocity;
-        vec3 ResolutionVector = ResolveEntityCollisionsWithWorld(GameState, &GameState->Map, TestP,
-                                                                 Entity->Orientation, Entity->Scale);
+        vec3 ResolutionVector = ResolveEntityCollisionsWithWorld(GameState, &GameState->Map, TestP, Entity);
         TestP += ResolutionVector;
         // TODO(Kevin): Horizontal velocity is not nullified after hitting wall!
     }
@@ -432,8 +448,7 @@ MoveEntity(game_state *GameState, entity *Entity, vec2 ddHorizontalP, real32 Dra
         Entity->dVerticalP -= 314.f * dt; // 9.81 m/s * 32 units/m ~= 314 units/s
     }
     TestP.y += Entity->dVerticalP * dt;
-    vec3 ResolutionVector = ResolveEntityCollisionsWithWorld(GameState, &GameState->Map, TestP,
-                                                             Entity->Orientation, Entity->Scale);
+    vec3 ResolutionVector = ResolveEntityCollisionsWithWorld(GameState, &GameState->Map, TestP, Entity);
     TestP += ResolutionVector;
 
     real32 ResolutionLenAlongUp = Dot(Normalize(ResolutionVector), GMATH_UP);
@@ -458,20 +473,25 @@ DeleteEntity(entity *Entity)
     Entity->Alive = false;
 }
 
-internal entity_handle 
+internal entity_handle
 SpawnShooterEntity(game_state *GameState, vec3 SpawnP)
 {
     entity_handle EntityIndex = AddEntity(GameState);
 
     entity *Entity = GetEntity(GameState, EntityIndex);
     Entity->Type = Entity_Shooter;
+    Entity->P = SpawnP;
+    Entity->State = EnemyState_Chasing;
+
     Entity->Visible = true;
     Entity->RenderMesh = GameState->CylinderMesh;
     Entity->RenderAlbedo = GameState->TexWireframeRed;
-    Entity->P = SpawnP;
-    Entity->Scale = vec3(16.f, 47.f, 16.f);
+    Entity->RenderScale = vec3(16.f, 47.f, 16.f);
     Entity->QueryLightCache = true;
-    Entity->State = EnemyState_Chasing;
+
+    Entity->ColliderPoints = GameState->Cylinder8SidedPointCloud;
+    Entity->ColliderPointsCount = ArrayCount(GameState->Cylinder8SidedPointCloud);
+    Entity->ColliderScale = vec3(16.f, 47.f, 16.f);
 
     return EntityIndex;
 }
@@ -497,7 +517,7 @@ SpawnFireballEntity(game_state *GameState, vec3 SpawnP, vec3 DirToPlayer)
     DirToPlayer = Normalize(DirToPlayer);
     vec2 dHorizontalP = { DirToPlayer.x, DirToPlayer.z };
     real32 dVerticalP = DirToPlayer.y;
-    real32 FireballSpeed = 700.f;
+    real32 FireballSpeed = 1000.f;
     dHorizontalP *= FireballSpeed;
     dVerticalP *= FireballSpeed;
 
@@ -509,16 +529,21 @@ SpawnFireballEntity(game_state *GameState, vec3 SpawnP, vec3 DirToPlayer)
 
     entity *Entity = GetEntity(GameState, EntityIndex);
     Entity->Type = Entity_Fireball;
+    Entity->P = SpawnP;
+    Entity->Orientation = Rotation;
+    Entity->State = EnemyState_Chasing;
+    Entity->dHorizontalP = dHorizontalP;
+    Entity->dVerticalP = dVerticalP;
+
     Entity->Visible = true;
     Entity->RenderMesh = GameState->CubeMesh;
     Entity->RenderAlbedo = GameState->TexWireframeRed;
-    Entity->P = SpawnP;
-    Entity->dHorizontalP = dHorizontalP;
-    Entity->dVerticalP = dVerticalP;
-    Entity->Orientation = Rotation;
-    Entity->Scale = vec3(12.0f,12.0f,12.0f);
+    Entity->RenderScale = vec3(12.0f,12.0f,12.0f);
     Entity->QueryLightCache = false; // TODO(Kevin): Force flat lighting
-    Entity->State = EnemyState_Chasing;
+
+    Entity->ColliderPoints = GameState->CubePointCloud;
+    Entity->ColliderPointsCount = ArrayCount(GameState->CubePointCloud);
+    Entity->ColliderScale = vec3(12.0f, 12.0f, 12.0f);
 
     return EntityIndex;
 }
@@ -531,13 +556,18 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
     game_state *GameState = (game_state *)Memory->PermanentStorage;
     gui_state *GuiState = (gui_state *)((uint8 *)Memory->PermanentStorage + sizeof(game_state));
-    ResetArena(&GameState->ScratchArena);
+    ResetArena(&GameState->FrameArena);
+#if HANDMADE_INTERNAL
+    GJKCallCounter = 0;
+    EPACallCounter = 0;
+#endif
+
     if (!Memory->IsInitialized)
     {
-        InitializeArena(&GameState->WorldArena, Memory->PermanentStorageSize - sizeof(game_state) - sizeof(gui_state),
+        InitializeArena(&GameState->PermanentArena, Memory->PermanentStorageSize - sizeof(game_state) - sizeof(gui_state),
                         (uint8 *)Memory->PermanentStorage + sizeof(game_state) + sizeof(gui_state));
 
-        InitializeArena(&GameState->ScratchArena, Memory->TransientStorageSize,
+        InitializeArena(&GameState->FrameArena, Memory->TransientStorageSize,
                         (uint8 *)Memory->TransientStorage);
 
         GameState->EntitiesCount = ArrayCount(GameState->Entities);
@@ -584,6 +614,10 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
         BuildCylinderMesh8Sided(GameState->Cylinder8SidedPointCloud, 
                                 GameState->Cylinder8SidedVB, GameState->Cylinder8SidedIB);
+        for (u32 Index = 0; Index < ArrayCount(GameState->CubePointCloud); ++Index)
+        {
+            GameState->CubePointCloud[Index] = CubePoints[Index];
+        }
 
         char *MapFilename = "../../wd/buildtest.map";
         debug_read_file_result MapReadResult = Memory->PlatformAPI.DEBUGPlatformReadEntireFile(Thread, MapFilename);
@@ -666,7 +700,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             ByteBufferRead(MapBytes, &Position, size_t, &numColliderSpans);
             GameState->Map.ColliderPointsCount = SafeTruncateU64(numColliderPoints);
 
-            u32 *Scratch = (u32 *)ArenaCurrentAddress(&GameState->ScratchArena);
+            u32 *Scratch = (u32 *)CurrentPtr(&GameState->FrameArena);
             ByteBufferReadBulk(MapBytes, &Position, sizeof(vec3)*numColliderPoints,
                                GameState->Map.ColliderPoints);
             ByteBufferReadBulk(MapBytes, &Position, sizeof(u32)*numColliderSpans,
@@ -727,7 +761,10 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         GameState->PlayerEntityHandle = AddEntity(GameState);
         entity *Player = GetEntity(GameState, GameState->PlayerEntityHandle);
         Player->P = vec3(-100, 0.1f, 0);
-        Player->Scale = vec3(8.f,47.f,8.f);
+        Player->HealthPoints = 100.0f;
+        Player->ColliderPoints = GameState->Cylinder8SidedPointCloud;
+        Player->ColliderPointsCount = ArrayCount(GameState->Cylinder8SidedPointCloud);
+        Player->ColliderScale = vec3(8.f,47.f,8.f);
 
         PointCamera(&GameState->Camera, vec3(-100, 60, 0), vec3(1,0,0));
 
@@ -739,7 +776,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             Entity->RenderMesh = GameState->CubeMesh;
             Entity->RenderAlbedo = i > 4 ? DefaultTexture : Test1Texture;
             Entity->P = vec3(100, 30, ((real32)(i) * 25) - 125);
-            Entity->Scale = vec3(1,1,1);
+            Entity->RenderScale = vec3(1,1,1);
             Entity->QueryLightCache = true;
         }
 
@@ -905,7 +942,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     }
 
     uint32 RenderItemsCount = 0;
-    uint8 *RenderItemsStart = ArenaCurrentAddress(&GameState->ScratchArena);
+    uint8 *RenderItemsStart = CurrentPtr(&GameState->FrameArena);
 
     //
     // Test Code! Entity UpdateAndRender
@@ -931,6 +968,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                     MoveEntity(GameState, Entity, vec2(0,0), 0, Input->dtForFrame, false, &TravelDist, 0);                    
                     if (Magnitude(Entity->P - OldEntityPos) < AbsoluteValue(TravelDist - 0.01f))
                     {
+                        // Entity->dHorizontalP = {};
                         DeleteEntity(Entity);
                     }
                     else
@@ -939,8 +977,24 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                         {
                             DeleteEntity(Entity);
                         }
-                        // CheckCollisionWithPlayer();
-                        // Get player entity's collider, get fireball's collider, check for contact
+                        else
+                        {
+                            entity *Player = GetEntity(GameState, GameState->PlayerEntityHandle);
+
+                            temporary_memory TemporaryColliders = BeginTemporaryMemory(&GameState->FrameArena);
+                            mesh_collider A = GetTransformedEntityCollider(Entity, Entity->P, Entity->Orientation,
+                                                                           Entity->ColliderScale, &GameState->FrameArena);
+                            mesh_collider B = GetTransformedEntityCollider(Player, Player->P, Player->Orientation,
+                                                                           Player->ColliderScale, &GameState->FrameArena);
+                            EndTemporaryMemory(TemporaryColliders);
+
+                            bool32 Collided = GJK((collider_base *)&A, (collider_base *)&B, NULL);
+                            if (Collided)
+                            {
+                                Player->HealthPoints -= 30.f;
+                                DeleteEntity(Entity);
+                            }
+                        }
                     }
                 } break;
 
@@ -1013,7 +1067,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
             if (Entity->Visible)
             {
-                render_item *RenderItem = PushStruct(&GameState->ScratchArena, render_item);
+                render_item *RenderItem = PushStruct(&GameState->FrameArena, render_item);
 
                 *RenderItem = {};
                 RenderItem->Descriptor.Mesh = Entity->RenderMesh;
@@ -1023,7 +1077,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 RenderItem->UseLightCubes = Entity->QueryLightCache;
                 RenderItem->WorldPosition = Entity->P;
                 RenderItem->WorldRotation = Entity->Orientation;
-                RenderItem->WorldScale = Entity->Scale;
+                RenderItem->WorldScale = Entity->RenderScale;
 
                 ++RenderItemsCount;
             }
@@ -1039,7 +1093,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     if (CanvasW > 0 && CanvasW < UINT32_MAX && 
         CanvasH > 0 && CanvasH < UINT32_MAX)
     {
-        GuiBeginFrame(GuiState, CanvasW, CanvasH, &GameState->ScratchArena, 
+        GuiBeginFrame(GuiState, CanvasW, CanvasH, &GameState->FrameArena,
                       Input->MouseX, Input->MouseY, Input->MouseButtons[0], Input->MouseButtons[1]);
 
         u32 CrosshairDotWidth = 6;
@@ -1052,18 +1106,28 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         GuiPanel(GuiState, CrosshairOuterRect, vec4(0.f,0.f,0.f,0.8f));
         GuiPanel(GuiState, CrosshairInnerRect, vec4(0.8f,0.8f,0.8f,0.8f));
 
-        GuiTextFmt(GuiState, 100, CanvasH-100, 
+        GuiTextFmt(GuiState, 100, CanvasH-200, 
                    54+u32(36.f*(GameState->PlayerUnitsTravelledPerSecond/GameState->PlayerMaxUnitsTravelledPerSecond)),
                    GuiFontCurses6x9, Align_Left, false, vec4(1,1,1,1),
                    "%d u/s", RoundReal32ToInt32(GameState->PlayerUnitsTravelledPerSecond));
 
         entity *Player = GetEntity(GameState, GameState->PlayerEntityHandle);
-        if (Player->IsSupported)
-        {
-            GuiPanel(GuiState, {40, 40, 128, 128 }, GameState->TexWireframeRed);
-        }
 
-        RendererAPI->PushGuiDrawRequests(&GameState->ScratchArena, GuiState->DrawRequests, GuiState->DrawRequestsCount);
+        GuiTextFmt(GuiState, 100, CanvasH-100, 
+                   54,
+                   GuiFontCurses6x9, Align_Left, false, vec4(1,1,1,1),
+                   "HP: %f", Player->HealthPoints);
+
+        // 6 sides * 6 cubes * 5 steps = 180 GJK calls per entity
+        GuiTextFmt(GuiState, 40, 500, 24, GuiFontAnikki8x8, Align_Left, false, vec4(0,1,0,1), "GJK: %d calls", GJKCallCounter);
+        GuiTextFmt(GuiState, 40, 530, 24, GuiFontAnikki8x8, Align_Left, false, vec4(0,1,0,1), "EPA: %d calls", EPACallCounter);
+
+        // if (Player->IsSupported)
+        // {
+        //     GuiPanel(GuiState, {40, 40, 128, 128 }, GameState->TexWireframeRed);
+        // }
+
+        RendererAPI->PushGuiDrawRequests(&GameState->FrameArena, GuiState->DrawRequests, GuiState->DrawRequestsCount);
     }
 }
 

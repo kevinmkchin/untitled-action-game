@@ -1,29 +1,34 @@
 #include "shooter_gui.h"
 #include "stb_sprintf.h"
 
-internal bool32 IsActive(gui_state *GuiState, u32 ID)
+internal bool32
+IsActive(gui_state *GuiState, u32 ID)
 {
-    bool32 Result = GuiState->InteractionState.Active == ID;
+    bool32 Result = GuiState->Active == ID;
     return Result;
 }
 
-internal bool32 IsHovered(gui_state *GuiState, u32 ID)
+internal bool32
+IsHovered(gui_state *GuiState, u32 ID)
 {
-    bool32 Result = GuiState->InteractionState.Hovered == ID;
+    bool32 Result = GuiState->Hovered == ID;
     return Result;
 }
 
-internal void SetActive(gui_state *GuiState, u32 ID)
+internal void
+SetActive(gui_state *GuiState, u32 ID)
 {
-    GuiState->InteractionState.Active = ID;
+    GuiState->Active = ID;
 }
 
-internal void RequestSetHovered(gui_state *GuiState, u32 ID)
+internal void
+RequestSetHovered(gui_state *GuiState, u32 ID)
 {
-    GuiState->InteractionState.HoveredNextFrame = ID;
+    GuiState->HoveredNextFrame = ID;
 }
 
-internal bool32 MouseInside(gui_state *GuiState, gui_rect Rect)
+internal bool32
+MouseInside(gui_state *GuiState, gui_rect Rect)
 {
     s32 Left = Rect.X;
     s32 Top = Rect.Y;
@@ -41,7 +46,8 @@ internal bool32 MouseInside(gui_state *GuiState, gui_rect Rect)
     }
 }
 
-internal gui_draw_request *NextDrawRequest(gui_state *GuiState)
+internal gui_draw_request *
+NextDrawRequest(gui_state *GuiState)
 {
     gui_draw_request *Result = 0;
     if (GuiState->DrawRequestsCount < MAX_GUI_DRAW_REQUESTS)
@@ -53,13 +59,15 @@ internal gui_draw_request *NextDrawRequest(gui_state *GuiState)
     return Result;
 }
 
-bool32 GuiIsAnyElementActive(gui_state *GuiState)
+internal bool32
+GuiIsAnyElementActive(gui_state *GuiState)
 {
-    bool32 Result = GuiState->InteractionState.Active > 0;
+    bool32 Result = GuiState->Active > 0;
     return Result;
 }
 
-bool32 GuiBehaviourButton(gui_state *GuiState, u32 ID, gui_rect Rect)
+internal bool32
+GuiBehaviourButton(gui_state *GuiState, u32 ID, gui_rect Rect)
 {
     bool32 Result = false;
 
@@ -90,7 +98,8 @@ bool32 GuiBehaviourButton(gui_state *GuiState, u32 ID, gui_rect Rect)
     return Result;
 }
 
-void GuiPushScissor(gui_state *GuiState, gui_rect Scissor)
+internal void
+GuiPushScissor(gui_state *GuiState, gui_rect Scissor)
 {
     if (GuiState->ScissorStackCount < MAX_SCISSOR_STACK)
     {
@@ -123,12 +132,14 @@ void GuiPushScissor(gui_state *GuiState, gui_rect Scissor)
     }
 }
 
-void GuiPopScissor(gui_state *GuiState)
+internal void
+GuiPopScissor(gui_state *GuiState)
 {
     --GuiState->ScissorStackCount;
 }
 
-void GuiPanel(gui_state *GuiState, gui_rect Rect, vec4 RGBA)
+internal void
+GuiPanel(gui_state *GuiState, gui_rect Rect, vec4 RGBA)
 {
     gui_draw_request *DrawRequest = NextDrawRequest(GuiState);
     if (DrawRequest)
@@ -140,7 +151,8 @@ void GuiPanel(gui_state *GuiState, gui_rect Rect, vec4 RGBA)
     }
 }
 
-void GuiPanel(gui_state *GuiState, gui_rect Rect, texture_handle Image)
+internal void
+GuiPanel(gui_state *GuiState, gui_rect Rect, texture_handle Image)
 {
     gui_draw_request *DrawRequest = NextDrawRequest(GuiState);
     if (DrawRequest)
@@ -152,8 +164,9 @@ void GuiPanel(gui_state *GuiState, gui_rect Rect, texture_handle Image)
     }
 }
 
-bool32 GuiButton(gui_state *GuiState, u32 ID, gui_rect Rect, vec4 RGBA, 
-                 vec4 RGBAHovered, vec4 RGBAActive)
+internal bool32
+GuiButton(gui_state *GuiState, u32 ID, gui_rect Rect, vec4 RGBA, 
+          vec4 RGBAHovered, vec4 RGBAActive)
 {
     bool32 Result = GuiBehaviourButton(GuiState, ID, Rect);
 
@@ -173,8 +186,9 @@ bool32 GuiButton(gui_state *GuiState, u32 ID, gui_rect Rect, vec4 RGBA,
     return Result;
 }
 
-bool32 GuiButton(gui_state *GuiState, u32 ID, gui_rect Rect, texture_handle Image, 
-                 texture_handle ImageHovered, texture_handle ImageActive)
+internal bool32
+GuiButton(gui_state *GuiState, u32 ID, gui_rect Rect, texture_handle Image, 
+          texture_handle ImageHovered, texture_handle ImageActive)
 {
     bool32 Result = GuiBehaviourButton(GuiState, ID, Rect);
 
@@ -194,24 +208,28 @@ bool32 GuiButton(gui_state *GuiState, u32 ID, gui_rect Rect, texture_handle Imag
     return Result;
 }
 
-void GuiTextFmt(gui_state *GuiState, s32 X, s32 Y, u32 FontSize, gui_font FontIndex, gui_alignment Align,
-                bool32 PutNewLinesAbove, vec4 TextColor, char *TextFmt, ...)
+internal void
+GuiTextFmt(gui_state *GuiState, s32 X, s32 Y, u32 FontSize, gui_font FontIndex, gui_alignment Align,
+           bool32 PutNewLinesAbove, vec4 TextColor, char *TextFmt, ...)
 {
     if (TextFmt)
     {
-        char *CurrentAddress = (char *)ArenaCurrentAddress(GuiState->Scratch);
+        char *CurrentAddress = (char *)CurrentPtr(GuiState->Scratch);
 
         va_list ArgPtr;
         va_start(ArgPtr, TextFmt);
         int TextLength = vsprintf(CurrentAddress, TextFmt, ArgPtr);
         va_end(ArgPtr);
 
+        PushArray(GuiState->Scratch, TextLength+1, char); // to move the used index
+
         GuiText(GuiState, X, Y, FontSize, FontIndex, Align, PutNewLinesAbove, TextColor, CurrentAddress);
     }
 }
 
-void GuiText(gui_state *GuiState, s32 X, s32 Y, u32 FontSize, gui_font FontIndex, gui_alignment Align,
-             bool32 PutNewLinesAbove, vec4 TextColor, char *Text)
+internal void
+GuiText(gui_state *GuiState, s32 X, s32 Y, u32 FontSize, gui_font FontIndex, gui_alignment Align,
+        bool32 PutNewLinesAbove, vec4 TextColor, char *Text)
 {
     if (Text == NULL)
     {
@@ -221,19 +239,19 @@ void GuiText(gui_state *GuiState, s32 X, s32 Y, u32 FontSize, gui_font FontIndex
     gui_draw_request *DrawRequest = NextDrawRequest(GuiState);
     if (DrawRequest)
     {
-        char *CurrentAddress = (char *)ArenaCurrentAddress(GuiState->Scratch);
         int TextLength = StringLength(Text);
-        if (CurrentAddress != Text)
+
+        char *String = (char *)CurrentPtr(GuiState->Scratch);
+        if (String != Text)
         {
             // NOTE(Kevin): If string is at same location as CurrentAddress, then we only need
             // to move the used index by the text length. No need for copy.
-            Copy(CurrentAddress, Text, TextLength);
+            String = PushString(GuiState->Scratch, Text);
         }
-        PushArray(GuiState->Scratch, TextLength+1, char); // to move the used index
 
         DrawRequest->DrawType = GuiDrawText;
         DrawRequest->Color = TextColor;
-        DrawRequest->Text = CurrentAddress;
+        DrawRequest->Text = String;
         DrawRequest->X = X;
         DrawRequest->Y = Y;
         DrawRequest->FontSize = FontSize;
@@ -243,15 +261,18 @@ void GuiText(gui_state *GuiState, s32 X, s32 Y, u32 FontSize, gui_font FontIndex
     }
 }
 
-void GuiBeginFrame(gui_state *GuiState, u32 CanvasWidth, u32 CanvasHeight, memory_arena *Scratch,
-                   s32 MouseX, s32 MouseY, game_button_state LMB, game_button_state RMB)
+internal void
+GuiBeginFrame(gui_state *GuiState, u32 CanvasWidth, u32 CanvasHeight, memory_arena *Scratch,
+              s32 MouseX, s32 MouseY, game_button_state LMB, game_button_state RMB)
 {
-    GuiState->Scratch = Scratch;
-
     GuiState->CallOrder = 0;
 
+    GuiState->Scratch = Scratch;
+    GuiState->DrawRequests = PushArray(GuiState->Scratch, MAX_GUI_DRAW_REQUESTS, gui_draw_request);
     GuiState->DrawRequestsCount = 0;
+    GuiState->ScissorStack = PushArray(GuiState->Scratch, MAX_SCISSOR_STACK, gui_rect);
     GuiState->ScissorStackCount = 0;
+
     GuiPushScissor(GuiState, { 0, 0, CanvasWidth, CanvasHeight });
 
     GuiState->MouseX = MouseX;
@@ -262,6 +283,6 @@ void GuiBeginFrame(gui_state *GuiState, u32 CanvasWidth, u32 CanvasHeight, memor
     GuiState->RMBWentDown = (RMB.EndedDown && RMB.HalfTransitionCount > 0);
     GuiState->RMBWentUp = (!RMB.EndedDown && RMB.HalfTransitionCount > 0);
 
-    GuiState->InteractionState.Hovered = GuiState->InteractionState.HoveredNextFrame;
-    GuiState->InteractionState.HoveredNextFrame = 0;
+    GuiState->Hovered = GuiState->HoveredNextFrame;
+    GuiState->HoveredNextFrame = 0;
 }

@@ -144,46 +144,8 @@ typedef GAME_GET_SOUND_SAMPLES(game_get_sound_samples);
 // platform layer does not need to know about these:
 //
 
-struct memory_arena
-{
-    memory_index Size;
-    uint8 *Base;
-    memory_index Used;
-};
-
-internal void
-InitializeArena(memory_arena *Arena, memory_index Size, uint8 *Base)
-{
-    Arena->Size = Size;
-    Arena->Base = Base;
-    Arena->Used = 0;
-}
-
-internal void
-ResetArena(memory_arena *Arena)
-{
-    Arena->Used = 0;
-}
-
-internal uint8 *
-ArenaCurrentAddress(memory_arena *Arena)
-{
-    return Arena->Base + Arena->Used;
-}
-
-#define PushStruct(Arena, type) (type *)PushSize_(Arena, sizeof(type))
-#define PushArray(Arena, Count, type) (type *)PushSize_(Arena, (Count)*sizeof(type))
-void *
-PushSize_(memory_arena *Arena, memory_index Size)
-{
-    Assert((Arena->Used + Size) <= Arena->Size);
-    void *Result = Arena->Base + Arena->Used;
-    Arena->Used += Size;
-
-    return Result;
-}
-
 #include "gmath.h"
+#include "shooter_memory.h"
 #include "shooter_renderer.h"
 #include "shooter_intrinsics.h"
 #include "shooter_meshes.h"
@@ -217,8 +179,14 @@ struct entity
     real32 dVerticalP; // u/s
     bool32 IsSupported; // by a floor
     quat Orientation;
-    vec3 Scale;
 
+    // TODO(Kevin): Should I just store a primitive collider "type" like capsule, cube, etc?
+    //              How would custom point clouds work then?
+    vec3 *ColliderPoints;
+    u32 ColliderPointsCount;
+    vec3 ColliderScale;
+
+    vec3           RenderScale;
     mesh_handle    RenderMesh;
     texture_handle RenderAlbedo;
     texture_handle RenderLightmap;
@@ -228,6 +196,8 @@ struct entity
 
     enemy_state State;
     real32 tShoot;
+
+    real32 HealthPoints;
 
     vec3 PlayerWalkDirectionRight;
     vec3 PlayerWalkDirectionForward;
@@ -275,8 +245,8 @@ struct game_map
 
 struct game_state
 {
-    memory_arena WorldArena;
-    memory_arena ScratchArena;
+    memory_arena PermanentArena;
+    memory_arena FrameArena;
 
     game_map Map;
 
@@ -294,7 +264,9 @@ struct game_state
 
     PNUV2_vertex Cylinder8SidedVB[CylinderMesh8SidedVertexCount];
     u32 Cylinder8SidedIB[CylinderMesh8SidedIndexCount];
+
     vec3 Cylinder8SidedPointCloud[CylinderMesh8SidedPointCount];
+    vec3 CubePointCloud[8];
 
     mesh_handle CubeMesh;
     mesh_handle CylinderMesh;

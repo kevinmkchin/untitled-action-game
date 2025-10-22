@@ -97,23 +97,18 @@ struct gui_draw_request
     };
 };
 
-struct gui_persist_state
-{
-    u32 Active;
-    u32 Hovered;
-    u32 HoveredNextFrame;
-};
-
 struct gui_state
 {
     u32 CallOrder; // TODO(Kevin): Can we use low 24 bits for call order and high 8 bits for "depth"? then sort draw requests by that
 
+    memory_arena *Scratch;
+
     #define MAX_GUI_DRAW_REQUESTS 1000
-    gui_draw_request DrawRequests[MAX_GUI_DRAW_REQUESTS];
+    gui_draw_request *DrawRequests;
     u32 DrawRequestsCount;
 
     #define MAX_SCISSOR_STACK 8
-    gui_rect ScissorStack[MAX_SCISSOR_STACK];
+    gui_rect *ScissorStack;
     u32 ScissorStackCount;
 
     s32 MouseX;
@@ -124,31 +119,43 @@ struct gui_state
     bool32 RMBWentUp;
     // TODO(Kevin): Array of typed keys to read keyboard input from
 
-    memory_arena *Scratch;
-
+    // These should persist between frames!
     font_handle Fonts[2];
-
-    gui_persist_state InteractionState;
+    u32 Active;
+    u32 Hovered;
+    u32 HoveredNextFrame;
 };
 
-bool32 GuiIsAnyElementActive(gui_state *GuiState);
-bool32 GuiBehaviourButton(gui_state *GuiState, u32 ID, gui_rect Rect);
+internal bool32
+GuiIsAnyElementActive(gui_state *GuiState);
+internal bool32
+GuiBehaviourButton(gui_state *GuiState, u32 ID, gui_rect Rect);
 
-void GuiPushScissor(gui_state *GuiState, gui_rect Scissor);
-void GuiPopScissor(gui_state *GuiState);
+internal void
+GuiPushScissor(gui_state *GuiState, gui_rect Scissor);
+internal void
+GuiPopScissor(gui_state *GuiState);
 
-void GuiPanel(gui_state *GuiState, gui_rect Rect, vec4 RGBA);
-void GuiPanel(gui_state *GuiState, gui_rect Rect, texture_handle Image);
-bool32 GuiButton(gui_state *GuiState, u32 ID, gui_rect Rect, vec4 RGBA, vec4 RGBAHovered, vec4 RGBAActive);
-bool32 GuiButton(gui_state *GuiState, u32 ID, gui_rect Rect, texture_handle Image, 
-                 texture_handle ImageHovered, texture_handle ImageActive);
-// void GuiCheckbox(u32 ID, gui_rect Rect, int32 Inset, bool32 *Value, vec4 RGBABackground, vec4 RGBAForeground);
-void GuiTextFmt(gui_state *GuiState, s32 X, s32 Y, u32 FontSize, gui_font FontIndex, gui_alignment Align,
-                bool32 PutNewLinesAbove, vec4 TextColor, char *TextFmt, ...);
-void GuiText(gui_state *GuiState, s32 X, s32 Y, u32 FontSize, gui_font FontIndex, gui_alignment Align,
-             bool32 PutNewLinesAbove, vec4 TextColor, char *Text);
+internal void
+GuiPanel(gui_state *GuiState, gui_rect Rect, vec4 RGBA);
+internal void
+GuiPanel(gui_state *GuiState, gui_rect Rect, texture_handle Image);
+internal bool32 
+GuiButton(gui_state *GuiState, u32 ID, gui_rect Rect, vec4 RGBA, vec4 RGBAHovered, vec4 RGBAActive);
+internal bool32
+GuiButton(gui_state *GuiState, u32 ID, gui_rect Rect, texture_handle Image, 
+          texture_handle ImageHovered, texture_handle ImageActive);
+internal void
+GuiTextFmt(gui_state *GuiState, s32 X, s32 Y, u32 FontSize, gui_font FontIndex, gui_alignment Align,
+           bool32 PutNewLinesAbove, vec4 TextColor, char *TextFmt, ...);
+internal void
+GuiText(gui_state *GuiState, s32 X, s32 Y, u32 FontSize, gui_font FontIndex, gui_alignment Align,
+        bool32 PutNewLinesAbove, vec4 TextColor, char *Text);
 
-void GuiBeginFrame(gui_state *GuiState, u32 CanvasWidth, u32 CanvasHeight, memory_arena *Scratch,
-                   s32 MouseX, s32 MouseY, game_button_state LMB, game_button_state RMB);
+// TODO(Kevin): internal void GuiCheckbox(u32 ID, gui_rect Rect, int32 Inset, bool32 *Value, vec4 RGBABackground, vec4 RGBAForeground);
+
+internal void
+GuiBeginFrame(gui_state *GuiState, u32 CanvasWidth, u32 CanvasHeight, memory_arena *Scratch,
+              s32 MouseX, s32 MouseY, game_button_state LMB, game_button_state RMB);
 
 #endif // SHOOTER_GUI_H
