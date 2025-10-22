@@ -978,7 +978,8 @@ inline void LookRotation2(vec3 LookDirection, real32 *Yaw, real32 *Pitch)
     real32 CartesianX = LookDirection.x;
     real32 CartesianY = -LookDirection.z;
     *Yaw = ATan2(CartesianY, CartesianX);
-    *Pitch = ATan(LookDirection.y);
+    real32 HorizontalLength = Length({ LookDirection.x, LookDirection.z });
+    *Pitch = ATan(LookDirection.y / HorizontalLength);
 }
 
 inline quat LookRotation3(vec3 LookDirection)
