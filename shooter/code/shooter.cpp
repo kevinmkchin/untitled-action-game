@@ -354,7 +354,7 @@ ResolveEntityCollisionsWithWorld(game_state *GameState, game_map *Map, vec3 Test
 }
 
 internal entity_handle
-AddEntity(game_state *GameState)
+AddEntity(game_state *GameState, bool32 MakeAlive)
 {
     entity_handle EntityHandle = 0;
 
@@ -364,8 +364,11 @@ AddEntity(game_state *GameState)
 
         entity *Entity = &(GameState->Entities[EntityHandle]);
         ZeroStruct(*Entity);
-        Entity->Alive = true;
-        Entity->AliveSeconds = 0.0f;
+        if (MakeAlive)
+        {
+            Entity->Alive = true;
+            Entity->AliveSeconds = 0.0f;
+        }
         Entity->Orientation = quat();
         Entity->RenderScale = vec3(1,1,1);
     }
@@ -476,7 +479,7 @@ DeleteEntity(entity *Entity)
 internal entity_handle
 SpawnShooterEntity(game_state *GameState, vec3 SpawnP)
 {
-    entity_handle EntityIndex = AddEntity(GameState);
+    entity_handle EntityIndex = AddEntity(GameState, true);
 
     entity *Entity = GetEntity(GameState, EntityIndex);
     Entity->Type = Entity_Shooter;
@@ -499,7 +502,7 @@ SpawnShooterEntity(game_state *GameState, vec3 SpawnP)
 internal entity_handle
 SpawnFireballEntity(game_state *GameState, vec3 SpawnP, vec3 DirToPlayer)
 {
-    entity_handle EntityIndex = AddEntity(GameState);
+    entity_handle EntityIndex = AddEntity(GameState, true);
 
     // NOTE(Kevin): The fastest an entity can travel per second without tunneling
     // through planar walls is:
@@ -573,15 +576,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         GameState->EntitiesCount = ArrayCount(GameState->Entities);
         GameState->FreeEntityHandlesCount = ArrayCount(GameState->FreeEntityHandles);
         Assert(ArrayCount(GameState->Entities) == ArrayCount(GameState->FreeEntityHandles));
-        for (s32 FreeHandle = 0;
-             FreeHandle < SafeCastToS32(GameState->FreeEntityHandlesCount);
-             ++FreeHandle)
-        {
-            GameState->FreeEntityHandles[GameState->FreeEntityHandlesCount - FreeHandle - 1] = 
-                (entity_handle)SafeCastToU32(FreeHandle);
-        }
-
-        AddEntity(GameState); // NOTE(Kevin): Reserve entity slot 0 for the null entity
+        PopulateFreeHandles(GameState->FreeEntityHandles, GameState->FreeEntityHandlesCount);
+        AddEntity(GameState, false); // NOTE(Kevin): Reserve entity slot 0 for the null entity
 
         GameState->Backdrop = DEBUGLoadBMP(Thread, Memory->PlatformAPI.DEBUGPlatformReadEntireFile, "test/test_background.bmp");
 
@@ -618,7 +614,10 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         {
             GameState->CubePointCloud[Index] = CubePoints[Index];
         }
+        GameState->CylinderMesh = RendererAPI->UploadMeshData(GameState->Cylinder8SidedVB, CylinderMesh8SidedVertexCount, 
+                                                              GameState->Cylinder8SidedIB, CylinderMesh8SidedIndexCount);
 
+#if 0
         char *MapFilename = "../../wd/buildtest.map";
         debug_read_file_result MapReadResult = Memory->PlatformAPI.DEBUGPlatformReadEntireFile(Thread, MapFilename);
         if (MapReadResult.ContentsSize > 0)
@@ -747,7 +746,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 free(ib);
 
                 // TODO(Kevin): Map geometry does not need to be entity if I don't want
-                entity_handle EntityIndex = AddEntity(GameState);
+                entity_handle EntityIndex = AddEntity(GameState, false);
                 entity *Entity = GetEntity(GameState, EntityIndex);
                 Entity->Visible = true;
                 Entity->RenderMesh = MapGeometry;
@@ -757,8 +756,12 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
             Memory->PlatformAPI.DEBUGPlatformFreeFileMemory(Thread, MapReadResult.Contents);
         }
+#endif
 
-        GameState->PlayerEntityHandle = AddEntity(GameState);
+        PointCamera(&GameState->Camera, vec3(-100, 60, 0), vec3(1,0,0));
+
+#if 0
+        GameState->PlayerEntityHandle = AddEntity(GameState, true);
         entity *Player = GetEntity(GameState, GameState->PlayerEntityHandle);
         Player->P = vec3(-100, 0.1f, 0);
         Player->HealthPoints = 100.0f;
@@ -766,11 +769,9 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         Player->ColliderPointsCount = ArrayCount(GameState->Cylinder8SidedPointCloud);
         Player->ColliderScale = vec3(8.f,47.f,8.f);
 
-        PointCamera(&GameState->Camera, vec3(-100, 60, 0), vec3(1,0,0));
-
         for (u32 i = 0; i < 10; ++i)
         {
-            entity_handle EntityIndex = AddEntity(GameState);
+            entity_handle EntityIndex = AddEntity(GameState, false);
             entity *Entity = GetEntity(GameState, EntityIndex);
             Entity->Visible = true;
             Entity->RenderMesh = GameState->CubeMesh;
@@ -780,12 +781,50 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             Entity->QueryLightCache = true;
         }
 
-        GameState->CylinderMesh = RendererAPI->UploadMeshData(GameState->Cylinder8SidedVB, CylinderMesh8SidedVertexCount, 
-                                                              GameState->Cylinder8SidedIB, CylinderMesh8SidedIndexCount);
-
         SpawnShooterEntity(GameState, vec3(-400, 0.01f, 0));
         SpawnShooterEntity(GameState, vec3(400, 0.01f, 0));
         // SpawnShooterEntity(GameState, vec3(300, 0.01f, -200));
+#else
+        GameState->EditorMode = true;
+        Assert(Memory->EditorMemoryStorageSize > 0);
+
+        memory_blocks EditorMemory;
+        // InitializeMemoryBlocks(&EditorMemory, Memory->EditorMemoryStorageSize, Memory->EditorMemoryStorage);
+        InitializeMemoryBlocks(&EditorMemory, 1000, Memory->EditorMemoryStorage);
+
+        void *A = MemBlocksAlloc(&EditorMemory, 94);
+        void *B = MemBlocksAlloc(&EditorMemory, 124);
+        void *C = MemBlocksAlloc(&EditorMemory, 32);
+        MemBlocksFree(&EditorMemory, B);
+        void *D = MemBlocksAlloc(&EditorMemory, 32);
+        void *E = MemBlocksAlloc(&EditorMemory, 64);
+        Assert(A < C && D < C && E < C && D < E);
+        umm A_ = (umm)A;
+        umm B_ = (umm)B;
+        umm C_ = (umm)C;
+        umm D_ = (umm)D;
+        umm E_ = (umm)E;
+        MemBlocksFree(&EditorMemory, C);
+        MemBlocksFree(&EditorMemory, D);
+        MemBlocksFree(&EditorMemory, E);
+        MemBlocksFree(&EditorMemory, A);
+        Assert(EditorMemory.FreeListHead == EditorMemory.FreeListTail);
+        Assert(EditorMemory.FreeListHead->Size == 960);
+
+        // test fill up arena, free some earlier things (have them added to tail), then try allocate
+        InitializeMemoryBlocks(&EditorMemory, 500, Memory->EditorMemoryStorage);
+        void *X = MemBlocksAlloc(&EditorMemory, 124);
+        void *Y = MemBlocksAlloc(&EditorMemory, 124);
+        void *Z = MemBlocksAlloc(&EditorMemory, 124);
+        void *W = MemBlocksAlloc(&EditorMemory, 124);
+        MemBlocksFree(&EditorMemory, Y);
+        Y = MemBlocksAlloc(&EditorMemory, 124);
+        MemBlocksFree(&EditorMemory, X);
+        X = MemBlocksAlloc(&EditorMemory, 124);
+        MemBlocksFree(&EditorMemory, Z);
+        Z = MemBlocksAlloc(&EditorMemory, 124);
+
+#endif
 
         Memory->IsInitialized = true;
     }
@@ -810,7 +849,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             vec2 AdjustedMouseAxes = Input->NormalizedMouseDelta * MouseLookSensitivity;
             MouseLookCamera(&GameState->Camera, AdjustedMouseAxes.x, AdjustedMouseAxes.y);
 
-            bool32 FlyCam = false;
+            bool32 FlyCam = true;
             if (FlyCam)
             {
                 vec3 PositionDelta;
@@ -843,7 +882,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 GameState->Camera.P += PositionDelta;
                 GameState->Camera.ViewPosition = GameState->Camera.P;
             }
-            else
+            else if (!GameState->EditorMode)
             {
                 entity *Player = GetEntity(GameState, GameState->PlayerEntityHandle);
                 // NOTE(Kevin): Camera.Right should already be updated from MouseLook!
@@ -953,7 +992,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     {
         entity *Entity = GetEntity(GameState, EntityIndex);
 
-        if (Entity->Alive)
+        if (Entity->Alive && !GameState->EditorMode)
         {
             Entity->AliveSeconds += Input->dtForFrame;
 
@@ -1064,23 +1103,23 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
                 } break;
             }
+        }
 
-            if (Entity->Visible)
-            {
-                render_item *RenderItem = PushStruct(&GameState->FrameArena, render_item);
+        if (Entity->Visible)
+        {
+            render_item *RenderItem = PushStruct(&GameState->FrameArena, render_item);
 
-                *RenderItem = {};
-                RenderItem->Descriptor.Mesh = Entity->RenderMesh;
-                RenderItem->Descriptor.Albedo = Entity->RenderAlbedo;
-                RenderItem->Descriptor.Lightmap = Entity->RenderLightmap;
-                RenderItem->UseLightmap = Entity->RenderLightmap > 0;
-                RenderItem->UseLightCubes = Entity->QueryLightCache;
-                RenderItem->WorldPosition = Entity->P;
-                RenderItem->WorldRotation = Entity->Orientation;
-                RenderItem->WorldScale = Entity->RenderScale;
+            *RenderItem = {};
+            RenderItem->Descriptor.Mesh = Entity->RenderMesh;
+            RenderItem->Descriptor.Albedo = Entity->RenderAlbedo;
+            RenderItem->Descriptor.Lightmap = Entity->RenderLightmap;
+            RenderItem->UseLightmap = Entity->RenderLightmap > 0;
+            RenderItem->UseLightCubes = Entity->QueryLightCache;
+            RenderItem->WorldPosition = Entity->P;
+            RenderItem->WorldRotation = Entity->Orientation;
+            RenderItem->WorldScale = Entity->RenderScale;
 
-                ++RenderItemsCount;
-            }
+            ++RenderItemsCount;
         }
     }
 
@@ -1106,26 +1145,29 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         GuiPanel(GuiState, CrosshairOuterRect, vec4(0.f,0.f,0.f,0.8f));
         GuiPanel(GuiState, CrosshairInnerRect, vec4(0.8f,0.8f,0.8f,0.8f));
 
-        GuiTextFmt(GuiState, 100, CanvasH-200, 
-                   54+u32(36.f*(GameState->PlayerUnitsTravelledPerSecond/GameState->PlayerMaxUnitsTravelledPerSecond)),
-                   GuiFontCurses6x9, Align_Left, false, vec4(1,1,1,1),
-                   "%d u/s", RoundReal32ToInt32(GameState->PlayerUnitsTravelledPerSecond));
+        if (!GameState->EditorMode)
+        {
+            GuiTextFmt(GuiState, 100, CanvasH-200, 
+                       54+u32(36.f*(GameState->PlayerUnitsTravelledPerSecond/GameState->PlayerMaxUnitsTravelledPerSecond)),
+                       GuiFontCurses6x9, Align_Left, false, vec4(1,1,1,1),
+                       "%d u/s", RoundReal32ToInt32(GameState->PlayerUnitsTravelledPerSecond));
 
-        entity *Player = GetEntity(GameState, GameState->PlayerEntityHandle);
+            entity *Player = GetEntity(GameState, GameState->PlayerEntityHandle);
 
-        GuiTextFmt(GuiState, 100, CanvasH-100, 
-                   54,
-                   GuiFontCurses6x9, Align_Left, false, vec4(1,1,1,1),
-                   "HP: %f", Player->HealthPoints);
+            GuiTextFmt(GuiState, 100, CanvasH-100, 
+                       54,
+                       GuiFontCurses6x9, Align_Left, false, vec4(1,1,1,1),
+                       "HP: %f", Player->HealthPoints);
 
-        // 6 sides * 6 cubes * 5 steps = 180 GJK calls per entity
-        GuiTextFmt(GuiState, 40, 500, 24, GuiFontAnikki8x8, Align_Left, false, vec4(0,1,0,1), "GJK: %d calls", GJKCallCounter);
-        GuiTextFmt(GuiState, 40, 530, 24, GuiFontAnikki8x8, Align_Left, false, vec4(0,1,0,1), "EPA: %d calls", EPACallCounter);
+            // 6 sides * 6 cubes * 5 steps = 180 GJK calls per entity
+            GuiTextFmt(GuiState, 40, 500, 24, GuiFontAnikki8x8, Align_Left, false, vec4(0,1,0,1), "GJK: %d calls", GJKCallCounter);
+            GuiTextFmt(GuiState, 40, 530, 24, GuiFontAnikki8x8, Align_Left, false, vec4(0,1,0,1), "EPA: %d calls", EPACallCounter);
 
-        // if (Player->IsSupported)
-        // {
-        //     GuiPanel(GuiState, {40, 40, 128, 128 }, GameState->TexWireframeRed);
-        // }
+            // if (Player->IsSupported)
+            // {
+            //     GuiPanel(GuiState, {40, 40, 128, 128 }, GameState->TexWireframeRed);
+            // }
+        }
 
         RendererAPI->PushGuiDrawRequests(&GameState->FrameArena, GuiState->DrawRequests, GuiState->DrawRequestsCount);
     }

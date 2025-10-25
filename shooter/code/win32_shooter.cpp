@@ -13,7 +13,7 @@ Platform Layer TODO
 */
 
 #define SHOOTER_PLATFORM_WIN32
-#define SHOOTER_WIN32_OPEN_CONSOLE 0
+#define SHOOTER_WIN32_OPEN_CONSOLE 1
 #define SHOOTER_WIN32_FORCE_OFF_DWM_DPI_SCALING 1
 #define SHOOTER_LOAD_RENDERDOC 1
 
@@ -1007,6 +1007,11 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
             game_memory GameMemory = {};
             GameMemory.PermanentStorageSize = Megabytes(256);
             GameMemory.TransientStorageSize = Megabytes(512);
+#if SHOOTER_COMPILE_WITH_EDITOR
+            GameMemory.EditorMemoryStorageSize = Gigabytes(1);
+#else
+            GameMemory.EditorMemoryStorageSize = 0;
+#endif
             GameMemory.PlatformAPI = PlatformAPI;
 
 #if HANDMADE_INTERNAL
@@ -1024,6 +1029,11 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
             GameMemory.PermanentStorage = Win32State.GameMemoryBlock;
             GameMemory.TransientStorage = ((uint8 *)GameMemory.PermanentStorage + 
                                            GameMemory.PermanentStorageSize);
+#if SHOOTER_COMPILE_WITH_EDITOR
+            GameMemory.EditorMemoryStorage = VirtualAlloc(((u8 *)BaseAddress) + (size_t)Win32State.GameMemoryTotalSize,
+                                                          GameMemory.EditorMemoryStorageSize,
+                                                          MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
+#endif
 
             if (Samples && GameMemory.PermanentStorage)
             {

@@ -91,8 +91,6 @@ typedef buffer string;
 #define Pi32 3.14159265359f
 
 #include <stb_sprintf.h>
-#define sprintf stbsp_sprintf
-#define vsprintf stbsp_vsprintf
 
 #if HANDMADE_SLOW
 // TODO(Kevin): Complete assertion macro

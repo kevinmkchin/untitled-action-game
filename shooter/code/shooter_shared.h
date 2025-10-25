@@ -285,4 +285,16 @@ HorizontalFOVToVerticalFOV(real32 FOVXInRadians, real32 AspectRatio)
     return FOVY;
 }
 
+internal void
+PopulateFreeHandles(u32 *HandlesArray, u32 Count)
+{
+    s32 SCount = SafeCastToS32(Count);
+    for (s32 FreeHandle = 0;
+         FreeHandle < SCount;
+         ++FreeHandle)
+    {
+        HandlesArray[SCount - FreeHandle - 1] = SafeCastToU32(FreeHandle);
+    }
+}
+
 #endif // SHOOTER_SHARED_H

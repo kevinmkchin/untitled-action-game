@@ -218,7 +218,7 @@ GuiTextFmt(gui_state *GuiState, s32 X, s32 Y, u32 FontSize, gui_font FontIndex, 
 
         va_list ArgPtr;
         va_start(ArgPtr, TextFmt);
-        int TextLength = vsprintf(CurrentAddress, TextFmt, ArgPtr);
+        int TextLength = stbsp_vsprintf(CurrentAddress, TextFmt, ArgPtr);
         va_end(ArgPtr);
 
         PushArray(GuiState->Scratch, TextLength+1, char); // to move the used index

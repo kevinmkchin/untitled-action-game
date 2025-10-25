@@ -3,6 +3,8 @@
 #include "shooter_types.h"
 #include "shooter_colliders.h"
 
+#define SHOOTER_COMPILE_WITH_EDITOR 1
+
 // the game is the services to the operating system level to produce the graphics
 // and sound necessary to play the game
 
@@ -129,6 +131,9 @@ struct game_memory
 
     uint64 TransientStorageSize;
     void *TransientStorage; // NOTE(Kevin): REQUIRED to be cleared to zero at startup
+
+    uint64 EditorMemoryStorageSize;
+    void *EditorMemoryStorage; // NOTE(Kevin): REQUIRED to be cleared to zero at startup
 
     platform_api PlatformAPI;
 };
@@ -280,4 +285,6 @@ struct game_state
 
     real32 tSine;
     loaded_bitmap Backdrop;
+
+    bool32 EditorMode;
 };

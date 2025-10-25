@@ -283,26 +283,14 @@ DX11Init(dx11 *DX)
     //
     // Handle values
     //
+    // TODO(Kevin): Upload "missing" texture and "default" mesh for the 0 handles
     DX->FreeMeshHandlesCount = ArrayCount(DX->FreeMeshHandles);
-    for (s32 FreeHandle = 0;
-         FreeHandle < SafeCastToS32(DX->FreeMeshHandlesCount);
-         ++FreeHandle)
-    {
-        DX->FreeMeshHandles[DX->FreeMeshHandlesCount - FreeHandle - 1] = 
-            (mesh_handle)SafeCastToU32(FreeHandle);
-    }
+    PopulateFreeHandles(DX->FreeMeshHandles, DX->FreeMeshHandlesCount);
     UseNextAvailableMeshHandle(DX); // NOTE(Kevin): 0 is reserved
 
     DX->FreeTextureHandlesCount = ArrayCount(DX->FreeTextureHandles);
-    for (s32 FreeHandle = 0; 
-         FreeHandle < SafeCastToS32(DX->FreeTextureHandlesCount);
-         ++FreeHandle)
-    {
-        DX->FreeTextureHandles[DX->FreeTextureHandlesCount - FreeHandle - 1] = 
-            (texture_handle)SafeCastToU32(FreeHandle);
-    }
+    PopulateFreeHandles(DX->FreeTextureHandles, DX->FreeTextureHandlesCount);
     UseNextAvailableTextureHandle(DX); // NOTE(Kevin): 0 is reserved
-    // TODO(Kevin): Upload "missing" texture and "default" mesh for the 0 handles
 }
 
 internal void
