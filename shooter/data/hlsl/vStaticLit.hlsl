@@ -16,12 +16,12 @@ struct model_instance_data
 {
     float4x4 WorldFromModel;
     float4 PointLightsPos[4];
-    float AmbientCube[6];
+    float4 AmbientCube[6];
     int DoSunLight;
     int PointLightsCount;
     float PointLightsAttLin[4];
     float PointLightsAttQuad[4];
-    float _padding_[4];
+    float _padding_[6];
 };
 
 StructuredBuffer<model_instance_data> InstanceData : register(t0);

@@ -289,10 +289,11 @@ void EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_st
     render_item RenderItem;
     RenderItem = {};
     RenderItem.Descriptor.Mesh = TestFace;
-    RenderItem.Descriptor.Albedo = GameState->TexWireframeRed;
+    RenderItem.Descriptor.Albedo = 0;
     RenderItem.Descriptor.Lightmap = 0;
-    RenderItem.UseLightmap = false;
-    RenderItem.UseLightCubes = true;
+    RenderItem.UseLightmap = true;
+    RenderItem.UseLightCubes = false;
+    RenderItem.ForcedAmbient = vec3(0,1,0);
     RenderItem.WorldPosition = vec3();
     RenderItem.WorldRotation = quat();
     RenderItem.WorldScale = vec3(1,1,1);

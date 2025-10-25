@@ -48,9 +48,17 @@ void renderer::PushRenderItems(render_item *RenderItems, uint32 RenderItemsCount
             // cannot be zero even when we are solely relying on lightmap.
             for (uint32 Side = 0; Side < ArrayCount(InstanceData->AmbientCube); ++Side)
             {
-                // TODO(Kevin): When everything is going through StaticLit pipeline, I could
-                // use the ambient cube to apply tint to things, etc.
-                InstanceData->AmbientCube[Side] = 1.0f;
+                if (Item->ForcedAmbient.X == 0 && 
+                    Item->ForcedAmbient.Y == 0 &&
+                    Item->ForcedAmbient.Z == 0)
+                {
+                    InstanceData->AmbientCube[Side] = vec4(1,1,1,0);
+                }
+                else
+                {
+                    // NOTE(Kevin): I can use the ambient cube to apply tint to things
+                    InstanceData->AmbientCube[Side] = vec4(Item->ForcedAmbient,0);
+                }
             }
         }
         else

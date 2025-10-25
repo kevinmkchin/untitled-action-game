@@ -63,20 +63,12 @@ struct render_item
     render_descriptor Descriptor;
     bool32 UseLightCubes; // TODO(Kevin): branch on UseLightCubes
     bool32 UseLightmap;
+    vec3 ForcedAmbient;
     vec3 WorldPosition;
     quat WorldRotation;
     vec3 WorldScale;
 
     // bones
-
-    // TODO(Kevin): Should this info also live in here i.e. provided by the game?
-    // mat4 WorldFromModel;            // 64      : 64
-    // vec4 PointLightsPos[4];         // 64      : 128
-    // real32 AmbientCube[6];          // 4*6=24  : 152
-    // int32 DoSunLight;               // 4       : 156
-    // int32 PointLightsCount;         // 4       : 160
-    // real32 PointLightsAttLin[4];    // 4*4=16  : 176
-    // real32 PointLightsAttQuad[4];   // 4*4=16  : 192
 };
 
 struct rendering_pipeline

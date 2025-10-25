@@ -478,6 +478,7 @@ internal void
 DeleteEntity(entity *Entity)
 {
     Entity->Alive = false;
+    Entity->Visible = false;
 }
 
 internal entity_handle

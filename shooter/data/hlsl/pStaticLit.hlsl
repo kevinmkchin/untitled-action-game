@@ -16,12 +16,12 @@ struct model_instance_data
 {
     float4x4 WorldFromModel;
     float4 PointLightsPos[4];
-    float AmbientCube[6];
+    float4 AmbientCube[6];
     int DoSunLight;
     int PointLightsCount;
     float PointLightsAttLin[4];
     float PointLightsAttQuad[4];
-    float _padding_[4];
+    float _padding_[6];
 };
 
 StructuredBuffer<model_instance_data> InstanceData : register(t0);
@@ -37,7 +37,7 @@ struct vs_out
 };
 
 // world normal -> directional ambient contribution
-float AmbientLight(float3 WorldNormal, uint InstanceIndex)
+float3 AmbientLight(float3 WorldNormal, uint InstanceIndex)
 {
     /*
 
@@ -47,9 +47,9 @@ float AmbientLight(float3 WorldNormal, uint InstanceIndex)
 
     float3 NSquared = WorldNormal * WorldNormal;
     int3 IsNegative = int3(WorldNormal.x < 0.0, WorldNormal.y < 0.0, WorldNormal.z < 0.0);
-    float LinearColor = NSquared.x * InstanceData[InstanceIndex].AmbientCube[IsNegative.x]
-                      + NSquared.y * InstanceData[InstanceIndex].AmbientCube[IsNegative.y + 2]
-                      + NSquared.z * InstanceData[InstanceIndex].AmbientCube[IsNegative.z + 4];
+    float3 LinearColor = NSquared.x * InstanceData[InstanceIndex].AmbientCube[IsNegative.x].xyz +
+                         NSquared.y * InstanceData[InstanceIndex].AmbientCube[IsNegative.y + 2].xyz +
+                         NSquared.z * InstanceData[InstanceIndex].AmbientCube[IsNegative.z + 4].xyz;
     return LinearColor;
 }
 
@@ -104,11 +104,11 @@ float DiffuseLight(float3 WorldPos, float3 WorldNormal, uint InstanceIndex)
 float3 ShadeDynamicModel(float3 Color, float3 WorldPos, float3 WorldNormal, uint InstanceIndex)
 {
     WorldNormal = normalize(WorldNormal);
-    float AmbientTerm = AmbientLight(WorldNormal, InstanceIndex);
+    float3 AmbientTerm = AmbientLight(WorldNormal, InstanceIndex);
     float DiffuseTerm = DiffuseLight(WorldPos, WorldNormal, InstanceIndex);
     // TODO(Kevin): heuristically boost ambient term contribution as a function of direct lights (diffuse term)
     //              so direct light doesn't swamp the ambient and cause harsh appearance
-    float Light = AmbientTerm + DiffuseTerm;
+    float3 Light = AmbientTerm + float3(DiffuseTerm, DiffuseTerm, DiffuseTerm);
     return Color * Light;
 }
 

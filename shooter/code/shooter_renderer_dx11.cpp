@@ -283,14 +283,13 @@ DX11Init(dx11 *DX)
     //
     // Handle values
     //
-    // TODO(Kevin): Upload "missing" texture and "default" mesh for the 0 handles
+    // TODO(Kevin): Upload "default" mesh for the 0 handle
     DX->FreeMeshHandlesCount = ArrayCount(DX->FreeMeshHandles);
     PopulateFreeHandles(DX->FreeMeshHandles, DX->FreeMeshHandlesCount);
     UseNextAvailableMeshHandle(DX); // NOTE(Kevin): 0 is reserved
 
     DX->FreeTextureHandlesCount = ArrayCount(DX->FreeTextureHandles);
     PopulateFreeHandles(DX->FreeTextureHandles, DX->FreeTextureHandlesCount);
-    UseNextAvailableTextureHandle(DX); // NOTE(Kevin): 0 is reserved
 }
 
 internal void

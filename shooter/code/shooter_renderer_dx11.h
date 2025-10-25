@@ -56,13 +56,14 @@ struct alignas(16) static_lit_model_instance
 {
     mat4 WorldFromModel;            // 64      : 64
     vec4 PointLightsPos[4];         // 64      : 128
-    real32 AmbientCube[6];          // 4*6=24  : 152
-    s32 DoSunLight;                 // 4       : 156
-    s32 PointLightsCount;           // 4       : 160
-    real32 PointLightsAttLin[4];    // 4*4=16  : 176
-    real32 PointLightsAttQuad[4];   // 4*4=16  : 192
-    render_descriptor Descriptor;   // 12      : 204
-    u32 _padding_;                  // 4       : 208
+    vec4 AmbientCube[6];            // 16*6=96 : 224
+    s32 DoSunLight;                 // 4       : 228
+    s32 PointLightsCount;           // 4       : 232
+    real32 PointLightsAttLin[4];    // 4*4=16  : 248
+    real32 PointLightsAttQuad[4];   // 4*4=16  : 264
+
+    render_descriptor Descriptor;   // 12      : 276
+    u32 _padding_[3];               // 4*3     : 288
 };
 
 struct alignas(16) static_lit_cb0
