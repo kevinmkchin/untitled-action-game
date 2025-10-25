@@ -300,6 +300,7 @@ inline vec4 Mul(mat4 &A, vec4 V);
 inline float Dot(vec2 A, vec2 B);
 inline float Dot(vec3 A, vec3 B);
 inline float Dot(vec4 A, vec4 B);
+inline float Cross(vec2 A, vec2 B);
 inline vec3 Cross(vec3 A, vec3 B);
 inline float Length(vec2 A);
 inline float Length(vec3 A);

@@ -199,6 +199,13 @@ inline float Dot(vec4 A, vec4 B)
     return A.x * B.x + A.y * B.y + A.z * B.z + A.w * B.w;
 }
 
+inline float Cross(vec2 A, vec2 B)
+{
+    // Cross product of 2D vectors is the signed area of
+    // the parallelogram between them.
+    return A.x * B.y - A.y * B.x;
+}
+
 inline vec3 Cross(vec3 A, vec3 B)
 {
     vec3 R;

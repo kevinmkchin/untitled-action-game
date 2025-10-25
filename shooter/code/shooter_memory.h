@@ -180,6 +180,11 @@ struct memory_blocks
 #define MEMBLOCKHEADERSIZE MEMBLOCKALIGN(sizeof(memory_blocks::header))
 #define MEMBLOCKMINBLOCKSIZE MEMBLOCKALIGNMENT
 
+#define AllocStruct(MemBlocks, type) (type *)MemBlocksAlloc(MemBlocks, sizeof(type))
+#define AllocArray(MemBlocks, Count, type) (type *)MemBlocksAlloc(MemBlocks, sizeof(type)*Count)
+#define AllocSize(MemBlocks, Size) MemBlocksAlloc(MemBlocks, Size)
+#define FreeBlock(MemBlocks, Ptr) MemBlocksFree(MemBlocks, Ptr)
+
 inline void
 InitializeMemoryBlocks(memory_blocks *Blocks, memory_index Size, void *Base)
 {

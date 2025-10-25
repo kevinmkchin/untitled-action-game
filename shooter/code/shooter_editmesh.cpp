@@ -115,10 +115,10 @@ CreateFace(world_mesh *Mesh, edge_index *Edges, u32 EdgeCount)
 
     // Order the edges by adjacency
     u32 UnprocessedEdgesCount = EdgeCount - 1;
-    edge_index *UnprocessedEdges = (edge_index *)MemBlocksAlloc(Mesh->Memory, sizeof(edge_index)*UnprocessedEdgesCount);
+    edge_index *UnprocessedEdges = AllocArray(Mesh->Memory, UnprocessedEdgesCount, edge_index);
     Copy(UnprocessedEdges, Edges + 1, sizeof(edge_index)*UnprocessedEdgesCount);
 
-    edge_index *OrderedEdges = (edge_index *)MemBlocksAlloc(Mesh->Memory, sizeof(edge_index)*EdgeCount);
+    edge_index *OrderedEdges = AllocArray(Mesh->Memory, EdgeCount, edge_index);
     OrderedEdges[0] = Edges[0];
     u32 OrderedEdgesCount = 1;
 
@@ -197,8 +197,8 @@ CreateFace(world_mesh *Mesh, edge_index *Edges, u32 EdgeCount)
     Mesh->Faces[Result].LoopCycleBase = FirstLoop;
     Mesh->Faces[Result].LoopCycleLength = EdgeCount;
 
-    MemBlocksFree(Mesh->Memory, UnprocessedEdges);
-    MemBlocksFree(Mesh->Memory, OrderedEdges);
+    FreeBlock(Mesh->Memory, UnprocessedEdges);
+    FreeBlock(Mesh->Memory, OrderedEdges);
 
     return Result;
 }

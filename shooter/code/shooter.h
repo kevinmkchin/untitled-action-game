@@ -148,6 +148,7 @@ typedef GAME_GET_SOUND_SAMPLES(game_get_sound_samples);
 //
 // platform layer does not need to know about these:
 //
+#define STANDARD_LENGTH_IN_GAME_UNITS 32
 
 #include "gmath.h"
 #include "shooter_memory.h"

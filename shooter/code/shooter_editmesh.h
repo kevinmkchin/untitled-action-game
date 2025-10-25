@@ -27,7 +27,7 @@ struct topo_loop
     face_index Face;
 
     // Per face vertex data
-    // vec2 lmuvcache
+    vec2 LightmapUV;
 };
 
 struct mesh_face
