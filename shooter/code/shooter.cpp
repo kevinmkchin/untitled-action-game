@@ -8,6 +8,10 @@
 #include <stb_sprintf.h>
 #include "shooter_meshes.h"
 #include "shooter_random.h"
+#if SHOOTER_COMPILE_WITH_EDITOR
+#include "shooter_editor.h"
+#include "shooter_editor.cpp"
+#endif
 
 internal void
 GameOutputSound(game_state *GameState, game_sound_output_buffer *SoundBuffer, int ToneHz)
@@ -788,41 +792,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         GameState->EditorMode = true;
         Assert(Memory->EditorMemoryStorageSize > 0);
 
-        memory_blocks EditorMemory;
-        // InitializeMemoryBlocks(&EditorMemory, Memory->EditorMemoryStorageSize, Memory->EditorMemoryStorage);
-        InitializeMemoryBlocks(&EditorMemory, 1000, Memory->EditorMemoryStorage);
-
-        void *A = MemBlocksAlloc(&EditorMemory, 94);
-        void *B = MemBlocksAlloc(&EditorMemory, 124);
-        void *C = MemBlocksAlloc(&EditorMemory, 32);
-        MemBlocksFree(&EditorMemory, B);
-        void *D = MemBlocksAlloc(&EditorMemory, 32);
-        void *E = MemBlocksAlloc(&EditorMemory, 64);
-        Assert(A < C && D < C && E < C && D < E);
-        umm A_ = (umm)A;
-        umm B_ = (umm)B;
-        umm C_ = (umm)C;
-        umm D_ = (umm)D;
-        umm E_ = (umm)E;
-        MemBlocksFree(&EditorMemory, C);
-        MemBlocksFree(&EditorMemory, D);
-        MemBlocksFree(&EditorMemory, E);
-        MemBlocksFree(&EditorMemory, A);
-        Assert(EditorMemory.FreeListHead == EditorMemory.FreeListTail);
-        Assert(EditorMemory.FreeListHead->Size == 960);
-
-        // test fill up arena, free some earlier things (have them added to tail), then try allocate
-        InitializeMemoryBlocks(&EditorMemory, 500, Memory->EditorMemoryStorage);
-        void *X = MemBlocksAlloc(&EditorMemory, 124);
-        void *Y = MemBlocksAlloc(&EditorMemory, 124);
-        void *Z = MemBlocksAlloc(&EditorMemory, 124);
-        void *W = MemBlocksAlloc(&EditorMemory, 124);
-        MemBlocksFree(&EditorMemory, Y);
-        Y = MemBlocksAlloc(&EditorMemory, 124);
-        MemBlocksFree(&EditorMemory, X);
-        X = MemBlocksAlloc(&EditorMemory, 124);
-        MemBlocksFree(&EditorMemory, Z);
-        Z = MemBlocksAlloc(&EditorMemory, 124);
+        InitializeMemoryBlocks(&GameState->EditorMemory, Memory->EditorMemoryStorageSize,
+                               Memory->EditorMemoryStorage);
 
 #endif
 
@@ -1170,6 +1141,11 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         }
 
         RendererAPI->PushGuiDrawRequests(&GameState->FrameArena, GuiState->DrawRequests, GuiState->DrawRequestsCount);
+    }
+
+    if (GameState->EditorMode)
+    {
+        EditorUpdateAndRender(Thread, GameState, GuiState, Input, RendererAPI);
     }
 }
 

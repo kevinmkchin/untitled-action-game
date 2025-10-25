@@ -287,4 +287,5 @@ struct game_state
     loaded_bitmap Backdrop;
 
     bool32 EditorMode;
+    memory_blocks EditorMemory;
 };
