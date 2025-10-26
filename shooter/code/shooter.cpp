@@ -622,7 +622,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         GameState->CylinderMesh = RendererAPI->UploadMeshData(GameState->Cylinder8SidedVB, CylinderMesh8SidedVertexCount, 
                                                               GameState->Cylinder8SidedIB, CylinderMesh8SidedIndexCount);
 
-#if 0
+#if !SHOOTER_COMPILE_WITH_EDITOR
         char *MapFilename = "../../wd/buildtest.map";
         debug_read_file_result MapReadResult = Memory->PlatformAPI.DEBUGPlatformReadEntireFile(Thread, MapFilename);
         if (MapReadResult.ContentsSize > 0)
@@ -765,7 +765,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
         PointCamera(&GameState->Camera, vec3(-100, 60, 0), vec3(1,0,0));
 
-#if 0
+#if !SHOOTER_COMPILE_WITH_EDITOR
         GameState->PlayerEntityHandle = AddEntity(GameState, true);
         entity *Player = GetEntity(GameState, GameState->PlayerEntityHandle);
         Player->P = vec3(-100, 0.1f, 0);
@@ -821,7 +821,11 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             vec2 AdjustedMouseAxes = Input->NormalizedMouseDelta * MouseLookSensitivity;
             MouseLookCamera(&GameState->Camera, AdjustedMouseAxes.x, AdjustedMouseAxes.y);
 
+#if SHOOTER_COMPILE_WITH_EDITOR
             bool32 FlyCam = true;
+#else
+            bool32 FlyCam = false;
+#endif
             if (FlyCam)
             {
                 vec3 PositionDelta;
@@ -1144,10 +1148,12 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         RendererAPI->PushGuiDrawRequests(&GameState->FrameArena, GuiState->DrawRequests, GuiState->DrawRequestsCount);
     }
 
+#if SHOOTER_COMPILE_WITH_EDITOR
     if (GameState->EditorMode)
     {
         EditorUpdateAndRender(Thread, GameState, GuiState, Input, RendererAPI);
     }
+#endif
 }
 
 extern "C" GAME_GET_SOUND_SAMPLES(GameGetSoundSamples)

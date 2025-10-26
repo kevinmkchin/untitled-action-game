@@ -63,6 +63,7 @@ Standards:
 #define GMATH_abs(A)    ((A) < 0.f ? (-(A)) : (A))
 #define GMATH_sign(X)   ((X > 0) - (X < 0))
 #define GMATH_clamp(X, Lower, Upper) GMATH_max((Lower), GMATH_min((Upper), (X)))
+#define GMATH_Clamp01(t) GMATH_clamp(t, 0.0f, 1.0f)
 
 inline float Square(float A)
 {

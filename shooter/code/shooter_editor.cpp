@@ -69,202 +69,6 @@ MakeEditableRectangle(world_mesh *World, vec3 RectStartPoint, vec3 RectEndPoint,
     CreateFace(World, Edges, ArrayCount(Edges));
 }
 
-internal void
-EarClippingTriangulationCCW(memory_blocks *Memory, vec3 *Points, u32 PointCount,
-                            u32 **Triangles, u32 *IndicesCount)
-{
-    u32 *TriangleIndices = AllocArray(Memory, (PointCount-2)*3, u32);
-    u32 TriangleIndicesCount = 0;
-
-    vec3 FaceNormal = Normalize(Cross(Points[1]-Points[0], Points[2]-Points[0]));
-    vec3 BasisX = Normalize(Points[1]-Points[0]);
-    vec3 BasisY = Normalize(Cross(FaceNormal, BasisX));
-
-    struct point_with_index
-    {
-        vec2 P;
-        u32 Index;
-    };
-
-    point_with_index *Points2D = AllocArray(Memory, PointCount, point_with_index);
-    u32 Points2DCount = PointCount;
-    for (u32 Index = 0; Index < PointCount; ++Index)
-    {
-        Points2D[Index].P = { Dot(Points[Index], BasisX), Dot(Points[Index], BasisY) };
-        Points2D[Index].Index = Index;
-    }
-
-    while (Points2DCount > 3)
-    {
-        for (u32 Index = 0; Index < Points2DCount; ++Index)
-        {
-            u32 PrevIndex = (Points2DCount + Index - 1) % Points2DCount;
-            u32 ThisIndex = Index;
-            u32 NextIndex = (Index + 1) % Points2DCount;
-
-            point_with_index PrevPoint = Points2D[PrevIndex];
-            point_with_index ThisPoint = Points2D[Index];
-            point_with_index NextPoint = Points2D[NextIndex];
-
-            vec2 Edge0 = ThisPoint.P - PrevPoint.P;
-            vec2 Edge1 = NextPoint.P - ThisPoint.P;
-            vec2 Edge2 = PrevPoint.P - NextPoint.P;
-
-            #define ZeroWithEpsilon(Value) GMATH_abs(Value) < 0.0001f ? 0 : Value;
-            real32 SignedArea = ZeroWithEpsilon(Cross(Edge0, Edge1));
-            bool32 IsConvex = SignedArea > 0; // NOTE(Kevin): Left turn means convex in CCW
-
-            bool32 IsEar = false;
-            if (IsConvex)
-            {
-                for (u32 Check = 0; Check < Points2DCount; ++Check)
-                {
-                    if (Check != PrevIndex && Check != ThisIndex && Check != NextIndex)
-                    {
-                        vec2 CheckP = Points2D[Check].P;
-                        real32 Sign0 = ZeroWithEpsilon(Cross(Edge0, CheckP - PrevPoint.P));
-                        real32 Sign1 = ZeroWithEpsilon(Cross(Edge1, CheckP - ThisPoint.P));
-                        real32 Sign2 = ZeroWithEpsilon(Cross(Edge2, CheckP - NextPoint.P));
-                        if (Sign0 >= 0 && Sign1 >= 0 && Sign2 >= 0)
-                        {
-                            break;
-                        }
-                    }
-
-                    if (Check == Points2DCount-1)
-                    {
-                        IsEar = true;
-                    }
-                }
-            }
-            #undef ZeroWithEpsilon
-
-            if (IsEar)
-            {
-                TriangleIndices[TriangleIndicesCount++] = PrevPoint.Index;
-                TriangleIndices[TriangleIndicesCount++] = ThisPoint.Index;
-                TriangleIndices[TriangleIndicesCount++] = NextPoint.Index;
-
-                // Clip
-                if (Index < Points2DCount-1)
-                {
-                    Copy(&Points2D[Index], &Points2D[Index + 1],
-                         sizeof(Points2D[0])*(Points2DCount - (Index + 1)));
-                }
-                --Points2DCount;
-
-                break;
-            }
-
-            if (Index == Points2DCount-1)
-            {
-                // TODO(Kevin): Error! There were no ears found in this triangle.
-                Assert(0);
-            }
-        }
-    }
-    TriangleIndices[TriangleIndicesCount++] = Points2D[0].Index;
-    TriangleIndices[TriangleIndicesCount++] = Points2D[1].Index;
-    TriangleIndices[TriangleIndicesCount++] = Points2D[2].Index;
-
-    *Triangles = TriangleIndices;
-    *IndicesCount = TriangleIndicesCount;
-
-    FreeBlock(Memory, Points2D);
-}
-
-struct mesh_data
-{
-    PNUV2_vertex *VB;
-    u32           VC;
-    u32          *IB;
-    u32           IC;
-};
-
-internal mesh_data
-TriangulateEditMeshFace(memory_blocks *Memory, world_mesh *World, face_index Face)
-{
-    mesh_data Result = {};
-
-    u32 PointCount = World->Faces[Face].LoopCycleLength;
-
-    if (PointCount > 2)
-    {
-        vec3 *Points = AllocArray(Memory, PointCount, vec3);
-        vec2 *LMUVs = AllocArray(Memory, PointCount, vec2);
-        PointCount = 0;
-
-        loop_index Head = World->Faces[Face].LoopCycleBase;
-        loop_index Current = Head;
-        do
-        {
-            vert_index Vert = World->Loops[Current].Vert;
-
-            Points[PointCount] = World->Vertices[Vert].P;
-            LMUVs[PointCount] = World->Loops[Current].LightmapUV;
-            ++PointCount;
-
-            Current = World->Loops[Current].Next;
-        }
-        while (Current != Head);
-
-        PNUV2_vertex *Vertices = AllocArray(Memory, PointCount, PNUV2_vertex);
-        u32 VertexCount = 0;
-        u32 *Triangles;
-        u32 IndicesCount;
-        EarClippingTriangulationCCW(Memory, Points, PointCount, &Triangles, &IndicesCount);
-
-        vec3 WorldN = Normalize(Cross(Points[1]-Points[0], Points[2]-Points[0]));
-
-        for (u32 PointIndex = 0; PointIndex < PointCount; ++PointIndex)
-        {
-            vec3 WorldP = Points[PointIndex];
-            vec2 LMUV = LMUVs[PointIndex];
-
-            vec2 AlbedoUV = {};
-
-            // TODO(Kevin): Better UVs with basis vectors?
-            real32 UVScale = (1.f / (real32)STANDARD_LENGTH_IN_GAME_UNITS); // [0,1] scaled to 32 units
-            real32 XF = GMATH_abs(Dot(WorldN, vec3(1, 0, 0)));
-            real32 YF = GMATH_abs(Dot(WorldN, vec3(0, 1, 0)));
-            real32 ZF = GMATH_abs(Dot(WorldN, vec3(0, 0, 1)));
-            if(XF >= YF && XF >= ZF)
-            {
-                AlbedoUV.X = WorldP.Z * UVScale;
-                AlbedoUV.Y = WorldP.Y * UVScale;
-            }
-            else if(YF >= XF && YF >= ZF)
-            {
-                AlbedoUV.X = WorldP.X * UVScale;
-                AlbedoUV.Y = WorldP.Z * UVScale;
-            }
-            else if(ZF >= XF && ZF >= YF)
-            {
-                AlbedoUV.X = WorldP.X * UVScale;
-                AlbedoUV.Y = WorldP.Y * UVScale;
-            }
-
-            PNUV2_vertex V;
-            V.XYZ = WorldP;
-            V.IJK = WorldN;
-            V.UV0 = AlbedoUV;
-            V.UV1 = LMUV;
-
-            Vertices[VertexCount++] = V;
-        }
-
-        Result.VB = Vertices;
-        Result.VC = VertexCount;
-        Result.IB = Triangles;
-        Result.IC = IndicesCount;
-
-        FreeBlock(Memory, Points);
-        FreeBlock(Memory, LMUVs);
-    }
-
-    return Result;
-}
-
 void EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *GuiState,
                            game_input *Input, struct renderer *RendererAPI)
 {
@@ -278,13 +82,32 @@ void EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_st
 
         MakeEditableRectangle(World, { 100, 0, 100 }, { -100, 0, -100 }, GMATH_UP);
 
-        mesh_data FaceMesh = TriangulateEditMeshFace(&GameState->EditorMemory, World, 1);
+        SplitEdgeMakeVert(World, 1, 0.3f);
+        SplitEdgeMakeVert(World, 2, 0.5f);
+        SplitEdgeMakeVert(World, 3, 0.5f);
+        SplitEdgeMakeVert(World, 4, 0.5f);
+        ReverseFaceLoop(World, 1);
+
+        // TODO(Kevin): Each face should have mesh_handle to its hw mesh -> should we delete
+        //              hw mesh on undo/redo? or only once it is no longer reachable? probably
+        //              once its no longer reachable...I shouldn't have to delete all the hw meshes
+        //              of one state and recreate all the hw meshes of another just for one undo.
+        //              Undo should also contain selection info and other editor state
+
+        vertex_buffer FaceMesh = TriangulateEditMeshFace(&GameState->EditorMemory, World, 1);
         TestFace = RendererAPI->UploadMeshData(FaceMesh.VB, FaceMesh.VC, FaceMesh.IB, FaceMesh.IC);
         FreeBlock(&GameState->EditorMemory, FaceMesh.VB);
         FreeBlock(&GameState->EditorMemory, FaceMesh.IB);
 
+        // TODO(Kevin): For face colliders, I should first detect whether the
+        // face polygon is convex or concave: if concave, then I may need to
+        // treat each triangle as a collider; if convex, then I'm fine to treat
+        // the whole polygon as a collider.
+
         EditorInitialized = true;
     }
+
+    // I want all the faces to be drawn & I want all the edges to be drawn!
 
     render_item RenderItem;
     RenderItem = {};

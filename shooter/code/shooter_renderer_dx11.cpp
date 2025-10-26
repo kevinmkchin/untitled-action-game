@@ -157,7 +157,7 @@ DX11Init(dx11 *DX)
     //
     D3D11_RASTERIZER_DESC RasterDesc = {};
     RasterDesc.FillMode = D3D11_FILL_SOLID;  // D3D11_FILL_SOLID or D3D11_FILL_WIREFRAME
-    RasterDesc.CullMode = D3D11_CULL_BACK;   // D3D11_CULL_NONE, D3D11_CULL_FRONT, D3D11_CULL_BACK
+    RasterDesc.CullMode = D3D11_CULL_NONE;   // D3D11_CULL_NONE, D3D11_CULL_FRONT, D3D11_CULL_BACK
     RasterDesc.FrontCounterClockwise = TRUE; // TRUE = CCW front-facing, FALSE = CW front-facing
     RasterDesc.DepthBias = 0;
     RasterDesc.DepthBiasClamp = 0.0f;

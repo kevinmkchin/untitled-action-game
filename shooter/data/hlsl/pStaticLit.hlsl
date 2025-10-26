@@ -112,7 +112,7 @@ float3 ShadeDynamicModel(float3 Color, float3 WorldPos, float3 WorldNormal, uint
     return Color * Light;
 }
 
-float4 main(vs_out Input) : SV_Target
+float4 main(vs_out Input, bool IsFrontFace : SV_IsFrontFace) : SV_Target
 {
     float4 AlbedoTexSample = Tex0.Sample(Sampler0, Input.UV0);
     float3 Albedo = AlbedoTexSample.xyz;
@@ -120,6 +120,8 @@ float4 main(vs_out Input) : SV_Target
     float LightMap = Tex1.Sample(Sampler1, Input.UV1).r;
     float3 FinalColor = ShadeDynamicModel(Albedo, Input.WorldP, Input.WorldN, Input.InstanceID);
     FinalColor = mul(FinalColor, LightMap);
-    FinalColor = pow(FinalColor, 1.0/2.6); // gamma correction
+    float Front = IsFrontFace ? 1.0f : 0.1f;
+    FinalColor *= Front;
+    FinalColor = pow(FinalColor, 1.0 / 2.6); // gamma correction
     return float4(FinalColor, FinalAlpha);
 }
