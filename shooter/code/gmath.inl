@@ -254,7 +254,7 @@ inline vec4 Normalize(vec4 A)
     return Div(A, Magnitude(A));
 }
 
-inline ivec2 operator-(ivec2 A) { ivec2 r = { -A.x, -A.y }; return(r); }
+inline ivec2 operator-(ivec2 A) { ivec2 Result = { -A.x, -A.y }; return Result; }
 inline ivec2 operator+(ivec2 A, ivec2 B) { return ivec2(A.x + B.x, A.y + B.y); }
 inline ivec2 operator-(ivec2 A, ivec2 B) { return ivec2(A.x - B.x, A.y - B.y); }
 inline ivec2 operator*(ivec2 A, int B) { return ivec2(A.x * B, A.y * B); }
@@ -265,7 +265,7 @@ inline ivec2 &operator/=(ivec2 &A, int B) { return(A = A / B); }
 inline bool operator==(ivec2 &A, ivec2 &B) { return A.x == B.x && A.y == B.y; }
 inline bool operator!=(ivec2 &A, ivec2 &B) { return !(A == B); }
 
-inline ivec3 operator-(ivec3 A) { ivec3 r = { -A.x, -A.y, -A.z }; return(r); }
+inline ivec3 operator-(ivec3 A) { ivec3 Result = { -A.x, -A.y, -A.z }; return Result; }
 inline ivec3 operator+(ivec3 A, ivec3 B) { return ivec3(A.x + B.x, A.y + B.y, A.z + B.z); }
 inline ivec3 operator-(ivec3 A, ivec3 B) { return ivec3(A.x - B.x, A.y - B.y, A.z - B.z); }
 inline ivec3 operator*(ivec3 A, int B) { return ivec3(A.x * B, A.y * B, A.z * B); }
@@ -278,7 +278,7 @@ inline ivec3 &operator/=(ivec3 &A, int B) { return(A = A / B); }
 inline bool operator==(ivec3 &A, ivec3 &B) { return A.x == B.x && A.y == B.y && A.z == B.z; }
 inline bool operator!=(ivec3 &A, ivec3 &B) { return !(A == B); }
 
-inline vec2 operator-(vec2 A) { vec2 r = { -A.x, -A.y }; return(r); }
+inline vec2 operator-(vec2 A) { vec2 Result = { -A.x, -A.y }; return Result; }
 inline vec2 operator+(vec2 A, vec2 B) { return Add(A, B); }
 inline vec2 operator-(vec2 A, vec2 B) { return Sub(A, B); }
 inline vec2 operator*(vec2 A, float B) { return Mul(A, B); }
@@ -291,7 +291,7 @@ inline vec2 &operator/=(vec2 &A, float B) { return(A = A / B); }
 inline bool operator==(vec2 &A, vec2 &B) { return A.x == B.x && A.y == B.y; }
 inline bool operator!=(vec2 &A, vec2 &B) { return !(A == B); }
 
-inline vec3 operator-(vec3 A) { vec3 r = { -A.x, -A.y, -A.z }; return(r); }
+inline vec3 operator-(vec3 A) { vec3 Result = { -A.x, -A.y, -A.z }; return Result; }
 inline vec3 operator+(vec3 A, vec3 B) { return Add(A, B); }
 inline vec3 operator-(vec3 A, vec3 B) { return Sub(A, B); }
 inline vec3 operator*(vec3 A, float B) { return Mul(A, B); }
@@ -304,7 +304,7 @@ inline vec3 &operator/=(vec3 &A, float B) { return(A = A / B); }
 inline bool operator==(vec3 &A, vec3 &B) { return A.x == B.x && A.y == B.y && A.z == B.z; }
 inline bool operator!=(vec3 &A, vec3 &B) { return !(A == B); }
 
-inline vec4 operator-(vec4 A) { vec4 r = { -A.x, -A.y, -A.z, -A.w }; return(r); }
+inline vec4 operator-(vec4 A) { vec4 Result = { -A.x, -A.y, -A.z, -A.w }; return Result; }
 inline vec4 operator+(vec4 A, vec4 B) { return Add(A, B); }
 inline vec4 operator-(vec4 A, vec4 B) { return Sub(A, B); }
 inline vec4 operator*(vec4 A, float B) { return Mul(A, B); }
@@ -317,15 +317,15 @@ inline vec4 &operator/=(vec4 &A, float B) { return(A = A / B); }
 inline bool operator==(vec4 &A, vec4 &B) { return A.x == B.x && A.y == B.y && A.z == B.z && A.w == B.w; }
 inline bool operator!=(vec4 &A, vec4 &B) { return !(A == B); }
 
-inline vec3 operator*(mat3 A, vec3 v) { return(Mul(A, v)); }
-inline mat3 operator*(mat3 A, mat3 B) { return(Mul(A, B)); }
+inline vec3 operator*(mat3 A, vec3 V) { return (Mul(A, V)); }
+inline mat3 operator*(mat3 A, mat3 B) { return (Mul(A, B)); }
 inline mat3 &operator*=(mat3 &A, mat3 B) { A = Mul(A, B); return A; }
-inline vec4 operator*(mat4 A, vec4 v) { return(Mul(A, v)); }
-inline mat4 operator*(mat4 A, mat4 B) { return(Mul(A, B)); }
+inline vec4 operator*(mat4 A, vec4 V) { return (Mul(A, V)); }
+inline mat4 operator*(mat4 A, mat4 B) { return (Mul(A, B)); }
 inline mat4 &operator*=(mat4 &A, mat4 B) { A = Mul(A, B); return A; }
 
-inline vec3 Lerp(vec3 From, vec3 to, float ratio) { return((1.0f - ratio) * From + to * ratio); }
-inline vec4 Lerp(vec4 From, vec4 to, float ratio) { return((1.0f - ratio) * From + to * ratio); }
+inline vec3 Blend(vec3 A, vec3 B, float t) { return ((1.0f-t)*A + t*B); }
+inline vec4 Blend(vec4 A, vec4 B, float t) { return ((1.0f-t)*A + t*B); }
 
 inline mat3 Add(mat3& A, mat3& B)
 {

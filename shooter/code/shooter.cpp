@@ -220,7 +220,7 @@ UpdateCameraStrafeTilt(camera *Camera, vec2 dHorizontalP, real32 MaxHorizontalSp
         //              the strafe magnitude, but I like this extra tilt speed smoothing.
         //              Makes it feel like I'm speeding up even more than I am.
         //              Actually...can't tell if I'm getting motion sick...
-        Camera->StrafeTilt = Lerp(Camera->StrafeTilt, DesiredCamTilt, dt * TiltSpeed);
+        Camera->StrafeTilt = Blend(Camera->StrafeTilt, DesiredCamTilt, dt * TiltSpeed);
         quat Tilt = Slerp(quat(), FromTo, Camera->StrafeTilt);
         vec3 CameraUpWithSway = RotateVector(Camera->ViewUp, Tilt);
 
@@ -929,7 +929,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 else
                 {
                     // Bob offset recovery
-                    GameState->PlayerViewBobOffset = Lerp(GameState->PlayerViewBobOffset, (-MaxBobOffset*0.2f), 0.062f);
+                    GameState->PlayerViewBobOffset = Blend(GameState->PlayerViewBobOffset, (-MaxBobOffset*0.2f), 0.062f);
                     if (GameState->PlayerViewBobOffset >= 0.0f)
                     {
                         GameState->PlayerViewBobOffset = 0.0f;

@@ -71,7 +71,7 @@ inline float Square(float A)
     return Result;
 }
 
-inline float Lerp(float A, float B, float t)
+inline float Blend(float A, float B, float t)
 {
     return A + t * (B - A);
 }
@@ -262,7 +262,7 @@ struct quat
         Cross (vec, vec -> vec)
         Length (vec -> float)
         Normalize (vec -> vec)
-        Lerp (vec, vec, float -> vec)
+        Blend (vec, vec, float -> vec)
 
     Examples
 
@@ -312,8 +312,8 @@ inline float Magnitude(vec4 A);
 inline vec2 Normalize(vec2 A);
 inline vec3 Normalize(vec3 A);
 inline vec4 Normalize(vec4 A);
-inline vec3 Lerp(vec3 A, vec3 B, float t);
-inline vec4 Lerp(vec4 A, vec4 B, float t);
+inline vec3 Blend(vec3 A, vec3 B, float t);
+inline vec4 Blend(vec4 A, vec4 B, float t);
 
 inline ivec2 operator-(ivec2 A);
 inline ivec2 operator+(ivec2 A, ivec2 B);
