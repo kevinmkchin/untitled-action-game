@@ -671,8 +671,6 @@ EarClippingTriangulationCCW(memory_blocks *Memory, vec3 *Points, u32 PointCount,
         TriangleIndices[TriangleIndicesCount++] = Points2D[2].Index;
     }
 
-    Assert(TriangleIndicesCount > 2);
-
     *Triangles = TriangleIndices;
     *IndicesCount = TriangleIndicesCount;
 
@@ -712,44 +710,47 @@ TriangulateEditMeshFace(memory_blocks *Memory, world_mesh *World, face_index Fac
         u32 IndicesCount;
         EarClippingTriangulationCCW(Memory, Points, PointCount, &Triangles, &IndicesCount);
 
-        vec3 WorldN = GetFaceNormal(Points, PointCount);
-        Assert(ZeroWithEpsilon1(Length(WorldN)) > 0);
-
-        for (u32 PointIndex = 0; PointIndex < PointCount; ++PointIndex)
+        if (IndicesCount > 2)
         {
-            vec3 WorldP = Points[PointIndex];
-            vec2 LMUV = LMUVs[PointIndex];
+            vec3 WorldN = GetFaceNormal(Points, PointCount);
+            Assert(ZeroWithEpsilon1(Length(WorldN)) > 0);
 
-            vec2 AlbedoUV = {};
-
-            // TODO(Kevin): Better UVs with basis vectors?
-            real32 UVScale = (1.f / (real32)STANDARD_LENGTH_IN_GAME_UNITS); // [0,1] scaled to 32 units
-            real32 XF = GMATH_abs(Dot(WorldN, vec3(1, 0, 0)));
-            real32 YF = GMATH_abs(Dot(WorldN, vec3(0, 1, 0)));
-            real32 ZF = GMATH_abs(Dot(WorldN, vec3(0, 0, 1)));
-            if(XF >= YF && XF >= ZF)
+            for (u32 PointIndex = 0; PointIndex < PointCount; ++PointIndex)
             {
-                AlbedoUV.X = WorldP.Z * UVScale;
-                AlbedoUV.Y = WorldP.Y * UVScale;
-            }
-            else if(YF >= XF && YF >= ZF)
-            {
-                AlbedoUV.X = WorldP.X * UVScale;
-                AlbedoUV.Y = WorldP.Z * UVScale;
-            }
-            else if(ZF >= XF && ZF >= YF)
-            {
-                AlbedoUV.X = WorldP.X * UVScale;
-                AlbedoUV.Y = WorldP.Y * UVScale;
-            }
+                vec3 WorldP = Points[PointIndex];
+                vec2 LMUV = LMUVs[PointIndex];
 
-            PNUV2_vertex V;
-            V.XYZ = WorldP;
-            V.IJK = WorldN;
-            V.UV0 = AlbedoUV;
-            V.UV1 = LMUV;
+                vec2 AlbedoUV = {};
 
-            Vertices[VertexCount++] = V;
+                // TODO(Kevin): Better UVs with basis vectors?
+                real32 UVScale = (1.f / (real32)STANDARD_LENGTH_IN_GAME_UNITS); // [0,1] scaled to 32 units
+                real32 XF = GMATH_abs(Dot(WorldN, vec3(1, 0, 0)));
+                real32 YF = GMATH_abs(Dot(WorldN, vec3(0, 1, 0)));
+                real32 ZF = GMATH_abs(Dot(WorldN, vec3(0, 0, 1)));
+                if(XF >= YF && XF >= ZF)
+                {
+                    AlbedoUV.X = WorldP.Z * UVScale;
+                    AlbedoUV.Y = WorldP.Y * UVScale;
+                }
+                else if(YF >= XF && YF >= ZF)
+                {
+                    AlbedoUV.X = WorldP.X * UVScale;
+                    AlbedoUV.Y = WorldP.Z * UVScale;
+                }
+                else if(ZF >= XF && ZF >= YF)
+                {
+                    AlbedoUV.X = WorldP.X * UVScale;
+                    AlbedoUV.Y = WorldP.Y * UVScale;
+                }
+
+                PNUV2_vertex V;
+                V.XYZ = WorldP;
+                V.IJK = WorldN;
+                V.UV0 = AlbedoUV;
+                V.UV1 = LMUV;
+
+                Vertices[VertexCount++] = V;
+            }
         }
 
         Result.VB = Vertices;

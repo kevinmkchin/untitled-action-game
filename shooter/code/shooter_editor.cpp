@@ -73,9 +73,9 @@ void EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_st
                            game_input *Input, struct renderer *RendererAPI)
 {
     local_persist bool32 EditorInitialized = false;
-    local_persist mesh_handle TestFace1;
-    local_persist mesh_handle TestFace2;
-    local_persist mesh_handle TestFace3;
+    local_persist mesh_handle TestFace1 = 0;
+    local_persist mesh_handle TestFace2 = 0;
+    local_persist mesh_handle TestFace3 = 0;
     if (!EditorInitialized)
     {
         world_mesh *World = AllocStruct(&GameState->EditorMemory, world_mesh);
@@ -88,7 +88,8 @@ void EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_st
         ExtrudeEdges(World, ToExtrude, ArrayCount(ToExtrude));
         World->Vertices[5].P += vec3(0, 32, 0);
         World->Vertices[6].P += vec3(0, 32, 0);
-        World->Vertices[7].P += vec3(0, 32, 0);
+        World->Vertices[7].P += vec3(0, 0, 0);
+        World->Vertices[8].P += vec3(0, 0, 0);
 
         // SplitEdgeMakeVert(World, 1, 0.3f);
         // SplitEdgeMakeVert(World, 2, 0.5f);
@@ -104,17 +105,26 @@ void EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_st
 
         vertex_buffer FaceMesh;
         FaceMesh = TriangulateEditMeshFace(&GameState->EditorMemory, World, 1);
-        TestFace1 = RendererAPI->UploadMeshData(FaceMesh.VB, FaceMesh.VC, FaceMesh.IB, FaceMesh.IC);
+        if (FaceMesh.IC > 2)
+        {
+            TestFace1 = RendererAPI->UploadMeshData(FaceMesh.VB, FaceMesh.VC, FaceMesh.IB, FaceMesh.IC);
+        }
         FreeBlock(&GameState->EditorMemory, FaceMesh.VB);
         FreeBlock(&GameState->EditorMemory, FaceMesh.IB);
 
         FaceMesh = TriangulateEditMeshFace(&GameState->EditorMemory, World, 2);
-        TestFace2 = RendererAPI->UploadMeshData(FaceMesh.VB, FaceMesh.VC, FaceMesh.IB, FaceMesh.IC);
+        if (FaceMesh.IC > 2)
+        {
+            TestFace2 = RendererAPI->UploadMeshData(FaceMesh.VB, FaceMesh.VC, FaceMesh.IB, FaceMesh.IC);
+        }
         FreeBlock(&GameState->EditorMemory, FaceMesh.VB);
         FreeBlock(&GameState->EditorMemory, FaceMesh.IB);
 
         FaceMesh = TriangulateEditMeshFace(&GameState->EditorMemory, World, 3);
-        TestFace3 = RendererAPI->UploadMeshData(FaceMesh.VB, FaceMesh.VC, FaceMesh.IB, FaceMesh.IC);
+        if (FaceMesh.IC > 2)
+        {
+            TestFace3 = RendererAPI->UploadMeshData(FaceMesh.VB, FaceMesh.VC, FaceMesh.IB, FaceMesh.IC);
+        }
         FreeBlock(&GameState->EditorMemory, FaceMesh.VB);
         FreeBlock(&GameState->EditorMemory, FaceMesh.IB);
 
@@ -129,42 +139,50 @@ void EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_st
     // I want all the faces to be drawn & I want all the edges to be drawn!
 
     render_item RenderItem;
-    RenderItem = {};
-    RenderItem.Descriptor.Mesh = TestFace1;
-    RenderItem.Descriptor.Albedo = 0;
-    RenderItem.Descriptor.Lightmap = 0;
-    RenderItem.UseLightmap = true;
-    RenderItem.UseLightCubes = false;
-    RenderItem.ForcedAmbient = vec3(0,1,0);
-    RenderItem.WorldPosition = vec3();
-    RenderItem.WorldRotation = quat();
-    RenderItem.WorldScale = vec3(1,1,1);
-    RendererAPI->PushRenderItems(&RenderItem, 1);
+    if (TestFace1)
+    {
+        RenderItem = {};
+        RenderItem.Descriptor.Mesh = TestFace1;
+        RenderItem.Descriptor.Albedo = 0;
+        RenderItem.Descriptor.Lightmap = 0;
+        RenderItem.UseLightmap = true;
+        RenderItem.UseLightCubes = false;
+        RenderItem.ForcedAmbient = vec3(0,1,0);
+        RenderItem.WorldPosition = vec3();
+        RenderItem.WorldRotation = quat();
+        RenderItem.WorldScale = vec3(1,1,1);
+        RendererAPI->PushRenderItems(&RenderItem, 1);
+    }
 
-    RenderItem = {};
-    RenderItem.Descriptor.Mesh = TestFace2;
-    RenderItem.Descriptor.Albedo = 0;
-    RenderItem.Descriptor.Lightmap = 0;
-    RenderItem.UseLightmap = true;
-    RenderItem.UseLightCubes = false;
-    RenderItem.ForcedAmbient = vec3(1,0,1);
-    RenderItem.WorldPosition = vec3();
-    RenderItem.WorldRotation = quat();
-    RenderItem.WorldScale = vec3(1,1,1);
-    RendererAPI->PushRenderItems(&RenderItem, 1);
+    if (TestFace2)
+    {
+        RenderItem = {};
+        RenderItem.Descriptor.Mesh = TestFace2;
+        RenderItem.Descriptor.Albedo = 0;
+        RenderItem.Descriptor.Lightmap = 0;
+        RenderItem.UseLightmap = true;
+        RenderItem.UseLightCubes = false;
+        RenderItem.ForcedAmbient = vec3(1,0,1);
+        RenderItem.WorldPosition = vec3();
+        RenderItem.WorldRotation = quat();
+        RenderItem.WorldScale = vec3(1,1,1);
+        RendererAPI->PushRenderItems(&RenderItem, 1);
+    }
 
-    RenderItem = {};
-    RenderItem.Descriptor.Mesh = TestFace3;
-    RenderItem.Descriptor.Albedo = 0;
-    RenderItem.Descriptor.Lightmap = 0;
-    RenderItem.UseLightmap = true;
-    RenderItem.UseLightCubes = false;
-    RenderItem.ForcedAmbient = vec3(1,1,0);
-    RenderItem.WorldPosition = vec3();
-    RenderItem.WorldRotation = quat();
-    RenderItem.WorldScale = vec3(1,1,1);
-    RendererAPI->PushRenderItems(&RenderItem, 1);
-
+    if (TestFace3)
+    {
+        RenderItem = {};
+        RenderItem.Descriptor.Mesh = TestFace3;
+        RenderItem.Descriptor.Albedo = 0;
+        RenderItem.Descriptor.Lightmap = 0;
+        RenderItem.UseLightmap = true;
+        RenderItem.UseLightCubes = false;
+        RenderItem.ForcedAmbient = vec3(1,1,0);
+        RenderItem.WorldPosition = vec3();
+        RenderItem.WorldRotation = quat();
+        RenderItem.WorldScale = vec3(1,1,1);
+        RendererAPI->PushRenderItems(&RenderItem, 1);
+    }
 
 }
 
