@@ -139,6 +139,13 @@ DiskCycleRemoveEdge(world_mesh *Mesh, vert_index DiskCycle, edge_index ToRemove)
     Assert(0);
 }
 
+internal bool32
+HasVert(world_mesh *Mesh, edge_index E, vert_index V)
+{
+    bool32 Result = (V == MeshEdge(E).A || V == MeshEdge(E).B);
+    return Result;
+}
+
 internal vert_index
 SharesVert(world_mesh *Mesh, edge_index A, edge_index B)
 {
@@ -448,15 +455,100 @@ ReverseFaceLoop(world_mesh *Mesh, face_index Face)
 //
 //
 
+internal vert_index
+ExtrudeEdgesHelper_DuplicateVertex(world_mesh *Mesh, vert_index OriginalVertex,
+                                   vert_index **VisitedVertices, u32 *VisitedVerticesCount,
+                                   vert_index **CreatedVertices, u32 *CreatedVerticesCount)
+{
+    for (u32 Check = 0; Check < *VisitedVerticesCount; ++Check)
+    {
+        if ((*VisitedVertices)[Check] == OriginalVertex)
+        {
+            return (*CreatedVertices)[Check];
+        }
+    }
+
+    vert_index DuplicatedVertex = CreateVert(Mesh, MeshVert(OriginalVertex).P);
+
+    (*CreatedVertices)[(*CreatedVerticesCount)++] = DuplicatedVertex;
+    (*VisitedVertices)[(*VisitedVerticesCount)++] = OriginalVertex;
+
+    return DuplicatedVertex;
+}
+
+internal edge_index
+ExtrudeEdgesHelper_CreateEdge(world_mesh *Mesh, vert_index A, vert_index B,
+                              edge_index **CreatedEdges, u32 *CreatedEdgesCount)
+{
+    for (u32 Check = 0; Check < *CreatedEdgesCount; ++Check)
+    {
+        if (HasVert(Mesh, (*CreatedEdges)[Check], A) &&
+            HasVert(Mesh, (*CreatedEdges)[Check], B))
+        {
+            return (*CreatedEdges)[Check];
+        }
+    }
+
+    edge_index NewEdge = CreateEdge(Mesh, A, B);
+
+    (*CreatedEdges)[(*CreatedEdgesCount)++] = NewEdge;
+
+    return NewEdge;
+}
+
+internal void
+ExtrudeEdges(world_mesh *Mesh, edge_index *Edges, u32 EdgesCount)
+{
+    /*  NOTE(Kevin): Take an array of edges, not necessarily connected.
+                     Duplicate an edge, form edge between new and old vertices.
+                     Use the 4 edges to form a new face.
+    */
+
+    vert_index *VisitedVertices = AllocArray(Mesh->Memory, EdgesCount*2, vert_index);
+    u32 VisitedVerticesCount = 0;
+    vert_index *CreatedVertices = AllocArray(Mesh->Memory, EdgesCount*2, vert_index);
+    u32 CreatedVerticesCount = 0;
+    edge_index *CreatedEdges = AllocArray(Mesh->Memory, EdgesCount*2, edge_index);
+    u32 CreatedEdgesCount = 0;
+
+    for (u32 Index = 0; Index < EdgesCount; ++Index)
+    {
+        edge_index EdgeAB = Edges[Index];
+        mesh_edge Edge = MeshEdge(EdgeAB);
+
+        vert_index DupA = ExtrudeEdgesHelper_DuplicateVertex(Mesh, Edge.A, &VisitedVertices, 
+                                                             &VisitedVerticesCount, &CreatedVertices,
+                                                             &CreatedVerticesCount);
+        vert_index DupB = ExtrudeEdgesHelper_DuplicateVertex(Mesh, Edge.B, &VisitedVertices, 
+                                                             &VisitedVerticesCount, &CreatedVertices,
+                                                             &CreatedVerticesCount);
+        edge_index EdgeAA = ExtrudeEdgesHelper_CreateEdge(Mesh, Edge.A, DupA, 
+                                                          &CreatedEdges, &CreatedEdgesCount);
+        edge_index EdgeBB = ExtrudeEdgesHelper_CreateEdge(Mesh, Edge.B, DupB,
+                                                          &CreatedEdges, &CreatedEdgesCount);
+        edge_index EdgeBA = CreateEdge(Mesh, DupB, DupA);
+
+        edge_index FaceEdges[] = { EdgeAB, EdgeBB, EdgeBA, EdgeAA };
+        face_index Face = CreateFace(Mesh, FaceEdges, ArrayCount(FaceEdges));
+    }
+
+    FreeBlock(Mesh->Memory, VisitedVertices);
+    FreeBlock(Mesh->Memory, CreatedVertices);
+    FreeBlock(Mesh->Memory, CreatedEdges);
+}
+
 internal vec3
 GetFaceNormal(vec3 *Points, u32 PointCount)
 {
-    vec3 FaceNormal = Normalize(Cross(Points[1]-Points[0], Points[2]-Points[0]));
+    vec3 FaceNormal = {};
+    real32 Len = 0;
 
-    real32 Len = Length(FaceNormal);
-    for (u32 i = 1; ZeroWithEpsilon1(Len) == 0 && i < PointCount-2; ++i)
+    for (u32 i = 0; ZeroWithEpsilon1(Len) == 0 && i < PointCount; ++i)
     {
-        FaceNormal = Normalize(Cross(Points[1+i]-Points[i], Points[2+i]-Points[i]));
+        u32 A = i;
+        u32 B = (i+1)%PointCount;
+        u32 C = (i+2)%PointCount;
+        FaceNormal = Normalize(Cross(Points[B]-Points[A], Points[C]-Points[A]));
         Len = Length(FaceNormal);
     }
 
@@ -519,9 +611,15 @@ EarClippingTriangulationCCW(memory_blocks *Memory, vec3 *Points, u32 PointCount,
             {
                 for (u32 Check = 0; Check < Points2DCount; ++Check)
                 {
-                    if (Check != PrevIndex && Check != ThisIndex && Check != NextIndex)
+                    vec2 CheckP = Points2D[Check].P;
+
+                    if (Check != PrevIndex && Check != ThisIndex && Check != NextIndex &&
+                        // NOTE(Kevin): If points overlap, there must be a degenerate
+                        // triangle. Ignore these points during ear check.
+                        CheckP != Points2D[PrevIndex].P &&
+                        CheckP != Points2D[ThisIndex].P &&
+                        CheckP != Points2D[NextIndex].P)
                     {
-                        vec2 CheckP = Points2D[Check].P;
                         real32 Sign0 = ZeroWithEpsilon1(Cross(Edge0, CheckP - PrevPoint.P));
                         real32 Sign1 = ZeroWithEpsilon1(Cross(Edge1, CheckP - ThisPoint.P));
                         real32 Sign2 = ZeroWithEpsilon1(Cross(Edge2, CheckP - NextPoint.P));
@@ -557,22 +655,23 @@ EarClippingTriangulationCCW(memory_blocks *Memory, vec3 *Points, u32 PointCount,
 
             if (Index == Points2DCount-1)
             {
-                // TODO(Kevin): Failed to triangulate face properly! There were
-                //              no ears found after a certain point. Could be that
-                //              parts of the face results in degenerate triangles.
-                Assert(0); // for now while i'm coding
-
-                // NOTE(Kevin): Return the triangles I have generated thus far
-                *Triangles = TriangleIndices;
-                *IndicesCount = TriangleIndicesCount;
-
-                FreeBlock(Memory, Points2D);
+                // NOTE(Kevin): There were no ears found after a certain point.
+                // Could be that parts of the face results in degenerate triangles.
+                // Return the triangles I have generated thus far.
+                Points2DCount = 0;
+                break;
             }
         }
     }
-    TriangleIndices[TriangleIndicesCount++] = Points2D[0].Index;
-    TriangleIndices[TriangleIndicesCount++] = Points2D[1].Index;
-    TriangleIndices[TriangleIndicesCount++] = Points2D[2].Index;
+
+    if (Points2DCount == 3)
+    {
+        TriangleIndices[TriangleIndicesCount++] = Points2D[0].Index;
+        TriangleIndices[TriangleIndicesCount++] = Points2D[1].Index;
+        TriangleIndices[TriangleIndicesCount++] = Points2D[2].Index;
+    }
+
+    Assert(TriangleIndicesCount > 2);
 
     *Triangles = TriangleIndices;
     *IndicesCount = TriangleIndicesCount;

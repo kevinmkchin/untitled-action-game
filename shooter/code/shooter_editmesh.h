@@ -102,6 +102,8 @@ DiskCycleInsertEdge(world_mesh *Mesh, vert_index DiskCycle, edge_index ToInsert)
 internal void
 DiskCycleRemoveEdge(world_mesh *Mesh, vert_index DiskCycle, edge_index ToRemove);
 
+internal bool32
+HasVert(world_mesh *Mesh, edge_index E, vert_index V);
 internal vert_index
 SharesVert(world_mesh *Mesh, edge_index A, edge_index B);
 
@@ -142,7 +144,9 @@ ReverseFaceLoop(world_mesh *Mesh, face_index Face);
 
 */
 
-// ExtrudeEdges
+internal void
+ExtrudeEdges(world_mesh *Mesh, edge_index *Edges, u32 EdgesCount);
+
 // ExtrudeFace
 // RingCut / Slice
 

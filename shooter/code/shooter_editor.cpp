@@ -35,7 +35,7 @@ MakeEditableRectangle(world_mesh *World, vec3 RectStartPoint, vec3 RectEndPoint,
     vec3 FloorPointC = RectEndPoint;
     vec3 FloorPointD = RectEndPoint - AlongZAxis;
 
-#if 0
+#if 1
     vert_index V0 = CreateVert(World, FloorPointA);
     vert_index V1 = CreateVert(World, FloorPointB);
     vert_index V2 = CreateVert(World, FloorPointC);
@@ -73,7 +73,9 @@ void EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_st
                            game_input *Input, struct renderer *RendererAPI)
 {
     local_persist bool32 EditorInitialized = false;
-    local_persist mesh_handle TestFace;
+    local_persist mesh_handle TestFace1;
+    local_persist mesh_handle TestFace2;
+    local_persist mesh_handle TestFace3;
     if (!EditorInitialized)
     {
         world_mesh *World = AllocStruct(&GameState->EditorMemory, world_mesh);
@@ -82,11 +84,17 @@ void EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_st
 
         MakeEditableRectangle(World, { 100, 0, 100 }, { -100, 0, -100 }, GMATH_UP);
 
-        SplitEdgeMakeVert(World, 1, 0.3f);
-        SplitEdgeMakeVert(World, 2, 0.5f);
-        SplitEdgeMakeVert(World, 3, 0.5f);
-        SplitEdgeMakeVert(World, 4, 0.5f);
-        ReverseFaceLoop(World, 1);
+        edge_index ToExtrude[] = { 1, 3 };
+        ExtrudeEdges(World, ToExtrude, ArrayCount(ToExtrude));
+        World->Vertices[5].P += vec3(0, 32, 0);
+        World->Vertices[6].P += vec3(0, 32, 0);
+        World->Vertices[7].P += vec3(0, 32, 0);
+
+        // SplitEdgeMakeVert(World, 1, 0.3f);
+        // SplitEdgeMakeVert(World, 2, 0.5f);
+        // SplitEdgeMakeVert(World, 3, 0.5f);
+        // SplitEdgeMakeVert(World, 4, 0.5f);
+        // ReverseFaceLoop(World, 1);
 
         // TODO(Kevin): Each face should have mesh_handle to its hw mesh -> should we delete
         //              hw mesh on undo/redo? or only once it is no longer reachable? probably
@@ -94,8 +102,19 @@ void EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_st
         //              of one state and recreate all the hw meshes of another just for one undo.
         //              Undo should also contain selection info and other editor state
 
-        vertex_buffer FaceMesh = TriangulateEditMeshFace(&GameState->EditorMemory, World, 1);
-        TestFace = RendererAPI->UploadMeshData(FaceMesh.VB, FaceMesh.VC, FaceMesh.IB, FaceMesh.IC);
+        vertex_buffer FaceMesh;
+        FaceMesh = TriangulateEditMeshFace(&GameState->EditorMemory, World, 1);
+        TestFace1 = RendererAPI->UploadMeshData(FaceMesh.VB, FaceMesh.VC, FaceMesh.IB, FaceMesh.IC);
+        FreeBlock(&GameState->EditorMemory, FaceMesh.VB);
+        FreeBlock(&GameState->EditorMemory, FaceMesh.IB);
+
+        FaceMesh = TriangulateEditMeshFace(&GameState->EditorMemory, World, 2);
+        TestFace2 = RendererAPI->UploadMeshData(FaceMesh.VB, FaceMesh.VC, FaceMesh.IB, FaceMesh.IC);
+        FreeBlock(&GameState->EditorMemory, FaceMesh.VB);
+        FreeBlock(&GameState->EditorMemory, FaceMesh.IB);
+
+        FaceMesh = TriangulateEditMeshFace(&GameState->EditorMemory, World, 3);
+        TestFace3 = RendererAPI->UploadMeshData(FaceMesh.VB, FaceMesh.VC, FaceMesh.IB, FaceMesh.IC);
         FreeBlock(&GameState->EditorMemory, FaceMesh.VB);
         FreeBlock(&GameState->EditorMemory, FaceMesh.IB);
 
@@ -111,7 +130,7 @@ void EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_st
 
     render_item RenderItem;
     RenderItem = {};
-    RenderItem.Descriptor.Mesh = TestFace;
+    RenderItem.Descriptor.Mesh = TestFace1;
     RenderItem.Descriptor.Albedo = 0;
     RenderItem.Descriptor.Lightmap = 0;
     RenderItem.UseLightmap = true;
@@ -120,7 +139,32 @@ void EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_st
     RenderItem.WorldPosition = vec3();
     RenderItem.WorldRotation = quat();
     RenderItem.WorldScale = vec3(1,1,1);
-
     RendererAPI->PushRenderItems(&RenderItem, 1);
+
+    RenderItem = {};
+    RenderItem.Descriptor.Mesh = TestFace2;
+    RenderItem.Descriptor.Albedo = 0;
+    RenderItem.Descriptor.Lightmap = 0;
+    RenderItem.UseLightmap = true;
+    RenderItem.UseLightCubes = false;
+    RenderItem.ForcedAmbient = vec3(1,0,1);
+    RenderItem.WorldPosition = vec3();
+    RenderItem.WorldRotation = quat();
+    RenderItem.WorldScale = vec3(1,1,1);
+    RendererAPI->PushRenderItems(&RenderItem, 1);
+
+    RenderItem = {};
+    RenderItem.Descriptor.Mesh = TestFace3;
+    RenderItem.Descriptor.Albedo = 0;
+    RenderItem.Descriptor.Lightmap = 0;
+    RenderItem.UseLightmap = true;
+    RenderItem.UseLightCubes = false;
+    RenderItem.ForcedAmbient = vec3(1,1,0);
+    RenderItem.WorldPosition = vec3();
+    RenderItem.WorldRotation = quat();
+    RenderItem.WorldScale = vec3(1,1,1);
+    RendererAPI->PushRenderItems(&RenderItem, 1);
+
+
 }
 
