@@ -724,9 +724,9 @@ TriangulateEditMeshFace(memory_blocks *Memory, world_mesh *World, face_index Fac
 
                 // TODO(Kevin): Better UVs with basis vectors?
                 real32 UVScale = (1.f / (real32)STANDARD_LENGTH_IN_GAME_UNITS); // [0,1] scaled to 32 units
-                real32 XF = GMATH_abs(Dot(WorldN, vec3(1, 0, 0)));
-                real32 YF = GMATH_abs(Dot(WorldN, vec3(0, 1, 0)));
-                real32 ZF = GMATH_abs(Dot(WorldN, vec3(0, 0, 1)));
+                real32 XF = AbsoluteValue(Dot(WorldN, vec3(1, 0, 0)));
+                real32 YF = AbsoluteValue(Dot(WorldN, vec3(0, 1, 0)));
+                real32 ZF = AbsoluteValue(Dot(WorldN, vec3(0, 0, 1)));
                 if(XF >= YF && XF >= ZF)
                 {
                     AlbedoUV.X = WorldP.Z * UVScale;

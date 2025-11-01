@@ -772,7 +772,7 @@ inline float Dot(quat UnitQuaternionA, quat UnitQuaternionB)
 
 inline bool Similar(quat A, quat B, float Epsilon)
 {
-    return(GMATH_abs(Dot(A, B) - 1.f) <= Epsilon);
+    return(GMATH_Abs(Dot(A, B) - 1.f) <= Epsilon);
 }
 
 inline mat3 Mat3FromQuat(quat Rotation)

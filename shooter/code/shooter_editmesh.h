@@ -86,12 +86,6 @@ struct world_mesh
 internal void
 InitializeWorldMesh(world_mesh *Mesh);
 
-// void GetLoopCycle(mesh_face *Face, mesh_loop **LoopWriteTo, u32 LoopMaxCount, u32 *LoopLength);
-// void GetFaceVertices(mesh_face *Face, mesh_vert **VerticesWriteTo, u32 VerticesMaxCount, u32 *VerticesCount);
-// void GetFaceEdges(mesh_face *Face, mesh_edge **EdgesWriteTo, u32 EdgesMaxCount, u32 *EdgesCount);
-// vec3 GetFaceNormal(mesh_face *Face);
-// void GetRadialCycle(mesh_edge *Edge, mesh_loop **RadialWriteTo, u32 RadialMaxCount, u32 *RadialLength);
-
 internal void
 RadialCycleInsertLoop(world_mesh *Mesh, edge_index Edge, loop_index ToInsert);
 internal void
@@ -150,6 +144,13 @@ ExtrudeEdges(world_mesh *Mesh, edge_index *Edges, u32 EdgesCount);
 // ExtrudeFace
 // RingCut / Slice
 
+internal vec3
+GetFaceNormal(vec3 *Points, u32 PointCount);
+
+internal void
+EarClippingTriangulationCCW(memory_blocks *Memory, vec3 *Points, u32 PointCount,
+                            u32 **Triangles, u32 *IndicesCount);
+
 struct vertex_buffer
 {
     PNUV2_vertex *VB;
@@ -158,9 +159,6 @@ struct vertex_buffer
     u32           IC;
 };
 
-internal void
-EarClippingTriangulationCCW(memory_blocks *Memory, vec3 *Points, u32 PointCount,
-                            u32 **Triangles, u32 *IndicesCount);
 /* Allocates memory for VB and IB and fills them with triangles for the face */
 internal vertex_buffer
 TriangulateEditMeshFace(memory_blocks *Memory, world_mesh *World, face_index Face);

@@ -60,10 +60,10 @@ Standards:
 
 #define GMATH_Min(A, B) ((A) < (B) ? (A) : (B))
 #define GMATH_Max(A, B) ((A) > (B) ? (A) : (B))
-#define GMATH_abs(A)    ((A) < 0.f ? (-(A)) : (A))
-#define GMATH_sign(X)   ((X > 0) - (X < 0))
-#define GMATH_clamp(X, Lower, Upper) GMATH_Max((Lower), GMATH_Min((Upper), (X)))
-#define GMATH_Clamp01(t) GMATH_clamp(t, 0.0f, 1.0f)
+#define GMATH_Abs(A)    AbsoluteValue(A) //((A) < 0.f ? (-(A)) : (A))
+#define GMATH_Sign(X)   ((X > 0) - (X < 0))
+#define GMATH_Clamp(X, Lower, Upper) GMATH_Max((Lower), GMATH_Min((Upper), (X)))
+#define GMATH_Clamp01(t) GMATH_Clamp(t, 0.0f, 1.0f)
 
 inline float Square(float A)
 {

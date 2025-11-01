@@ -10,7 +10,7 @@ GetDrawingRectangleXZAxes(vec3 FloorNormal, vec3 *RectangleXAxis, vec3 *Rectangl
     {
         FloorNormalNoY = GMATH_FORWARD;
     }
-    else if (GMATH_abs(FloorNormal.y) < 0.001f)
+    else if (AbsoluteValue(FloorNormal.y) < 0.001f)
     {
         FloorNormalNoY = GMATH_UP;
     }
