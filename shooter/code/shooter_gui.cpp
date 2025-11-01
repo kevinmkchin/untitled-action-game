@@ -255,7 +255,7 @@ GuiText(gui_state *GuiState, s32 X, s32 Y, u32 FontSize, gui_font FontIndex, gui
         DrawRequest->X = X;
         DrawRequest->Y = Y;
         DrawRequest->FontSize = FontSize;
-        DrawRequest->Font = GuiState->Fonts[FontIndex];
+        DrawRequest->Font = GuiState->Fonts[FontIndex].Handle;
         DrawRequest->Align = Align;
         DrawRequest->PutNewLinesAbove = PutNewLinesAbove;
     }

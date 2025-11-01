@@ -89,6 +89,12 @@ struct renderer_font
     texture_handle FontAtlasHandle;
 };
 
+struct create_font_result
+{
+    font_handle Handle;
+    vtxt_font *FontInfo;
+};
+
 //
 // NOTE(Kevin): Renderer Frontend
 //
@@ -126,7 +132,7 @@ struct renderer
     virtual texture_handle UploadTexture2DData(void *Bitmap, uint32 W, uint32 H, pixel_format Format, 
                                                bool32 LinearFiltering);
 
-    virtual font_handle CreateBitmapFont_ExtendedASCII(void *Bitmap, u32 W, u32 H, pixel_format Format, u32 NewLineGap);
+    virtual create_font_result CreateBitmapFont_ExtendedASCII(void *Bitmap, u32 W, u32 H, pixel_format Format, u32 NewLineGap);
 
 };
 

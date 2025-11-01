@@ -120,7 +120,7 @@ struct gui_state
     // TODO(Kevin): Array of typed keys to read keyboard input from
 
     // These should persist between frames!
-    font_handle Fonts[2];
+    create_font_result Fonts[2];
     u32 Active;
     u32 Hovered;
     u32 HoveredNextFrame;

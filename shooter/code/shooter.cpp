@@ -8,6 +8,7 @@
 #include <stb_sprintf.h>
 #include "shooter_meshes.h"
 #include "shooter_random.h"
+#include "shooter_gui++.cpp"
 #if SHOOTER_COMPILE_WITH_EDITOR
 #include "shooter_editor.h"
 #include "shooter_editor.cpp"
@@ -137,7 +138,7 @@ DEBUGLoadBMP(thread_context *Thread, debug_platform_read_entire_file *ReadEntire
     return Result;
 }
 
-internal font_handle
+internal create_font_result
 CreateBitmapFont(loaded_bitmap Bitmap, renderer *RendererAPI)
 {
     u32 *Pixels = Bitmap.Pixels;
@@ -157,7 +158,8 @@ CreateBitmapFont(loaded_bitmap Bitmap, renderer *RendererAPI)
         }
     }
 
-    font_handle Result = RendererAPI->CreateBitmapFont_ExtendedASCII(Bitmap.Pixels, Bitmap.Width, Bitmap.Height, BGRA_U8, 3);
+    create_font_result Result = RendererAPI->CreateBitmapFont_ExtendedASCII(Bitmap.Pixels, Bitmap.Width, Bitmap.Height, BGRA_U8, 3);
+
     return Result;
 }
 
@@ -606,12 +608,12 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         GameState->TexWireframeRed = RendererAPI->UploadTexture2DData(BmpWireframeRed.Pixels, BmpWireframeRed.Width, BmpWireframeRed.Height, BGRA_U8, true);
 
         loaded_bitmap CustomFont0Bmp = DEBUGLoadBMP(Thread, Memory->PlatformAPI.DEBUGPlatformReadEntireFile, "fonts/anikki_8x8.bmp");
-        font_handle RenderFont0 = CreateBitmapFont(CustomFont0Bmp, RendererAPI);
-        GuiState->Fonts[GuiFontCurses6x9] = RenderFont0;
+        create_font_result RenderFont0 = CreateBitmapFont(CustomFont0Bmp, RendererAPI);
+        GuiState->Fonts[GuiFontAnikki8x8] = RenderFont0;
 
         loaded_bitmap CustomFont1Bmp = DEBUGLoadBMP(Thread, Memory->PlatformAPI.DEBUGPlatformReadEntireFile, "fonts/custom_font_0_6x9.bmp");
-        font_handle RenderFont1 = CreateBitmapFont(CustomFont1Bmp, RendererAPI);
-        GuiState->Fonts[GuiFontAnikki8x8] = RenderFont1;
+        create_font_result RenderFont1 = CreateBitmapFont(CustomFont1Bmp, RendererAPI);
+        GuiState->Fonts[GuiFontCurses6x9] = RenderFont1;
 
         BuildCylinderMesh8Sided(GameState->Cylinder8SidedPointCloud, 
                                 GameState->Cylinder8SidedVB, GameState->Cylinder8SidedIB);
@@ -943,7 +945,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 }
 
                 real32 BaseCamOffsetFromPlayerRoot = 40.0f;
-                real32 CamYOffset = BaseCamOffsetFromPlayerRoot + GMATH_min(0.0f, GameState->PlayerViewBobOffset);
+                real32 CamYOffset = BaseCamOffsetFromPlayerRoot + GMATH_Min(0.0f, GameState->PlayerViewBobOffset);
                 PointCamera(&GameState->Camera, Player->P + vec3(0,CamYOffset,0), GameState->Camera.Forward);
                 UpdateCameraStrafeTilt(&GameState->Camera, Player->dHorizontalP,
                                        GameState->PlayerMaxUnitsTravelledPerSecond, Input->dtForFrame);
@@ -1144,6 +1146,15 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             //     GuiPanel(GuiState, {40, 40, 128, 128 }, GameState->TexWireframeRed);
             // }
         }
+        else
+        {
+            window_state Window = BeginWindow(GuiState, { 10, 80, 400, 600 });
+
+            WindowText(&Window, "== Some Title ==");
+            WindowText(&Window, "Hello world!");
+
+            EndWindow(&Window);
+        }
 
         RendererAPI->PushGuiDrawRequests(&GameState->FrameArena, GuiState->DrawRequests, GuiState->DrawRequestsCount);
     }
@@ -1151,6 +1162,13 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 #if SHOOTER_COMPILE_WITH_EDITOR
     if (GameState->EditorMode)
     {
+        if (!GuiState->Hovered)
+        {
+            // TODO(Kevin): Set EditorMouseX and EditorMouseY
+            // otherwise, EditorMouseX and Y stay at last valid pos
+            // move this to EditorUpdateAndRender probably tho
+        }
+
         EditorUpdateAndRender(Thread, GameState, GuiState, Input, RendererAPI);
     }
 #endif

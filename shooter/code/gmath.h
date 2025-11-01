@@ -58,11 +58,11 @@ Standards:
 #define GMATH_DEG2RAD       0.0174532925f // Degrees * GMATH_DEG2RAD = Radians
 #define GMATH_RAD2DEG       57.2958f      // Radians * GMATH_RAD2DEG = Degrees
 
-#define GMATH_min(A, B) ((A) < (B) ? (A) : (B))
-#define GMATH_max(A, B) ((A) > (B) ? (A) : (B))
+#define GMATH_Min(A, B) ((A) < (B) ? (A) : (B))
+#define GMATH_Max(A, B) ((A) > (B) ? (A) : (B))
 #define GMATH_abs(A)    ((A) < 0.f ? (-(A)) : (A))
 #define GMATH_sign(X)   ((X > 0) - (X < 0))
-#define GMATH_clamp(X, Lower, Upper) GMATH_max((Lower), GMATH_min((Upper), (X)))
+#define GMATH_clamp(X, Lower, Upper) GMATH_Max((Lower), GMATH_Min((Upper), (X)))
 #define GMATH_Clamp01(t) GMATH_clamp(t, 0.0f, 1.0f)
 
 inline float Square(float A)

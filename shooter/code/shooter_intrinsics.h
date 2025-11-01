@@ -81,9 +81,16 @@ FloorReal32ToInt32(real32 Real32)
 }
 
 inline int32 
-CeilReal32ToInt32(real32 Real32)
+CeilReal32ToS32(real32 Real32)
 {
     int32 Result = (int32)ceilf(Real32);
+    return Result;
+}
+
+inline uint32
+CeilReal32ToU32(real32 Real32)
+{
+    uint32 Result = (uint32)ceilf(Real32);
     return Result;
 }
 

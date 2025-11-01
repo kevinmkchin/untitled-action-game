@@ -235,12 +235,14 @@ texture_handle renderer::UploadTexture2DData(void *Bitmap, uint32 W, uint32 H,
     return Result;
 }
 
-font_handle renderer::CreateBitmapFont_ExtendedASCII(void *Bitmap, u32 W, u32 H, pixel_format Format, u32 NewLineGap)
-{    
+create_font_result renderer::CreateBitmapFont_ExtendedASCII(void *Bitmap, u32 W, u32 H, pixel_format Format, u32 NewLineGap)
+{
+    create_font_result Result;
+
     u32 GlyphW = W / 16;
     u32 GlyphH = H / 16;
 
-    font_handle Result = FontCount;
+    Result.Handle = FontCount;
     renderer_font *Font = &HandleToFont[FontCount++];
 
     Font->FontAtlasHandle = UploadTexture2DData(Bitmap, W, H, Format, false);
@@ -250,6 +252,7 @@ font_handle renderer::CreateBitmapFont_ExtendedASCII(void *Bitmap, u32 W, u32 H,
     VtxtFont->ascender = float(GlyphH);
     VtxtFont->descender = 0;
     VtxtFont->linegap = (float)NewLineGap;
+    Result.FontInfo = VtxtFont;
 
     for(int CodePoint = 0; CodePoint < 256; ++CodePoint)
     {
