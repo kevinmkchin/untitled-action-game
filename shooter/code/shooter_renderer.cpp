@@ -1,6 +1,7 @@
 #include "shooter_renderer.h"
 #include "shooter_renderer_dx11.h"
 #include "shooter_gui.h"
+#define VERTEXT_STATIC
 #define VERTEXT_IMPLEMENTATION
 #include "shooter_vertext.h"
 

@@ -1,6 +1,4 @@
-
-// TODO(Kevin): Update vertext to pass memory for vb and ib
-#define VTXT_MAX_CHAR_IN_BUFFER 1
+#define VERTEXT_STATIC
 #define VERTEXT_IMPLEMENTATION
 #include "shooter_vertext.h"
 

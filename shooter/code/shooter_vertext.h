@@ -8,8 +8,8 @@
     Build a vtxt_font manually or use the helper function
 
 */
-#ifndef VERTEXT_INCLUDE_H
-#define VERTEXT_INCLUDE_H
+#ifndef INCLUDE_VERTEXT_H
+#define INCLUDE_VERTEXT_H
 
 #ifndef VTXT_ASCII_FROM
 #define VTXT_ASCII_FROM 0 // starting ASCII codepoint to collect glyph data for
@@ -19,7 +19,7 @@
 #endif
 #define VTXT_GLYPH_COUNT VTXT_ASCII_TO - VTXT_ASCII_FROM + 1
 
-#ifdef VTXT_STATIC
+#ifdef VERTEXT_STATIC
 #define VTXT_DEF static
 #else
 #define VTXT_DEF extern
@@ -79,61 +79,22 @@ enum vtxt_align
 };
 
 VTXT_DEF void
-VT_SetCursor(vtxt_state *State, vtxt_s32 X, vtxt_s32 Y)
-{
-    State->CursorX = X;
-    State->CursorY = Y;
-}
+VT_AppendLine(vtxt_state *State, char *Text, float Scale,
+              float *ColorRGBA, vtxt_align Align = VT_Left);
+
+VTXT_DEF void
+VT_AppendGlyph1(vtxt_state *State, char GlyphIndex, float Scale, float OffsetX, float *ColorRGBA);
 
 VTXT_DEF void
 VT_GetTextBoundingBoxDimensions(vtxt_font *Font, char *Text, float Scale,
-                                float *OutWidth, float *OutHeight, vtxt_s32 Length = 0)
-{
-    float BoxWidth = 0;
-    float BoxHeight = 0;
-    float LineWidth = 0;
-    vtxt_s32 CharCount = 0;
+                                float *OutWidth, float *OutHeight, vtxt_s32 Length = 0);
+VTXT_DEF void
+VT_NewLine(vtxt_state *State, float Scale, vtxt_s32 X);
 
-    while (*Text != '\0' && (Length == 0 || CharCount < Length))
-    {
-        if (*Text != '\n')
-        {
-            if (*Text < VTXT_ASCII_FROM || *Text > VTXT_ASCII_TO)
-            {
-                continue;
-            }
+#endif // INCLUDE_VERTEXT_H
 
-            bool IsLastGlyphInLine = *(Text + 1) == '\0' || *(Text + 1) == '\n';
 
-            vtxt_glyph Glyph = Font->Glyphs[*Text - VTXT_ASCII_FROM];
-            Glyph.Advance *= Scale;
-            Glyph.W *= Scale;
-            Glyph.H *= Scale;
-            Glyph.OffsetX *= Scale;
-            // Glyph.OffsetY *= Scale;
-
-            LineWidth += IsLastGlyphInLine ? Glyph.OffsetX + Glyph.W : Glyph.Advance;
-
-            if (IsLastGlyphInLine)
-            {
-                if (LineWidth > BoxWidth)
-                {
-                    BoxWidth = LineWidth;
-                }
-
-                float LineHeight = Font->LineHeight * Scale;
-
-                // TODO(Kevin): Only add font->linegap if there is a new line with legit characters
-                BoxHeight += LineHeight;
-            }
-        }
-        ++Text; // next character
-        ++CharCount;
-    }
-
-    *OutWidth = BoxWidth;
-    *OutHeight = BoxHeight;
-}
+#ifdef VERTEXT_IMPLEMENTATION
 
 VTXT_DEF void
 VT_AppendGlyph1(vtxt_state *State, char GlyphIndex, float Scale, float OffsetX, float *ColorRGBA)
@@ -205,30 +166,8 @@ VT_AppendGlyph1(vtxt_state *State, char GlyphIndex, float Scale, float OffsetX, 
 }
 
 VTXT_DEF void
-VT_NewLine(vtxt_state *State, float Scale, vtxt_s32 X)
-{
-    State->CursorX = X;
-
-    float YAdvanceBeforeScale = State->Font->LineHeight;
-
-    // TODO(Kevin): No implicit casting!
-    vtxt_s32 YAdvance = (vtxt_s32)(YAdvanceBeforeScale*Scale);
-
-    if (State->PutNewLinesAbove)
-    {
-        YAdvance = -YAdvance;
-    }
-    if (State->FlipY)
-    {
-        YAdvance = -YAdvance;
-    }
-
-    State->CursorY += YAdvance;
-}
-
-VTXT_DEF void
 VT_AppendLine(vtxt_state *State, char *Text, float Scale,
-              float *ColorRGBA, vtxt_align Align = VT_Left)
+              float *ColorRGBA, vtxt_align Align)
 {
     while (*Text != '\0')
     {
@@ -277,23 +216,89 @@ VT_AppendLine(vtxt_state *State, char *Text, float Scale,
     }
 }
 
-#if VT_USING_STB_TRUETYPE
-
 VTXT_DEF void
-VT_GenerateFont()
+VT_GetTextBoundingBoxDimensions(vtxt_font *Font, char *Text, float Scale,
+                                float *OutWidth, float *OutHeight, vtxt_s32 Length)
 {
-    // TODO(Kevin): Implement
+    float BoxWidth = 0;
+    float BoxHeight = 0;
+    float LineWidth = 0;
+    vtxt_s32 CharCount = 0;
+
+    while (*Text != '\0' && (Length == 0 || CharCount < Length))
+    {
+        if (*Text != '\n')
+        {
+            if (*Text < VTXT_ASCII_FROM || *Text > VTXT_ASCII_TO)
+            {
+                continue;
+            }
+
+            bool IsLastGlyphInLine = *(Text + 1) == '\0' || *(Text + 1) == '\n';
+
+            vtxt_glyph Glyph = Font->Glyphs[*Text - VTXT_ASCII_FROM];
+            Glyph.Advance *= Scale;
+            Glyph.W *= Scale;
+            Glyph.H *= Scale;
+            Glyph.OffsetX *= Scale;
+            // Glyph.OffsetY *= Scale;
+
+            LineWidth += IsLastGlyphInLine ? Glyph.OffsetX + Glyph.W : Glyph.Advance;
+
+            if (IsLastGlyphInLine)
+            {
+                if (LineWidth > BoxWidth)
+                {
+                    BoxWidth = LineWidth;
+                }
+
+                float LineHeight = Font->LineHeight * Scale;
+
+                // TODO(Kevin): Only add font->linegap if there is a new line with legit characters
+                BoxHeight += LineHeight;
+            }
+        }
+        ++Text; // next character
+        ++CharCount;
+    }
+
+    *OutWidth = BoxWidth;
+    *OutHeight = BoxHeight;
 }
 
-#endif
+VTXT_DEF void
+VT_NewLine(vtxt_state *State, float Scale, vtxt_s32 X)
+{
+    State->CursorX = X;
 
-#endif // VERTEXT_INCLUDE_H
+    float YAdvanceBeforeScale = State->Font->LineHeight;
 
+    // TODO(Kevin): No implicit casting!
+    vtxt_s32 YAdvance = (vtxt_s32)(YAdvanceBeforeScale*Scale);
 
+    if (State->PutNewLinesAbove)
+    {
+        YAdvance = -YAdvance;
+    }
+    if (State->FlipY)
+    {
+        YAdvance = -YAdvance;
+    }
+
+    State->CursorY += YAdvance;
+}
+
+// #if VT_USING_STB_TRUETYPE
+// VTXT_DEF void
+// VT_GenerateFont()
+// {
+//     // TODO(Kevin): Implement
+// }
+// #endif
+
+#endif // VERTEXT_IMPLEMENTATION
 
 #if 0
-///////////////////// IMPLEMENTATION //////////////////////////
-#ifdef VERTEXT_IMPLEMENTATION
 
 #define _vtxt_internal static      // vtxt local static variable
 #ifndef VTXT_MAX_CHAR_IN_BUFFER
@@ -320,7 +325,6 @@ _vtxt_internal int _vtxt_cursor_y = 100; // cursor points to the base line at wh
 _vtxt_internal int _vtxt_screen_w_for_clipspace = 800;
 _vtxt_internal int _vtxt_screen_h_for_clipspace = 600;
 
-#ifdef VERTEXT_USE_STB_TRUETYPE
 VTXT_DEF vtxt_bitmap
 vtxt_init_font(vtxt_font* font_handle, unsigned char* font_buffer, int font_height_in_pixels)
 {
@@ -438,20 +442,5 @@ vtxt_init_font(vtxt_font* font_handle, unsigned char* font_buffer, int font_heig
     }
     return atlas;
 }
-#endif
-
-#undef VTXT_DEF
-#undef _vtxt_internal
-#undef VTXT_ASCII_FROM
-#undef VTXT_ASCII_TO
-#undef VTXT_MAX_CHAR_IN_BUFFER
-#undef VTXT_GLYPH_COUNT
-#undef VTXT_MAX_FONT_RESOLUTION
-#undef VTXT_DESIRED_ATLAS_WIDTH
-#undef VTXT_ATLAS_PAD_X
-#undef VTXT_ATLAS_PAD_Y
-
-#undef VERTEXT_IMPLEMENTATION
-#endif // VERTEXT_IMPLEMENTATION
 
 #endif
