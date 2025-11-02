@@ -209,7 +209,7 @@ GuiButton(gui_state *GuiState, u32 ID, gui_rect Rect, texture_handle Image,
 }
 
 internal void
-GuiTextFmt(gui_state *GuiState, s32 X, s32 Y, u32 FontSize, gui_font FontIndex, gui_alignment Align,
+GuiTextFmt(gui_state *GuiState, s32 X, s32 Y, gui_font FontIndex, float TextScale, gui_alignment Align,
            bool32 PutNewLinesAbove, vec4 TextColor, char *TextFmt, ...)
 {
     if (TextFmt)
@@ -223,12 +223,12 @@ GuiTextFmt(gui_state *GuiState, s32 X, s32 Y, u32 FontSize, gui_font FontIndex, 
 
         PushArray(GuiState->Scratch, TextLength+1, char); // to move the used index
 
-        GuiText(GuiState, X, Y, FontSize, FontIndex, Align, PutNewLinesAbove, TextColor, CurrentAddress);
+        GuiText(GuiState, X, Y, FontIndex, TextScale, Align, PutNewLinesAbove, TextColor, CurrentAddress);
     }
 }
 
 internal void
-GuiText(gui_state *GuiState, s32 X, s32 Y, u32 FontSize, gui_font FontIndex, gui_alignment Align,
+GuiText(gui_state *GuiState, s32 X, s32 Y, gui_font FontIndex, float TextScale, gui_alignment Align,
         bool32 PutNewLinesAbove, vec4 TextColor, char *Text)
 {
     if (Text == NULL)
@@ -254,7 +254,7 @@ GuiText(gui_state *GuiState, s32 X, s32 Y, u32 FontSize, gui_font FontIndex, gui
         DrawRequest->Text = String;
         DrawRequest->X = X;
         DrawRequest->Y = Y;
-        DrawRequest->FontSize = FontSize;
+        DrawRequest->TextScale = TextScale;
         DrawRequest->Font = GuiState->Fonts[FontIndex].Handle;
         DrawRequest->Align = Align;
         DrawRequest->PutNewLinesAbove = PutNewLinesAbove;

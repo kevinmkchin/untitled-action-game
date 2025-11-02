@@ -1,225 +1,21 @@
 /*
 
-vertext.h
+    vertext.h
 
-By Kevin Chin 2025 (https://kevin.gd)
+    Text mesh generation library (https://kevin.gd/)
+    Generates meshes composed of quads for text rendering
 
-    Requires stb_truetype.h (https://github.com/nothings/stb/blob/master/stb_truetype.h)
-    Do this:
-        #define VERTEXT_IMPLEMENTATION
-    before you include this file in *one* C or C++ file to create the implementation.
-        // i.e. it should look like this:
-        #include ...
-        #include ...
-        #define STB_TRUETYPE_IMPLEMENTATION
-        #include "stb_truetype.h"
-        #define VERTEXT_IMPLEMENTATION
-        #include "vertext.h"
-
-INTRO & PURPOSE:
-    Single-header C library to generate textured quads for rendering text to the screen.
-    This library does not perform rendering directly and instead provides a vertex buffer
-    of vertices (in either Screen Space or Clip Space) and texture coordinates. This allows
-    the library to work seamlessly with both OpenGL and DirectX. Probably also works with
-    other graphics APIs too...
-
-    Text rendering is a non-trivial task, and this library strives to make it easy and frictionless.
-
-    This library strives to solve 2 problems:
-    - Creating an individual vertex buffer / textured quad for every single character you
-    want to draw is extremely inefficient - especially if each character has their own
-    texture that needs to be binded to the graphics card.
-    - Every character/glyph has varying sizes and parameters that affect how they should
-    be drawn relative to all the other characters/glyphs. These must be considered when
-    drawing a line of text.
-
-    This library solves these problems by 
-        1.  generating a single, large texture combining all the individual textures of the
-            characters - called a font Texture Atlas
-        2.  generating a single vertex buffer containing the vertices of all the quads 
-            (https://en.wikipedia.org/wiki/Quadrilateral - one quad can draw one character) 
-            required by the text you want to draw
-        3.  handling the assembly of the quad vertices for the single vertex buffer by
-            using the character/glyph metrics (size, offsets, etc.)
-
-CONCEPT:
-    This library serves as a text drawing "canvas". 
-    You can "append" lines of text or characters to the "canvas". You can control where
-    the text gets "appended" to the "canvas" by moving the "cursor" (setting its location
-    on the screen). Then when you want to draw the "canvas" with your graphics API (OpenGL, 
-    DirectX, etc.), you can "grab" the "canvas" (vertex buffer).
-    Then, it is up to you and your graphics API to create the VAO and VBO on the graphics card
-    using the vertex buffer you "grabbed" from this library.
-    Check the USAGE EXAMPLEs below to see how this would translate to code.
-
-USAGE:
-    This library REQUIRES Sean Barrett's stb_truetype.h to be included beforehand:
-    https://raw.githubusercontent.com/nothings/stb/master/stb_truetype.h
-
-    This library's purpose is to return an array of vertices and texture coordinates:
-        [ x, y, u, v, x, y, u, v, ......, x, y, u, v ]
-    You can feed this into a Vertex Buffer with a Stride of 4.
-
-    Since this library only returns an array of vertex and texture coordinates, you 
-    should be able to feed that array into the vertex buffer of any graphics API and 
-    get it working.
-
-    You can also make the library create and return an index buffer if you are using indexed
-    drawing. You don't need to do this if you are not using indexed drawing.
-    See the following links if you don't know what vertex indices or index buffers are:
-    http://www.opengl-tutorial.org/intermediate-tutorials/tutorial-9-vbo-indexing/
-    https://www.learnopengles.com/tag/index-buffer-object/
-
-    This library is not responsible for telling the graphics card to render text. You can
-    do that on your own in your preferred graphics API using the vertex buffer (and index
-    buffer if you enabled index drawing) that this library creates and a quad/ui rendering shader.
-    
-    > Vertex Coordinates:
-        By default, Screen Space coordinates are generated instead of Clip Space coordinates.
-
-        Quick reminder - Screen Space coordinates are where the top left corner of the
-        window/screen is defined as x: 0, y: 0 and the bottom right corner is x: window width,
-        y: window height. Clip Space coordinates are where the top left corner is x: -1, y: 1
-        and the bottom right corner is x: 1, y: -1 (with 0, 0 being the center of the window).
-        (https://learnopengl.com/Getting-started/Coordinate-Systems)
-
-        You can pick which coordinate system to generate vertices for. If you already have an
-        orthographic projection matrix for rendering UI or text, then you can make this library
-        generate Screen Space coordinates and apply the orthographic projection matrix in your
-        UI or text shader. You could also just create an orthographic projection matrix for this
-        text-rendering purpose:
-        https://glm.g-truc.net/0.9.1/api/a00237.html#ga71777a3b1d4fe1729cccf6eda05c8127
-        https://www.khronos.org/registry/OpenGL-Refpages/gl2.1/xhtml/glOrtho.xml
-
-        If you just want to use Clip Space coordinates, then you need to set the flag for it:
-            vtxt_setflags(VTXT_USE_CLIPSPACE_COORDS);
-        and tell the library the window size:
-            vtxt_backbuffersize(WIDTH, HEIGHT);
-        If you are using Screen Space coordinates, you don't need to do any of that.
-
-    > Config Flags:
-        Use the following flags with vtxt_setflags(_flags_):
-        VTXT_CREATE_INDEX_BUFFER:
-            Sets the libary to use indexed vertices and return a index buffer as well when
-            grabbing buffers.
-        VTXT_USE_CLIPSPACE_COORDS:
-            Sets the library to use generate vertices in Clip Space coordinates instead of
-            Screen Space coordinates.
-        VTXT_NEWLINE_ABOVE:
-            Sets the library to move the cursor above the current line instead of below
-            when calling vtxt_new_line.
-        VTXT_FLIP_Y:
-            Flips y vertex position in case you are using a coordinate system where "up" is negative y.
-
-    > By Default:
-        - no indexed drawing (unless specified with flag VTXT_CREATE_INDEX_BUFFER)
-        - generates vertices in screenspace coordinates (unless specified with flag VTXT_USE_CLIPSPACE_COORDS)
-        - "next line" is the line below the line we are on (unless specified with flag VTXT_NEWLINE_ABOVE)
-
-    > The following "#define"s are unnecessary but optional:
-        #define VTXT_MAX_CHAR_IN_BUFFER X (before including this library) where X is the
-        maximum number of characters you want to allow in the vertex buffer at once. By default this value
-        is 800 characters. Consider your memory use when setting this value because the memory for the
-        vertex buffer and index buffers are located in the .data segment of the program's alloted memory.
-        Every character increases the combined size of the two buffers by 120 bytes (e.g. 800 characters
-        allocates 800 * 120 = 96000 bytes in the .data segment of memory)
-            e.g. #define VTXT_MAX_CHAR_IN_BUFFER 500
-                 #define VERTEXT_IMPLEMENTATION
-                 #include "vertext.h"
-
-        #define VTXT_ASCII_FROM X and #define VTXT_ASCII_TO Y where X and Y are the start and
-        end ASCII codepoints to collect the font data for. In other words, if X is the character 'a' and Y is
-        the character 'z', then the library will only collect the font data for the ASCII characters from 'a'
-        to 'z'. By default, the start and end codepoints are set to ' ' and '~'.
-            e.g. #define VTXT_ASCII_FROM 'a'
-                 #define VTXT_ASCII_TO 'z'
-                 #define VERTEXT_IMPLEMENTATION
-                 #include "vertext.h"
-
-        #define VTXT_STATIC to make function declarations and function definitions static. This makes
-        the implementation private to the source file that creates it. This allows you to have multiple
-        instances of this library in your project without collision. You could use multiple vertex
-        buffers at the same time without clearing the buffers.
-
-    > Things to be aware of:
-        - vtxt_font is around ~4KB, so don't copy it around. Just declare it once and then pass around
-          a POINTER to it instead of passing it around by value.
-
-    > Some types:
-        vtxt_vertex_buffer - see comment at definition - This is what you want to get back from this library
-        vtxt_bitmap - see comment at definition - basically data and pointer to bitmap image in memory
-        vtxt_glyph - see comment at definition - info about specific ASCII glyph
-        vtxt_font - see comment at definition - info about font - HUGE struct
-
-Do only once:
-    Optional:   vtxt_setflags(VTXT_CREATE_INDEX_BUFFER);                <-- Configures the library with given flags
-                            |
-                            V
-    Optional:   vtxt_backbuffersize(window width=1920, window height=1080);  <-- Only required if using VTXT_USE_CLIPSPACE_COORDS
-                            |
-                            V
-    Required:   vtxt_init_font(font_handle, font_buffer, font_height_px);   <-- DO ONLY ONCE PER FONT (or per font resolution)
-
-Loop:
-    Optional:   vtxt_move_cursor(x = 640, y = 360);                      <-- Set the cursor to x y (where to start drawing)
-                            |
-                            V
-    Required:   vtxt_append_line("some text", font_handle, text_height_px);   <-- text to draw
-                            |
-                            V
-    Optional:   vtxt_new_line(x = 640, font);                            <-- Go to next line, set cursor x to 640
-                            |
-                            V
-    Optional:   vtxt_append_line("next lin", font_handle, text_height_px);    <-- next line to draw
-                            |
-                            V
-    Optional:   vtxt_append_glyph('e', font_handle, text_height_px);          <-- Can append individual glyphs also
-                            |
-                            V
-    Required:   vtxt_vertex_buffer grabbedBuffer = vtxt_grab_buffer();    <-- Grabs the buffer
-                            |
-                            V
-    Required:   * create/bind Vertex Array Object and Vertex Buffer Objects on GPU using your graphics API and grabbedBuffer
-                            |
-                            V
-    Optional:   vtxt_clear_buffer();           <-- REQUIRED IF you want to clear the appended text to append NEW text
-                                                    Only clear AFTER you bind the vertex and index buffers of grabbedBuffer
-                                                    to the VAO and VBO on the GPU.
-
-EXAMPLE:
-
-    #define TEXT_SIZE 30
-
-    unsigned char* font_file;
-    // Read the font file on disk (e.g. "arial.ttf") into a byte buffer in memory (e.g. font_file) using your own method
-    // If you are using SDL, you can use SDL_RW. You could also use stdio.h's file operations (fopen, fread, fclose, etc.).
-    
-    vtxt_setflags(VTXT_CREATE_INDEX_BUFFER|VTXT_USE_CLIPSPACE_COORDS);     // vertext.h setting
-    vtxt_backbuffersize(WIDTH, HEIGHT);
-
-    vtxt_font font_handle;
-    vtxt_init_font(&font_handle, font_file, TEXT_SIZE);
-    // TEXT_SIZE in init_font doesn't need to be the same as the TEXT_SIZE we use when we call append_line or glyph
-    // Now font_handle has all the info we need.
-
-    vtxt_clear_buffer();
-    vtxt_move_cursor(100, 100);
-    vtxt_append_line("Hello, world!", &font_handle);
-
-    vtxt_vertex_buffer vb = vtxt_grab_buffer();
-
-TODO:
-    - Kerning
+    Build a vtxt_font manually or use the helper function
 
 */
-#ifndef _INCLUDE_VERTEXT_H_
-#define _INCLUDE_VERTEXT_H_
+#ifndef VERTEXT_INCLUDE_H
+#define VERTEXT_INCLUDE_H
 
 #ifndef VTXT_ASCII_FROM
-#define VTXT_ASCII_FROM 0    // starting ASCII codepoint to collect font data for
+#define VTXT_ASCII_FROM 0 // starting ASCII codepoint to collect glyph data for
 #endif
 #ifndef VTXT_ASCII_TO
-#define VTXT_ASCII_TO 255      // ending ASCII codepoint to collect font data for
+#define VTXT_ASCII_TO 255 // ending ASCII codepoint to collect glyph data for
 #endif
 #define VTXT_GLYPH_COUNT VTXT_ASCII_TO - VTXT_ASCII_FROM + 1
 
@@ -229,118 +25,273 @@ TODO:
 #define VTXT_DEF extern
 #endif
 
-/** Stores a pointer to the vertex buffer assembly array and the count of vertices in the array
-*/
-typedef struct vtxt_vertex_buffer
-{
-    int             vertex_count;           // count of vertices in vertex buffer array (4 elements per vertex, so vertices_array_count / 4 = vertex_count)
-    float*          vertex_buffer;          // pointer to vertex buffer array
-    int             vertices_array_count;   // count of elements in vertex buffer array
-    unsigned int*   index_buffer;           // pointer to index buffer array
-    int             indices_array_count;    // count of elements in index buffer array
-} vtxt_vertex_buffer;
+typedef int           vtxt_s32;
+typedef unsigned int  vtxt_u32;
+typedef unsigned char vtxt_u8;
 
-/** Stores information about a glyph. The glyph is identified via codepoint (ASCII).
-    Check out https://learnopengl.com/img/in-practice/glyph.png 
-    Learn more about glyph metrics if you want.
-*/
-typedef struct vtxt_glyph
+struct vtxt_vertex1
 {
-    unsigned char   codepoint;
-    float           width, height, advance,offset_x,offset_y,min_u,min_v,max_u,max_v;
-} vtxt_glyph;
-
-/** vtxt_font is a handle to hold font information. It's around ~4KB, so don't copy it around all the time.
-*/
-typedef struct vtxt_font
-{
-    int             font_height_px;             // how tall the font's vertical extent is in pixels
-    float           ascender;                   // https://en.wikipedia.org/wiki/Ascender_(typography)
-    float           descender;                  // https://en.wikipedia.org/wiki/Descender
-    float           linegap;                    // gap between the bottom of the descender of one line to the top of the ascender of the line below
-    vtxt_glyph      glyphs[VTXT_GLYPH_COUNT];
-} vtxt_font;
-
-enum _vtxt_config_flags_t
-{
-    VTXT_CREATE_INDEX_BUFFER     = 1 << 0,
-    VTXT_USE_CLIPSPACE_COORDS    = 1 << 1,
-    VTXT_NEWLINE_ABOVE           = 1 << 2,
-    VTXT_FLIP_Y                  = 1 << 3,
+    float X, Y;
+    float U, V;
+    float R, G, B, A;
 };
 
-/** Configures this library to use the settings defined by _vtxt_config_flags_t.
-    e.g. vtxt_setflags(VTXT_CREATE_INDEX_BUFFER | VTXT_USE_CLIPSPACE_COORDS);
-*/
-VTXT_DEF void vtxt_setflags(int newconfig);
+struct vtxt_glyph
+{
+    vtxt_u8 Codepoint;
+    float W, H, Advance, OffsetX, OffsetY, MinU, MinV, MaxU, MaxV;
+};
 
-/** ONLY IF YOU WANT NORMALIZED DEVICE COORDINATES INSTEAD OF SCREENSPACE COORDINATES
-    Tells vertext.h the size of your application's backbuffer size. If the
-    backbuffer size changes, then you should call this again to update the size.
-*/
-VTXT_DEF void vtxt_backbuffersize(int width, int height);
+struct vtxt_font
+{
+    vtxt_s32   FontHeightPx;
+    float      LineHeight; // Ascender + -Descender + Linegap
+    vtxt_glyph Glyphs[VTXT_GLYPH_COUNT];
+};
 
-/** Move cursor location (cursor represents the position on the screen where text is placed)
-*/
-VTXT_DEF void vtxt_move_cursor(int x,
-                               int y);
+struct vtxt_mono_bitmap
+{
+    vtxt_s32 W, H;
+    char *Pixels;
+};
 
-/** Go to new line and set X location of cursor
-*/
-VTXT_DEF void vtxt_new_line(int          x,
-                            vtxt_font*   font,
-                            int          text_height_px);
+struct vtxt_state
+{
+    vtxt_vertex1 *VertexBuffer1;
+    vtxt_u32      VertexCount1;
+    vtxt_font    *Font;
+    vtxt_s32      CursorX, CursorY; // TODO(Kevin): Should the cursor be in floats?
+    // [optional]
+    bool PutNewLinesAbove;
+    bool FlipY;
+    // bool          CreateIndexBuffer;
+    // vtxt_u32     *IndexBuffer;
+    // vtxt_u32      IndexCount;
+    // bool          GetNormalizedDeviceCoords;
+    // vtxt_u32      RenderW, RenderH;
+};
 
-/** Assemble quads for a line of text and append to vertex buffer.
-    line_of_text is the text you want to draw e.g. "some text I want to Draw".
-    font is the vtxt_font font handle that contains the font you want to use.
-    text_height_px is the desired text height in pixels.
-*/
-VTXT_DEF void vtxt_append_line(const char*   line_of_text,
-                               vtxt_font*    font,
-                               int           text_height_px,
-                                                 vec4 Color);
+enum vtxt_align
+{
+    VT_Left,
+    VT_Center,
+    VT_Right,
+};
 
-/** Same as vtxt_append_line but center horizontally where the cursor is. */
-VTXT_DEF void vtxt_append_line_centered(const char* line_of_text,
-                                        vtxt_font*  font,
-                                        int         text_height_px,
-                                                 vec4 Color);
+VTXT_DEF void
+VT_SetCursor(vtxt_state *State, vtxt_s32 X, vtxt_s32 Y)
+{
+    State->CursorX = X;
+    State->CursorY = Y;
+}
 
-/** Same as vtxt_append_line but with text using right-alignment (the text is to the left of the cursor). */
-VTXT_DEF void vtxt_append_line_align_right(const char* line_of_text, 
-                                           vtxt_font*  font, 
-                                           int         text_height_px,
-                                                 vec4 Color);
+VTXT_DEF void
+VT_GetTextBoundingBoxDimensions(vtxt_font *Font, char *Text, float Scale,
+                                float *OutWidth, float *OutHeight, vtxt_s32 Length = 0)
+{
+    float BoxWidth = 0;
+    float BoxHeight = 0;
+    float LineWidth = 0;
+    vtxt_s32 CharCount = 0;
 
-/** Get vtxt_vertex_buffer with a pointer to the vertex buffer array
-    and vertex buffer information.
-*/
-VTXT_DEF vtxt_vertex_buffer vtxt_grab_buffer();
+    while (*Text != '\0' && (Length == 0 || CharCount < Length))
+    {
+        if (*Text != '\n')
+        {
+            if (*Text < VTXT_ASCII_FROM || *Text > VTXT_ASCII_TO)
+            {
+                continue;
+            }
 
-/** Call before starting to append new text.
-    Clears the vertex buffer that text is being appended to. 
-    If you called vtxt_grab_buffer and want to use the buffer you received,
-    make sure you pass the buffer to OpenGL (glBufferData) or make a copy of
-    the buffer before calling vtxt_clear_buffer.
-*/
-VTXT_DEF void vtxt_clear_buffer();
+            bool IsLastGlyphInLine = *(Text + 1) == '\0' || *(Text + 1) == '\n';
 
-/** Set an offset to font linegap. Default is 0. */
-VTXT_DEF void vtxt_set_linegap_offset(float offset);
+            vtxt_glyph Glyph = Font->Glyphs[*Text - VTXT_ASCII_FROM];
+            Glyph.Advance *= Scale;
+            Glyph.W *= Scale;
+            Glyph.H *= Scale;
+            Glyph.OffsetX *= Scale;
+            // Glyph.OffsetY *= Scale;
 
-/** Returns the width and height of the minimum bounding box containing
-    the given text using the given font and text height. */
-VTXT_DEF void vtxt_get_text_bounding_box_info(float* width_out,
-                                              float* height_out,
-                                              const char* text,
-                                              vtxt_font* font,
-                                              int text_height_px);
+            LineWidth += IsLastGlyphInLine ? Glyph.OffsetX + Glyph.W : Glyph.Advance;
+
+            if (IsLastGlyphInLine)
+            {
+                if (LineWidth > BoxWidth)
+                {
+                    BoxWidth = LineWidth;
+                }
+
+                float LineHeight = Font->LineHeight * Scale;
+
+                // TODO(Kevin): Only add font->linegap if there is a new line with legit characters
+                BoxHeight += LineHeight;
+            }
+        }
+        ++Text; // next character
+        ++CharCount;
+    }
+
+    *OutWidth = BoxWidth;
+    *OutHeight = BoxHeight;
+}
+
+VTXT_DEF void
+VT_AppendGlyph1(vtxt_state *State, char GlyphIndex, float Scale, float OffsetX, float *ColorRGBA)
+{
+    if(GlyphIndex < VTXT_ASCII_FROM || GlyphIndex > VTXT_ASCII_TO)
+    {
+        return;
+    }
+
+    // TODO(Kevin): Check if can fit in vertex buffer?
+    // if(VTXT_MAX_CHAR_IN_BUFFER * 6 < _vtxt_vertex_count + 6)
+    // {
+    //     return;
+    // }
+
+    // TODO(Kevin): Should everything be in floats to avoid rounding?
+
+    vtxt_font* Font = State->Font;
+    vtxt_glyph Glyph = Font->Glyphs[GlyphIndex - VTXT_ASCII_FROM];
+    Glyph.Advance *= Scale;
+    Glyph.W *= Scale;
+    Glyph.H *= Scale;
+    Glyph.OffsetX *= Scale;
+    Glyph.OffsetY *= Scale;
+
+    int Stride = sizeof(vtxt_vertex1);
+
+    float Top = State->CursorY + Glyph.OffsetY;
+    float Bot = State->CursorY + Glyph.OffsetY + Glyph.H;
+    float Left = State->CursorX + Glyph.OffsetX + OffsetX;
+    float Right = State->CursorX + Glyph.OffsetX + Glyph.W + OffsetX;
+
+    if (State->FlipY)
+    {
+        Top = State->CursorY - Glyph.OffsetY;
+        Bot = State->CursorY - Glyph.OffsetY - Glyph.H;
+    }
+
+    // if(State->GetNormalizedDeviceCoords)
+    // {
+    //     Top = (1.f - ((Top / _vtxt_screen_h_for_clipspace) * 2.f));
+    //     Bot = (1.f - ((Bot / _vtxt_screen_h_for_clipspace) * 2.f));
+    //     Left = ((Left / _vtxt_screen_w_for_clipspace) * 2.f) - 1.f;
+    //     Right = ((Right / _vtxt_screen_w_for_clipspace) * 2.f) - 1.f;
+    // }
+
+    State->CursorX += (vtxt_s32)Glyph.Advance;
+
+    if (GlyphIndex <= 32)
+    {
+        // No need to append vertices for whitespace
+        return;
+    }
+
+    vtxt_u32 BaseOffset = State->VertexCount1;
+    State->VertexBuffer1[BaseOffset+0] = { Left, Bot, Glyph.MinU, Glyph.MinV, 
+                                           ColorRGBA[0], ColorRGBA[1], ColorRGBA[2], ColorRGBA[3] };
+    State->VertexBuffer1[BaseOffset+1] = { Right, Top, Glyph.MaxU, Glyph.MaxV, 
+                                           ColorRGBA[0], ColorRGBA[1], ColorRGBA[2], ColorRGBA[3] };
+    State->VertexBuffer1[BaseOffset+2] = { Left, Top, Glyph.MinU, Glyph.MaxV,
+                                           ColorRGBA[0], ColorRGBA[1], ColorRGBA[2], ColorRGBA[3] };
+    State->VertexBuffer1[BaseOffset+3] = { Left, Bot, Glyph.MinU, Glyph.MinV,
+                                           ColorRGBA[0], ColorRGBA[1], ColorRGBA[2], ColorRGBA[3] };
+    State->VertexBuffer1[BaseOffset+4] = { Right, Bot, Glyph.MaxU, Glyph.MinV,
+                                           ColorRGBA[0], ColorRGBA[1], ColorRGBA[2], ColorRGBA[3] };
+    State->VertexBuffer1[BaseOffset+5] = { Right, Top, Glyph.MaxU, Glyph.MaxV,
+                                           ColorRGBA[0], ColorRGBA[1], ColorRGBA[2], ColorRGBA[3] };
+    State->VertexCount1 += 6;
+}
+
+VTXT_DEF void
+VT_NewLine(vtxt_state *State, float Scale, vtxt_s32 X)
+{
+    State->CursorX = X;
+
+    float YAdvanceBeforeScale = State->Font->LineHeight;
+
+    // TODO(Kevin): No implicit casting!
+    vtxt_s32 YAdvance = (vtxt_s32)(YAdvanceBeforeScale*Scale);
+
+    if (State->PutNewLinesAbove)
+    {
+        YAdvance = -YAdvance;
+    }
+    if (State->FlipY)
+    {
+        YAdvance = -YAdvance;
+    }
+
+    State->CursorY += YAdvance;
+}
+
+VTXT_DEF void
+VT_AppendLine(vtxt_state *State, char *Text, float Scale,
+              float *ColorRGBA, vtxt_align Align = VT_Left)
+{
+    while (*Text != '\0')
+    {
+        char *LineStart = Text;
+        vtxt_s32 LineStartX = State->CursorX;
+
+        vtxt_s32 LineLength = 0;
+
+        while (*Text != '\0' && *Text != '\n')
+        {
+            ++Text;
+            ++LineLength;
+        }
+
+        float LineW = 0.0f;
+        float LineH;
+        if (Align != VT_Left)
+        {
+            VT_GetTextBoundingBoxDimensions(State->Font, LineStart, Scale,
+                                            &LineW, &LineH, LineLength);
+        }
+
+        for (vtxt_s32 Index = 0; Index < LineLength; ++Index)
+        {
+            char in_glyph = LineStart[Index];
+
+            // TODO(Kevin): Make sure we are not exceeding the array size
+
+            float OffsetX = 0.0f;
+            if (Align == VT_Center)
+            {
+                OffsetX = (float)(-LineW)/2.0f;
+            }
+            else if (Align == VT_Right)
+            {
+                OffsetX = (float)(-LineW);
+            }
+            VT_AppendGlyph1(State, in_glyph, Scale, OffsetX, ColorRGBA);
+        }
+
+        if (*Text == '\n')
+        {
+            VT_NewLine(State, Scale, LineStartX);
+            ++Text;
+        }
+    }
+}
+
+#if VT_USING_STB_TRUETYPE
+
+VTXT_DEF void
+VT_GenerateFont()
+{
+    // TODO(Kevin): Implement
+}
+
+#endif
+
+#endif // VERTEXT_INCLUDE_H
 
 
-#endif // _INCLUDE_VERTEXT_H_
 
-
+#if 0
 ///////////////////// IMPLEMENTATION //////////////////////////
 #ifdef VERTEXT_IMPLEMENTATION
 
@@ -369,33 +320,8 @@ _vtxt_internal int _vtxt_cursor_y = 100; // cursor points to the base line at wh
 _vtxt_internal int _vtxt_screen_w_for_clipspace = 800;
 _vtxt_internal int _vtxt_screen_h_for_clipspace = 600;
 
-VTXT_DEF void
-vtxt_setflags(int newconfig)
-{
-    int oldconfig = _vtxt_config;
-    _vtxt_config = newconfig;
-
-    if((oldconfig & VTXT_CREATE_INDEX_BUFFER) != (_vtxt_config & VTXT_CREATE_INDEX_BUFFER))
-    {
-        vtxt_clear_buffer();
-    }
-}
-
-VTXT_DEF void
-vtxt_set_linegap_offset(float offset)
-{
-    _vtxt_linegap_offset = offset;
-}
-
-VTXT_DEF void
-vtxt_backbuffersize(int width, int height)
-{
-    _vtxt_screen_w_for_clipspace = width;
-    _vtxt_screen_h_for_clipspace = height;
-}
-
-#if 0
-VTXT_DEF void
+#ifdef VERTEXT_USE_STB_TRUETYPE
+VTXT_DEF vtxt_bitmap
 vtxt_init_font(vtxt_font* font_handle, unsigned char* font_buffer, int font_height_in_pixels)
 {
     int desired_atlas_width = VTXT_DESIRED_ATLAS_WIDTH;
@@ -501,8 +427,8 @@ vtxt_init_font(vtxt_font* font_handle, unsigned char* font_buffer, int font_heig
                     = glyph_bitmap.pixels[glyph_y * glyph_bitmap.width + glyph_x];
             }
         }
-        font_handle->glyphs[i].min_u = (float) atlas_x / (float) atlas.width;
-        font_handle->glyphs[i].min_v = (float) atlas_y / (float) atlas.height;
+        font_handle->glyphs[i].MinU = (float) atlas_x / (float) atlas.width;
+        font_handle->glyphs[i].MinV = (float) atlas_y / (float) atlas.height;
         font_handle->glyphs[i].max_u = (float) (atlas_x + glyph_bitmap.width) / (float) atlas.width;
         font_handle->glyphs[i].max_v = (float) (atlas_y + glyph_bitmap.height) / (float) atlas.height;
 
@@ -510,413 +436,9 @@ vtxt_init_font(vtxt_font* font_handle, unsigned char* font_buffer, int font_heig
 
         free(glyph_bitmap.pixels);
     }
-    font_handle->font_atlas = atlas;
+    return atlas;
 }
 #endif
-
-VTXT_DEF void
-vtxt_move_cursor(int x, int y)
-{
-    _vtxt_cursor_x = x;
-    _vtxt_cursor_y = y;
-}
-
-VTXT_DEF void
-vtxt_new_line(int x, vtxt_font* font, int text_height_px)
-{
-    float scale = (float)text_height_px / (float)font->font_height_px;
-    float linegap = font->linegap + _vtxt_linegap_offset;
-    _vtxt_cursor_x = x;
-    if(_vtxt_config & VTXT_NEWLINE_ABOVE)
-    {
-        if(_vtxt_config & VTXT_FLIP_Y)
-        {
-            _vtxt_cursor_y += (int) ((-font->descender + linegap + font->ascender)*scale);
-        }
-        else
-        {
-            _vtxt_cursor_y -= (int) ((-font->descender + linegap + font->ascender)*scale);
-        }
-    }
-    else
-    {
-        if(_vtxt_config & VTXT_FLIP_Y)
-        {
-            _vtxt_cursor_y -= (int) ((-font->descender + linegap + font->ascender)*scale);
-        }
-        else
-        {
-            _vtxt_cursor_y += (int) ((-font->descender + linegap + font->ascender)*scale);
-        }
-    }
-}
-
-struct vtxt_rgba
-{
-    float r;
-    float g;
-    float b;
-    float a;
-};
-
-VTXT_DEF void
-__private_vtxt_append_glyph_vertex_color_hack(const char in_glyph, vtxt_font* font, int text_height_px, float x_offset_from_cursor, vtxt_rgba glyph_color)
-{
-    if(in_glyph < VTXT_ASCII_FROM || in_glyph > VTXT_ASCII_TO) // Make sure we have the data for this glyph
-    {
-        return;
-    }
-
-    if(VTXT_MAX_CHAR_IN_BUFFER * 6 < _vtxt_vertex_count + 6) // Make sure we are not exceeding the array size
-    {
-        return;
-    }
-
-    float scale = (float)text_height_px / (float)font->font_height_px;
-    vtxt_glyph glyph = font->glyphs[in_glyph - VTXT_ASCII_FROM];
-    glyph.advance *= scale;
-    glyph.width *= scale; // NOTE(Kevin): 2022-06-15 scale was float, but width and height were integers so rounding was causing text to render strangely - fixed by just changing width and height to floats
-    glyph.height *= scale;
-    glyph.offset_x *= scale;
-    glyph.offset_y *= scale;
-
-    int STRIDE = 8;
-
-    float top = _vtxt_cursor_y + glyph.offset_y;
-    float bot = _vtxt_cursor_y + glyph.offset_y + glyph.height;
-    float left = _vtxt_cursor_x + glyph.offset_x + x_offset_from_cursor;
-    float right = _vtxt_cursor_x + glyph.offset_x + glyph.width + x_offset_from_cursor;
-
-    if(_vtxt_config & VTXT_FLIP_Y)
-    {
-        top = _vtxt_cursor_y - glyph.offset_y;
-        bot = _vtxt_cursor_y - glyph.offset_y - glyph.height;
-    }
-
-    if(_vtxt_config & VTXT_USE_CLIPSPACE_COORDS)
-    {
-        top = (1.f - ((top / _vtxt_screen_h_for_clipspace) * 2.f));
-        bot = (1.f - ((bot / _vtxt_screen_h_for_clipspace) * 2.f));
-        left = ((left / _vtxt_screen_w_for_clipspace) * 2.f) - 1.f;
-        right = ((right / _vtxt_screen_w_for_clipspace) * 2.f) - 1.f;
-    }
-
-    _vtxt_cursor_x += (int) glyph.advance; // Advance the cursor
-
-    if (in_glyph <= 32) return; // No need to append vertices for invisible characters
-
-    if(_vtxt_config & VTXT_CREATE_INDEX_BUFFER)
-    {
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 0] = left;
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 1] = bot;
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 2] = glyph.min_u;
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 3] = glyph.min_v;
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 4] = glyph_color.r;
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 5] = glyph_color.g;
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 6] = glyph_color.b;
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 7] = glyph_color.a;
-
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 8] = left;
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 9] = top;
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 10] = glyph.min_u;
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 11] = glyph.max_v;
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 12] = glyph_color.r;
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 13] = glyph_color.g;
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 14] = glyph_color.b;
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 15] = glyph_color.a;
-
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 16] = right;
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 17] = top;
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 18] = glyph.max_u;
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 19] = glyph.max_v;
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 20] = glyph_color.r;
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 21] = glyph_color.g;
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 22] = glyph_color.b;
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 23] = glyph_color.a;
-
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 24] = right;
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 25] = bot;
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 26] = glyph.max_u;
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 27] = glyph.min_v;
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 28] = glyph_color.r;
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 29] = glyph_color.g;
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 30] = glyph_color.b;
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 31] = glyph_color.a;
-
-        _vtxt_index_buffer[_vtxt_index_count + 0] = _vtxt_vertex_count + 0;
-        _vtxt_index_buffer[_vtxt_index_count + 1] = _vtxt_vertex_count + 2;
-        _vtxt_index_buffer[_vtxt_index_count + 2] = _vtxt_vertex_count + 1;
-        _vtxt_index_buffer[_vtxt_index_count + 3] = _vtxt_vertex_count + 0;
-        _vtxt_index_buffer[_vtxt_index_count + 4] = _vtxt_vertex_count + 3;
-        _vtxt_index_buffer[_vtxt_index_count + 5] = _vtxt_vertex_count + 2;
-
-        _vtxt_vertex_count += 4;
-        _vtxt_index_count += 6;
-    }
-    else
-    {
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 0] = left;
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 1] = bot;
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 2] = glyph.min_u;
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 3] = glyph.min_v;
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 4] = glyph_color.r;
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 5] = glyph_color.g;
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 6] = glyph_color.b;
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 7] = glyph_color.a;
-
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 8] = right;
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 9] = top;
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 10] = glyph.max_u;
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 11] = glyph.max_v;
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 12] = glyph_color.r;
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 13] = glyph_color.g;
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 14] = glyph_color.b;
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 15] = glyph_color.a;
-
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 16] = left;
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 17] = top;
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 18] = glyph.min_u;
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 19] = glyph.max_v;
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 20] = glyph_color.r;
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 21] = glyph_color.g;
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 22] = glyph_color.b;
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 23] = glyph_color.a;
-
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 24] = left;
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 25] = bot;
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 26] = glyph.min_u;
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 27] = glyph.min_v;
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 28] = glyph_color.r;
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 29] = glyph_color.g;
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 30] = glyph_color.b;
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 31] = glyph_color.a;
-
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 32] = right;
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 33] = bot;
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 34] = glyph.max_u;
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 35] = glyph.min_v;
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 36] = glyph_color.r;
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 37] = glyph_color.g;
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 38] = glyph_color.b;
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 39] = glyph_color.a;
-
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 40] = right;
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 41] = top;
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 42] = glyph.max_u;
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 43] = glyph.max_v;
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 44] = glyph_color.r;
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 45] = glyph_color.g;
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 46] = glyph_color.b;
-        _vtxt_vertex_buffer[_vtxt_vertex_count * STRIDE + 47] = glyph_color.a;
-
-        _vtxt_vertex_count += 6;
-    }
-}
-
-VTXT_DEF void
-vtxt_append_line(const char* line_of_text, vtxt_font* font, int text_height_px, vec4 Color)
-{
-    int line_start_x = _vtxt_cursor_x;
-    while(*line_of_text != '\0')
-    {
-        if(*line_of_text != '\n')
-        {
-            if(VTXT_MAX_CHAR_IN_BUFFER * 6 < _vtxt_vertex_count + 6) // Make sure we are not exceeding the array size
-            {
-                break;
-            }
-
-            vtxt_rgba char_color;
-            char_color.r = Color.x;
-            char_color.g = Color.y;
-            char_color.b = Color.z;
-            char_color.a = Color.w;
-            __private_vtxt_append_glyph_vertex_color_hack(*line_of_text, font, text_height_px, 0.f, char_color);
-        }
-        else
-        {
-            vtxt_new_line(line_start_x, font, text_height_px);
-        }
-        ++line_of_text;// next character
-    }
-}
-
-VTXT_DEF void
-vtxt_append_line_align_right(const char* line_of_text, vtxt_font* font, int text_height_px, vec4 Color)
-{
-    int line_start_x = _vtxt_cursor_x;
-    char line_buffer[256];
-    int lb_index = 0;
-    while (*line_of_text != '\0' && *line_of_text != '\n')
-    {
-        line_buffer[lb_index++] = *line_of_text++;
-    }
-    float line_length = 0.f;
-    for (int i = 0; i < lb_index; ++i)
-    {
-        char in_glyph = line_buffer[i];
-        float scale = (float)text_height_px / (float)font->font_height_px;
-        vtxt_glyph glyph = font->glyphs[in_glyph - VTXT_ASCII_FROM];
-        glyph.advance *= scale;
-        line_length += glyph.advance;
-    }
-    for (int i = 0; i < lb_index; ++i)
-    {
-        char in_glyph = line_buffer[i];
-        if (VTXT_MAX_CHAR_IN_BUFFER * 6 < _vtxt_vertex_count + 6) // Make sure we are not exceeding the array size
-        {
-            break;
-        }
-
-        vtxt_rgba char_color;
-        char_color.r = Color.x;
-        char_color.g = Color.y;
-        char_color.b = Color.z;
-        char_color.a = Color.w;
-        __private_vtxt_append_glyph_vertex_color_hack(in_glyph, font, text_height_px, -line_length, char_color);
-    }
-
-    if (*line_of_text == '\n')
-    {
-        vtxt_new_line(line_start_x, font, text_height_px);
-        ++line_of_text;
-        vtxt_append_line_align_right(line_of_text, font, text_height_px, Color);
-    }
-    else // terminate
-    {
-
-    }
-}
-
-VTXT_DEF void
-vtxt_append_line_centered(const char* line_of_text, vtxt_font* font, int text_height_px, vec4 Color)
-{
-    int line_start_x = _vtxt_cursor_x;
-    char line_buffer[256];
-    int lb_index = 0;
-    while(*line_of_text != '\0' && *line_of_text != '\n')
-    {
-        line_buffer[lb_index++] = *line_of_text++;
-    }
-    float line_length = 0.f;
-    for(int i = 0; i < lb_index; ++i)
-    {
-        char in_glyph = line_buffer[i];
-        float scale = (float)text_height_px / (float)font->font_height_px;
-        vtxt_glyph glyph = font->glyphs[in_glyph - VTXT_ASCII_FROM];
-        glyph.advance *= scale;
-        line_length += glyph.advance;
-    }
-    float half_line_length = line_length/2.f;
-    for(int i = 0; i < lb_index; ++i)
-    {    
-        char in_glyph = line_buffer[i];
-        if(VTXT_MAX_CHAR_IN_BUFFER * 6 < _vtxt_vertex_count + 6) // Make sure we are not exceeding the array size
-        {
-            break;
-        }
-
-        vtxt_rgba char_color;
-        char_color.r = Color.x;
-        char_color.g = Color.y;
-        char_color.b = Color.z;
-        char_color.a = Color.w;
-        __private_vtxt_append_glyph_vertex_color_hack(in_glyph, font, text_height_px, -half_line_length, char_color);
-    }
-
-    if(*line_of_text == '\n')
-    {
-        vtxt_new_line(line_start_x, font, text_height_px);
-        ++line_of_text;
-        vtxt_append_line_centered(line_of_text, font, text_height_px, Color);
-    }
-    else // terminate
-    {
-
-    }
-}
-
-VTXT_DEF void
-vtxt_get_text_bounding_box_info(float* width_out,
-                                float* height_out,
-                                const char* text,
-                                vtxt_font* font,
-                                int text_height_px)
-{
-    float wSumLargestSoFar = 0;
-    float wSumCurrent = 0;
-    float hSum = 0;
-
-    while (*text != '\0')
-    {
-        if (*text != '\n')
-        {
-            if (*text < VTXT_ASCII_FROM || *text > VTXT_ASCII_TO) // Make sure we have the data for this glyph
-            {
-                continue;
-            }
-
-            bool isLastGlyphInLine = *(text + 1) == '\0' || *(text + 1) == '\n';
-            float scale = (float)text_height_px / (float)font->font_height_px;
-            vtxt_glyph glyph = font->glyphs[*text - VTXT_ASCII_FROM];
-            glyph.advance *= scale;
-            glyph.width *= scale;
-            glyph.height *= scale;
-            glyph.offset_x *= scale;
-            glyph.offset_y *= scale;
-
-            wSumCurrent += isLastGlyphInLine ? glyph.offset_x + glyph.width : glyph.advance;
-
-            if (isLastGlyphInLine)
-            {
-                if (wSumCurrent > wSumLargestSoFar)
-                {
-                    wSumLargestSoFar = wSumCurrent;
-                }
-
-                float linegap = font->linegap + _vtxt_linegap_offset;
-                float heightOfThisLine = (font->ascender - font->descender + linegap) * scale;
-                // Note(Kevin): honestly could prob just use the tallest glyph.height + glyph.offset_y instead
-                // TODO(Kevin): Only add font->linegap if there is a new line with legit characters
-                hSum += heightOfThisLine;
-            }
-        }
-        ++text; // next character
-    }
-
-    *width_out = wSumLargestSoFar;
-    *height_out = hSum;
-}
-
-VTXT_DEF vtxt_vertex_buffer
-vtxt_grab_buffer()
-{
-    vtxt_vertex_buffer retval;
-    retval.vertex_buffer = _vtxt_vertex_buffer;
-    if(_vtxt_config & VTXT_CREATE_INDEX_BUFFER)
-    {
-        retval.vertices_array_count = _vtxt_vertex_count * 4;
-        retval.index_buffer = _vtxt_index_buffer;
-        retval.indices_array_count = _vtxt_index_count;
-    }
-    else
-    {
-        retval.vertices_array_count = _vtxt_vertex_count * 6;
-        retval.index_buffer = NULL;
-        retval.indices_array_count = 0;
-    }
-    retval.vertex_count = _vtxt_vertex_count;
-    return retval;
-}
-
-VTXT_DEF void
-vtxt_clear_buffer()
-{
-    // No need to actually clear the vertex and index buffers back to 0
-    // Setting the counts back to 0 will suffice
-    _vtxt_vertex_count = 0;
-    _vtxt_index_count = 0;
-}
 
 #undef VTXT_DEF
 #undef _vtxt_internal
@@ -931,3 +453,5 @@ vtxt_clear_buffer()
 
 #undef VERTEXT_IMPLEMENTATION
 #endif // VERTEXT_IMPLEMENTATION
+
+#endif

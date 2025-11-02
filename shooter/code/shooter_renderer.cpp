@@ -138,46 +138,38 @@ void renderer::PushGuiDrawRequests(memory_arena *Scratch, gui_draw_request *Requ
             case GuiDrawText:
             {
                 gui_vertex *GuiVertices = (gui_vertex *)(((uint8 *)VertexStreamFrame.WriteTo) + OffsetBytes);
+                Assert(sizeof(gui_vertex) == sizeof(vtxt_vertex1));
+
+                // TODO(Kevin): If going to write directly into GuiVertices, make sure it is big enough
 
                 vtxt_font *FontInfo = &(HandleToFont[Request->Font].FontInfo);
-                u32 Flags = 0;
-                if (Request->PutNewLinesAbove)
-                {
-                    Flags |= VTXT_NEWLINE_ABOVE;
-                }
-                vtxt_setflags(Flags);
-                vtxt_clear_buffer();
-                vtxt_move_cursor(Request->X, Request->Y);
+                vtxt_state TextState = {};
+                TextState.VertexBuffer1 = (vtxt_vertex1 *)GuiVertices;
+                TextState.VertexCount1 = 0;
+                TextState.Font = FontInfo;
+                TextState.CursorX = Request->X;
+                TextState.CursorY = Request->Y;
+                TextState.PutNewLinesAbove = Request->PutNewLinesAbove;
+
+                vtxt_align Alignment = VT_Left;
                 switch (Request->Align)
                 {
-                    case Align_Left:
-                    {
-                        vtxt_append_line(Request->Text, FontInfo, Request->FontSize, Request->Color);
-                        break;
-                    }
-                    case Align_Center:
-                    {
-                        vtxt_append_line_centered(Request->Text, FontInfo, Request->FontSize, Request->Color);
-                        break;
-                    }
-                    case Align_Right:
-                    {
-                        vtxt_append_line_align_right(Request->Text, FontInfo, Request->FontSize, Request->Color);
-                        break;
-                    }
+                    case Align_Left: Alignment = VT_Left; break;
+                    case Align_Center: Alignment = VT_Center; break;
+                    case Align_Right: Alignment = VT_Right; break;
                 }
-                vtxt_vertex_buffer TextVertices = vtxt_grab_buffer();
-                Assert(TextVertices.vertices_array_count > 0);
 
-                GuiItemVerticesCount = TextVertices.vertex_count;
+                VT_AppendLine(&TextState, Request->Text, Request->TextScale,
+                              (float *)&Request->Color, Alignment);
+
+                Assert(TextState.VertexCount1 > 0);
+
+                GuiItemVerticesCount = TextState.VertexCount1;
                 memory_index GuiItemVerticesSizeInBytes = sizeof(gui_vertex)*GuiItemVerticesCount;
                 if (OffsetBytes + GuiItemVerticesSizeInBytes > VertexStreamFrame.ChunkSizeBytes)
                 {
                     Assert(0); // break;
                 }
-                Copy(GuiVertices, TextVertices.vertex_buffer, GuiItemVerticesSizeInBytes);
-
-                vtxt_clear_buffer();
 
                 break;
             }
@@ -248,25 +240,23 @@ create_font_result renderer::CreateBitmapFont_ExtendedASCII(void *Bitmap, u32 W,
     Font->FontAtlasHandle = UploadTexture2DData(Bitmap, W, H, Format, false);
 
     vtxt_font *VtxtFont = &(Font->FontInfo);
-    VtxtFont->font_height_px = GlyphH;
-    VtxtFont->ascender = float(GlyphH);
-    VtxtFont->descender = 0;
-    VtxtFont->linegap = (float)NewLineGap;
+    VtxtFont->FontHeightPx = GlyphH;
+    VtxtFont->LineHeight = (float)(GlyphH + NewLineGap);
     Result.FontInfo = VtxtFont;
 
-    for(int CodePoint = 0; CodePoint < 256; ++CodePoint)
+    for(int Codepoint = 0; Codepoint < 256; ++Codepoint)
     {
-        vtxt_glyph *Glyph = &(VtxtFont->glyphs[CodePoint]);
-        Glyph->codepoint = (unsigned char)CodePoint;
-        Glyph->width = float(GlyphW);
-        Glyph->height = float(GlyphH);
-        Glyph->advance = float(GlyphW);
-        Glyph->offset_x = 0;
-        Glyph->offset_y = -float(GlyphH);
-        Glyph->min_u = float(CodePoint % 16 * GlyphW) / W;
-        Glyph->min_v = 1.f - (float((CodePoint / 16 + 1) * GlyphH) / H);
-        Glyph->max_u = float((CodePoint % 16 + 1) * GlyphW) / W;
-        Glyph->max_v = 1.f - (float(CodePoint / 16 * GlyphH) / H);
+        vtxt_glyph *Glyph = &(VtxtFont->Glyphs[Codepoint]);
+        Glyph->Codepoint = (unsigned char)Codepoint;
+        Glyph->W = float(GlyphW);
+        Glyph->H = float(GlyphH);
+        Glyph->Advance = float(GlyphW);
+        Glyph->OffsetX = 0;
+        Glyph->OffsetY = -float(GlyphH);
+        Glyph->MinU = float(Codepoint % 16 * GlyphW) / W;
+        Glyph->MinV = 1.f - (float((Codepoint / 16 + 1) * GlyphH) / H);
+        Glyph->MaxU = float((Codepoint % 16 + 1) * GlyphW) / W;
+        Glyph->MaxV = 1.f - (float(Codepoint / 16 * GlyphH) / H);
     }
 
     return Result;

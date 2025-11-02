@@ -1125,21 +1125,20 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
         if (!GameState->EditorMode)
         {
-            GuiTextFmt(GuiState, 100, CanvasH-200, 
-                       54+u32(36.f*(GameState->PlayerUnitsTravelledPerSecond/GameState->PlayerMaxUnitsTravelledPerSecond)),
-                       GuiFontCurses6x9, Align_Left, false, vec4(1,1,1,1),
+            GuiTextFmt(GuiState, 100, CanvasH-200, GuiFontAnikki8x8,
+                       6.0f+4.0f*(GameState->PlayerUnitsTravelledPerSecond/GameState->PlayerMaxUnitsTravelledPerSecond),
+                       Align_Left, false, vec4(1,1,1,1),
                        "%d u/s", RoundReal32ToInt32(GameState->PlayerUnitsTravelledPerSecond));
 
             entity *Player = GetEntity(GameState, GameState->PlayerEntityHandle);
 
-            GuiTextFmt(GuiState, 100, CanvasH-100, 
-                       54,
-                       GuiFontCurses6x9, Align_Left, false, vec4(1,1,1,1),
+            GuiTextFmt(GuiState, 100, CanvasH-100, GuiFontAnikki8x8, 
+                       6.0f, Align_Left, false, vec4(1,1,1,1),
                        "HP: %f", Player->HealthPoints);
 
             // 6 sides * 6 cubes * 5 steps = 180 GJK calls per entity
-            GuiTextFmt(GuiState, 40, 500, 24, GuiFontAnikki8x8, Align_Left, false, vec4(0,1,0,1), "GJK: %d calls", GJKCallCounter);
-            GuiTextFmt(GuiState, 40, 530, 24, GuiFontAnikki8x8, Align_Left, false, vec4(0,1,0,1), "EPA: %d calls", EPACallCounter);
+            GuiTextFmt(GuiState, 40, 500, GuiFontCurses6x9, 3.0f, Align_Left, false, vec4(0,1,0,1), "GJK: %d calls", GJKCallCounter);
+            GuiTextFmt(GuiState, 40, 530, GuiFontCurses6x9, 3.0f, Align_Left, false, vec4(0,1,0,1), "EPA: %d calls", EPACallCounter);
 
             // if (Player->IsSupported)
             // {

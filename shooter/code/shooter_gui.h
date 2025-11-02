@@ -89,7 +89,7 @@ struct gui_draw_request
         {
             char *Text;
             s32 X, Y;
-            u32 FontSize;
+            float TextScale;
             font_handle Font;
             gui_alignment Align;
             bool32 PutNewLinesAbove;
@@ -146,11 +146,11 @@ internal bool32
 GuiButton(gui_state *GuiState, u32 ID, gui_rect Rect, texture_handle Image, 
           texture_handle ImageHovered, texture_handle ImageActive);
 internal void
-GuiTextFmt(gui_state *GuiState, s32 X, s32 Y, u32 FontSize, gui_font FontIndex, gui_alignment Align,
-           bool32 PutNewLinesAbove, vec4 TextColor, char *TextFmt, ...);
+GuiTextFmt(gui_state *GuiState, s32 X, s32 Y, gui_font FontIndex, float TextScale,
+           gui_alignment Align, bool32 PutNewLinesAbove, vec4 TextColor, char *TextFmt, ...);
 internal void
-GuiText(gui_state *GuiState, s32 X, s32 Y, u32 FontSize, gui_font FontIndex, gui_alignment Align,
-        bool32 PutNewLinesAbove, vec4 TextColor, char *Text);
+GuiText(gui_state *GuiState, s32 X, s32 Y, gui_font FontIndex, float TextScale,
+        gui_alignment Align, bool32 PutNewLinesAbove, vec4 TextColor, char *Text);
 
 // TODO(Kevin): internal void GuiCheckbox(u32 ID, gui_rect Rect, int32 Inset, bool32 *Value, vec4 RGBABackground, vec4 RGBAForeground);
 

@@ -16,7 +16,7 @@ struct window_state
     gui_state *GuiState;
     gui_rect Rect;
     gui_font TextFont;
-    u32 TextSize;
+    real32 TextScale;
     vec4 TextColor;
     vec4 BgColor;
 
@@ -34,7 +34,7 @@ BeginWindow(gui_state *GuiState, gui_rect Rect)
     Window.Rect = Rect;
     Window.NextElementOffset = { Rect.X + EditorPadL, Rect.Y + EditorPadT };
     Window.TextFont = GuiFontAnikki8x8;
-    Window.TextSize = 16;
+    Window.TextScale = 2.0f; // TODO(Kevin): Text scaling option
     Window.TextColor = EditorFgColor1;
     Window.BgColor = EditorBgColor1;
 
@@ -90,15 +90,15 @@ WindowText(window_state *Window, char *Text)
     gui_font FontIndex = Window->TextFont;
     vtxt_font *FontInfo = Window->GuiState->Fonts[FontIndex].FontInfo;
 
-    u32 FontSize = Window->TextSize;
     s32 X = Window->NextElementOffset.X;
-    s32 Y = Window->NextElementOffset.Y + FontSize;
+    s32 Y = Window->NextElementOffset.Y + 
+            RoundReal32ToInt32((real32)FontInfo->FontHeightPx * Window->TextScale);
     vec4 TextColor = Window->TextColor;
-    GuiText(Window->GuiState, X, Y, FontSize, FontIndex,
+    GuiText(Window->GuiState, X, Y, FontIndex, Window->TextScale,
             Align_Left, false, TextColor, Text);
 
     real32 W, H;
-    vtxt_get_text_bounding_box_info(&W, &H, Text, FontInfo, FontSize);
+    VT_GetTextBoundingBoxDimensions(FontInfo, Text, Window->TextScale, &W, &H);
 
     StageElementSize(Window, CeilReal32ToS32(W), CeilReal32ToS32(H));
 }
