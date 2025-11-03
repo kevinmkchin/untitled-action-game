@@ -10,6 +10,7 @@
 #if COMPILER_MSVC
 #include <intrin.h>
 #pragma intrinsic(_BitScanForward)
+#pragma intrinsic(_BitScanReverse)
 #endif
 
 inline int32
@@ -156,6 +157,7 @@ struct bit_scan_result
     bool32 Found;
     uint32 Index;
 };
+
 inline bit_scan_result
 FindLeastSignificantSetBit(uint32 Value)
 {
@@ -176,6 +178,49 @@ FindLeastSignificantSetBit(uint32 Value)
 #endif
 
     return Result;
+}
+
+inline bit_scan_result
+FindMostSignificantSetBit(uint32 Value)
+{
+    bit_scan_result Result = {};
+
+#if COMPILER_MSVC
+    Result.Found = _BitScanReverse((unsigned long *)&Result.Index, Value);
+#else
+    for (uint32 Test = 0; Test < 32; ++Test)
+    {
+        if (Value & (1 << (31 - Test)))
+        {
+            Result.Index = (31 - Test);
+            Result.Found = true;
+            break;
+        }
+    }
+#endif
+
+    return Result;
+}
+
+inline u32
+CeilReal32ToPow2(real32 Value)
+{
+    u32 V = CeilReal32ToU32(Value);
+    bit_scan_result Scan = FindMostSignificantSetBit(V);
+    if (Scan.Found)
+    {
+        if ((u32)(1 << Scan.Index) == V)
+        {
+            return V;
+        }
+
+        u32 Result = (1 << (Scan.Index + 1));
+        return Result;
+    }
+    else
+    {
+        return 1;
+    }
 }
 
 #endif // SHOOTER_INTRINSICS_H

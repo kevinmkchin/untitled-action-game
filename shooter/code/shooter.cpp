@@ -158,7 +158,8 @@ CreateBitmapFont(loaded_bitmap Bitmap, renderer *RendererAPI)
         }
     }
 
-    create_font_result Result = RendererAPI->CreateBitmapFont_ExtendedASCII(Bitmap.Pixels, Bitmap.Width, Bitmap.Height, BGRA_U8, 3);
+    create_font_result Result = RendererAPI->DEBUGCreateBitmapFont_Monospace(Bitmap.Pixels, Bitmap.Width, 
+                                                                             Bitmap.Height, BGRA_U8, 3);
 
     return Result;
 }
@@ -614,6 +615,10 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         loaded_bitmap CustomFont1Bmp = DEBUGLoadBMP(Thread, Memory->PlatformAPI.DEBUGPlatformReadEntireFile, "fonts/custom_font_0_6x9.bmp");
         create_font_result RenderFont1 = CreateBitmapFont(CustomFont1Bmp, RendererAPI);
         GuiState->Fonts[GuiFontCurses6x9] = RenderFont1;
+
+        create_font_result RenderFont2 = RendererAPI->DEBUGCreateBitmapFont_TrueType(Thread, Memory->PlatformAPI, 40.f,
+                                                                                     "fonts/cambria.ttc");
+        GuiState->Fonts[GuiFontCambria40] = RenderFont2;
 
         BuildCylinderMesh8Sided(GameState->Cylinder8SidedPointCloud, 
                                 GameState->Cylinder8SidedVB, GameState->Cylinder8SidedIB);

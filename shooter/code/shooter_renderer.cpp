@@ -2,7 +2,10 @@
 #include "shooter_renderer_dx11.h"
 #include "shooter_gui.h"
 #define VERTEXT_STATIC
+#define VT_USING_STB_TRUETYPE
 #define VERTEXT_IMPLEMENTATION
+// #define STBTT_malloc(x,u)  ((void)(u),malloc(x))
+// #define STBTT_free(x,u)    ((void)(u),free(x))
 #include "shooter_vertext.h"
 
 void renderer::GetRenderTargetDimensions(uint32 *Width, uint32 *Height)
@@ -228,7 +231,8 @@ texture_handle renderer::UploadTexture2DData(void *Bitmap, uint32 W, uint32 H,
     return Result;
 }
 
-create_font_result renderer::CreateBitmapFont_ExtendedASCII(void *Bitmap, u32 W, u32 H, pixel_format Format, u32 NewLineGap)
+create_font_result renderer::DEBUGCreateBitmapFont_Monospace(void *Bitmap, u32 W, u32 H,
+                                                             pixel_format Format, u32 NewLineGap)
 {
     create_font_result Result;
 
@@ -245,10 +249,12 @@ create_font_result renderer::CreateBitmapFont_ExtendedASCII(void *Bitmap, u32 W,
     VtxtFont->LineHeight = (float)(GlyphH + NewLineGap);
     Result.FontInfo = VtxtFont;
 
-    for(int Codepoint = 0; Codepoint < 256; ++Codepoint)
+    for(u8 Codepoint = VT_UNICODE_RANGE_START;
+        Codepoint <= VT_UNICODE_RANGE_END;
+        ++Codepoint)
     {
-        vtxt_glyph *Glyph = &(VtxtFont->Glyphs[Codepoint]);
-        Glyph->Codepoint = (unsigned char)Codepoint;
+        vtxt_glyph *Glyph = &(VtxtFont->Glyphs[Codepoint - VT_UNICODE_RANGE_START]);
+        Glyph->Codepoint = Codepoint;
         Glyph->W = float(GlyphW);
         Glyph->H = float(GlyphH);
         Glyph->Advance = float(GlyphW);
@@ -263,3 +269,56 @@ create_font_result renderer::CreateBitmapFont_ExtendedASCII(void *Bitmap, u32 W,
     return Result;
 }
 
+create_font_result renderer::DEBUGCreateBitmapFont_TrueType(thread_context *Thread, platform_api PlatformAPI,
+                                                            float FontHeightPx, char *TrueTypeFileName)
+{
+    create_font_result Result = {};
+
+    debug_read_file_result ReadResult = PlatformAPI.DEBUGPlatformReadEntireFile(Thread, TrueTypeFileName);
+
+    if (ReadResult.ContentsSize)
+    {
+        vtxt_u8 *TrueTypeData = (vtxt_u8 *)ReadResult.Contents;
+
+        real32 Side = SquareRoot((real32)CeilReal32ToPow2((real32)VT_UNICODE_RANGE+1));
+        vtxt_u32 AtlasW = CeilReal32ToPow2(FontHeightPx*Side);
+        vtxt_u32 AtlasH = CeilReal32ToPow2(FontHeightPx*Side);
+        vtxt_u8 *AtlasPixelsMonoStart = (vtxt_u8 *)calloc(AtlasW*AtlasH, 1);
+
+        Result.Handle = FontCount;
+        renderer_font *Font = &HandleToFont[FontCount++];
+        Result.FontInfo = &(Font->FontInfo);
+
+        VT_CreateFontFromTTF(TrueTypeData, FontHeightPx, &(Font->FontInfo),
+                             AtlasW, AtlasH, AtlasPixelsMonoStart);
+
+        u32 *PixelsStart = (u32 *)calloc(AtlasW*AtlasH, sizeof(u32));
+        u8 *AtlasPixelsMono = AtlasPixelsMonoStart;
+        u32 *Pixels = PixelsStart;
+        for (u32 Y = 0; Y < AtlasH; ++Y)
+        {
+            for (u32 X = 0; X < AtlasW; ++X)
+            {
+                u32 Alpha = (u32)(*AtlasPixelsMono);
+                *Pixels = (Alpha << 24 |
+                           Alpha << 16 |
+                           Alpha << 8 |
+                           Alpha);
+                ++AtlasPixelsMono;
+                ++Pixels;
+            }
+        }
+
+        Font->FontAtlasHandle = UploadTexture2DData(PixelsStart, AtlasW, AtlasH, RGBA_U8, false);
+        free(AtlasPixelsMonoStart);
+        free(PixelsStart);
+    }
+    else
+    {
+        Assert(0);
+    }
+
+    PlatformAPI.DEBUGPlatformFreeFileMemory(Thread, ReadResult.Contents);
+
+    return Result;
+}

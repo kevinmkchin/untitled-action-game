@@ -64,6 +64,8 @@ enum gui_font
 {
     GuiFontCurses6x9,
     GuiFontAnikki8x8,
+    GuiFontCambria40,
+    GuiFontCount,
 };
 
 enum gui_draw_type
@@ -120,7 +122,7 @@ struct gui_state
     // TODO(Kevin): Array of typed keys to read keyboard input from
 
     // These should persist between frames!
-    create_font_result Fonts[2];
+    create_font_result Fonts[GuiFontCount];
     u32 Active;
     u32 Hovered;
     u32 HoveredNextFrame;
