@@ -163,8 +163,8 @@ void renderer::PushGuiDrawRequests(memory_arena *Scratch, gui_draw_request *Requ
                     case Align_Right: Alignment = VT_Right; break;
                 }
 
-                VT_AppendLine(&TextState, Request->Text, Request->TextScale,
-                              (float *)&Request->Color, Alignment);
+                VT_AppendLine1(&TextState, Request->Text, Request->TextScale,
+                               (float *)&Request->Color, Alignment);
 
                 Assert(TextState.VertexCount1 > 0);
 

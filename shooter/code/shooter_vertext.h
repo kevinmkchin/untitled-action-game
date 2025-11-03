@@ -73,7 +73,7 @@ enum vtxt_align
 };
 
 VTXT_DEF void
-VT_AppendLine(vtxt_state *State, char *Text, float Scale,
+VT_AppendLine1(vtxt_state *State, char *Text, float Scale,
               float *ColorRGBA, vtxt_align Align = VT_Left);
 
 VTXT_DEF void
@@ -169,7 +169,7 @@ VT_AppendGlyph1(vtxt_state *State, char GlyphIndex, float Scale, float OffsetX, 
 }
 
 VTXT_DEF void
-VT_AppendLine(vtxt_state *State, char *Text, float Scale,
+VT_AppendLine1(vtxt_state *State, char *Text, float Scale,
               float *ColorRGBA, vtxt_align Align)
 {
     while (*Text != '\0')
