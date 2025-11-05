@@ -309,7 +309,7 @@ create_font_result renderer::DEBUGCreateBitmapFont_TrueType(thread_context *Thre
             }
         }
 
-        Font->FontAtlasHandle = UploadTexture2DData(PixelsStart, AtlasW, AtlasH, RGBA_U8, false);
+        Font->FontAtlasHandle = UploadTexture2DData(PixelsStart, AtlasW, AtlasH, RGBA_U8, true);
         free(AtlasPixelsMonoStart);
         free(PixelsStart);
     }
