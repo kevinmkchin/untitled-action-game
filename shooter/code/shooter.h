@@ -155,6 +155,9 @@ typedef GAME_GET_SOUND_SAMPLES(game_get_sound_samples);
 #include "shooter_renderer.h"
 #include "shooter_intrinsics.h"
 #include "shooter_meshes.h"
+#if SHOOTER_COMPILE_WITH_EDITOR
+#include "shooter_editor.h"
+#endif
 
 enum entity_type
 {
@@ -288,5 +291,7 @@ struct game_state
     loaded_bitmap Backdrop;
 
     bool32 EditorMode;
-    memory_blocks EditorMemory;
+#if SHOOTER_COMPILE_WITH_EDITOR
+    editor Editor;
+#endif
 };

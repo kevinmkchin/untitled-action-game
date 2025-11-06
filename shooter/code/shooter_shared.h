@@ -297,4 +297,55 @@ PopulateFreeHandles(u32 *HandlesArray, u32 Count)
     }
 }
 
+global vec3 DebugColorTable[] =
+{
+    /* 00 */ {1, 0, 0},
+    /* 01 */ {0, 1, 0},
+    /* 02 */ {0, 0, 1},
+    /* 03 */ {1, 1, 0},
+    /* 04 */ {0, 1, 1},
+    /* 05 */ {1, 0, 1},
+    /* 06 */ {1, 0.5f, 0},
+    /* 07 */ {1, 0, 0.5f},
+    /* 08 */ {0.5f, 1, 0},
+    /* 09 */ {0, 1, 0.5f},
+    /* 10 */ {0.5f, 0, 1},
+    /* 11 */ {1, 0.75f, 0.5f},
+    /* 12 */ {1, 0.5f, 0.75f},
+    /* 13 */ {0.75f, 1, 0.5f},
+    /* 14 */ {0.5f, 1, 0.75f},
+    /* 15 */ {0.5f, 0.75f, 1},
+    
+    /* 16 */ {1, 0.25f, 0.25f},
+    /* 17 */ {0.25f, 1, 0.25f},
+    /* 18 */ {0.25f, 0.25f, 1},
+    /* 19 */ {1, 1, 0.25f},
+    /* 20 */ {0.25f, 1, 1},
+    /* 21 */ {1, 0.25f, 1},
+    /* 22 */ {1, 0.5f, 0.25f},
+    /* 23 */ {1, 0.25f, 0.5f},
+    /* 24 */ {0.5f, 1, 0.25f},
+    /* 25 */ {0.25f, 1, 0.5f},
+    /* 26 */ {0.5f, 0.25f, 1},
+    /* 27 */ {1, 0.25f, 0.5f},
+    /* 28 */ {1, 0.5f, 0.25f},
+    /* 29 */ {0.25f, 1, 0.5f},
+    /* 30 */ {0.5f, 1, 0.25f},
+    /* 31 */ {0.5f, 0.25f, 1},
+};
+
+internal vec3
+GetDebugColor3(u32 Value)
+{
+    vec3 Result = DebugColorTable[Value % ArrayCount(DebugColorTable)];
+    return Result;
+}
+
+internal vec4
+GetDebugColor4(u32 Value, real32 Alpha = 1.0f)
+{
+    vec4 Result = vec4(GetDebugColor3(Value), Alpha);
+    return Result;
+}
+
 #endif // SHOOTER_SHARED_H

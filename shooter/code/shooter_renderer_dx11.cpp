@@ -250,7 +250,7 @@ DX11Init(dx11 *DX)
     //
     // Per Instance Data Buffers
     //
-    DX->Header.StaticLitItemsMaxCount = 8000;
+    DX->Header.StaticLitItemsMaxCount = STATIC_LIT_ITEMS_MAX_COUNT;
     umm PerInstanceDataChunkByteSize = sizeof(static_lit_model_instance)*DX->Header.StaticLitItemsMaxCount;
     DX->PerInstanceDataChunk = (static_lit_model_instance *)Win32RendererAlloc(PerInstanceDataChunkByteSize);
 
@@ -479,7 +479,11 @@ DX11EndFrame(dx11 *DX)
     // Presentation
     //
 
+#if SHOOTER_DEBUG_VSYNC_OFF
+    bool32 VsyncEnabled = false;
+#else
     bool32 VsyncEnabled = true;
+#endif
     UINT SyncInterval = VsyncEnabled ? 1 : 0;
     UINT PresentFlags = 0;
     if (!VsyncEnabled && DX->AllowVRRTearing)

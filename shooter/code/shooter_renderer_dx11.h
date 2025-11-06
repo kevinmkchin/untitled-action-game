@@ -7,6 +7,11 @@
 #include <wrl/client.h>
 using Microsoft::WRL::ComPtr;
 
+// NOTE(Kevin): Configurable counts for fixed size storage
+#define STATIC_LIT_ITEMS_MAX_COUNT 10000
+#define DX11_MESH_MAX_COUNT        16384
+#define DX11_TEXTURE_MAX_COUNT     512
+
 struct dx11_mesh
 {
     ID3D11Buffer *VB;
@@ -120,12 +125,12 @@ struct dx11
     ID3D11SamplerState *AnisotropicSampler;
     ID3D11SamplerState *PointSampler;
 
-    dx11_mesh HandleToMesh[1024];
-    mesh_handle FreeMeshHandles[1024];
+    dx11_mesh HandleToMesh[DX11_MESH_MAX_COUNT];
+    mesh_handle FreeMeshHandles[DX11_MESH_MAX_COUNT];
     u32 FreeMeshHandlesCount;
 
-    dx11_texture HandleToTexture[512];
-    mesh_handle FreeTextureHandles[512];
+    dx11_texture HandleToTexture[DX11_TEXTURE_MAX_COUNT];
+    texture_handle FreeTextureHandles[DX11_TEXTURE_MAX_COUNT];
     u32 FreeTextureHandlesCount;
 
     dx11_structured_buffer PerInstanceDataSB;

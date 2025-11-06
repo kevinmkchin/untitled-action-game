@@ -34,6 +34,9 @@ struct mesh_face
 {
     loop_index LoopCycleBase;
     u32 LoopCycleLen;
+
+    bool32 Alive;
+    mesh_handle RenderMesh;
 };
 
 struct mesh_edge
@@ -70,8 +73,8 @@ struct world_mesh
     face_index FreeFaceHandles[10000];
     u32 FreeFaceHandlesCount;
 
-    mesh_edge Edges[30000];
-    edge_index FreeEdgeHandles[30000];
+    mesh_edge Edges[40000];
+    edge_index FreeEdgeHandles[40000];
     u32 FreeEdgeHandlesCount;
 
     mesh_vert Vertices[40000];

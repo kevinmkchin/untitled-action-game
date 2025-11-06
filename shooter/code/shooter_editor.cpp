@@ -1,5 +1,5 @@
 #include "shooter_editor.h"
-#include "shooter_editmesh.h"
+
 #include "shooter_editmesh.cpp"
 
 internal void
@@ -72,117 +72,96 @@ MakeEditableRectangle(world_mesh *World, vec3 RectStartPoint, vec3 RectEndPoint,
 void EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *GuiState,
                            game_input *Input, struct renderer *RendererAPI)
 {
-    local_persist bool32 EditorInitialized = false;
-    local_persist mesh_handle TestFace1 = 0;
-    local_persist mesh_handle TestFace2 = 0;
-    local_persist mesh_handle TestFace3 = 0;
-    if (!EditorInitialized)
-    {
-        world_mesh *World = AllocStruct(&GameState->EditorMemory, world_mesh);
-        InitializeWorldMesh(World);
-        World->Memory = &GameState->EditorMemory;
+    editor *Editor = &(GameState->Editor);
+    world_mesh *World = Editor->World;
 
+    if (!Editor->IsInitialized)
+    {
+        Editor->World = AllocStruct(&Editor->EditorMemory, world_mesh);
+        InitializeWorldMesh(Editor->World);
+        World = Editor->World;
+        World->Memory = &Editor->EditorMemory;
+
+#if 0
         MakeEditableRectangle(World, { 100, 0, 100 }, { -100, 0, -100 }, GMATH_UP);
 
         edge_index ToExtrude[] = { 1, 3 };
         ExtrudeEdges(World, ToExtrude, ArrayCount(ToExtrude));
         World->Vertices[5].P += vec3(0, 32, 0);
         World->Vertices[6].P += vec3(0, 32, 0);
-        World->Vertices[7].P += vec3(0, 0, 0);
-        World->Vertices[8].P += vec3(0, 0, 0);
+        World->Vertices[7].P += vec3(0, 16, 0);
+        World->Vertices[8].P += vec3(0, 32, 0);
 
         // SplitEdgeMakeVert(World, 1, 0.3f);
         // SplitEdgeMakeVert(World, 2, 0.5f);
         // SplitEdgeMakeVert(World, 3, 0.5f);
         // SplitEdgeMakeVert(World, 4, 0.5f);
         // ReverseFaceLoop(World, 1);
-
-        // TODO(Kevin): Each face should have mesh_handle to its hw mesh -> should we delete
-        //              hw mesh on undo/redo? or only once it is no longer reachable? probably
-        //              once its no longer reachable...I shouldn't have to delete all the hw meshes
-        //              of one state and recreate all the hw meshes of another just for one undo.
-        //              Undo should also contain selection info and other editor state
-
-        vertex_buffer FaceMesh;
-        FaceMesh = TriangulateEditMeshFace(&GameState->EditorMemory, World, 1);
-        if (FaceMesh.IC > 2)
+#else
+        for (s32 I = 1; I < 10000; ++I)
         {
-            TestFace1 = RendererAPI->UploadMeshData(FaceMesh.VB, FaceMesh.VC, FaceMesh.IB, FaceMesh.IC);
+            float Y = ((I/1000)-5)*64.f;
+            float X = (((I%1000)/32)-16)*64.f;
+            float Z = (((I%1000)%32)-16)*64.f;
+            MakeEditableRectangle(World, { X, Y, Z }, { X+32.f, Y, Z+32.f }, GMATH_UP);
         }
-        FreeBlock(&GameState->EditorMemory, FaceMesh.VB);
-        FreeBlock(&GameState->EditorMemory, FaceMesh.IB);
-
-        FaceMesh = TriangulateEditMeshFace(&GameState->EditorMemory, World, 2);
-        if (FaceMesh.IC > 2)
-        {
-            TestFace2 = RendererAPI->UploadMeshData(FaceMesh.VB, FaceMesh.VC, FaceMesh.IB, FaceMesh.IC);
-        }
-        FreeBlock(&GameState->EditorMemory, FaceMesh.VB);
-        FreeBlock(&GameState->EditorMemory, FaceMesh.IB);
-
-        FaceMesh = TriangulateEditMeshFace(&GameState->EditorMemory, World, 3);
-        if (FaceMesh.IC > 2)
-        {
-            TestFace3 = RendererAPI->UploadMeshData(FaceMesh.VB, FaceMesh.VC, FaceMesh.IB, FaceMesh.IC);
-        }
-        FreeBlock(&GameState->EditorMemory, FaceMesh.VB);
-        FreeBlock(&GameState->EditorMemory, FaceMesh.IB);
+#endif
 
         // TODO(Kevin): For face colliders, I should first detect whether the
         // face polygon is convex or concave: if concave, then I may need to
         // treat each triangle as a collider; if convex, then I'm fine to treat
         // the whole polygon as a collider.
 
-        EditorInitialized = true;
+        Editor->IsInitialized = true;
     }
 
     // I want all the faces to be drawn & I want all the edges to be drawn!
-
-    render_item RenderItem;
-    if (TestFace1)
+    for (u32 FaceIndex = 0; FaceIndex < ArrayCount(World->Faces); ++FaceIndex)
     {
-        RenderItem = {};
-        RenderItem.Descriptor.Mesh = TestFace1;
-        RenderItem.Descriptor.Albedo = 0;
-        RenderItem.Descriptor.Lightmap = 0;
-        RenderItem.UseLightmap = true;
-        RenderItem.UseLightCubes = false;
-        RenderItem.ForcedAmbient = vec3(0,1,0);
-        RenderItem.WorldPosition = vec3();
-        RenderItem.WorldRotation = quat();
-        RenderItem.WorldScale = vec3(1,1,1);
-        RendererAPI->PushRenderItems(&RenderItem, 1);
-    }
+        mesh_face *Face = &World->Faces[FaceIndex];
+        if (Face->Alive)
+        {
+            if (!Face->RenderMesh)
+            {
+                // TODO(Kevin): Each face should have mesh_handle to its hw mesh -> should we delete
+                //              hw mesh on undo/redo? or only once it is no longer reachable?
+                //              If delete once no longer reachable (out of undo stack), I need to 
+                //              keep alive all hw meshes of the states in the undo stack.
+                //              I would need a large HandlesToMesh array (lots of Handles), but
+                //              the buffer for instanced drawing only needs enough memory for one
+                //              state. I would use more VRAM in total though for all the vertices,
+                //              but it wouldn't be that much anyways.
+                //              If I delete all the hw meshes of one state and recreate all the 
+                //              hw meshes of another, I need to profile how long that takes and
+                //              whether it is acceptable.
+                //              Undo should also contain selection info and other editor state
 
-    if (TestFace2)
-    {
-        RenderItem = {};
-        RenderItem.Descriptor.Mesh = TestFace2;
-        RenderItem.Descriptor.Albedo = 0;
-        RenderItem.Descriptor.Lightmap = 0;
-        RenderItem.UseLightmap = true;
-        RenderItem.UseLightCubes = false;
-        RenderItem.ForcedAmbient = vec3(1,0,1);
-        RenderItem.WorldPosition = vec3();
-        RenderItem.WorldRotation = quat();
-        RenderItem.WorldScale = vec3(1,1,1);
-        RendererAPI->PushRenderItems(&RenderItem, 1);
-    }
+                vertex_buffer FaceMesh = TriangulateEditMeshFace(&Editor->EditorMemory, World, FaceIndex);
+                if (FaceMesh.IC > 2)
+                {
+                    Face->RenderMesh = RendererAPI->UploadMeshData(FaceMesh.VB, FaceMesh.VC,
+                                                                   FaceMesh.IB, FaceMesh.IC);
+                }
+                FreeBlock(&Editor->EditorMemory, FaceMesh.VB);
+                FreeBlock(&Editor->EditorMemory, FaceMesh.IB);
+            }
 
-    if (TestFace3)
-    {
-        RenderItem = {};
-        RenderItem.Descriptor.Mesh = TestFace3;
-        RenderItem.Descriptor.Albedo = 0;
-        RenderItem.Descriptor.Lightmap = 0;
-        RenderItem.UseLightmap = true;
-        RenderItem.UseLightCubes = false;
-        RenderItem.ForcedAmbient = vec3(1,1,0);
-        RenderItem.WorldPosition = vec3();
-        RenderItem.WorldRotation = quat();
-        RenderItem.WorldScale = vec3(1,1,1);
-        RendererAPI->PushRenderItems(&RenderItem, 1);
+            if (Face->RenderMesh)
+            {
+                render_item RenderItem;
+                RenderItem = {};
+                RenderItem.Descriptor.Mesh = Face->RenderMesh;
+                RenderItem.Descriptor.Albedo = 0;
+                RenderItem.Descriptor.Lightmap = 0;
+                RenderItem.UseLightmap = true;
+                RenderItem.UseLightCubes = false;
+                RenderItem.ForcedAmbient = GetDebugColor3(FaceIndex);
+                RenderItem.WorldPosition = vec3();
+                RenderItem.WorldRotation = quat();
+                RenderItem.WorldScale = vec3(1,1,1);
+                RendererAPI->PushRenderItems(&RenderItem, 1);                
+            }
+        }
     }
-
 }
 

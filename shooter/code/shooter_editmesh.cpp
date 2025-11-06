@@ -305,6 +305,7 @@ CreateFace(world_mesh *Mesh, edge_index *Edges, u32 EdgeCount)
     Mesh->Faces[Result] = {};
     Mesh->Faces[Result].LoopCycleBase = FirstLoop;
     Mesh->Faces[Result].LoopCycleLen = EdgeCount;
+    Mesh->Faces[Result].Alive = true;
 
     FreeBlock(Mesh->Memory, UnprocessedEdges);
     FreeBlock(Mesh->Memory, OrderedEdges);

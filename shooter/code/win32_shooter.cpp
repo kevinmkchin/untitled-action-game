@@ -16,6 +16,7 @@ Platform Layer TODO
 #define SHOOTER_WIN32_OPEN_CONSOLE 0
 #define SHOOTER_WIN32_FORCE_OFF_DWM_DPI_SCALING 1
 #define SHOOTER_LOAD_RENDERDOC 1
+#define SHOOTER_DEBUG_VSYNC_OFF 1
 
 #include "shooter.h"
 
@@ -42,6 +43,7 @@ global bool GlobalRunning;
 global int64 GlobalPerfCountFrequency;
 global bool32 DEBUGGlobalShowCursor;
 global bool32 DEBUGGlobalMouseCaptured;
+global bool32 DEBUGVariableDeltaTime;
 global HCURSOR GlobalCursorArrow;
 global WINDOWPLACEMENT GlobalWindowPosition = {sizeof(GlobalWindowPosition)};
 #if HANDMADE_INTERNAL
@@ -880,6 +882,9 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
 #if HANDMADE_INTERNAL
     DEBUGGlobalShowCursor = false;
     DEBUGGlobalMouseCaptured = true;
+#if SHOOTER_DEBUG_VSYNC_OFF
+    DEBUGVariableDeltaTime = true;
+#endif
 #endif
     GlobalCursorArrow = LoadCursor(0, IDC_ARROW);
 
@@ -1008,7 +1013,7 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
             GameMemory.PermanentStorageSize = Megabytes(256);
             GameMemory.TransientStorageSize = Megabytes(512);
 #if SHOOTER_COMPILE_WITH_EDITOR
-            GameMemory.EditorMemoryStorageSize = Gigabytes(1);
+            GameMemory.EditorMemoryStorageSize = Megabytes(512);
 #else
             GameMemory.EditorMemoryStorageSize = 0;
 #endif
@@ -1353,8 +1358,6 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                     }
                     else
                     {
-                        // TODO(Kevin): MISSED FRAME RATE!
-                        // TODO(Kevin): Logging what took so long
                         // printf("Missed frame rate!\n");
                     }
 #endif
@@ -1366,6 +1369,10 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
 
                     LARGE_INTEGER EndCounter = Win32GetWallClock();
                     real32 MSPerFrame = 1000.f*Win32GetSecondsElapsed(LastCounter, EndCounter);
+                    if (DEBUGVariableDeltaTime)
+                    {
+                        TargetSecondsPerFrame = MSPerFrame/1000.f;
+                    }
                     LastCounter = EndCounter;
 
 #if 0

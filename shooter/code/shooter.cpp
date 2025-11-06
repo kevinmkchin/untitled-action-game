@@ -10,7 +10,6 @@
 #include "shooter_random.h"
 #include "shooter_gui++.cpp"
 #if SHOOTER_COMPILE_WITH_EDITOR
-#include "shooter_editor.h"
 #include "shooter_editor.cpp"
 #endif
 
@@ -800,9 +799,9 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         GameState->EditorMode = true;
         Assert(Memory->EditorMemoryStorageSize > 0);
 
-        InitializeMemoryBlocks(&GameState->EditorMemory, Memory->EditorMemoryStorageSize,
+        InitializeMemoryBlocks(&GameState->Editor.EditorMemory,
+                               Memory->EditorMemoryStorageSize,
                                Memory->EditorMemoryStorage);
-
 #endif
 
         Memory->IsInitialized = true;
