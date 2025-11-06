@@ -44,7 +44,7 @@ struct vtxt_glyph
 
 struct vtxt_font
 {
-    vtxt_s32   FontHeightPx;
+    float      FontHeightPx;
     float      LineHeight; // Ascender + -Descender + Linegap
     vtxt_glyph Glyphs[VT_UNICODE_RANGE];
 };
@@ -54,7 +54,7 @@ struct vtxt_state
     vtxt_vertex1 *VertexBuffer1;
     vtxt_u32      VertexCount1;
     vtxt_font    *Font;
-    vtxt_s32      CursorX, CursorY; // TODO(Kevin): Should the cursor be in floats?
+    vtxt_s32      CursorX, CursorY; // TODO(Kevin): Put the cursor in floats
     // [optional]
     bool PutNewLinesAbove;
     bool FlipY;
@@ -89,7 +89,7 @@ VT_NewLine(vtxt_state *State, float Scale, vtxt_s32 X);
 #ifdef VT_USING_STB_TRUETYPE
 
 VTXT_DEF void
-VT_CreateFontFromTTF(vtxt_u8 *TrueTypeData, float FontHeightPx, vtxt_font *OutFont,
+VT_CreateFontFromTTF(vtxt_u8 *TrueTypeData, vtxt_s32 FontHeightPx, vtxt_font *OutFont,
                      vtxt_s32 AtlasW, vtxt_s32 AtlasH, vtxt_u8 *OutAtlasPixels);
 
 #endif // VT_USING_STB_TRUETYPE
@@ -113,8 +113,6 @@ VT_AppendGlyph1(vtxt_state *State, char GlyphIndex, float Scale, float OffsetX, 
     //     return;
     // }
 
-    // TODO(Kevin): Should everything be in floats to avoid rounding?
-
     vtxt_font* Font = State->Font;
     vtxt_glyph Glyph = Font->Glyphs[GlyphIndex - VT_UNICODE_RANGE_START];
     Glyph.Advance *= Scale;
@@ -125,15 +123,20 @@ VT_AppendGlyph1(vtxt_state *State, char GlyphIndex, float Scale, float OffsetX, 
 
     int Stride = sizeof(vtxt_vertex1);
 
+    // NOTE(Kevin): Aligning to pixel boundaries makes non-oversampled fonts
+    //              render much nicer.
+    //              e.g. Top = floor(State->CursorY + Glyph.OffsetY + 0.5f)
+    // TODO(Kevin): No implicit casting!
     float Top = State->CursorY + Glyph.OffsetY;
-    float Bot = State->CursorY + Glyph.OffsetY + Glyph.H;
     float Left = State->CursorX + Glyph.OffsetX + OffsetX;
-    float Right = State->CursorX + Glyph.OffsetX + Glyph.W + OffsetX;
+    float Bot = Top + Glyph.H;
+    float Right = Left + Glyph.W;
 
     if (State->FlipY)
     {
+        // TODO(Kevin): No implicit casting!
         Top = State->CursorY - Glyph.OffsetY;
-        Bot = State->CursorY - Glyph.OffsetY - Glyph.H;
+        Bot = Top - Glyph.H;
     }
 
     // if(State->GetNormalizedDeviceCoords)
@@ -144,6 +147,7 @@ VT_AppendGlyph1(vtxt_state *State, char GlyphIndex, float Scale, float OffsetX, 
     //     Right = ((Right / _vtxt_screen_w_for_clipspace) * 2.f) - 1.f;
     // }
 
+    // TODO(Kevin): No implicit casting!
     State->CursorX += (vtxt_s32)Glyph.Advance;
 
     if (GlyphIndex <= 32)
@@ -288,6 +292,7 @@ VT_NewLine(vtxt_state *State, float Scale, vtxt_s32 X)
         YAdvance = -YAdvance;
     }
 
+    // TODO(Kevin): No implicit casting!
     State->CursorY += YAdvance;
 }
 
@@ -299,7 +304,7 @@ VT_NewLine(vtxt_state *State, float Scale, vtxt_s32 X)
 #include "stb_truetype.h"
 
 VTXT_DEF void
-VT_CreateFontFromTTF(vtxt_u8 *TrueTypeData, float FontHeightPx, vtxt_font *OutFont,
+VT_CreateFontFromTTF(vtxt_u8 *TrueTypeData, vtxt_s32 FontHeightPx, vtxt_font *OutFont,
                      vtxt_s32 AtlasW, vtxt_s32 AtlasH, vtxt_u8 *OutAtlasPixels)
 {
     stbtt_pack_context PackContext;
@@ -307,18 +312,22 @@ VT_CreateFontFromTTF(vtxt_u8 *TrueTypeData, float FontHeightPx, vtxt_font *OutFo
     if (stbtt_PackBegin(&PackContext, OutAtlasPixels, AtlasW, AtlasH, 0, 1, NULL))
     {
         stbtt_packedchar PackedGlyphData[VT_UNICODE_RANGE];
-        stbtt_PackFontRange(&PackContext, TrueTypeData, 0, FontHeightPx, VT_UNICODE_RANGE_START,
+        // NOTE(Kevin): Font character oversampling produces much higher quality text
+        //              than without when rendering from atlas texture. Combine with
+        //              bilinear filtering for best results.
+        stbtt_PackSetOversampling(&PackContext, 2, 2);
+        stbtt_PackFontRange(&PackContext, TrueTypeData, 0, (float)FontHeightPx, VT_UNICODE_RANGE_START,
                             VT_UNICODE_RANGE, PackedGlyphData);
         stbtt_PackEnd(&PackContext);
 
         stbtt_fontinfo FontInfo;
         stbtt_InitFont(&FontInfo, TrueTypeData, 0);
-        float ScaleForPx = stbtt_ScaleForPixelHeight(&FontInfo, FontHeightPx);
+        float ScaleForPx = stbtt_ScaleForPixelHeight(&FontInfo, (float)FontHeightPx);
         int Ascender, Descender, Linegap;
         stbtt_GetFontVMetrics(&FontInfo, &Ascender, &Descender, &Linegap);
 
         *OutFont = {};
-        OutFont->FontHeightPx = (vtxt_s32)FontHeightPx;
+        OutFont->FontHeightPx = (float)FontHeightPx;
         OutFont->LineHeight = (float)(Ascender+Descender+Linegap)*ScaleForPx;
 
         for (vtxt_u8 Codepoint = VT_UNICODE_RANGE_START;
@@ -336,8 +345,8 @@ VT_CreateFontFromTTF(vtxt_u8 *TrueTypeData, float FontHeightPx, vtxt_font *OutFo
             Glyph->OffsetX = PackedGlyph.xoff;
             Glyph->OffsetY = PackedGlyph.yoff;
             Glyph->Advance = PackedGlyph.xadvance;
-            Glyph->W = (float)(PackedGlyph.x1-PackedGlyph.x0);
-            Glyph->H = (float)(PackedGlyph.y1-PackedGlyph.y0);
+            Glyph->W = (float)(PackedGlyph.xoff2-PackedGlyph.xoff);
+            Glyph->H = (float)(PackedGlyph.yoff2-PackedGlyph.yoff);
         }
     }
 }

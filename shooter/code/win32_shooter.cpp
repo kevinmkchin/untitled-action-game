@@ -16,7 +16,7 @@ Platform Layer TODO
 #define SHOOTER_WIN32_OPEN_CONSOLE 0
 #define SHOOTER_WIN32_FORCE_OFF_DWM_DPI_SCALING 1
 #define SHOOTER_LOAD_RENDERDOC 1
-#define SHOOTER_DEBUG_VSYNC_OFF 1
+#define SHOOTER_DEBUG_VSYNC_OFF 0
 
 #include "shooter.h"
 
@@ -1038,6 +1038,11 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
             GameMemory.EditorMemoryStorage = VirtualAlloc(((u8 *)BaseAddress) + (size_t)Win32State.GameMemoryTotalSize,
                                                           GameMemory.EditorMemoryStorageSize,
                                                           MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
+            if (!GameMemory.EditorMemoryStorage)
+            {
+                // TODO(Kevin): Logging failed to allocate memory for editor
+                Assert(0);
+            }
 #endif
 
             if (Samples && GameMemory.PermanentStorage)

@@ -93,6 +93,7 @@ struct create_font_result
 {
     font_handle Handle;
     vtxt_font *FontInfo;
+    texture_handle FontAtlasHandle;
 };
 
 //
@@ -133,7 +134,7 @@ struct renderer
     virtual create_font_result DEBUGCreateBitmapFont_Monospace(void *Bitmap, u32 W, u32 H,
                                                                pixel_format Format,u32 NewLineGap);
     virtual create_font_result DEBUGCreateBitmapFont_TrueType(thread_context *Thread, platform_api PlatformAPI,
-                                                              float FontHeightPx, char *TrueTypeFileName);
+                                                              s32 FontHeightPx, char *TrueTypeFileName);
 
 };
 

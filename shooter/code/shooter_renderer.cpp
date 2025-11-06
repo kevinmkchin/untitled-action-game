@@ -243,9 +243,10 @@ create_font_result renderer::DEBUGCreateBitmapFont_Monospace(void *Bitmap, u32 W
     renderer_font *Font = &HandleToFont[FontCount++];
 
     Font->FontAtlasHandle = UploadTexture2DData(Bitmap, W, H, Format, false);
+    Result.FontAtlasHandle = Font->FontAtlasHandle;
 
     vtxt_font *VtxtFont = &(Font->FontInfo);
-    VtxtFont->FontHeightPx = GlyphH;
+    VtxtFont->FontHeightPx = (float)GlyphH;
     VtxtFont->LineHeight = (float)(GlyphH + NewLineGap);
     Result.FontInfo = VtxtFont;
 
@@ -270,7 +271,7 @@ create_font_result renderer::DEBUGCreateBitmapFont_Monospace(void *Bitmap, u32 W
 }
 
 create_font_result renderer::DEBUGCreateBitmapFont_TrueType(thread_context *Thread, platform_api PlatformAPI,
-                                                            float FontHeightPx, char *TrueTypeFileName)
+                                                            s32 FontHeightPx, char *TrueTypeFileName)
 {
     create_font_result Result = {};
 
@@ -280,6 +281,7 @@ create_font_result renderer::DEBUGCreateBitmapFont_TrueType(thread_context *Thre
     {
         vtxt_u8 *TrueTypeData = (vtxt_u8 *)ReadResult.Contents;
 
+        // NOTE(Kevin): This is not an exact calculation of the atlas dimensions!
         real32 Side = SquareRoot((real32)CeilReal32ToPow2((real32)VT_UNICODE_RANGE+1));
         vtxt_u32 AtlasW = CeilReal32ToPow2(FontHeightPx*Side);
         vtxt_u32 AtlasH = CeilReal32ToPow2(FontHeightPx*Side);
@@ -310,6 +312,8 @@ create_font_result renderer::DEBUGCreateBitmapFont_TrueType(thread_context *Thre
         }
 
         Font->FontAtlasHandle = UploadTexture2DData(PixelsStart, AtlasW, AtlasH, RGBA_U8, true);
+        Result.FontAtlasHandle = Font->FontAtlasHandle;
+
         free(AtlasPixelsMonoStart);
         free(PixelsStart);
     }

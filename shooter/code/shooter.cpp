@@ -615,7 +615,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         create_font_result RenderFont1 = CreateBitmapFont(CustomFont1Bmp, RendererAPI);
         GuiState->Fonts[GuiFontCurses6x9] = RenderFont1;
 
-        create_font_result RenderFont2 = RendererAPI->DEBUGCreateBitmapFont_TrueType(Thread, Memory->PlatformAPI, 40.f,
+        create_font_result RenderFont2 = RendererAPI->DEBUGCreateBitmapFont_TrueType(Thread, Memory->PlatformAPI, 40,
                                                                                      "fonts/cambria.ttc");
         GuiState->Fonts[GuiFontCambria40] = RenderFont2;
 
@@ -1158,6 +1158,11 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
             EndWindow(&Window);
         }
+
+#if 0
+        GuiPanel(GuiState, {99, 299, 514, 514}, GetDebugColor4(10));
+        GuiPanel(GuiState, {100, 300, 512, 512}, GuiState->Fonts[GuiFontCambria40].FontAtlasHandle);
+#endif
 
         RendererAPI->PushGuiDrawRequests(&GameState->FrameArena, GuiState->DrawRequests, GuiState->DrawRequestsCount);
     }

@@ -32,7 +32,7 @@ BeginWindow(gui_state *GuiState, gui_rect Rect)
     Window.Rect = Rect;
     Window.NextElementOffset = { Rect.X + EditorPadL, Rect.Y + EditorPadT };
     Window.TextFont = GuiFontCambria40;
-    Window.TextScale = 1.0f; // TODO(Kevin): Text scaling option
+    Window.TextScale = 1.0f; // TODO(Kevin): Text scaling option (scaling down < 1.0 looks bad)
     Window.TextColor = EditorFgColor1;
     Window.BgColor = EditorBgColor1;
 
