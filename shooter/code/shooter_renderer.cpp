@@ -223,6 +223,11 @@ mesh_handle renderer::UploadMeshData(PNUV2_vertex *VB, uint32 VC, uint32 *IB, ui
     return Result;
 }
 
+void renderer::DeleteMesh(mesh_handle Mesh)
+{
+    DX11DeleteMesh((dx11 *)this, Mesh);
+}
+
 texture_handle renderer::UploadTexture2DData(void *Bitmap, uint32 W, uint32 H, 
                                              pixel_format Format, bool32 LinearFiltering)
 {

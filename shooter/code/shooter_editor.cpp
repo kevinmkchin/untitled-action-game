@@ -69,8 +69,133 @@ MakeEditableRectangle(world_mesh *World, vec3 RectStartPoint, vec3 RectEndPoint,
     CreateFace(World, Edges, ArrayCount(Edges));
 }
 
-void EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *GuiState,
-                           game_input *Input, struct renderer *RendererAPI)
+internal u32
+NextUndoIndex(u32 Index)
+{
+    u32 Result = (Index + 1) % ArrayCount(((undo_stack *)0)->WorldStates);
+    return Result;
+}
+
+internal u32
+PrevUndoIndex(u32 Index)
+{
+    u32 Result = (Index + ArrayCount(((undo_stack *)0)->WorldStates) - 1) % 
+                 ArrayCount(((undo_stack *)0)->WorldStates);
+    return Result;    
+}
+
+internal void
+UndoWorldState(undo_stack *Undo, world_mesh *World)
+{
+    if (Undo->StackP != Undo->HistoryStartP)
+    {
+        Undo->StackP = PrevUndoIndex(Undo->StackP);
+        Copy(World, &(Undo->WorldStates[Undo->StackP]), sizeof(world_mesh));
+    }
+    else
+    {
+        // TODO(Kevin): Notify that we are at the bottom of undo stack
+    }
+}
+
+internal void
+RedoWorldState(undo_stack *Undo, world_mesh *World)
+{
+    if (Undo->StackP != Undo->MostRecentP)
+    {
+        Undo->StackP = NextUndoIndex(Undo->StackP);
+        Copy(World, &(Undo->WorldStates[Undo->StackP]), sizeof(world_mesh));
+    }
+    else
+    {
+        // TODO(Kevin): Notify that we are at the top of undo stack (no more redo)
+        // or maybe we don't notify in this case?
+    }
+}
+
+internal void
+PushWorldStateToUndoStack(undo_stack *Undo, world_mesh *World)
+{
+    u32 NextStackP = NextUndoIndex(Undo->StackP);
+
+    if (NextStackP == Undo->HistoryStartP)
+    {
+        // If we are about to write to HistoryStartP, increment HistoryStartP
+        Undo->HistoryStartP = NextUndoIndex(Undo->HistoryStartP);
+
+        // NOTE(Kevin): Previous HistoryStartP is now unreachable
+    }
+
+    if (Undo->StackP != Undo->MostRecentP)
+    {
+        // NOTE(Kevin): Everything from [NextStackP, Undo->MostRecentP] will become unreachable
+    }
+
+    Undo->StackP = NextStackP;
+    Undo->MostRecentP = NextStackP;
+
+    world_mesh *PushedState = &(Undo->WorldStates[Undo->StackP]);
+    Copy(PushedState, World, sizeof(world_mesh));
+
+    // NOTE(Kevin): Rather than keeping all the hw meshes of the undo states alive
+    //              (which would require lifetime management i.e. determine whether
+    //              a hw mesh is unreachable; difficult if hw meshes allowed to be
+    //              shared between undo states; if disallow, then with every modification
+    //              I must retriangulate and upload whole new meshes), delete all hw
+    //              meshes, retriangulate, and upload new hw meshes upon undo/redo.
+    //              This way, I pay this cost at undo/redo time, not at modification
+    //              time. Only dirty faces need to be deleted/recreated on modifications.
+    //              This keeps modifications snappy, while undo/redo action takes longer.
+    // NOTE(Kevin): Don't push any hw mesh handles to undo stack
+    for (u32 FaceIndex = 0; FaceIndex < ArrayCount(PushedState->Faces); ++FaceIndex)
+    {
+        mesh_face *Face = &PushedState->Faces[FaceIndex];
+        Face->RenderMesh = 0;
+    }
+}
+
+internal void
+DeleteAllFaceRenderMeshes(world_mesh *World, renderer *RendererAPI)
+{
+    for (u32 FaceIndex = 0; FaceIndex < ArrayCount(World->Faces); ++FaceIndex)
+    {
+        mesh_face *Face = &World->Faces[FaceIndex];
+
+        if (Face->RenderMesh)
+        {
+            RendererAPI->DeleteMesh(Face->RenderMesh);
+            Face->RenderMesh = 0;
+        }
+    }
+}
+
+internal void
+TriangulateAndUploadFaces(world_mesh *World, editor *Editor, renderer *RendererAPI)
+{
+    for (u32 FaceIndex = 0; FaceIndex < ArrayCount(World->Faces); ++FaceIndex)
+    {
+        mesh_face *Face = &World->Faces[FaceIndex];
+
+        if (Face->Alive)
+        {
+            if (!Face->RenderMesh)
+            {
+                vertex_buffer FaceMesh = TriangulateEditMeshFace(&Editor->EditorMemory, World, FaceIndex);
+                if (FaceMesh.IC > 2)
+                {
+                    Face->RenderMesh = RendererAPI->UploadMeshData(FaceMesh.VB, FaceMesh.VC,
+                                                                   FaceMesh.IB, FaceMesh.IC);
+                }
+                FreeBlock(&Editor->EditorMemory, FaceMesh.VB);
+                FreeBlock(&Editor->EditorMemory, FaceMesh.IB);
+            }
+        }
+    }
+}
+
+internal void
+EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *GuiState,
+                      game_input *Input, struct renderer *RendererAPI)
 {
     editor *Editor = &(GameState->Editor);
     world_mesh *World = Editor->World;
@@ -106,6 +231,11 @@ void EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_st
             MakeEditableRectangle(World, { X, Y, Z }, { X+32.f, Y, Z+32.f }, GMATH_UP);
         }
 #endif
+        Editor->UndoStack = AllocStruct(&Editor->EditorMemory, undo_stack);
+        // NOTE(Kevin): Push initial world state to undo stack
+        TriangulateAndUploadFaces(World, Editor, RendererAPI);
+        PushWorldStateToUndoStack(Editor->UndoStack, World);
+        Editor->UndoStack->HistoryStartP = Editor->UndoStack->StackP;
 
         // TODO(Kevin): For face colliders, I should first detect whether the
         // face polygon is convex or concave: if concave, then I may need to
@@ -115,37 +245,45 @@ void EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_st
         Editor->IsInitialized = true;
     }
 
+    if (Input->Controllers[0].ActionUp.EndedDown && 
+        Input->Controllers[0].ActionUp.HalfTransitionCount > 0)
+    {
+        for (u32 VertIndex = 0; VertIndex < ArrayCount(World->Vertices); ++VertIndex)
+        {
+            mesh_vert *Vert = &World->Vertices[VertIndex];
+            Vert->P += vec3(0, 16, 0);
+        }
+
+        // TODO(Kevin): Only need to delete+recreate the dirty faces, but right now its all dirty
+        DeleteAllFaceRenderMeshes(World, RendererAPI);
+        TriangulateAndUploadFaces(World, Editor, RendererAPI);
+
+        // NOTE(Kevin): Create snapshot of world after changes/modification
+        PushWorldStateToUndoStack(Editor->UndoStack, World);
+    }
+
+    if (Input->Controllers[0].ActionLeft.EndedDown && 
+        Input->Controllers[0].ActionLeft.HalfTransitionCount >= 0)
+    {
+        DeleteAllFaceRenderMeshes(World, RendererAPI);
+        UndoWorldState(Editor->UndoStack, World);
+        TriangulateAndUploadFaces(World, Editor, RendererAPI);
+    }
+    if (Input->Controllers[0].ActionRight.EndedDown && 
+        Input->Controllers[0].ActionRight.HalfTransitionCount >= 0)
+    {
+        DeleteAllFaceRenderMeshes(World, RendererAPI);
+        RedoWorldState(Editor->UndoStack, World);
+        TriangulateAndUploadFaces(World, Editor, RendererAPI);
+    }
+
     // I want all the faces to be drawn & I want all the edges to be drawn!
     for (u32 FaceIndex = 0; FaceIndex < ArrayCount(World->Faces); ++FaceIndex)
     {
         mesh_face *Face = &World->Faces[FaceIndex];
+
         if (Face->Alive)
         {
-            if (!Face->RenderMesh)
-            {
-                // TODO(Kevin): Each face should have mesh_handle to its hw mesh -> should we delete
-                //              hw mesh on undo/redo? or only once it is no longer reachable?
-                //              If delete once no longer reachable (out of undo stack), I need to 
-                //              keep alive all hw meshes of the states in the undo stack.
-                //              I would need a large HandlesToMesh array (lots of Handles), but
-                //              the buffer for instanced drawing only needs enough memory for one
-                //              state. I would use more VRAM in total though for all the vertices,
-                //              but it wouldn't be that much anyways.
-                //              If I delete all the hw meshes of one state and recreate all the 
-                //              hw meshes of another, I need to profile how long that takes and
-                //              whether it is acceptable.
-                //              Undo should also contain selection info and other editor state
-
-                vertex_buffer FaceMesh = TriangulateEditMeshFace(&Editor->EditorMemory, World, FaceIndex);
-                if (FaceMesh.IC > 2)
-                {
-                    Face->RenderMesh = RendererAPI->UploadMeshData(FaceMesh.VB, FaceMesh.VC,
-                                                                   FaceMesh.IB, FaceMesh.IC);
-                }
-                FreeBlock(&Editor->EditorMemory, FaceMesh.VB);
-                FreeBlock(&Editor->EditorMemory, FaceMesh.IB);
-            }
-
             if (Face->RenderMesh)
             {
                 render_item RenderItem;

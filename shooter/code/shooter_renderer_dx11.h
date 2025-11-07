@@ -9,7 +9,7 @@ using Microsoft::WRL::ComPtr;
 
 // NOTE(Kevin): Configurable counts for fixed size storage
 #define STATIC_LIT_ITEMS_MAX_COUNT 10000
-#define DX11_MESH_MAX_COUNT        16384
+#define DX11_MESH_MAX_COUNT        11000
 #define DX11_TEXTURE_MAX_COUNT     512
 
 struct dx11_mesh

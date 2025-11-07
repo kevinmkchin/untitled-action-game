@@ -1157,6 +1157,16 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             WindowText(&Window, "Hello world!");
 
             EndWindow(&Window);
+
+            if (GameState->Editor.IsInitialized)
+            {
+                GuiTextFmt(GuiState, 500, 50, GuiFontCambria40, 1.4f, Align_Left, false, vec4(1,1,1,1),
+                           "SP: %d", GameState->Editor.UndoStack->StackP);
+                GuiTextFmt(GuiState, 500, 100, GuiFontCambria40, 1.4f, Align_Left, false, vec4(1,1,1,1),
+                           "HS: %d", GameState->Editor.UndoStack->HistoryStartP);
+                GuiTextFmt(GuiState, 500, 150, GuiFontCambria40, 1.4f, Align_Left, false, vec4(1,1,1,1),
+                           "MR: %d", GameState->Editor.UndoStack->MostRecentP);
+            }
         }
 
 #if 0
