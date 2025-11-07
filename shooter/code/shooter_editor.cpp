@@ -69,6 +69,49 @@ MakeEditableRectangle(world_mesh *World, vec3 RectStartPoint, vec3 RectEndPoint,
     CreateFace(World, Edges, ArrayCount(Edges));
 }
 
+internal void
+DeleteAllFaceRenderMeshes(world_mesh *World, renderer *RendererAPI)
+{
+    for (u32 FaceIndex = 0; FaceIndex < ArrayCount(World->Faces); ++FaceIndex)
+    {
+        mesh_face *Face = &World->Faces[FaceIndex];
+
+        if (Face->RenderMesh)
+        {
+            RendererAPI->DeleteMesh(Face->RenderMesh);
+            Face->RenderMesh = 0;
+        }
+    }
+}
+
+internal void
+TriangulateAndUploadFaces(world_mesh *World, memory_blocks *EditorMemory, renderer *RendererAPI)
+{
+    // TODO(Kevin): This should be trivial to multithread. ID3D11Device->CreateBuffer
+    //              is thread-safe so I should make UploadMeshData also thread-safe
+    //              maybe using atomic incrementer for retrieving handles.
+
+    for (u32 FaceIndex = 0; FaceIndex < ArrayCount(World->Faces); ++FaceIndex)
+    {
+        mesh_face *Face = &World->Faces[FaceIndex];
+
+        if (Face->Alive)
+        {
+            if (!Face->RenderMesh)
+            {
+                vertex_buffer FaceMesh = TriangulateEditMeshFace(EditorMemory, World, FaceIndex);
+                if (FaceMesh.IC > 2)
+                {
+                    Face->RenderMesh = RendererAPI->UploadMeshData(FaceMesh.VB, FaceMesh.VC,
+                                                                   FaceMesh.IB, FaceMesh.IC);
+                }
+                FreeBlock(EditorMemory, FaceMesh.VB);
+                FreeBlock(EditorMemory, FaceMesh.IB);
+            }
+        }
+    }
+}
+
 internal u32
 NextUndoIndex(u32 Index)
 {
@@ -85,12 +128,17 @@ PrevUndoIndex(u32 Index)
 }
 
 internal void
-UndoWorldState(undo_stack *Undo, world_mesh *World)
+UndoWorldState(undo_stack *Undo, world_mesh *World, 
+               memory_blocks *EditorMemory, renderer *RendererAPI)
 {
     if (Undo->StackP != Undo->HistoryStartP)
     {
+        DeleteAllFaceRenderMeshes(World, RendererAPI);
+
         Undo->StackP = PrevUndoIndex(Undo->StackP);
         Copy(World, &(Undo->WorldStates[Undo->StackP]), sizeof(world_mesh));
+
+        TriangulateAndUploadFaces(World, EditorMemory, RendererAPI);
     }
     else
     {
@@ -99,12 +147,17 @@ UndoWorldState(undo_stack *Undo, world_mesh *World)
 }
 
 internal void
-RedoWorldState(undo_stack *Undo, world_mesh *World)
+RedoWorldState(undo_stack *Undo, world_mesh *World,
+               memory_blocks *EditorMemory, renderer *RendererAPI)
 {
     if (Undo->StackP != Undo->MostRecentP)
     {
+        DeleteAllFaceRenderMeshes(World, RendererAPI);
+
         Undo->StackP = NextUndoIndex(Undo->StackP);
         Copy(World, &(Undo->WorldStates[Undo->StackP]), sizeof(world_mesh));
+
+        TriangulateAndUploadFaces(World, EditorMemory, RendererAPI);
     }
     else
     {
@@ -155,45 +208,6 @@ PushWorldStateToUndoStack(undo_stack *Undo, world_mesh *World)
 }
 
 internal void
-DeleteAllFaceRenderMeshes(world_mesh *World, renderer *RendererAPI)
-{
-    for (u32 FaceIndex = 0; FaceIndex < ArrayCount(World->Faces); ++FaceIndex)
-    {
-        mesh_face *Face = &World->Faces[FaceIndex];
-
-        if (Face->RenderMesh)
-        {
-            RendererAPI->DeleteMesh(Face->RenderMesh);
-            Face->RenderMesh = 0;
-        }
-    }
-}
-
-internal void
-TriangulateAndUploadFaces(world_mesh *World, editor *Editor, renderer *RendererAPI)
-{
-    for (u32 FaceIndex = 0; FaceIndex < ArrayCount(World->Faces); ++FaceIndex)
-    {
-        mesh_face *Face = &World->Faces[FaceIndex];
-
-        if (Face->Alive)
-        {
-            if (!Face->RenderMesh)
-            {
-                vertex_buffer FaceMesh = TriangulateEditMeshFace(&Editor->EditorMemory, World, FaceIndex);
-                if (FaceMesh.IC > 2)
-                {
-                    Face->RenderMesh = RendererAPI->UploadMeshData(FaceMesh.VB, FaceMesh.VC,
-                                                                   FaceMesh.IB, FaceMesh.IC);
-                }
-                FreeBlock(&Editor->EditorMemory, FaceMesh.VB);
-                FreeBlock(&Editor->EditorMemory, FaceMesh.IB);
-            }
-        }
-    }
-}
-
-internal void
 EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *GuiState,
                       game_input *Input, struct renderer *RendererAPI)
 {
@@ -233,7 +247,7 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
 #endif
         Editor->UndoStack = AllocStruct(&Editor->EditorMemory, undo_stack);
         // NOTE(Kevin): Push initial world state to undo stack
-        TriangulateAndUploadFaces(World, Editor, RendererAPI);
+        TriangulateAndUploadFaces(World, &Editor->EditorMemory, RendererAPI);
         PushWorldStateToUndoStack(Editor->UndoStack, World);
         Editor->UndoStack->HistoryStartP = Editor->UndoStack->StackP;
 
@@ -256,7 +270,7 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
 
         // TODO(Kevin): Only need to delete+recreate the dirty faces, but right now its all dirty
         DeleteAllFaceRenderMeshes(World, RendererAPI);
-        TriangulateAndUploadFaces(World, Editor, RendererAPI);
+        TriangulateAndUploadFaces(World, &Editor->EditorMemory, RendererAPI);
 
         // NOTE(Kevin): Create snapshot of world after changes/modification
         PushWorldStateToUndoStack(Editor->UndoStack, World);
@@ -265,16 +279,13 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
     if (Input->Controllers[0].ActionLeft.EndedDown && 
         Input->Controllers[0].ActionLeft.HalfTransitionCount >= 0)
     {
-        DeleteAllFaceRenderMeshes(World, RendererAPI);
-        UndoWorldState(Editor->UndoStack, World);
-        TriangulateAndUploadFaces(World, Editor, RendererAPI);
+        UndoWorldState(Editor->UndoStack, World, &Editor->EditorMemory, RendererAPI);
     }
+
     if (Input->Controllers[0].ActionRight.EndedDown && 
         Input->Controllers[0].ActionRight.HalfTransitionCount >= 0)
     {
-        DeleteAllFaceRenderMeshes(World, RendererAPI);
-        RedoWorldState(Editor->UndoStack, World);
-        TriangulateAndUploadFaces(World, Editor, RendererAPI);
+        RedoWorldState(Editor->UndoStack, World, &Editor->EditorMemory, RendererAPI);
     }
 
     // I want all the faces to be drawn & I want all the edges to be drawn!
