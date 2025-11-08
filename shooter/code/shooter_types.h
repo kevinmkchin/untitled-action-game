@@ -76,13 +76,6 @@ typedef uint64 u64;
 typedef real32 f32;
 typedef real64 f64;
 
-struct buffer
-{
-    umm Count;
-    uint8 *Data;
-};
-typedef buffer string;
-
 // NOTE(Kevin): These macros conflict with definitions in iostream.h if I ever use that
 #define internal static             // static functions are internal to the translation unit
 #define global static               // global static variable

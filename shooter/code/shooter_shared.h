@@ -194,20 +194,6 @@ StringsAreEqual(umm ALength, char *A, char *B)
     return(Result);
 }
 
-internal bool32
-StringsAreEqual(string A, char *B)
-{
-    bool32 Result = StringsAreEqual(A.Count, (char *)A.Data, B);
-    return Result;
-}
-
-internal bool32
-StringsAreEqual(string A, string B)
-{
-    bool32 Result = StringsAreEqual(A.Count, (char *)A.Data, B.Count, (char *)B.Data);
-    return Result;
-}
-
 internal char
 ToLowercase(char Char)
 {
@@ -241,13 +227,6 @@ StringsAreEqualLowercase(memory_index ALength, char *A, memory_index BLength, ch
         }
     }
     
-    return Result;
-}
-
-internal bool32
-StringsAreEqualLowercase(string A, string B)
-{
-    bool32 Result = StringsAreEqualLowercase(A.Count, (char *)A.Data, B.Count, (char *)B.Data);
     return Result;
 }
 

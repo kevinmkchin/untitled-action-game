@@ -121,6 +121,10 @@ struct gui_state
     bool32 RMBWentUp;
     // TODO(Kevin): Array of typed keys to read keyboard input from
 
+    char Tooltip[256];
+    s32 TooltipLength;
+    real32 TooltipTimer;
+
     // These should persist between frames!
     create_font_result Fonts[GuiFontCount];
     u32 Active;
@@ -159,5 +163,8 @@ GuiText(gui_state *GuiState, s32 X, s32 Y, gui_font FontIndex, float TextScale,
 internal void
 GuiBeginFrame(gui_state *GuiState, u32 CanvasWidth, u32 CanvasHeight, memory_arena *Scratch,
               s32 MouseX, s32 MouseY, game_button_state LMB, game_button_state RMB);
+
+internal void
+SetGuiTooltip(gui_state *GuiState, char *Tooltip);
 
 #endif // SHOOTER_GUI_H

@@ -138,7 +138,7 @@ DEBUGLoadBMP(thread_context *Thread, debug_platform_read_entire_file *ReadEntire
 }
 
 internal create_font_result
-CreateBitmapFont(loaded_bitmap Bitmap, renderer *RendererAPI)
+DEBUGCreateBitmapFont(loaded_bitmap Bitmap, renderer *RendererAPI)
 {
     u32 *Pixels = Bitmap.Pixels;
     for (s32 Y = 0; Y < Bitmap.Height; ++Y)
@@ -567,6 +567,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     game_state *GameState = (game_state *)Memory->PermanentStorage;
     gui_state *GuiState = (gui_state *)((uint8 *)Memory->PermanentStorage + sizeof(game_state));
     ResetArena(&GameState->FrameArena);
+    real32 dt = Input->dtForFrame;
+
 #if HANDMADE_INTERNAL
     GJKCallCounter = 0;
     EPACallCounter = 0;
@@ -608,11 +610,11 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         GameState->TexWireframeRed = RendererAPI->UploadTexture2DData(BmpWireframeRed.Pixels, BmpWireframeRed.Width, BmpWireframeRed.Height, BGRA_U8, true);
 
         loaded_bitmap CustomFont0Bmp = DEBUGLoadBMP(Thread, Memory->PlatformAPI.DEBUGPlatformReadEntireFile, "fonts/anikki_8x8.bmp");
-        create_font_result RenderFont0 = CreateBitmapFont(CustomFont0Bmp, RendererAPI);
+        create_font_result RenderFont0 = DEBUGCreateBitmapFont(CustomFont0Bmp, RendererAPI);
         GuiState->Fonts[GuiFontAnikki8x8] = RenderFont0;
 
         loaded_bitmap CustomFont1Bmp = DEBUGLoadBMP(Thread, Memory->PlatformAPI.DEBUGPlatformReadEntireFile, "fonts/custom_font_0_6x9.bmp");
-        create_font_result RenderFont1 = CreateBitmapFont(CustomFont1Bmp, RendererAPI);
+        create_font_result RenderFont1 = DEBUGCreateBitmapFont(CustomFont1Bmp, RendererAPI);
         GuiState->Fonts[GuiFontCurses6x9] = RenderFont1;
 
         create_font_result RenderFont2 = RendererAPI->DEBUGCreateBitmapFont_TrueType(Thread, Memory->PlatformAPI, 40,
@@ -836,7 +838,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             {
                 vec3 PositionDelta;
                 real32 MoveSpeed = 350.f;
-                real32 MoveIncrement = MoveSpeed * Input->dtForFrame;
+                real32 MoveIncrement = MoveSpeed * dt;
                 if (Controller->MoveUp.EndedDown)
                 {
                     PositionDelta += GameState->Camera.Forward * MoveIncrement;
@@ -923,8 +925,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
                 if (GameState->PlayerViewBobGoingDown && Player->IsSupported)
                 {
-                    GameState->PlayerViewBobOffset += GameState->dPlayerViewBobOffset * Input->dtForFrame;
-                    GameState->dPlayerViewBobOffset += ddPlayerViewBobOffset * Input->dtForFrame;
+                    GameState->PlayerViewBobOffset += GameState->dPlayerViewBobOffset * dt;
+                    GameState->dPlayerViewBobOffset += ddPlayerViewBobOffset * dt;
 
                     if (GameState->PlayerViewBobOffset < MaxBobOffset)
                     {
@@ -952,12 +954,12 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 real32 CamYOffset = BaseCamOffsetFromPlayerRoot + GMATH_Min(0.0f, GameState->PlayerViewBobOffset);
                 PointCamera(&GameState->Camera, Player->P + vec3(0,CamYOffset,0), GameState->Camera.Forward);
                 UpdateCameraStrafeTilt(&GameState->Camera, Player->dHorizontalP,
-                                       GameState->PlayerMaxUnitsTravelledPerSecond, Input->dtForFrame);
+                                       GameState->PlayerMaxUnitsTravelledPerSecond, dt);
 
                 real32 TravelDist;
-                MoveEntity(GameState, Player, ddP, DragFactor, Input->dtForFrame, true, &TravelDist, NULL);
+                MoveEntity(GameState, Player, ddP, DragFactor, dt, true, &TravelDist, NULL);
                 GameState->PlayerMaxUnitsTravelledPerSecond = MaxHorizontalSpeed;
-                GameState->PlayerUnitsTravelledPerSecond = TravelDist / Input->dtForFrame;
+                GameState->PlayerUnitsTravelledPerSecond = TravelDist / dt;
             }
         }
     }
@@ -976,7 +978,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
         if (Entity->Alive && !GameState->EditorMode)
         {
-            Entity->AliveSeconds += Input->dtForFrame;
+            Entity->AliveSeconds += dt;
 
             switch (Entity->Type)
             {
@@ -986,7 +988,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 {
                     vec3 OldEntityPos = Entity->P;
                     real32 TravelDist;
-                    MoveEntity(GameState, Entity, vec2(0,0), 0, Input->dtForFrame, false, &TravelDist, 0);                    
+                    MoveEntity(GameState, Entity, vec2(0,0), 0, dt, false, &TravelDist, 0);                    
                     if (Magnitude(Entity->P - OldEntityPos) < AbsoluteValue(TravelDist - 0.01f))
                     {
                         // Entity->dHorizontalP = {};
@@ -1040,7 +1042,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
                             if (Entity->tShoot > 0.0f)
                             {
-                                Entity->tShoot -= Input->dtForFrame;
+                                Entity->tShoot -= dt;
                             }
                             if (Entity->tShoot <= 0.0f)
                             {
@@ -1059,7 +1061,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                         } break;
                     }
 
-                    MoveEntity(GameState, Entity, ddHorizontalP, DragFactor, Input->dtForFrame, true, 0, 0);
+                    MoveEntity(GameState, Entity, ddHorizontalP, DragFactor, dt, true, 0, 0);
 
                     if (Entity->State == EnemyState_Chasing)
                     {
@@ -1158,6 +1160,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
             EndWindow(&Window);
 
+#if 0
             if (GameState->Editor.IsInitialized)
             {
                 GuiTextFmt(GuiState, 500, 50, GuiFontCambria40, 1.4f, Align_Left, false, vec4(1,1,1,1),
@@ -1166,6 +1169,24 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                            "HS: %d", GameState->Editor.UndoStack->HistoryStartP);
                 GuiTextFmt(GuiState, 500, 150, GuiFontCambria40, 1.4f, Align_Left, false, vec4(1,1,1,1),
                            "MR: %d", GameState->Editor.UndoStack->MostRecentP);
+            }
+#endif
+
+            if (GuiState->TooltipTimer > 0.f)
+            {
+                GuiState->TooltipTimer -= dt;
+
+                if (GuiState->TooltipLength)
+                {
+                    real32 TextWidth, _;
+                    real32 TextScale = 2.0f;
+                    VT_GetTextBoundingBoxDimensions(GuiState->Fonts[GuiFontCambria40].FontInfo, 
+                                                    GuiState->Tooltip, TextScale, &TextWidth, &_,
+                                                    GuiState->TooltipLength);
+                    s32 X = (s32)(CanvasW - RoundReal32ToUInt32(TextWidth)) / 2;
+                    GuiText(GuiState, X, (s32)CanvasH - 100, GuiFontCambria40, TextScale,
+                            Align_Left, false, { 1.f, 1.f, 1.f, 1.f }, GuiState->Tooltip);
+                }
             }
         }
 

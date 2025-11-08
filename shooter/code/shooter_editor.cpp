@@ -127,7 +127,7 @@ PrevUndoIndex(u32 Index)
     return Result;    
 }
 
-internal void
+internal bool32
 UndoWorldState(undo_stack *Undo, world_mesh *World, 
                memory_blocks *EditorMemory, renderer *RendererAPI)
 {
@@ -139,14 +139,16 @@ UndoWorldState(undo_stack *Undo, world_mesh *World,
         Copy(World, &(Undo->WorldStates[Undo->StackP]), sizeof(world_mesh));
 
         TriangulateAndUploadFaces(World, EditorMemory, RendererAPI);
+
+        return true;
     }
     else
     {
-        // TODO(Kevin): Notify that we are at the bottom of undo stack
+        return false;
     }
 }
 
-internal void
+internal bool32
 RedoWorldState(undo_stack *Undo, world_mesh *World,
                memory_blocks *EditorMemory, renderer *RendererAPI)
 {
@@ -158,11 +160,12 @@ RedoWorldState(undo_stack *Undo, world_mesh *World,
         Copy(World, &(Undo->WorldStates[Undo->StackP]), sizeof(world_mesh));
 
         TriangulateAndUploadFaces(World, EditorMemory, RendererAPI);
+
+        return true;
     }
     else
     {
-        // TODO(Kevin): Notify that we are at the top of undo stack (no more redo)
-        // or maybe we don't notify in this case?
+        return false;
     }
 }
 
@@ -204,6 +207,33 @@ PushWorldStateToUndoStack(undo_stack *Undo, world_mesh *World)
     {
         mesh_face *Face = &PushedState->Faces[FaceIndex];
         Face->RenderMesh = 0;
+    }
+}
+
+internal void
+SetGuiTooltipWithUndoState(gui_state *GuiState, undo_stack *Undo)
+{
+    s32 HowFarBack;
+    if (Undo->MostRecentP >= Undo->StackP)
+    {
+        HowFarBack = (s32)Undo->StackP - (s32)Undo->MostRecentP;
+    }
+    else
+    {
+        HowFarBack = (s32)Undo->StackP - (s32)(Undo->MostRecentP + 
+                                         ArrayCount(Undo->WorldStates));
+    }
+
+    if (HowFarBack == 0)
+    {
+        char *Tooltip = "Viewing world state (Most Recent)";
+        GuiState->TooltipLength = StringLength(Tooltip);
+        Copy(GuiState->Tooltip, Tooltip, GuiState->TooltipLength+1);
+    }
+    else
+    {
+        GuiState->TooltipLength = stbsp_sprintf(GuiState->Tooltip,
+                                                "Viewing world state (%d)", HowFarBack);
     }
 }
 
@@ -274,18 +304,41 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
 
         // NOTE(Kevin): Create snapshot of world after changes/modification
         PushWorldStateToUndoStack(Editor->UndoStack, World);
+        GuiState->TooltipTimer = 0.f;
     }
 
-    if (Input->Controllers[0].ActionLeft.EndedDown && 
-        Input->Controllers[0].ActionLeft.HalfTransitionCount >= 0)
+    if (Input->Controllers[0].ActionLeft.EndedDown &&
+        Input->Controllers[0].ActionLeft.HalfTransitionCount > 0)
     {
-        UndoWorldState(Editor->UndoStack, World, &Editor->EditorMemory, RendererAPI);
+        bool32 ValidUndo = UndoWorldState(Editor->UndoStack, World,
+                                          &Editor->EditorMemory, RendererAPI);
+        // if (ValidUndo)
+        {
+            SetGuiTooltipWithUndoState(GuiState, Editor->UndoStack);
+            GuiState->TooltipTimer = 1.f;
+        }
+        // else
+        // {
+        //     SetGuiTooltip(GuiState, "No more undo");
+        //     GuiState->TooltipTimer = 1.f;
+        // }
     }
 
-    if (Input->Controllers[0].ActionRight.EndedDown && 
-        Input->Controllers[0].ActionRight.HalfTransitionCount >= 0)
+    if (Input->Controllers[0].ActionRight.EndedDown &&
+        Input->Controllers[0].ActionRight.HalfTransitionCount > 0)
     {
-        RedoWorldState(Editor->UndoStack, World, &Editor->EditorMemory, RendererAPI);
+        bool32 ValidRedo = RedoWorldState(Editor->UndoStack, World,
+                                          &Editor->EditorMemory, RendererAPI);
+        // if (ValidRedo)
+        {
+            SetGuiTooltipWithUndoState(GuiState, Editor->UndoStack);
+            GuiState->TooltipTimer = 1.f;
+        }
+        // else
+        // {
+        //     SetGuiTooltip(GuiState, "No more redo");
+        //     GuiState->TooltipTimer = 1.f;
+        // }
     }
 
     // I want all the faces to be drawn & I want all the edges to be drawn!

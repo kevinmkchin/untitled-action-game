@@ -286,3 +286,10 @@ GuiBeginFrame(gui_state *GuiState, u32 CanvasWidth, u32 CanvasHeight, memory_are
     GuiState->Hovered = GuiState->HoveredNextFrame;
     GuiState->HoveredNextFrame = 0;
 }
+
+internal void
+SetGuiTooltip(gui_state *GuiState, char *Tooltip)
+{
+    GuiState->TooltipLength = StringLength(Tooltip);
+    Copy(GuiState->Tooltip, Tooltip, GuiState->TooltipLength+1);
+}
