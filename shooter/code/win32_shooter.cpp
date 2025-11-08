@@ -172,6 +172,12 @@ DEBUG_PLATFORM_WRITE_ENTIRE_FILE(DEBUGPlatformWriteEntireFile)
     return Result;
 }
 
+PLATFORM_CAPTURE_MOUSECURSOR(PlatformCaptureMouseCursor)
+{
+    DEBUGGlobalMouseCaptured = Capture;
+    DEBUGGlobalShowCursor = !Capture;
+}
+
 inline FILETIME
 Win32GetLastWriteTime(char *Filepath)
 {
@@ -604,8 +610,8 @@ Win32ProcessPendingMessages(win32_state *State, game_controller_input *KeyboardC
     // NOTE(Kevin): Nonqueued messages are sent immediately to the main 
     // window callback and bypass the message queue.
 
-    win32_raw_mouse_input RawMouseInputAccumulator = {};
     BYTE RawInputBuffer[128];
+    win32_raw_mouse_input RawMouseInputAccumulator = {};
 
     MSG Message;
     while (PeekMessage(&Message, 0, 0, 0, PM_REMOVE))
@@ -646,16 +652,38 @@ Win32ProcessPendingMessages(win32_state *State, game_controller_input *KeyboardC
                     }
 
                     RAWINPUT *Raw = (RAWINPUT *)RawInputBuffer;
-                    if (Raw->header.dwType == RIM_TYPEMOUSE) 
+                    if (Raw->header.dwType == RIM_TYPEMOUSE)
                     {
-                        RawMouseInputAccumulator.dMouseX += Raw->data.mouse.lLastX;
-                        RawMouseInputAccumulator.dMouseY += Raw->data.mouse.lLastY;
-                        // raw->data.mouse.usFlags,
-                        // raw->data.mouse.ulButtons, 
-                        // raw->data.mouse.usButtonFlags, 
-                        // raw->data.mouse.usButtonData, 
-                        // raw->data.mouse.ulRawButtons, 
-                        // raw->data.mouse.ulExtraInformation
+                        RAWMOUSE RawMouse = Raw->data.mouse;
+                        RawMouseInputAccumulator.dMouseX += RawMouse.lLastX;
+                        RawMouseInputAccumulator.dMouseY += RawMouse.lLastY;
+
+                        if (RawMouse.usButtonFlags & RI_MOUSE_WHEEL ||
+                            RawMouse.usButtonFlags & RI_MOUSE_HWHEEL)
+                        {
+                            SHORT WheelRotation = (SHORT)RawMouse.usButtonData;
+                            real32 ScrollDelta = (real32)WheelRotation / WHEEL_DELTA;
+
+                            if (RawMouse.usButtonFlags & RI_MOUSE_HWHEEL)
+                            {
+                                u32 ScrollChars = 1; // 1 is the default
+                                SystemParametersInfo(SPI_GETWHEELSCROLLCHARS, 0, &ScrollChars, 0);
+                                RawMouseInputAccumulator.dScroll.X = ScrollDelta * ScrollChars;
+                            }
+                            else
+                            {
+                                u32 ScrollLines = 3; // 3 is the default
+                                SystemParametersInfo(SPI_GETWHEELSCROLLLINES, 0, &ScrollLines, 0);
+                                if (ScrollLines != WHEEL_PAGESCROLL)
+                                {
+                                    RawMouseInputAccumulator.dScroll.Y = ScrollDelta * ScrollLines;
+                                }
+                                else
+                                {
+                                    // TODO(Kevin): User clicked page up/down regions of scroll bar
+                                }
+                            }
+                        }
                     }
                 }
                 else
@@ -974,7 +1002,7 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
 
             WAVEFORMATEX *ClosestFormat;
             HRESULT DesiredFormatSupported = AudioClient->IsFormatSupported(AUDCLNT_SHAREMODE_SHARED, 
-                                                                              &WaveFormat, &ClosestFormat);
+                                                                            &WaveFormat, &ClosestFormat);
             if (DesiredFormatSupported == S_OK)
             {
                 Assert(AudioClient->Initialize(AUDCLNT_SHAREMODE_SHARED,
@@ -1008,6 +1036,7 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
             PlatformAPI.DEBUGPlatformFreeFileMemory = DEBUGPlatformFreeFileMemory;
             PlatformAPI.DEBUGPlatformReadEntireFile = DEBUGPlatformReadEntireFile;
             PlatformAPI.DEBUGPlatformWriteEntireFile = DEBUGPlatformWriteEntireFile;
+            PlatformAPI.CaptureMouseCursor = PlatformCaptureMouseCursor;
 
             game_memory GameMemory = {};
             GameMemory.PermanentStorageSize = Megabytes(256);
@@ -1149,13 +1178,13 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                     }
                     NewInput->MouseX = MouseP.x;
                     NewInput->MouseY = MouseP.y;
-                    NewInput->MouseZ = 0; // TODO(Kevin): Support mousewheel
                     NewInput->MouseButtons[0].EndedDown = OldInput->MouseButtons[0].EndedDown;
                     NewInput->MouseButtons[1].EndedDown = OldInput->MouseButtons[1].EndedDown;
                     NewInput->MouseButtons[2].EndedDown = OldInput->MouseButtons[2].EndedDown;
                     NewInput->MouseButtons[3].EndedDown = OldInput->MouseButtons[3].EndedDown;
                     NewInput->MouseButtons[4].EndedDown = OldInput->MouseButtons[4].EndedDown;
-                    NewInput->NormalizedMouseDelta = { (real32)RawMouseInput.dMouseX, (real32)RawMouseInput.dMouseY };
+                    NewInput->RawMouseDelta = { (real32)RawMouseInput.dMouseX, (real32)RawMouseInput.dMouseY };
+                    NewInput->ScrollDelta = RawMouseInput.dScroll;
                     Win32ProcessKeyboardMessage(&NewInput->MouseButtons[0],
                         GetKeyState(VK_LBUTTON) & (1 << 15));
                     Win32ProcessKeyboardMessage(&NewInput->MouseButtons[1],

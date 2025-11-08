@@ -76,8 +76,9 @@ struct game_controller_input
 struct game_input
 {
     game_button_state MouseButtons[5];
-    int32 MouseX, MouseY, MouseZ;
-    vec2 NormalizedMouseDelta; // Mouse analog to StickAvergeX/Y
+    int32 MouseX, MouseY;
+    vec2 RawMouseDelta;
+    vec2 ScrollDelta; // # chars, # lines
     // TODO(Kevin): Key presses can probably come in a big array here? for GUI and things
 
     real32 dtForFrame;
@@ -113,6 +114,9 @@ typedef DEBUG_PLATFORM_WRITE_ENTIRE_FILE(debug_platform_write_entire_file);
 
 #endif
 
+#define PLATFORM_CAPTURE_MOUSECURSOR(name) void name(bool32 Capture)
+typedef PLATFORM_CAPTURE_MOUSECURSOR(platform_capture_mousecursor);
+
 struct platform_api
 {
 #if HANDMADE_INTERNAL
@@ -120,6 +124,7 @@ struct platform_api
     debug_platform_read_entire_file *DEBUGPlatformReadEntireFile;
     debug_platform_write_entire_file *DEBUGPlatformWriteEntireFile;
 #endif
+    platform_capture_mousecursor *CaptureMouseCursor;
 };
 
 struct game_memory

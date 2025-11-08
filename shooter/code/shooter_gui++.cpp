@@ -39,6 +39,12 @@ BeginWindow(gui_state *GuiState, gui_rect Rect)
     GuiPushScissor(Window.GuiState, Window.Rect);
     GuiPanel(Window.GuiState, Window.Rect, Window.BgColor);
 
+    if (MouseInside(GuiState, Rect))
+    {
+        u32 GlobalWindowsID = 0xA0000001;
+        RequestSetHovered(GuiState, GlobalWindowsID);
+    }
+
     return Window;
 }
 

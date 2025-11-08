@@ -2,7 +2,7 @@
 == Build Instructions ==
 
 Requires Visual Studio 2022 with the following workload and components:
-  - Desktop development with C++:
+  - Desktop development with C++
     - MSVC v143 - VS 2022 C++ x64/x86 build tools
     - Windows 11 SDK (10.0.22621.0)
 

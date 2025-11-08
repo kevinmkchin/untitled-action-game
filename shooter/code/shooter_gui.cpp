@@ -265,8 +265,6 @@ internal void
 GuiBeginFrame(gui_state *GuiState, u32 CanvasWidth, u32 CanvasHeight, memory_arena *Scratch,
               s32 MouseX, s32 MouseY, game_button_state LMB, game_button_state RMB)
 {
-    GuiState->CallOrder = 0;
-
     GuiState->Scratch = Scratch;
     GuiState->DrawRequests = PushArray(GuiState->Scratch, MAX_GUI_DRAW_REQUESTS, gui_draw_request);
     GuiState->DrawRequestsCount = 0;

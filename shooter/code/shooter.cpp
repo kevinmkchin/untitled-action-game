@@ -631,7 +631,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                                                               GameState->Cylinder8SidedIB, CylinderMesh8SidedIndexCount);
 
 #if !SHOOTER_COMPILE_WITH_EDITOR
-        char *MapFilename = "../../wd/buildtest.map";
+        char *MapFilename = "../../old_game/wd/buildtest.map";
         debug_read_file_result MapReadResult = Memory->PlatformAPI.DEBUGPlatformReadEntireFile(Thread, MapFilename);
         if (MapReadResult.ContentsSize > 0)
         {
@@ -799,8 +799,9 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         // SpawnShooterEntity(GameState, vec3(300, 0.01f, -200));
 #else
         GameState->EditorMode = true;
-        Assert(Memory->EditorMemoryStorageSize > 0);
+        Memory->PlatformAPI.CaptureMouseCursor(false);
 
+        Assert(Memory->EditorMemoryStorageSize > 0);
         InitializeMemoryBlocks(&GameState->Editor.EditorMemory,
                                Memory->EditorMemoryStorageSize,
                                Memory->EditorMemoryStorage);
@@ -826,13 +827,27 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         if (ControllerIndex == 0)
         {
             real32 MouseLookSensitivity = 0.001f;
-            vec2 AdjustedMouseAxes = Input->NormalizedMouseDelta * MouseLookSensitivity;
-            MouseLookCamera(&GameState->Camera, AdjustedMouseAxes.x, AdjustedMouseAxes.y);
+            vec2 AdjustedMouseAxes = Input->RawMouseDelta * MouseLookSensitivity;
+
+            bool32 FlyCam = false;
 
 #if SHOOTER_COMPILE_WITH_EDITOR
-            bool32 FlyCam = true;
+            if (GameState->EditorMode)
+            {
+                FlyCam = true;
+
+                if (Input->MouseButtons[1].EndedDown/* && !GuiState->Hovered*/)
+                {
+                    Memory->PlatformAPI.CaptureMouseCursor(true);
+                    MouseLookCamera(&GameState->Camera, AdjustedMouseAxes.x, AdjustedMouseAxes.y);
+                }
+                else
+                {
+                    Memory->PlatformAPI.CaptureMouseCursor(false);
+                }
+            }
 #else
-            bool32 FlyCam = false;
+            MouseLookCamera(&GameState->Camera, AdjustedMouseAxes.x, AdjustedMouseAxes.y);
 #endif
             if (FlyCam)
             {
@@ -1161,6 +1176,10 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             EndWindow(&Window);
 
 #if 0
+            GuiPanel(GuiState, { GameState->Editor.EditorMouseX-5, 
+                     GameState->Editor.EditorMouseY-5, 10, 10 }, 0);
+#endif
+#if 0
             if (GameState->Editor.IsInitialized)
             {
                 GuiTextFmt(GuiState, 500, 50, GuiFontCambria40, 1.4f, Align_Left, false, vec4(1,1,1,1),
@@ -1201,13 +1220,6 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 #if SHOOTER_COMPILE_WITH_EDITOR
     if (GameState->EditorMode)
     {
-        if (!GuiState->Hovered)
-        {
-            // TODO(Kevin): Set EditorMouseX and EditorMouseY
-            // otherwise, EditorMouseX and Y stay at last valid pos
-            // move this to EditorUpdateAndRender probably tho
-        }
-
         EditorUpdateAndRender(Thread, GameState, GuiState, Input, RendererAPI);
     }
 #endif

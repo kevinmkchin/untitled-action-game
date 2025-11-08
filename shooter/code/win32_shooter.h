@@ -32,6 +32,7 @@ struct win32_raw_mouse_input
 {
     s32 dMouseX;
     s32 dMouseY;
+    vec2 dScroll;
 };
 
 #define WIN32_STATE_FILE_NAME_COUNT MAX_PATH

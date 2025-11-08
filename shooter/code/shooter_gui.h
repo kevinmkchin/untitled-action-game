@@ -101,8 +101,6 @@ struct gui_draw_request
 
 struct gui_state
 {
-    u32 CallOrder; // TODO(Kevin): Can we use low 24 bits for call order and high 8 bits for "depth"? then sort draw requests by that
-
     memory_arena *Scratch;
 
     #define MAX_GUI_DRAW_REQUESTS 1000
