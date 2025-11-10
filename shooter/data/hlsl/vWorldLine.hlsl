@@ -48,6 +48,7 @@ vs_out main(vs_in Input)
     float2 NdcFinal = NdcBase + CornerSign * OffsetNDC;
     float4 ClipFinal = ClipBase;
     ClipFinal.xy = NdcFinal * ClipBase.w;
+    ClipFinal.z -= 0.01; // Bring the line ever so slightly forward so it is not occluded
 
     vs_out Output;
     Output.P = ClipFinal;

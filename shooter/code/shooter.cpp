@@ -1134,18 +1134,18 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         GuiBeginFrame(GuiState, CanvasW, CanvasH, &GameState->FrameArena,
                       Input->MouseX, Input->MouseY, Input->MouseButtons[0], Input->MouseButtons[1]);
 
-        u32 CrosshairDotWidth = 6;
-        gui_rect CrosshairOuterRect = {SafeCastToS32(CanvasW / 2 - (CrosshairDotWidth/2)),
-                                       SafeCastToS32(CanvasH / 2 - (CrosshairDotWidth/2)),
-                                       CrosshairDotWidth, CrosshairDotWidth};
-        gui_rect CrosshairInnerRect = {SafeCastToS32(CanvasW / 2 - (CrosshairDotWidth/2) + 1),
-                                       SafeCastToS32(CanvasH / 2 - (CrosshairDotWidth/2) + 1),
-                                       CrosshairDotWidth-2, CrosshairDotWidth-2};
-        GuiPanel(GuiState, CrosshairOuterRect, vec4(0.f,0.f,0.f,0.8f));
-        GuiPanel(GuiState, CrosshairInnerRect, vec4(0.8f,0.8f,0.8f,0.8f));
-
         if (!GameState->EditorMode)
         {
+            u32 CrosshairDotWidth = 6;
+            gui_rect CrosshairOuterRect = {SafeCastToS32(CanvasW / 2 - (CrosshairDotWidth/2)),
+                                           SafeCastToS32(CanvasH / 2 - (CrosshairDotWidth/2)),
+                                           CrosshairDotWidth, CrosshairDotWidth};
+            gui_rect CrosshairInnerRect = {SafeCastToS32(CanvasW / 2 - (CrosshairDotWidth/2) + 1),
+                                           SafeCastToS32(CanvasH / 2 - (CrosshairDotWidth/2) + 1),
+                                           CrosshairDotWidth-2, CrosshairDotWidth-2};
+            GuiPanel(GuiState, CrosshairOuterRect, vec4(0.f,0.f,0.f,0.8f));
+            GuiPanel(GuiState, CrosshairInnerRect, vec4(0.8f,0.8f,0.8f,0.8f));
+
             GuiTextFmt(GuiState, 100, CanvasH-200, GuiFontAnikki8x8,
                        6.0f+4.0f*(GameState->PlayerUnitsTravelledPerSecond/GameState->PlayerMaxUnitsTravelledPerSecond),
                        Align_Left, false, vec4(1,1,1,1),

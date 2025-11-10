@@ -216,14 +216,14 @@ void renderer::PushGuiDrawRequests(memory_arena *Scratch, gui_draw_request *Requ
     }
 }
 
-void renderer::PushLine(vec3 WorldP0, vec3 WorldP1, vec3 Color, real32 Thickness)
+void renderer::PushLine(vec3 WorldP0, vec3 WorldP1, vec3 Color, real32 PixelWidth)
 {
     dx11 *DX = (dx11 *)this;
     if (DX->WorldLineInstancesCount < ArrayCount(DX->WorldLineInstances))
     {
         DX->WorldLineInstances[DX->WorldLineInstancesCount++] =
         {
-            WorldP0, WorldP1, Thickness, vec4(Color, 1.0f)
+            WorldP0, WorldP1, PixelWidth, vec4(Color, 1.0f)
         };
     }
 }

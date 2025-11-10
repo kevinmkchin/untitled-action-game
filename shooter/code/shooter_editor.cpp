@@ -251,7 +251,7 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
         World = Editor->World;
         World->Memory = &Editor->EditorMemory;
 
-#if 0
+#if 1
         MakeEditableRectangle(World, { 100, 0, 100 }, { -100, 0, -100 }, GMATH_UP);
 
         edge_index ToExtrude[] = { 1, 3 };
@@ -377,7 +377,7 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
             vec3 P0 = V0.P;
             vec3 P1 = V1.P;
             vec3 LineColor = { 0, 1, 1 };
-            RendererAPI->PushLine(P0, P1, LineColor, 4.f);
+            RendererAPI->PushLine(P0, P1, LineColor, 3.f);
         }
     }
 }
