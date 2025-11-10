@@ -196,6 +196,7 @@ CreateEdge(world_mesh *Mesh, vert_index V1, vert_index V2)
     Mesh->Edges[Result] = {};
     Mesh->Edges[Result].A = V1;
     Mesh->Edges[Result].B = V2;
+    Mesh->Edges[Result].Alive = true;
 
     DiskCycleInsertEdge(Mesh, V1, Result);
     DiskCycleInsertEdge(Mesh, V2, Result);
@@ -207,6 +208,9 @@ internal void
 KillEdge(world_mesh *Mesh, edge_index Edge)
 {
     // TODO(Kevin): remove edge from vertices disk link
+
+    Mesh->Edges[Edge] = {};
+    Mesh->FreeEdgeHandles[Mesh->FreeEdgeHandlesCount++] = Edge;
 }
 
 internal face_index

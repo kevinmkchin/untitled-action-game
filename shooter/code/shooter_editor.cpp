@@ -365,5 +365,20 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
             }
         }
     }
+
+    for (u32 EdgeIndex = 0; EdgeIndex < ArrayCount(World->Edges); ++EdgeIndex)
+    {
+        mesh_edge *Edge = &World->Edges[EdgeIndex];
+
+        if (Edge->Alive)
+        {
+            mesh_vert V0 = World->Vertices[Edge->A];
+            mesh_vert V1 = World->Vertices[Edge->B];
+            vec3 P0 = V0.P;
+            vec3 P1 = V1.P;
+            vec3 LineColor = { 0, 1, 1 };
+            RendererAPI->PushLine(P0, P1, LineColor, 4.f);
+        }
+    }
 }
 

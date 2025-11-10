@@ -45,6 +45,8 @@ struct mesh_edge
     vert_index B;
     loop_index RadialCycleBase;
     u32 RadialCycleLen;
+
+    bool32 Alive;
 };
 
 struct mesh_vert

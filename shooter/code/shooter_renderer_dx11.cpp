@@ -47,6 +47,7 @@ DX11CreateSizeDependentResources(dx11 *DX, UINT W, UINT H)
     DX->Context->OMSetRenderTargets(0, NULL, NULL);
     DX11ReleaseCOM(DX->RenderTargetView);
     DX11ReleaseCOM(DX->DepthStencilView);
+    DX11ReleaseCOM(DX->DepthSRV);
     DX11ReleaseCOM(DX->DepthTexture);
 
     UINT SwapChainFlags = DX->AllowVRRTearing ? DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING : 0;
@@ -64,15 +65,29 @@ DX11CreateSizeDependentResources(dx11 *DX, UINT W, UINT H)
     DepthStencilDesc.Height = H;
     DepthStencilDesc.MipLevels = 1;
     DepthStencilDesc.ArraySize = 1;
-    DepthStencilDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
-    DepthStencilDesc.SampleDesc.Count = 1;
+    DepthStencilDesc.Format = DXGI_FORMAT_R24G8_TYPELESS;
+    DepthStencilDesc.SampleDesc.Count = 1; // Valid range [0, ID3D11Device::CheckMultisampleQualityLevels) must match swapchain
     DepthStencilDesc.Usage = D3D11_USAGE_DEFAULT;
-    DepthStencilDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+    DepthStencilDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL | D3D11_BIND_SHADER_RESOURCE;
+
+    D3D11_DEPTH_STENCIL_VIEW_DESC DSVDesc = {};
+    DSVDesc.Format             = DXGI_FORMAT_D24_UNORM_S8_UINT;
+    DSVDesc.ViewDimension      = D3D11_DSV_DIMENSION_TEXTURE2D;
+    DSVDesc.Flags              = 0;
+    DSVDesc.Texture2D.MipSlice = 0;
+
+    D3D11_SHADER_RESOURCE_VIEW_DESC SRVDesc = {};
+    SRVDesc.Format                    = DXGI_FORMAT_R24_UNORM_X8_TYPELESS;
+    SRVDesc.ViewDimension             = D3D11_SRV_DIMENSION_TEXTURE2D;
+    SRVDesc.Texture2D.MostDetailedMip = 0;
+    SRVDesc.Texture2D.MipLevels       = 1;
 
     HResult = DX->Device->CreateTexture2D(&DepthStencilDesc, NULL, &DX->DepthTexture);
     FailDx11HRESULT(HResult, "Create depth texture failed", DX->Window);
-    HResult = DX->Device->CreateDepthStencilView(DX->DepthTexture, NULL, &DX->DepthStencilView);
+    HResult = DX->Device->CreateDepthStencilView(DX->DepthTexture, &DSVDesc, &DX->DepthStencilView);
     FailDx11HRESULT(HResult, "Create DepthStencilView failed", DX->Window);
+    HResult = DX->Device->CreateShaderResourceView(DX->DepthTexture, &SRVDesc, &DX->DepthSRV);
+    FailDx11HRESULT(HResult, "Create depth shader resource view failed", DX->Window);
 
     PreviousBackBufferW = W;
     PreviousBackBufferH = H;
@@ -229,6 +244,30 @@ DX11Init(dx11 *DX)
                                      UIIL, ArrayCount(UIIL), &DX->UIIL);
     DX11CreateConstantBuffer(DX, &DX->UICB0, sizeof(ui_cb0));
 
+    D3D11_INPUT_ELEMENT_DESC WorldLineIL[] =
+    {
+        {"CORNER_T_SIGN", 0, DXGI_FORMAT_R32G32_FLOAT,       0, 0,  D3D11_INPUT_PER_VERTEX_DATA,   0},
+        {"POSITION",      0, DXGI_FORMAT_R32G32B32_FLOAT,    1, 0,  D3D11_INPUT_PER_INSTANCE_DATA, 1},
+        {"POSITION",      1, DXGI_FORMAT_R32G32B32_FLOAT,    1, 12, D3D11_INPUT_PER_INSTANCE_DATA, 1},
+        {"THICKNESS",     0, DXGI_FORMAT_R32_FLOAT,          1, 24, D3D11_INPUT_PER_INSTANCE_DATA, 1},
+        {"COLOR",         0, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, 28, D3D11_INPUT_PER_INSTANCE_DATA, 1},
+    };
+    DEBUGDX11CreateShaderSetFromFile(DX, L"../data/hlsl/vWorldLine.hlsl", &DX->WorldLineVS,
+                                     L"../data/hlsl/pWorldLine.hlsl", &DX->WorldLinePS,
+                                     WorldLineIL, ArrayCount(WorldLineIL), &DX->WorldLineIL);
+    DX11CreateConstantBuffer(DX, &DX->WorldLineCB0, sizeof(world_line_cb0));
+
+    //
+    // World Lines Vertex Stream
+    //
+    real32 LineCorners_t_Sign[] =
+    {
+        0.0f, 1.f, 0.0f, -1.f, 1.0f, -1.f, // tri 0
+        0.0f, 1.f, 1.0f, -1.f, 1.0f,  1.f, // tri 1
+    };
+    DX->LineCornersVB = DX11UploadVertexBuffer(DX, DX->WorldLineIL, LineCorners_t_Sign, sizeof(real32)*2, 6);
+    DX11CreateVertexStream(DX, &DX->WorldLinesVertexStream, sizeof(DX->WorldLineInstances));
+
     //
     // Samplers
     //
@@ -298,6 +337,7 @@ DX11BeginFrame(dx11 *DX)
     DX->PerInstanceDataCount = 0;
     DX->GuiVertexStreamStagingCount = 0;
     DX->GuiVertexStreamItemsCount = 0;
+    DX->WorldLineInstancesCount = 0;
 
     if (PreviousBackBufferW != DX->Header.BackBufferW ||
         PreviousBackBufferH != DX->Header.BackBufferH)
@@ -317,11 +357,7 @@ DX11EndFrame(dx11 *DX)
     DX->Context->ClearDepthStencilView(DX->DepthStencilView, D3D11_CLEAR_DEPTH|D3D11_CLEAR_STENCIL, 1.0f, 0);
 
     // Bind and set viewport
-    ID3D11RenderTargetView *RenderTargetViews[] =
-    {
-        DX->RenderTargetView
-    };
-    DX->Context->OMSetRenderTargets(ArrayCount(RenderTargetViews), RenderTargetViews, DX->DepthStencilView);
+    DX->Context->OMSetRenderTargets(1, &DX->RenderTargetView, DX->DepthStencilView);
 
     D3D11_VIEWPORT MainViewport = {};
     MainViewport.TopLeftX = 0.0f;
@@ -400,6 +436,40 @@ DX11EndFrame(dx11 *DX)
             ++CurrentDescriptorCount;
         }
     }
+
+
+    //
+    // World Line Rendering
+    //
+    // NOTE(Kevin): To sample depth texture, must unbind depth stencil view from render target
+    // DX->Context->OMSetRenderTargets(1, &DX->RenderTargetView, NULL);
+    // DX->Context->OMSetDepthStencilState(DX->NoDepthNoStencilState, 0);
+    DX->Context->VSSetShader(DX->WorldLineVS, NULL, 0);
+    DX->Context->PSSetShader(DX->WorldLinePS, NULL, 0);
+
+    DX->WorldLinesVertexStream.Cursor = 0;
+    DX11VertexStreamAlloc(DX, &DX->WorldLinesVertexStream, DX->WorldLineInstancesCount*
+                          sizeof(world_line_instance), DX->WorldLineInstances);
+
+    world_line_cb0 WorldLineDrawParams =
+    {
+        ProjFromWorld,
+        { (real32)PreviousBackBufferW, (real32)PreviousBackBufferH },
+        1// 0.990f
+    };
+    DX11UpdateConstantBuffer(DX, DX->WorldLineCB0, &WorldLineDrawParams, sizeof(WorldLineDrawParams), true, 0, true, 0);
+
+    // DX->Context->PSSetShaderResources(8, 1, &DX->DepthSRV);
+    // DX->Context->PSSetSamplers(0, 1, &DX->PointSampler);
+
+    DX->Context->IASetInputLayout(DX->LineCornersVB.Layout);
+    ID3D11Buffer *WorldLineBufs[] = { DX->LineCornersVB.VB, DX->WorldLinesVertexStream.Buffer };
+    UINT WorldLineBufStrides[] = { DX->LineCornersVB.VertexStride, sizeof(world_line_instance) };
+    UINT WorldLineBufOffsets[] = { 0, 0 };
+    DX->Context->IASetVertexBuffers(0, 2, WorldLineBufs, WorldLineBufStrides, WorldLineBufOffsets);
+    DX->Context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    DX->Context->DrawInstanced(6, DX->WorldLineInstancesCount, 0, 0);
+
 
     //
     // UI
@@ -532,9 +602,9 @@ void DX11GetGuiVertexStreamItemsArray(dx11 *DX, gui_vstream_item **OutArray, u32
     *OutCount = &DX->GuiVertexStreamItemsCount;
 }
 
-mesh_handle
-DX11UploadMesh(dx11 *DX, ID3D11InputLayout *IL, void *VB, 
-               u32 VertexStride, u32 VC, u32 *IB, u32 IC)
+dx11_mesh
+DX11UploadVertexBuffer(dx11 *DX, ID3D11InputLayout *IL, void *VB, 
+                       u32 VertexStride, u32 VC)
 {
     dx11_mesh Mesh = {};
 
@@ -556,6 +626,15 @@ DX11UploadMesh(dx11 *DX, ID3D11InputLayout *IL, void *VB,
     HRESULT HR = DX->Device->CreateBuffer(&VBDesc, &VBInitData, &Mesh.VB);
     FailDx11HRESULT(HR, "Failed to create vertex buffer.", DX->Window);
 
+    return Mesh;
+}
+
+mesh_handle
+DX11UploadMesh(dx11 *DX, ID3D11InputLayout *IL, void *VB, 
+               u32 VertexStride, u32 VC, u32 *IB, u32 IC)
+{
+    dx11_mesh Mesh = DX11UploadVertexBuffer(DX, IL, VB, VertexStride, VC);
+
     D3D11_BUFFER_DESC IBDesc;
     IBDesc.Usage           = D3D11_USAGE_DEFAULT;
     IBDesc.ByteWidth       = sizeof(u32) * IC;
@@ -569,7 +648,7 @@ DX11UploadMesh(dx11 *DX, ID3D11InputLayout *IL, void *VB,
     IBInitData.SysMemSlicePitch = 0;
 
     // Create the buffer with the device.
-    HR = DX->Device->CreateBuffer(&IBDesc, &IBInitData, &Mesh.IB);
+    HRESULT HR = DX->Device->CreateBuffer(&IBDesc, &IBInitData, &Mesh.IB);
     FailDx11HRESULT(HR, "Failed to create index buffer.", DX->Window);
 
     Mesh.IndicesCount = IC;
@@ -885,7 +964,7 @@ DX11CreateDeviceAndSwapchain(dx11 *DX, HWND Window)
     SwapChainDesc.Height = 1;
     SwapChainDesc.Format = DX->BackBufferFormat;
     SwapChainDesc.Stereo = FALSE;
-    SwapChainDesc.SampleDesc.Count = 1;
+    SwapChainDesc.SampleDesc.Count = 1; // Valid range [0, ID3D11Device::CheckMultisampleQualityLevels)
     SwapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
     SwapChainDesc.BufferCount = 2;
     SwapChainDesc.Scaling = DXGI_SCALING_STRETCH;
@@ -976,6 +1055,7 @@ Win32ReleaseRenderer(renderer *Renderer)
     DX11ReleaseCOM(DX->PointSampler);
 
     DX11ReleaseCOM(DX->RenderTargetView);
+    DX11ReleaseCOM(DX->DepthSRV);
     DX11ReleaseCOM(DX->DepthTexture);
     DX11ReleaseCOM(DX->DepthStencilView);
 

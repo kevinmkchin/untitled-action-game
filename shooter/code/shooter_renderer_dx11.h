@@ -87,6 +87,21 @@ struct alignas(16) ui_cb0
     mat4 ClipFromScreen2D;
 };
 
+struct alignas(16) world_line_cb0
+{
+    mat4 ProjFromWorld;
+    vec2 ViewportSize;
+    float FadeOutZ;
+};
+
+struct world_line_instance
+{
+    vec3 P0;
+    vec3 P1;
+    real32 Thickness;
+    vec4 Color;
+};
+
 struct dx11
 {
     renderer Header;
@@ -103,6 +118,7 @@ struct dx11
 
     ID3D11RenderTargetView *RenderTargetView;
     ID3D11Texture2D        *DepthTexture;
+    ID3D11ShaderResourceView *DepthSRV;
     ID3D11DepthStencilView *DepthStencilView;
 
     ID3D11RasterizerState *MainRasterState;
@@ -120,6 +136,11 @@ struct dx11
     ID3D11PixelShader *UIPS;
     ID3D11InputLayout *UIIL;
     ID3D11Buffer *UICB0;
+
+    ID3D11VertexShader *WorldLineVS;
+    ID3D11PixelShader *WorldLinePS;
+    ID3D11InputLayout *WorldLineIL;
+    ID3D11Buffer *WorldLineCB0;
 
     // TODO(Kevin): Create these once per material style and reuse
     ID3D11SamplerState *AnisotropicSampler;
@@ -143,6 +164,11 @@ struct dx11
     gui_vstream_item   GuiVertexStreamItems[1024];
     u32                GuiVertexStreamItemsCount;
 
+    dx11_vertex_stream  WorldLinesVertexStream;
+    dx11_mesh           LineCornersVB;
+    world_line_instance WorldLineInstances[40000];
+    u32                 WorldLineInstancesCount;
+
     HWND Window;
 };
 
@@ -150,6 +176,7 @@ void DX11GetWritablePerInstanceDataArray(dx11 *DX, static_lit_model_instance **O
 void DX11GetGuiVertexStreamFrame(dx11 *DX, vstream_frame_chunk *OutVertexStreamFrame, u32 **VertexStagingCount);
 void DX11GetGuiVertexStreamItemsArray(dx11 *DX, gui_vstream_item **OutArray, u32 **OutCount);
 
+dx11_mesh DX11UploadVertexBuffer(dx11 *DX, ID3D11InputLayout *IL, void *VB, u32 VertexStride, u32 VC);
 mesh_handle DX11UploadMesh(dx11 *DX, ID3D11InputLayout *IL, void *VB, 
                            u32 VertexStride, u32 VC, u32 *IB, u32 IC);
 mesh_handle DX11UploadMesh(dx11 *DX, PNUV2_vertex *VB, u32 VC, u32 *IB, u32 IC);
