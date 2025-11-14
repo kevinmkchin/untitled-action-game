@@ -108,6 +108,11 @@ struct buffer
 #define Minimum(A, B) ((A < B) ? (A) : (B))
 #define Maximum(A, B) ((A > B) ? (A) : (B))
 
+#define RGB255TO1(R,G,B) ((float)R)/255.f, ((float)G)/255.f, ((float)B)/255.f
+#define RGBHEXTO1(RgbInHex) float((RgbInHex & 0x00FF00000) >> 16)/255.f,\
+                            float((RgbInHex & 0x0000FF00) >> 8)/255.f,\
+                            float(RgbInHex & 0x000000FF)/255.f
+
 inline u32
 SafeTruncateU64(u64 Value)
 {

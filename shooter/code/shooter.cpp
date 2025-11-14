@@ -138,7 +138,7 @@ DEBUGLoadBMP(thread_context *Thread, debug_platform_read_entire_file *ReadEntire
 }
 
 internal create_font_result
-DEBUGCreateBitmapFont(loaded_bitmap Bitmap, renderer *RendererAPI)
+DEBUGCreateBitmapFont(loaded_bitmap Bitmap, renderer *RenderAPI)
 {
     u32 *Pixels = Bitmap.Pixels;
     for (s32 Y = 0; Y < Bitmap.Height; ++Y)
@@ -157,8 +157,8 @@ DEBUGCreateBitmapFont(loaded_bitmap Bitmap, renderer *RendererAPI)
         }
     }
 
-    create_font_result Result = RendererAPI->DEBUGCreateBitmapFont_Monospace(Bitmap.Pixels, Bitmap.Width, 
-                                                                             Bitmap.Height, BGRA_U8, 3);
+    create_font_result Result = RenderAPI->DEBUGCreateBitmapFont_Monospace(Bitmap.Pixels, Bitmap.Width, 
+                                                                           Bitmap.Height, BGRA_U8, 3);
 
     return Result;
 }
@@ -590,34 +590,34 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
         GameState->Backdrop = DEBUGLoadBMP(Thread, Memory->PlatformAPI.DEBUGPlatformReadEntireFile, "test/test_background.bmp");
 
-        GameState->CubeMesh = RendererAPI->UploadMeshData(CubeVB, ArrayCount(CubeVB), CubeIB, ArrayCount(CubeIB));
+        GameState->CubeMesh = RenderAPI->UploadMeshData(CubeVB, ArrayCount(CubeVB), CubeIB, ArrayCount(CubeIB));
 
         // TODO(Kevin): Release bitmap memory
         // TODO(Kevin): Load this default white lightmap from inside renderer code! Not from game code!
         // NOTE(Kevin): White_1x1 should be loaded first to have texture handle 0
         loaded_bitmap White_1x1 = DEBUGLoadBMP(Thread, Memory->PlatformAPI.DEBUGPlatformReadEntireFile, "white_1x1.bmp");
-        RendererAPI->WhiteTexture_1x1 = RendererAPI->UploadTexture2DData(White_1x1.Pixels, White_1x1.Width, White_1x1.Height, BGRA_U8, false);
+        RenderAPI->WhiteTexture_1x1 = RenderAPI->UploadTexture2DData(White_1x1.Pixels, White_1x1.Width, White_1x1.Height, BGRA_U8, false);
 
         loaded_bitmap TestBmp = DEBUGLoadBMP(Thread, Memory->PlatformAPI.DEBUGPlatformReadEntireFile, "test_1.bmp");
-        texture_handle Test1Texture = RendererAPI->UploadTexture2DData(TestBmp.Pixels, TestBmp.Width, TestBmp.Height, BGRA_U8, false);
+        texture_handle Test1Texture = RenderAPI->UploadTexture2DData(TestBmp.Pixels, TestBmp.Width, TestBmp.Height, BGRA_U8, false);
 
         loaded_bitmap TestBmp2 = DEBUGLoadBMP(Thread, Memory->PlatformAPI.DEBUGPlatformReadEntireFile, "default_8x8.bmp");
-        texture_handle DefaultTexture = RendererAPI->UploadTexture2DData(TestBmp2.Pixels, TestBmp2.Width, TestBmp2.Height, BGRA_U8, false);
+        texture_handle DefaultTexture = RenderAPI->UploadTexture2DData(TestBmp2.Pixels, TestBmp2.Width, TestBmp2.Height, BGRA_U8, false);
 
-        texture_handle BackdropTexture = RendererAPI->UploadTexture2DData(GameState->Backdrop.Pixels, GameState->Backdrop.Width, GameState->Backdrop.Height, BGRA_U8, false);
+        texture_handle BackdropTexture = RenderAPI->UploadTexture2DData(GameState->Backdrop.Pixels, GameState->Backdrop.Width, GameState->Backdrop.Height, BGRA_U8, false);
 
         loaded_bitmap BmpWireframeRed = DEBUGLoadBMP(Thread, Memory->PlatformAPI.DEBUGPlatformReadEntireFile, "wireframe_red.bmp");
-        GameState->TexWireframeRed = RendererAPI->UploadTexture2DData(BmpWireframeRed.Pixels, BmpWireframeRed.Width, BmpWireframeRed.Height, BGRA_U8, true);
+        GameState->TexWireframeRed = RenderAPI->UploadTexture2DData(BmpWireframeRed.Pixels, BmpWireframeRed.Width, BmpWireframeRed.Height, BGRA_U8, true);
 
         loaded_bitmap CustomFont0Bmp = DEBUGLoadBMP(Thread, Memory->PlatformAPI.DEBUGPlatformReadEntireFile, "fonts/anikki_8x8.bmp");
-        create_font_result RenderFont0 = DEBUGCreateBitmapFont(CustomFont0Bmp, RendererAPI);
+        create_font_result RenderFont0 = DEBUGCreateBitmapFont(CustomFont0Bmp, RenderAPI);
         GuiState->Fonts[GuiFontAnikki8x8] = RenderFont0;
 
         loaded_bitmap CustomFont1Bmp = DEBUGLoadBMP(Thread, Memory->PlatformAPI.DEBUGPlatformReadEntireFile, "fonts/custom_font_0_6x9.bmp");
-        create_font_result RenderFont1 = DEBUGCreateBitmapFont(CustomFont1Bmp, RendererAPI);
+        create_font_result RenderFont1 = DEBUGCreateBitmapFont(CustomFont1Bmp, RenderAPI);
         GuiState->Fonts[GuiFontCurses6x9] = RenderFont1;
 
-        create_font_result RenderFont2 = RendererAPI->DEBUGCreateBitmapFont_TrueType(Thread, Memory->PlatformAPI, 40,
+        create_font_result RenderFont2 = RenderAPI->DEBUGCreateBitmapFont_TrueType(Thread, Memory->PlatformAPI, 40,
                                                                                      "fonts/cambria.ttc");
         GuiState->Fonts[GuiFontCambria40] = RenderFont2;
 
@@ -627,7 +627,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         {
             GameState->CubePointCloud[Index] = CubePoints[Index];
         }
-        GameState->CylinderMesh = RendererAPI->UploadMeshData(GameState->Cylinder8SidedVB, CylinderMesh8SidedVertexCount, 
+        GameState->CylinderMesh = RenderAPI->UploadMeshData(GameState->Cylinder8SidedVB, CylinderMesh8SidedVertexCount, 
                                                               GameState->Cylinder8SidedIB, CylinderMesh8SidedIndexCount);
 
 #if !SHOOTER_COMPILE_WITH_EDITOR
@@ -671,7 +671,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             // TODO(Kevin): Yeah don't create texture resources here...just load all the data first
             // LightmapData should be part of e.g. map_data
             texture_handle MapGeometryLightmap = 
-                RendererAPI->UploadTexture2DData(LightmapData, SafeCastToU32(LightmapW), 
+                RenderAPI->UploadTexture2DData(LightmapData, SafeCastToU32(LightmapW), 
                                                  SafeCastToU32(LightmapH), R_Float, true);
 
             // Light cache volume
@@ -754,7 +754,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                     ib[VertexIndex] = VertexIndex;
                 }
 
-                mesh_handle MapGeometry = RendererAPI->UploadMeshData(vb, VertexCount, ib, VertexCount);
+                mesh_handle MapGeometry = RenderAPI->UploadMeshData(vb, VertexCount, ib, VertexCount);
                 free(vb);
                 free(ib);
 
@@ -976,6 +976,9 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 GameState->PlayerMaxUnitsTravelledPerSecond = MaxHorizontalSpeed;
                 GameState->PlayerUnitsTravelledPerSecond = TravelDist / dt;
             }
+
+            mat4 ViewFromWorld = CameraSpaceFromWorldSpace(&GameState->Camera);
+            RenderAPI->PushViewMatrix(ViewFromWorld);
         }
     }
 
@@ -1122,12 +1125,10 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         }
     }
 
-    mat4 ViewFromWorld = CameraSpaceFromWorldSpace(&GameState->Camera);
-    RendererAPI->PushViewMatrix(ViewFromWorld);
-    RendererAPI->PushRenderItems((render_item *)RenderItemsStart, RenderItemsCount);
+    RenderAPI->PushRenderItems((render_item *)RenderItemsStart, RenderItemsCount);
 
     uint32 CanvasW, CanvasH;
-    RendererAPI->GetRenderTargetDimensions(&CanvasW, &CanvasH);
+    RenderAPI->GetRenderTargetDimensions(&CanvasW, &CanvasH);
     if (CanvasW > 0 && CanvasW < UINT32_MAX && 
         CanvasH > 0 && CanvasH < UINT32_MAX)
     {
@@ -1214,13 +1215,13 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         GuiPanel(GuiState, {100, 300, 512, 512}, GuiState->Fonts[GuiFontCambria40].FontAtlasHandle);
 #endif
 
-        RendererAPI->PushGuiDrawRequests(&GameState->FrameArena, GuiState->DrawRequests, GuiState->DrawRequestsCount);
+        RenderAPI->PushGuiDrawRequests(&GameState->FrameArena, GuiState->DrawRequests, GuiState->DrawRequestsCount);
     }
 
 #if SHOOTER_COMPILE_WITH_EDITOR
     if (GameState->EditorMode)
     {
-        EditorUpdateAndRender(Thread, GameState, GuiState, Input, RendererAPI);
+        EditorUpdateAndRender(Thread, GameState, GuiState, Input, RenderAPI);
     }
 #endif
 }

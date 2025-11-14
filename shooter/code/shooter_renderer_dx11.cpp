@@ -371,12 +371,10 @@ DX11EndFrame(dx11 *DX)
     //
     // StaticLit
     //
-    real32 AspectRatio = real32(PreviousBackBufferW) / real32(PreviousBackBufferH);
-    real32 FOVX = 90.f;
-    real32 FOVYRad = HorizontalFOVToVerticalFOV(FOVX*GMATH_DEG2RAD, AspectRatio);
-    mat4 ClipFromView = ClipSpaceFromCameraSpace_PerspectiveProjection(FOVYRad, AspectRatio, 4.f, 3200.f, true);
+    mat4 ClipFromView, ViewFromWorld;
+    DX->Header.GetViewAndProjMatrices(&ClipFromView, &ViewFromWorld);
+    mat4 ProjFromWorld = ClipFromView * ViewFromWorld;
 
-    mat4 ProjFromWorld = ClipFromView * DX->Header.ViewFromWorld;
     vec3 DirectionToSun = Normalize(vec3(-1,2,0.5f));
 
     DX->Context->RSSetState(DX->MainRasterState);

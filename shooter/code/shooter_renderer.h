@@ -117,6 +117,7 @@ struct renderer
     renderer_font HandleToFont[8];
     u32 FontCount;
 
+    mat4 ClipFromView;
     mat4 ViewFromWorld;
 
     // NOTE(Kevin): Service APIs to the game must be virtual to avoid linking with
@@ -125,6 +126,7 @@ struct renderer
     // ptr. C-style function table will be more stable, but for now this is more convenient.
     virtual void GetRenderTargetDimensions(uint32 *Width, uint32 *Height);
     virtual void PushViewMatrix(mat4 ViewFromWorld);
+    virtual void GetViewAndProjMatrices(mat4 *ProjectionMat, mat4 *ViewMat);
 
     virtual void PushRenderItems(render_item *RenderItems, uint32 RenderItemsCount);
     virtual void PushGuiDrawRequests(memory_arena *Scratch, struct gui_draw_request *Requests, uint32 RequestsCount);

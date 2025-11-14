@@ -144,7 +144,7 @@ struct game_memory
 };
 
 // PLATFORM PROVIDES FOUR THINGS - timing, controller/keyboard input, sound buffer to use, renderer to use
-#define GAME_UPDATE_AND_RENDER(name) void name(thread_context *Thread, game_memory *Memory, game_input *Input, struct renderer *RendererAPI)
+#define GAME_UPDATE_AND_RENDER(name) void name(thread_context *Thread, game_memory *Memory, game_input *Input, struct renderer *RenderAPI)
 typedef GAME_UPDATE_AND_RENDER(game_update_and_render); 
 
 #define GAME_GET_SOUND_SAMPLES(name) void name(thread_context *Thread, game_memory *Memory, game_sound_output_buffer *SoundBuffer)

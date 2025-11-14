@@ -310,6 +310,7 @@ CreateFace(world_mesh *Mesh, edge_index *Edges, u32 EdgeCount)
     Mesh->Faces[Result].LoopCycleBase = FirstLoop;
     Mesh->Faces[Result].LoopCycleLen = EdgeCount;
     Mesh->Faces[Result].Alive = true;
+    Mesh->Faces[Result].RenderMesh = 0;
 
     FreeBlock(Mesh->Memory, UnprocessedEdges);
     FreeBlock(Mesh->Memory, OrderedEdges);
@@ -558,6 +559,27 @@ GetFaceNormal(vec3 *Points, u32 PointCount)
     }
 
     return FaceNormal;
+}
+
+internal vec3
+GetFaceNormal(world_mesh *Mesh, face_index FaceIndex)
+{
+    mesh_face Face = MeshFace(FaceIndex);
+
+    vec3 *Points = AllocArray(Mesh->Memory, Face.LoopCycleLen, vec3);
+    loop_index LoopIndex = Face.LoopCycleBase;
+    for (u32 I = 0; I < Face.LoopCycleLen; ++I)
+    {
+        topo_loop Loop = MeshLoop(LoopIndex);
+        Points[I] = MeshVert(Loop.Vert).P;
+        LoopIndex = Loop.Next;
+    }
+
+    vec3 Result = GetFaceNormal(Points, Face.LoopCycleBase);
+
+    FreeBlock(Mesh->Memory, Points);
+
+    return Result;
 }
 
 internal void

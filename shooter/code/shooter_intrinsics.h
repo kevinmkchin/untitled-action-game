@@ -60,10 +60,17 @@ RotateRight(uint32 Value, int32 Amount)
     return Result;
 }
 
+inline real32
+RoundReal32(real32 Real32)
+{
+    real32 Result = roundf(Real32);
+    return Result;
+}
+
 inline int32
 RoundReal32ToInt32(real32 Real32)
 {
-    int32 Result = (int32)roundf(Real32);
+    int32 Result = (int32)RoundReal32(Real32);
     return Result;
 }
 

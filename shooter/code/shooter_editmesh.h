@@ -151,6 +151,8 @@ ExtrudeEdges(world_mesh *Mesh, edge_index *Edges, u32 EdgesCount);
 
 internal vec3
 GetFaceNormal(vec3 *Points, u32 PointCount);
+internal vec3
+GetFaceNormal(world_mesh *Mesh, face_index Face);
 
 internal void
 EarClippingTriangulationCCW(memory_blocks *Memory, vec3 *Points, u32 PointCount,

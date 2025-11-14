@@ -19,6 +19,17 @@ void renderer::PushViewMatrix(mat4 InViewFromWorld)
     ViewFromWorld = InViewFromWorld;
 }
 
+void renderer::GetViewAndProjMatrices(mat4 *ProjectionMat, mat4 *ViewMat)
+{
+    real32 AspectRatio = (real32)BackBufferW / (real32)BackBufferH;
+    real32 HorizontalFOV = 90.f;
+    real32 VerticalFOVRadians = HorizontalFOVToVerticalFOV(HorizontalFOV*GMATH_DEG2RAD, AspectRatio);
+    ClipFromView = ClipSpaceFromCameraSpace_PerspectiveProjection(VerticalFOVRadians, AspectRatio,
+                                                                  4.f, 3200.f, true);
+    *ProjectionMat = ClipFromView;
+    *ViewMat = ViewFromWorld;
+}
+
 void renderer::PushRenderItems(render_item *RenderItems, uint32 RenderItemsCount)
 {
     // TODO(Kevin): Sort render items
