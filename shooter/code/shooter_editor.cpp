@@ -733,16 +733,11 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
     {
         bool32 ValidUndo = UndoWorldState(Editor->UndoStack, World,
                                           &Editor->EditorMemory, RenderAPI);
-        // if (ValidUndo)
-        {
-            SetGuiTooltipWithUndoState(GuiState, Editor->UndoStack);
-            GuiState->TooltipTimer = 1.f;
-        }
-        // else
-        // {
-        //     SetGuiTooltip(GuiState, "No more undo");
-        //     GuiState->TooltipTimer = 1.f;
-        // }
+        SetGuiTooltipWithUndoState(GuiState, Editor->UndoStack);
+        GuiState->TooltipTimer = 1.f;
+
+        // NOTE(Kevin): Reset tool sub-modes
+        Editor->BlockToolStage = 0;
     }
 
     if (Input->Controllers[0].ActionRight.EndedDown &&
@@ -750,16 +745,8 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
     {
         bool32 ValidRedo = RedoWorldState(Editor->UndoStack, World,
                                           &Editor->EditorMemory, RenderAPI);
-        // if (ValidRedo)
-        {
-            SetGuiTooltipWithUndoState(GuiState, Editor->UndoStack);
-            GuiState->TooltipTimer = 1.f;
-        }
-        // else
-        // {
-        //     SetGuiTooltip(GuiState, "No more redo");
-        //     GuiState->TooltipTimer = 1.f;
-        // }
+        SetGuiTooltipWithUndoState(GuiState, Editor->UndoStack);
+        GuiState->TooltipTimer = 1.f;
     }
 
     Editor->QueuedMode = BlockTool;

@@ -39,7 +39,8 @@ Platform Layer TODO
 #include "shooter_renderer_dx11.h"
 #include "shooter_renderer_dx11.cpp"
 
-global bool GlobalRunning;
+global bool32 GlobalRunning;
+global bool32 GlobalAppFocused;
 global int64 GlobalPerfCountFrequency;
 global bool32 DEBUGGlobalShowCursor;
 global bool32 DEBUGGlobalMouseCaptured;
@@ -440,10 +441,13 @@ Win32MainWindowCallback(HWND Window, UINT Message, WPARAM WParam, LPARAM LParam)
 internal void
 Win32ProcessKeyboardMessage(game_button_state *NewState, bool32 IsDown)
 {
-    if (NewState->EndedDown != IsDown)
+    if (GlobalAppFocused)
     {
-        NewState->EndedDown = IsDown;
-        ++NewState->HalfTransitionCount;   
+        if (NewState->EndedDown != IsDown)
+        {
+            NewState->EndedDown = IsDown;
+            ++NewState->HalfTransitionCount;   
+        }
     }
 }
 
@@ -625,8 +629,11 @@ Win32ProcessPendingMessages(win32_state *State, game_controller_input *KeyboardC
 
             case WM_ACTIVATEAPP:
             {
+                GlobalAppFocused = Message.wParam == TRUE;
+
                 local_persist bool32 MouseCaptureStateAtDeactivate = DEBUGGlobalMouseCaptured;
-                if (Message.wParam == TRUE)
+
+                if (GlobalAppFocused)
                 {
                     DEBUGGlobalMouseCaptured = MouseCaptureStateAtDeactivate;
                 }
@@ -1176,15 +1183,24 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                             SetCursorPos(ScreenMouseP.x, ScreenMouseP.y);
                         }
                     }
-                    NewInput->MouseX = MouseP.x;
-                    NewInput->MouseY = MouseP.y;
+
+                    if (GlobalAppFocused)
+                    {
+                        NewInput->MouseX = MouseP.x;
+                        NewInput->MouseY = MouseP.y;
+                        NewInput->RawMouseDelta = { (real32)RawMouseInput.dMouseX, (real32)RawMouseInput.dMouseY };
+                        NewInput->ScrollDelta = RawMouseInput.dScroll;
+                    }
+                    else
+                    {
+                        NewInput->MouseX = OldInput->MouseX;
+                        NewInput->MouseY = OldInput->MouseY;
+                    }
                     NewInput->MouseButtons[0].EndedDown = OldInput->MouseButtons[0].EndedDown;
                     NewInput->MouseButtons[1].EndedDown = OldInput->MouseButtons[1].EndedDown;
                     NewInput->MouseButtons[2].EndedDown = OldInput->MouseButtons[2].EndedDown;
                     NewInput->MouseButtons[3].EndedDown = OldInput->MouseButtons[3].EndedDown;
                     NewInput->MouseButtons[4].EndedDown = OldInput->MouseButtons[4].EndedDown;
-                    NewInput->RawMouseDelta = { (real32)RawMouseInput.dMouseX, (real32)RawMouseInput.dMouseY };
-                    NewInput->ScrollDelta = RawMouseInput.dScroll;
                     Win32ProcessKeyboardMessage(&NewInput->MouseButtons[0],
                         GetKeyState(VK_LBUTTON) & (1 << 15));
                     Win32ProcessKeyboardMessage(&NewInput->MouseButtons[1],
