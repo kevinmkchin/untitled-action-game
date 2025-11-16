@@ -110,18 +110,23 @@ struct dx11
     DXGI_FORMAT       BackBufferFormat;
     bool32            AllowVRRTearing;
     u32               FramesInFlight;
+    u32               MSAASampleCount;
+    u32               MSAASupportedMaxSampleCount;
+
     // TODO(Kevin): These should be ->Release on shutdown
     IDXGISwapChain1 *SwapChain;
     ID3D11Device *Device;
     ID3D11DeviceContext *Context;
     IDXGIFactory2 *Factory2;
 
+    ID3D11Texture2D        *ColorTexture;
     ID3D11RenderTargetView *RenderTargetView;
     ID3D11Texture2D        *DepthTexture;
     ID3D11ShaderResourceView *DepthSRV;
     ID3D11DepthStencilView *DepthStencilView;
 
     ID3D11RasterizerState *MainRasterState;
+    ID3D11RasterizerState *NoCullingRasterState;
     ID3D11DepthStencilState *YesDepthNoStencilState;
     ID3D11DepthStencilState *NoDepthNoStencilState;
     ID3D11BlendState *AlphaBlendState;

@@ -1169,12 +1169,12 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         }
         else
         {
-            window_state Window = BeginWindow(GuiState, { 10, 80, 400, 600 });
+            // window_state Window = BeginWindow(GuiState, { 10, 80, 400, 600 });
 
-            WindowText(&Window, "== Some Title ==");
-            WindowText(&Window, "Hello world!");
+            // WindowText(&Window, "== Some Title ==");
+            // WindowText(&Window, "Hello world!");
 
-            EndWindow(&Window);
+            // EndWindow(&Window);
 
 #if 0
             GuiPanel(GuiState, { GameState->Editor.EditorMouseX-5, 

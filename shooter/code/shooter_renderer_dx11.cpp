@@ -51,14 +51,24 @@ DX11CreateSizeDependentResources(dx11 *DX, UINT W, UINT H)
     DX11ReleaseCOM(DX->DepthTexture);
 
     UINT SwapChainFlags = DX->AllowVRRTearing ? DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING : 0;
-    HRESULT HResult = DX->SwapChain->ResizeBuffers(0, W, H, DX->BackBufferFormat, SwapChainFlags);
-    FailDx11HRESULT(HResult, "SwapChain->ResizeBuffers failed", DX->Window);
+    HRESULT HR = DX->SwapChain->ResizeBuffers(0, W, H, DX->BackBufferFormat, SwapChainFlags);
+    FailDx11HRESULT(HR, "SwapChain->ResizeBuffers failed", DX->Window);
 
-    ComPtr<ID3D11Texture2D> BackBufferTexture;
-    HResult = DX->SwapChain->GetBuffer(0, IID_PPV_ARGS(&BackBufferTexture));
-    FailDx11HRESULT(HResult, "GetBuffer(0) failed", DX->Window);
-    HResult = DX->Device->CreateRenderTargetView(BackBufferTexture.Get(), NULL, &DX->RenderTargetView);
-    FailDx11HRESULT(HResult, "Create RenderTargetView failed", DX->Window);
+    D3D11_TEXTURE2D_DESC ColorTextureDesc = {};
+    ColorTextureDesc.Width = W;
+    ColorTextureDesc.Height = H;
+    ColorTextureDesc.MipLevels = 1;
+    ColorTextureDesc.ArraySize = 1;
+    ColorTextureDesc.Format = DX->BackBufferFormat;
+    ColorTextureDesc.SampleDesc.Count = DX->MSAASampleCount;
+    ColorTextureDesc.SampleDesc.Quality = 0; // NOTE(Kevin): Ignoring MSAA quality levels
+    ColorTextureDesc.Usage = D3D11_USAGE_DEFAULT;
+    ColorTextureDesc.BindFlags = D3D11_BIND_RENDER_TARGET;
+
+    HR = DX->Device->CreateTexture2D(&ColorTextureDesc, NULL, &DX->ColorTexture);
+    FailDx11HRESULT(HR, "Failed to create color texture render target.", DX->Window);
+    HR = DX->Device->CreateRenderTargetView(DX->ColorTexture, NULL, &DX->RenderTargetView);
+    FailDx11HRESULT(HR, "Failed to create RenderTargetView for color texture.", DX->Window);
 
     D3D11_TEXTURE2D_DESC DepthStencilDesc = {};
     DepthStencilDesc.Width = W;
@@ -66,33 +76,60 @@ DX11CreateSizeDependentResources(dx11 *DX, UINT W, UINT H)
     DepthStencilDesc.MipLevels = 1;
     DepthStencilDesc.ArraySize = 1;
     DepthStencilDesc.Format = DXGI_FORMAT_R24G8_TYPELESS;
-    DepthStencilDesc.SampleDesc.Count = 1; // Valid range [0, ID3D11Device::CheckMultisampleQualityLevels) must match swapchain
+    DepthStencilDesc.SampleDesc.Count = DX->MSAASampleCount;
+    ColorTextureDesc.SampleDesc.Quality = 0;
     DepthStencilDesc.Usage = D3D11_USAGE_DEFAULT;
     DepthStencilDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL | D3D11_BIND_SHADER_RESOURCE;
 
     D3D11_DEPTH_STENCIL_VIEW_DESC DSVDesc = {};
     DSVDesc.Format             = DXGI_FORMAT_D24_UNORM_S8_UINT;
-    DSVDesc.ViewDimension      = D3D11_DSV_DIMENSION_TEXTURE2D;
+    DSVDesc.ViewDimension      = DX->MSAASampleCount > 1 ?
+                                 D3D11_DSV_DIMENSION_TEXTURE2DMS :
+                                 D3D11_DSV_DIMENSION_TEXTURE2D;
     DSVDesc.Flags              = 0;
     DSVDesc.Texture2D.MipSlice = 0;
 
     D3D11_SHADER_RESOURCE_VIEW_DESC SRVDesc = {};
     SRVDesc.Format                    = DXGI_FORMAT_R24_UNORM_X8_TYPELESS;
-    SRVDesc.ViewDimension             = D3D11_SRV_DIMENSION_TEXTURE2D;
+    SRVDesc.ViewDimension             = DX->MSAASampleCount > 1 ?
+                                        D3D11_SRV_DIMENSION_TEXTURE2DMS :
+                                        D3D11_SRV_DIMENSION_TEXTURE2D;
     SRVDesc.Texture2D.MostDetailedMip = 0;
     SRVDesc.Texture2D.MipLevels       = 1;
 
-    HResult = DX->Device->CreateTexture2D(&DepthStencilDesc, NULL, &DX->DepthTexture);
-    FailDx11HRESULT(HResult, "Create depth texture failed", DX->Window);
-    HResult = DX->Device->CreateDepthStencilView(DX->DepthTexture, &DSVDesc, &DX->DepthStencilView);
-    FailDx11HRESULT(HResult, "Create DepthStencilView failed", DX->Window);
-    HResult = DX->Device->CreateShaderResourceView(DX->DepthTexture, &SRVDesc, &DX->DepthSRV);
-    FailDx11HRESULT(HResult, "Create depth shader resource view failed", DX->Window);
+    HR = DX->Device->CreateTexture2D(&DepthStencilDesc, NULL, &DX->DepthTexture);
+    FailDx11HRESULT(HR, "Failed to create depth texture.", DX->Window);
+    HR = DX->Device->CreateDepthStencilView(DX->DepthTexture, &DSVDesc, &DX->DepthStencilView);
+    FailDx11HRESULT(HR, "Failed to create DepthStencilView.", DX->Window);
+    HR = DX->Device->CreateShaderResourceView(DX->DepthTexture, &SRVDesc, &DX->DepthSRV);
+    FailDx11HRESULT(HR, "Failed to create shader resource view for depth texture.", DX->Window);
 
     PreviousBackBufferW = W;
     PreviousBackBufferH = H;
 
+#if HANDMADE_INTERNAL
     OutputDebugStringA("DX11: Resized swapchain and render target view.\n");
+#endif
+}
+
+internal void
+DX11CreateRasterizerState(dx11 *DX, ID3D11RasterizerState **RasterState,
+                          bool32 DrawWireframe, bool32 CullBackFace)
+{
+    D3D11_RASTERIZER_DESC RasterDesc = {};
+    RasterDesc.FillMode = DrawWireframe ? D3D11_FILL_WIREFRAME : D3D11_FILL_SOLID;
+    RasterDesc.CullMode = CullBackFace ? D3D11_CULL_BACK : D3D11_CULL_NONE;
+    RasterDesc.FrontCounterClockwise = TRUE;
+    RasterDesc.DepthBias = 0;
+    RasterDesc.DepthBiasClamp = 0.0f;
+    RasterDesc.SlopeScaledDepthBias = 0.0f;
+    RasterDesc.DepthClipEnable = TRUE;
+    RasterDesc.ScissorEnable = TRUE;
+    RasterDesc.MultisampleEnable = FALSE;
+    RasterDesc.AntialiasedLineEnable = FALSE;
+
+    HRESULT HR = DX->Device->CreateRasterizerState(&RasterDesc, RasterState);
+    FailDx11HRESULT(HR, "Failed to CreateRasterizerState", DX->Window);
 }
 
 internal void
@@ -125,6 +162,22 @@ DX11UpdateConstantBuffer(dx11 *DX, ID3D11Buffer *ConstantBuffer, void *Data, u32
     }
 }
 
+internal mesh_handle
+UseNextAvailableMeshHandle(dx11 *DX)
+{
+    Assert(DX->FreeMeshHandlesCount > 0);
+    mesh_handle FreeHandle = DX->FreeMeshHandles[--DX->FreeMeshHandlesCount];
+    return FreeHandle;
+}
+
+internal texture_handle
+UseNextAvailableTextureHandle(dx11 *DX)
+{
+    Assert(DX->FreeTextureHandlesCount > 0);
+    texture_handle FreeHandle = DX->FreeTextureHandles[--DX->FreeTextureHandlesCount];
+    return FreeHandle;
+}
+
 internal void
 DEBUGDX11CreateShaderSetFromFile(dx11 *DX, LPCWSTR VSFileName, ID3D11VertexShader **VS, 
                                  LPCWSTR PSFileName, ID3D11PixelShader **PS,
@@ -148,55 +201,27 @@ DEBUGDX11CreateShaderSetFromFile(dx11 *DX, LPCWSTR VSFileName, ID3D11VertexShade
     FailDx11HRESULT(HR, "Failed to create Input Layout object.", DX->Window);
 }
 
-internal mesh_handle
-UseNextAvailableMeshHandle(dx11 *DX)
-{
-    Assert(DX->FreeMeshHandlesCount > 0);
-    mesh_handle FreeHandle = DX->FreeMeshHandles[--DX->FreeMeshHandlesCount];
-    return FreeHandle;
-}
-
-internal texture_handle
-UseNextAvailableTextureHandle(dx11 *DX)
-{
-    Assert(DX->FreeTextureHandlesCount > 0);
-    texture_handle FreeHandle = DX->FreeTextureHandles[--DX->FreeTextureHandlesCount];
-    return FreeHandle;
-}
-
 internal void
 DX11Init(dx11 *DX)
 {
+    HRESULT HR;
+
     //
     // Rasterizer State and Depth Stencil State
     //
-    D3D11_RASTERIZER_DESC RasterDesc = {};
-    RasterDesc.FillMode = D3D11_FILL_SOLID;  // D3D11_FILL_SOLID or D3D11_FILL_WIREFRAME
-    RasterDesc.CullMode = D3D11_CULL_BACK;   // D3D11_CULL_NONE, D3D11_CULL_FRONT, D3D11_CULL_BACK
-    RasterDesc.FrontCounterClockwise = TRUE; // TRUE = CCW front-facing, FALSE = CW front-facing
-    RasterDesc.DepthBias = 0;
-    RasterDesc.DepthBiasClamp = 0.0f;
-    RasterDesc.SlopeScaledDepthBias = 0.0f;
-    RasterDesc.DepthClipEnable = TRUE;
-    RasterDesc.ScissorEnable = TRUE;
-    RasterDesc.MultisampleEnable = FALSE;
-    RasterDesc.AntialiasedLineEnable = FALSE;
-
-    HRESULT HR = DX->Device->CreateRasterizerState(&RasterDesc, &DX->MainRasterState);
-    FailDx11HRESULT(HR, "Failed to CreateRasterizerState", DX->Window);
+    DX11CreateRasterizerState(DX, &DX->MainRasterState, false, true);
+    DX11CreateRasterizerState(DX, &DX->NoCullingRasterState, false, false);
 
     D3D11_DEPTH_STENCIL_DESC DepthStencilStateDesc = {};
     DepthStencilStateDesc.DepthEnable = TRUE;
     DepthStencilStateDesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
     DepthStencilStateDesc.DepthFunc = D3D11_COMPARISON_LESS;
     DepthStencilStateDesc.StencilEnable = FALSE;
-
     DX->Device->CreateDepthStencilState(&DepthStencilStateDesc, &DX->YesDepthNoStencilState);
 
     DepthStencilStateDesc = {};
     DepthStencilStateDesc.DepthEnable = FALSE;
     DepthStencilStateDesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
-
     DX->Device->CreateDepthStencilState(&DepthStencilStateDesc, &DX->NoDepthNoStencilState);
 
     D3D11_RENDER_TARGET_BLEND_DESC RtBlendDesc = {};
@@ -439,6 +464,7 @@ DX11EndFrame(dx11 *DX)
     //
     // World Line Rendering
     //
+    DX->Context->RSSetState(DX->NoCullingRasterState);
     // NOTE(Kevin): To sample depth texture, must unbind depth stencil view from render target
     // DX->Context->OMSetRenderTargets(1, &DX->RenderTargetView, NULL);
     // DX->Context->OMSetDepthStencilState(DX->NoDepthNoStencilState, 0);
@@ -559,12 +585,18 @@ DX11EndFrame(dx11 *DX)
         PresentFlags |= DXGI_PRESENT_ALLOW_TEARING;
     }
 
-    HRESULT HResult = DX->SwapChain->Present(SyncInterval, PresentFlags);
-    if (HResult == DXGI_ERROR_DEVICE_REMOVED || HResult == DXGI_ERROR_DEVICE_RESET)
+    ID3D11Texture2D *BackBuffer;
+    HRESULT HR = DX->SwapChain->GetBuffer(0, IID_PPV_ARGS(&BackBuffer));
+    FailDx11HRESULT(HR, "Failed to get backbuffer!", DX->Window);
+    DX->Context->ResolveSubresource(BackBuffer, 0, DX->ColorTexture, 0, DX->BackBufferFormat);
+    BackBuffer->Release();
+
+    HR = DX->SwapChain->Present(SyncInterval, PresentFlags);
+    if (HR == DXGI_ERROR_DEVICE_REMOVED || HR == DXGI_ERROR_DEVICE_RESET)
     {
         // NOTE(Kevin): This is if a video card has been physically removed from the computer,
         // or a driver upgrade for the video card has occurred.
-        FailDx11HRESULT(HResult, "DX11 device removed or reset! Attempting to recreate.", DX->Window, false);
+        FailDx11HRESULT(HR, "DX11 device removed or reset! Attempting to recreate.", DX->Window, false);
 
         Win32ReleaseRenderer((renderer *)DX);
 
@@ -574,7 +606,7 @@ DX11EndFrame(dx11 *DX)
     }
     else
     {
-        FailDx11HRESULT(HResult, "Present failed!", DX->Window);
+        FailDx11HRESULT(HR, "Present failed!", DX->Window);
     }
 }
 
@@ -904,27 +936,27 @@ DX11CreateDeviceAndSwapchain(dx11 *DX, HWND Window)
 
     DX->ObtainedFeatureLevel = {};
 
-    HRESULT HResult = D3D11CreateDevice(NULL,
-                                        D3D_DRIVER_TYPE_HARDWARE,
-                                        NULL,
-                                        CreateFlags,
-                                        FeatureLevels,
-                                        ArrayCount(FeatureLevels),
-                                        D3D11_SDK_VERSION,
-                                        &DX->Device,
-                                        &DX->ObtainedFeatureLevel,
-                                        &DX->Context);
-    FailDx11HRESULT(HResult, "D3D11CreateDevice failed", Window);
+    HRESULT HR = D3D11CreateDevice(NULL,
+                                   D3D_DRIVER_TYPE_HARDWARE,
+                                   NULL,
+                                   CreateFlags,
+                                   FeatureLevels,
+                                   ArrayCount(FeatureLevels),
+                                   D3D11_SDK_VERSION,
+                                   &DX->Device,
+                                   &DX->ObtainedFeatureLevel,
+                                   &DX->Context);
+    FailDx11HRESULT(HR, "D3D11CreateDevice failed", Window);
 
     DX->FramesInFlight = 1;
     ComPtr<IDXGIDevice1> DXGIDevice;
-    HResult = DX->Device->QueryInterface(__uuidof(IDXGIDevice1), (void**)&DXGIDevice);
-    if (SUCCEEDED(HResult))
+    HR = DX->Device->QueryInterface(__uuidof(IDXGIDevice1), (void**)&DXGIDevice);
+    if (SUCCEEDED(HR))
     {
-        FailDx11HRESULT(HResult, "Failed to set maximum frame latency.", DX->Window, false);
-        HResult = DXGIDevice->SetMaximumFrameLatency(DX->FramesInFlight);
-        FailDx11HRESULT(HResult, "Failed to set maximum frame latency.", DX->Window, false);
-        if (FAILED(HResult))
+        FailDx11HRESULT(HR, "Failed to set maximum frame latency.", DX->Window, false);
+        HR = DXGIDevice->SetMaximumFrameLatency(DX->FramesInFlight);
+        FailDx11HRESULT(HR, "Failed to set maximum frame latency.", DX->Window, false);
+        if (FAILED(HR))
         {
             DX->FramesInFlight = 3;
         }
@@ -936,16 +968,16 @@ DX11CreateDeviceAndSwapchain(dx11 *DX, HWND Window)
 
     // Get DXGI factory
     ComPtr<IDXGIAdapter> DXGIAdapter;
-    HResult = DXGIDevice->GetAdapter(&DXGIAdapter);
-    FailDx11HRESULT(HResult, "Failed to get IDXGIAdapter from IDXGIDevice1.", Window);
-    HResult = DXGIAdapter->GetParent(IID_PPV_ARGS(&DX->Factory2));
-    FailDx11HRESULT(HResult, "Failed to get IDXGIFactory2 from IDXGIAdapter.", Window);
+    HR = DXGIDevice->GetAdapter(&DXGIAdapter);
+    FailDx11HRESULT(HR, "Failed to get IDXGIAdapter from IDXGIDevice1.", Window);
+    HR = DXGIAdapter->GetParent(IID_PPV_ARGS(&DX->Factory2));
+    FailDx11HRESULT(HR, "Failed to get IDXGIFactory2 from IDXGIAdapter.", Window);
 
     // Check tearing support
     DX->AllowVRRTearing = false;
     IDXGIFactory5 *Factory5;
-    HResult = DX->Factory2->QueryInterface(__uuidof(IDXGIFactory5), (void**)&Factory5);
-    if (SUCCEEDED(HResult))
+    HR = DX->Factory2->QueryInterface(__uuidof(IDXGIFactory5), (void**)&Factory5);
+    if (SUCCEEDED(HR))
     {
         BOOL AllowVRRTearing = FALSE;
         if (SUCCEEDED(Factory5->CheckFeatureSupport(DXGI_FEATURE_PRESENT_ALLOW_TEARING, &AllowVRRTearing, sizeof(AllowVRRTearing))))
@@ -955,8 +987,27 @@ DX11CreateDeviceAndSwapchain(dx11 *DX, HWND Window)
         Factory5->Release();
     }
 
+    // Back Buffer Format
     DX->BackBufferFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
 
+    // Check MSAA support
+    u32 QualityLevelsCount;
+    for (u32 SampleCount = 2; SampleCount <= 32; SampleCount *= 2)
+    {
+        HR = DX->Device->CheckMultisampleQualityLevels(DX->BackBufferFormat, SampleCount,
+                                                       &QualityLevelsCount);
+        if (HR == 0 && QualityLevelsCount > 0)
+        {
+            DX->MSAASupportedMaxSampleCount = SampleCount;
+            DX->MSAASampleCount = DX->MSAASupportedMaxSampleCount;
+        }
+    }
+    if (DX->MSAASupportedMaxSampleCount > 8)
+    {
+        DX->MSAASampleCount = 8;
+    }
+
+    // Create swap chain for HWND
     DXGI_SWAP_CHAIN_DESC1 SwapChainDesc = {};
     SwapChainDesc.Width = 1;
     SwapChainDesc.Height = 1;
@@ -970,14 +1021,13 @@ DX11CreateDeviceAndSwapchain(dx11 *DX, HWND Window)
     SwapChainDesc.AlphaMode = DXGI_ALPHA_MODE_IGNORE;
     SwapChainDesc.Flags = DX->AllowVRRTearing ? DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING : 0;
 
-    // Create swap chain for HWND
-    HResult = DX->Factory2->CreateSwapChainForHwnd(DX->Device,
+    HR = DX->Factory2->CreateSwapChainForHwnd(DX->Device,
                                                    Window,
                                                    &SwapChainDesc,
                                                    NULL /*DXGI_SWAP_CHAIN_FULLSCREEN_DESC*/,
                                                    NULL /*restrictToOutput*/,
                                                    &DX->SwapChain);
-    FailDx11HRESULT(HResult, "CreateSwapChainForHwnd failed", Window);
+    FailDx11HRESULT(HR, "CreateSwapChainForHwnd failed", Window);
 
     DX->Factory2->MakeWindowAssociation(Window, DXGI_MWA_NO_ALT_ENTER);
 }
@@ -1034,6 +1084,7 @@ Win32ReleaseRenderer(renderer *Renderer)
     DX11ReleaseCOM(DX->PerInstanceDataSB.SRV);
 
     DX11ReleaseCOM(DX->MainRasterState);
+    DX11ReleaseCOM(DX->NoCullingRasterState);
     DX11ReleaseCOM(DX->YesDepthNoStencilState);
     DX11ReleaseCOM(DX->NoDepthNoStencilState);
     DX11ReleaseCOM(DX->AlphaBlendState);
@@ -1052,9 +1103,10 @@ Win32ReleaseRenderer(renderer *Renderer)
     DX11ReleaseCOM(DX->AnisotropicSampler);
     DX11ReleaseCOM(DX->PointSampler);
 
+    DX11ReleaseCOM(DX->ColorTexture);
     DX11ReleaseCOM(DX->RenderTargetView);
-    DX11ReleaseCOM(DX->DepthSRV);
     DX11ReleaseCOM(DX->DepthTexture);
+    DX11ReleaseCOM(DX->DepthSRV);
     DX11ReleaseCOM(DX->DepthStencilView);
 
     // TODO(Kevin): DX->SwapChain->SetFullscreenState
