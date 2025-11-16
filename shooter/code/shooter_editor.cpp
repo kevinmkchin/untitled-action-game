@@ -17,7 +17,7 @@ ScreenPointToWorldPointAndRay(vec2 ScreenPoint, renderer *RenderAPI,
     real32 NdcY = (((real32)BackBufferH - ScreenPoint.Y) / (real32)BackBufferH) * 2.f - 1.f;
     real32 NdcZ = 0.f;
 
-    // TODO(Kevin): For DX11, Z should be +1? check
+    // NOTE(Kevin): For DX11, forward is Z = +1 in NDC
     vec4 ClipSpaceRay = vec4(NdcX, NdcY, 1.f, 1.f);
     vec4 ViewSpaceRay = InvPerspectiveMatrix * ClipSpaceRay;
     ViewSpaceRay = vec4(ViewSpaceRay.x, ViewSpaceRay.y, -1.f, 0.f);
@@ -25,8 +25,8 @@ ScreenPointToWorldPointAndRay(vec2 ScreenPoint, renderer *RenderAPI,
     *WorldRay = WorldSpaceRay;
 
     vec4 ClipSpaceP = vec4(NdcX, NdcY, NdcZ, 1.f);
-    // NOTE(Kevin): For points, reverse perspective divide after the 
-    // inverse projection matrix transformation because it's easier that way.
+    // NOTE(Kevin): For points, reverse the perspective divide after the inverse
+    //              projection matrix transformation because it's simpler that way.
     vec4 ViewSpacePBeforePerspectiveDivide = InvPerspectiveMatrix * ClipSpaceP;
     vec4 ViewSpaceP = ViewSpacePBeforePerspectiveDivide / ViewSpacePBeforePerspectiveDivide.w;
     vec4 WorldSpaceP = InvViewMatrix * ViewSpaceP;
@@ -87,53 +87,6 @@ GetDrawRectBasisAxes(vec3 FloorNormal, vec3 *RectBasisUAxis, vec3 *RectBasisVAxi
 
     *RectBasisUAxis = Normalize(Cross(FloorNormal, FloorNormalNoY));
     *RectBasisVAxis = Normalize(Cross(FloorNormal, *RectBasisUAxis));
-}
-
-internal void
-MakeEditableRectangle(world_mesh *World, vec3 RectStartPoint, vec3 RectEndPoint,
-                      vec3 FloorNormal)
-{
-    vec3 RectBasisUAxis, RectBasisVAxis;
-    GetDrawRectBasisAxes(FloorNormal, &RectBasisUAxis, &RectBasisVAxis);
-    vec3 AlongZAxis = Dot(RectEndPoint - RectStartPoint, RectBasisUAxis) * RectBasisUAxis;
-
-    vec3 FloorPointA = RectStartPoint;
-    vec3 FloorPointB = RectStartPoint + AlongZAxis;
-    vec3 FloorPointC = RectEndPoint;
-    vec3 FloorPointD = RectEndPoint - AlongZAxis;
-
-#if 1
-    vert_index V0 = CreateVert(World, FloorPointA);
-    vert_index V1 = CreateVert(World, FloorPointB);
-    vert_index V2 = CreateVert(World, FloorPointC);
-    vert_index V3 = CreateVert(World, FloorPointD);
-
-    edge_index E0 = CreateEdge(World, V0, V1);
-    edge_index E1 = CreateEdge(World, V1, V2);
-    edge_index E2 = CreateEdge(World, V2, V3);
-    edge_index E3 = CreateEdge(World, V3, V0);
-
-    edge_index Edges[] = { E0, E1, E2, E3 };
-#else
-    // Ear clipping test!
-    vert_index V0 = CreateVert(World, FloorPointA);
-    vert_index V1 = CreateVert(World, FloorPointB);
-    vert_index V2 = CreateVert(World, FloorPointC);
-    vert_index V3 = CreateVert(World, 0.2f*(RectEndPoint - RectStartPoint) + RectStartPoint);
-    vert_index V4 = CreateVert(World, FloorPointD);
-
-    edge_index E0 = CreateEdge(World, V0, V1);
-    edge_index E1 = CreateEdge(World, V1, V2);
-    edge_index E2 = CreateEdge(World, V2, V3);
-    edge_index E3 = CreateEdge(World, V3, V4);
-    edge_index E4 = CreateEdge(World, V4, V0);
-
-    edge_index Edges[] = { E0, E1, E2, E3, E4 };
-#endif
-
-    // TODO(Kevin): Perhaps created faces should be stored in an
-    //              array for quickly iterating for rendering etc.
-    CreateFace(World, Edges, ArrayCount(Edges));
 }
 
 internal void
@@ -376,34 +329,91 @@ SnapToGrid(editor *Editor, vec3 BeforeSnap)
     return SnapTemp;
 }
 
+internal vec3
+IndexToColor(u32 Index)
+{
+    real32 R = (real32) ((Index & 0x000000FF) >> 0);
+    real32 G = (real32) ((Index & 0x0000FF00) >> 8);
+    real32 B = (real32) ((Index & 0x00FF0000) >> 16);
+    return vec3(R,G,B)/255.f;
+}
+
+internal u32
+ColorToIndex(u32 RGBA)
+{
+    u32 Index = ((RGBA & 0xFF000000) >> 24) |
+                ((RGBA & 0x00FF0000) >> 8) |
+                ((RGBA & 0x0000FF00) << 8);
+    return Index;
+}
+
+internal edge_index
+PickEdge(editor *Editor)
+{
+    // TODO(Kevin): Render all the edges with their edge_index as their color
+    return 0;
+}
+
+internal face_index
+PickFace(editor *Editor)
+{
+    for (u32 FaceIndex = 0; FaceIndex < ArrayCount(Editor->World->Faces); ++FaceIndex)
+    {
+        mesh_face *Face = &Editor->World->Faces[FaceIndex];
+
+        if (Face->Alive)
+        {
+            if (Face->RenderMesh)
+            {
+                render_item RenderItem;
+                RenderItem = {};
+                RenderItem.Descriptor.Mesh = Face->RenderMesh;
+                RenderItem.Descriptor.Albedo = 0;
+                RenderItem.Descriptor.Lightmap = 0;
+                RenderItem.UseLightmap = true;
+                RenderItem.UseLightCubes = false;
+                RenderItem.ForcedAmbient = IndexToColor(FaceIndex);
+                RenderItem.WorldPosition = vec3();
+                RenderItem.WorldRotation = quat();
+                RenderItem.WorldScale = vec3(1,1,1);
+                Editor->RenderAPI->PushRenderItems(&RenderItem, 1);
+            }
+        }
+    }
+
+    u32 Pixel = Editor->RenderAPI->FlushAndReadbackPixel(FloorReal32ToU32(Editor->Input->ScreenMouseP.X),
+                                                         FloorReal32ToU32(Editor->Input->ScreenMouseP.Y));
+    u32 Index = ColorToIndex(Pixel);
+
+    return Index;
+}
+
 internal bool32
 PickPointUnderMouse(editor *Editor, vec3 *PlanePoint, vec3 *PlaneNormal)
 {
-    // TODO(Kevin):
+    face_index PickedFace = Editor->FaceUnderMouse;
+    if (PickedFace == 0)
+    {
+        PickedFace = PickFace(Editor);
+    }
 
-    // face_index PickedFace = PickFace();
+    if (PickedFace > 0)
+    {
+        *PlaneNormal = GetFaceNormal(Editor->World, PickedFace);
 
-    // if (PickedFace > 0)
-    // {
-    //     *PlaneNormal = GetFaceNormal(World, PickedFace);
+        mesh_face DrawingFace = Editor->World->Faces[PickedFace];
 
-    //     mesh_face DrawingFace = World->Faces[PickedFace];
+        vec3 WP, WR;
+        ScreenPointToWorldPointAndRay(Editor->Input->ScreenMouseP, Editor->RenderAPI, &WP, &WR);
 
-    //     vec3 WP = ScreenPointToWorldPoint(AppState->BackBufferWidth, AppState->BackBufferHeight,
-    //                                       ActivePerspectiveMatrix, ActiveViewMatrix,
-    //                                       AppState->MousePos, 0.f);
-    //     vec3 WR = ScreenPointToWorldRay(AppState->BackBufferWidth, AppState->BackBufferHeight,
-    //                                     ActivePerspectiveMatrix, ActiveViewMatrix,
-    //                                     AppState->MousePos);
-
-    //     vert_index VertOnFace = World->Loops[DrawingFace.LoopCycleBase].Vert;
-    //     IntersectPlaneAndLineWithDirections(World->Vertices[VertOnFace].P,
-    //                                         *PlaneNormal, WP, WR, PlanePoint);        
-    // }
-    // else
+        vert_index VertOnFace = Editor->World->Loops[DrawingFace.LoopCycleBase].Vert;
+        IntersectPlaneAndLineWithDirections(Editor->World->Vertices[VertOnFace].P,
+                                            *PlaneNormal, WP, WR, PlanePoint);
+    }
+    else
     {
         vec3 WP, WR;
-        ScreenPointToWorldPointAndRay(Editor->ScreenMouseP, Editor->RenderAPI, &WP, &WR);
+        ScreenPointToWorldPointAndRay(Editor->Input->ScreenMouseP, Editor->RenderAPI, &WP, &WR);
 
         real32 f = (0.f - WP.Y) / WR.Y;
         if (f < 0.f)
@@ -419,11 +429,56 @@ PickPointUnderMouse(editor *Editor, vec3 *PlanePoint, vec3 *PlaneNormal)
 }
 
 internal void
+MakeEditableRectangle(world_mesh *World, vec3 RectStartPoint, vec3 RectEndPoint,
+                      vec3 FloorNormal)
+{
+    vec3 RectBasisUAxis, RectBasisVAxis;
+    GetDrawRectBasisAxes(FloorNormal, &RectBasisUAxis, &RectBasisVAxis);
+    vec3 AlongZAxis = Dot(RectEndPoint - RectStartPoint, RectBasisUAxis) * RectBasisUAxis;
+
+    vec3 FloorPointA = RectStartPoint;
+    vec3 FloorPointB = RectStartPoint + AlongZAxis;
+    vec3 FloorPointC = RectEndPoint;
+    vec3 FloorPointD = RectEndPoint - AlongZAxis;
+
+#if 1
+    vert_index V0 = CreateVert(World, FloorPointA);
+    vert_index V1 = CreateVert(World, FloorPointB);
+    vert_index V2 = CreateVert(World, FloorPointC);
+    vert_index V3 = CreateVert(World, FloorPointD);
+
+    edge_index E0 = CreateEdge(World, V0, V1);
+    edge_index E1 = CreateEdge(World, V1, V2);
+    edge_index E2 = CreateEdge(World, V2, V3);
+    edge_index E3 = CreateEdge(World, V3, V0);
+
+    edge_index Edges[] = { E0, E1, E2, E3 };
+#else
+    // Ear clipping test!
+    vert_index V0 = CreateVert(World, FloorPointA);
+    vert_index V1 = CreateVert(World, FloorPointB);
+    vert_index V2 = CreateVert(World, FloorPointC);
+    vert_index V3 = CreateVert(World, 0.2f*(RectEndPoint - RectStartPoint) + RectStartPoint);
+    vert_index V4 = CreateVert(World, FloorPointD);
+
+    edge_index E0 = CreateEdge(World, V0, V1);
+    edge_index E1 = CreateEdge(World, V1, V2);
+    edge_index E2 = CreateEdge(World, V2, V3);
+    edge_index E3 = CreateEdge(World, V3, V4);
+    edge_index E4 = CreateEdge(World, V4, V0);
+
+    edge_index Edges[] = { E0, E1, E2, E3, E4 };
+#endif
+
+    CreateFace(World, Edges, ArrayCount(Edges));
+}
+
+internal void
 DoBlockTool(editor *Editor)
 {
     if (Editor->BlockToolStage == 0)
     {
-        if (Editor->LMBWentDown)
+        if (Editor->Input->LMBWentDown)
         {
             bool32 ValidPick = PickPointUnderMouse(Editor, &Editor->RectStartP,
                                                    &Editor->RectDrawPlaneN);
@@ -445,10 +500,10 @@ DoBlockTool(editor *Editor)
         Editor->GridRight = Editor->RectDrawBasisUAxis;
         Editor->GridUp = Editor->RectDrawPlaneN;
 
-        if (Editor->LMBDown || Editor->LMBWentUp)
+        if (Editor->Input->LMBIsDown || Editor->Input->LMBWentUp)
         {
             vec3 WP, WR;
-            ScreenPointToWorldPointAndRay(Editor->ScreenMouseP, Editor->RenderAPI, &WP, &WR);
+            ScreenPointToWorldPointAndRay(Editor->Input->ScreenMouseP, Editor->RenderAPI, &WP, &WR);
 
             vec3 Intersection;
             IntersectPlaneAndLineWithDirections(Editor->RectStartP, Editor->RectDrawPlaneN, 
@@ -480,7 +535,7 @@ DoBlockTool(editor *Editor)
                                             vec3(RGBHEXTO1(0xff8000)), 2.f);
             }
 
-            if (Editor->LMBWentUp)
+            if (Editor->Input->LMBWentUp)
             {
                 if (Magnitude(StartToEndAlongBasisU)+0.05f >= Editor->GridIncrement &&
                     Magnitude(StartToEndAlongBasisV)+0.05f >= Editor->GridIncrement)
@@ -522,7 +577,7 @@ DoBlockTool(editor *Editor)
         vec3 PlaneP = Editor->RectEndP + Editor->BlockDrawHeight;
 
         vec3 WP, WR;
-        ScreenPointToWorldPointAndRay(Editor->ScreenMouseP, Editor->RenderAPI, &WP, &WR);
+        ScreenPointToWorldPointAndRay(Editor->Input->ScreenMouseP, Editor->RenderAPI, &WP, &WR);
 
         vec3 Intersection;
         IntersectPlaneAndLineWithDirections(PlaneP, PlaneN, WP, WR, &Intersection);
@@ -576,7 +631,7 @@ DoBlockTool(editor *Editor)
         Editor->RenderAPI->PushLine(CeilPointC, CeilPointB, vec3(RGBHEXTO1(0xff8000)), 2.f);
         Editor->RenderAPI->PushLine(CeilPointC, CeilPointD, vec3(RGBHEXTO1(0xff8000)), 2.f);
 
-        if (Editor->LMBWentUp)
+        if (Editor->Input->LMBWentUp)
         {
             // TODO(Kevin): If height component is zero or too small then
             //              just default to current grid increment
@@ -647,7 +702,7 @@ DoBlockTool(editor *Editor)
 
 internal void
 EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *GuiState,
-                      game_input *Input, renderer *RenderAPI)
+                      kbm_input *Input, renderer *RenderAPI)
 {
     editor *Editor = &(GameState->Editor);
     world_mesh *World = Editor->World;
@@ -690,7 +745,7 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
         PushWorldStateToUndoStack(Editor->UndoStack, World);
         Editor->UndoStack->HistoryStartP = Editor->UndoStack->StackP;
 
-        Editor->GridIncrement = 32.0f;
+        Editor->GridIncrement = (real32)STANDARD_LENGTH_IN_GAME_UNITS;
 
         // TODO(Kevin): For face colliders, I should first detect whether the
         // face polygon is convex or concave: if concave, then I may need to
@@ -700,18 +755,13 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
         Editor->IsInitialized = true;
     }
 
-    Editor->LMBDown = Input->MouseButtons[0].EndedDown;
-    Editor->LMBWentDown = Input->MouseButtons[0].EndedDown && 
-                          Input->MouseButtons[0].HalfTransitionCount > 0;
-    Editor->LMBWentUp = !Input->MouseButtons[0].EndedDown && 
-                        Input->MouseButtons[0].HalfTransitionCount > 0;
-    Editor->ScreenMouseP = { (real32)Input->MouseX, (real32)Input->MouseY };
+    Editor->Input = Input;
     Editor->CameraDirection = GameState->Camera.ViewForward;
     EnterNextMode(Editor);
     ResetGrid(Editor);
 
-    if (Input->Controllers[0].ActionUp.EndedDown && 
-        Input->Controllers[0].ActionUp.HalfTransitionCount > 0)
+    if (Input->KBController.ActionUp.EndedDown && 
+        Input->KBController.ActionUp.HalfTransitionCount > 0)
     {
         for (u32 VertIndex = 0; VertIndex < ArrayCount(World->Vertices); ++VertIndex)
         {
@@ -728,8 +778,8 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
         GuiState->TooltipTimer = 0.f;
     }
 
-    if (Input->Controllers[0].ActionLeft.EndedDown &&
-        Input->Controllers[0].ActionLeft.HalfTransitionCount > 0)
+    if (Input->KBController.ActionLeft.EndedDown &&
+        Input->KBController.ActionLeft.HalfTransitionCount > 0)
     {
         bool32 ValidUndo = UndoWorldState(Editor->UndoStack, World,
                                           &Editor->EditorMemory, RenderAPI);
@@ -740,13 +790,31 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
         Editor->BlockToolStage = 0;
     }
 
-    if (Input->Controllers[0].ActionRight.EndedDown &&
-        Input->Controllers[0].ActionRight.HalfTransitionCount > 0)
+    if (Input->KBController.ActionRight.EndedDown &&
+        Input->KBController.ActionRight.HalfTransitionCount > 0)
     {
         bool32 ValidRedo = RedoWorldState(Editor->UndoStack, World,
                                           &Editor->EditorMemory, RenderAPI);
         SetGuiTooltipWithUndoState(GuiState, Editor->UndoStack);
         GuiState->TooltipTimer = 1.f;
+    }
+
+    Editor->EdgeUnderMouse = 0;
+    Editor->FaceUnderMouse = 0;
+    if (!Input->MouseCaptured)
+    {
+        switch (Editor->ActiveMode)
+        {
+            case SelectEdge:
+                Editor->EdgeUnderMouse = PickEdge(Editor);
+                break;
+            case SelectFace:
+            case BlockTool:
+                Editor->FaceUnderMouse = PickFace(Editor);
+                break;
+            default:
+                break;
+        }
     }
 
     Editor->QueuedMode = BlockTool;
@@ -775,7 +843,6 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
 
     TriangulateAndUploadFaces(World, &Editor->EditorMemory, RenderAPI);
 
-    // I want all the faces to be drawn & I want all the edges to be drawn!
     for (u32 FaceIndex = 0; FaceIndex < ArrayCount(World->Faces); ++FaceIndex)
     {
         mesh_face *Face = &World->Faces[FaceIndex];
@@ -791,11 +858,13 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
                 RenderItem.Descriptor.Lightmap = 0;
                 RenderItem.UseLightmap = true;
                 RenderItem.UseLightCubes = false;
-                RenderItem.ForcedAmbient = GetDebugColor3(FaceIndex);
+                RenderItem.ForcedAmbient = FaceIndex == Editor->FaceUnderMouse ?
+                                           vec3(1,0,0) :
+                                           GetDebugColor3(FaceIndex);
                 RenderItem.WorldPosition = vec3();
                 RenderItem.WorldRotation = quat();
                 RenderItem.WorldScale = vec3(1,1,1);
-                RenderAPI->PushRenderItems(&RenderItem, 1);                
+                RenderAPI->PushRenderItems(&RenderItem, 1);
             }
         }
     }

@@ -137,17 +137,13 @@ struct renderer
     virtual texture_handle UploadTexture2DData(void *Bitmap, uint32 W, uint32 H, pixel_format Format, 
                                                bool32 LinearFiltering);
 
+    virtual u32 FlushAndReadbackPixel(u32 X, u32 Y);
+
     virtual create_font_result DEBUGCreateBitmapFont_Monospace(void *Bitmap, u32 W, u32 H,
                                                                pixel_format Format,u32 NewLineGap);
     virtual create_font_result DEBUGCreateBitmapFont_TrueType(thread_context *Thread, platform_api PlatformAPI,
                                                               s32 FontHeightPx, char *TrueTypeFileName);
 
 };
-
-/*
-
-DrawLine
-
-*/
 
 #endif // SHOOTER_RENDERER_H

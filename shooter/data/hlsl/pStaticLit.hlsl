@@ -4,6 +4,7 @@ cbuffer ConstantBuffer0 : register(b0)
 {
     float4x4 ProjFromWorld;
     float3 DirectionToSun;
+    float Gamma;
 };
 
 Texture2D Tex0 : register(t8);
@@ -122,6 +123,6 @@ float4 main(vs_out Input, bool IsFrontFace : SV_IsFrontFace) : SV_Target
     FinalColor = mul(FinalColor, LightMap);
     // float Front = IsFrontFace ? 1.0f : 0.1f;
     // FinalColor *= Front;
-    FinalColor = pow(FinalColor, 1.0 / 2.6); // gamma correction
+    FinalColor = pow(FinalColor, 1.0 / Gamma); // gamma correction
     return float4(FinalColor, FinalAlpha);
 }

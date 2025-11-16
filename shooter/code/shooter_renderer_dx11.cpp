@@ -77,7 +77,7 @@ DX11CreateSizeDependentResources(dx11 *DX, UINT W, UINT H)
     DepthStencilDesc.ArraySize = 1;
     DepthStencilDesc.Format = DXGI_FORMAT_R24G8_TYPELESS;
     DepthStencilDesc.SampleDesc.Count = DX->MSAASampleCount;
-    ColorTextureDesc.SampleDesc.Quality = 0;
+    DepthStencilDesc.SampleDesc.Quality = 0;
     DepthStencilDesc.Usage = D3D11_USAGE_DEFAULT;
     DepthStencilDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL | D3D11_BIND_SHADER_RESOURCE;
 
@@ -103,6 +103,21 @@ DX11CreateSizeDependentResources(dx11 *DX, UINT W, UINT H)
     FailDx11HRESULT(HR, "Failed to create DepthStencilView.", DX->Window);
     HR = DX->Device->CreateShaderResourceView(DX->DepthTexture, &SRVDesc, &DX->DepthSRV);
     FailDx11HRESULT(HR, "Failed to create shader resource view for depth texture.", DX->Window);
+
+    D3D11_TEXTURE2D_DESC ColorReadbackTexDesc = {};
+    ColorReadbackTexDesc.Width = W;
+    ColorReadbackTexDesc.Height = H;
+    ColorReadbackTexDesc.MipLevels = 1;
+    ColorReadbackTexDesc.ArraySize = 1;
+    ColorReadbackTexDesc.Format = DX->BackBufferFormat;
+    ColorReadbackTexDesc.SampleDesc.Count = 1;
+    ColorReadbackTexDesc.SampleDesc.Quality = 0;
+    ColorReadbackTexDesc.Usage = D3D11_USAGE_STAGING;
+    ColorReadbackTexDesc.BindFlags = 0;
+    ColorReadbackTexDesc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+    ColorReadbackTexDesc.MiscFlags = 0;
+    HR = DX->Device->CreateTexture2D(&ColorReadbackTexDesc, NULL, &DX->ColorReadbackTexture);
+    FailDx11HRESULT(HR, "Failed to create texture for color readback.", DX->Window);
 
     PreviousBackBufferW = W;
     PreviousBackBufferH = H;
@@ -378,6 +393,12 @@ internal void
 DX11EndFrame(dx11 *DX)
 {
     vec4 ClearColor = { 0.10f, 0.18f, 0.30f, 1.0f };
+
+    if (DX->RenderForColorReadback)
+    {
+        ClearColor = { 0, 0, 0, 1 };
+    }
+
     DX->Context->ClearRenderTargetView(DX->RenderTargetView, (float *)&ClearColor);
     DX->Context->ClearDepthStencilView(DX->DepthStencilView, D3D11_CLEAR_DEPTH|D3D11_CLEAR_STENCIL, 1.0f, 0);
 
@@ -402,7 +423,9 @@ DX11EndFrame(dx11 *DX)
 
     vec3 DirectionToSun = Normalize(vec3(-1,2,0.5f));
 
-    DX->Context->RSSetState(DX->MainRasterState);
+    DX->Context->RSSetState(DX->RenderForColorReadback ?
+                            DX->NoCullingRasterState :
+                            DX->MainRasterState);
     DX->Context->OMSetDepthStencilState(DX->YesDepthNoStencilState, 0);
     DX->Context->OMSetBlendState(DX->AlphaBlendState, NULL, 0xFFFFFFFF);
 
@@ -426,6 +449,7 @@ DX11EndFrame(dx11 *DX)
         {
             ProjFromWorld,
             DirectionToSun,
+            DX->RenderForColorReadback ? 1.0f : 2.6f
         };
         DX11UpdateConstantBuffer(DX, DX->StaticLitCB0, &DrawParams0, sizeof(DrawParams0), true, 0, true, 0);
 
@@ -498,116 +522,141 @@ DX11EndFrame(dx11 *DX)
     //
     // UI
     //
-
-    DX->Context->RSSetState(DX->MainRasterState);
-    DX->Context->OMSetDepthStencilState(DX->NoDepthNoStencilState, 0);
-    DX->Context->OMSetBlendState(DX->AlphaBlendState, NULL, 0xFFFFFFFF);
-
-    DX->Context->VSSetShader(DX->UIVS, NULL, 0);
-    DX->Context->PSSetShader(DX->UIPS, NULL, 0);
-
-    gui_vertex *UIVertices = DX->GuiVertexStreamStaging;
-    u32 UIVertexCount = DX->GuiVertexStreamStagingCount;
-    u32 UIVertexStride = sizeof(gui_vertex);
-    u32 UIVerticesSize = UIVertexStride * UIVertexCount;
-    u32 VStreamOffset = DX11VertexStreamAlloc(DX, &DX->UIVertexStream, UIVerticesSize, UIVertices);
-    u32 VStreamStartIndex = VStreamOffset / UIVertexStride;
-
-    dx11_mesh MeshInfo = {};
-    MeshInfo.VB = DX->UIVertexStream.Buffer;
-    MeshInfo.VertexStride = UIVertexStride;
-    MeshInfo.Layout = DX->UIIL;
-    DX11BindToInputAssembler(DX, MeshInfo);
-
-    mat4 ClipFromScreen2D = ProjectionMatrixOrthographicNoZ(0.f, (real32)PreviousBackBufferW, 
-                                                            (real32)PreviousBackBufferH, 0.f);
-
-    ui_cb0 UIDrawParams =
+    if (!DX->RenderForColorReadback)
     {
-        ClipFromScreen2D
-    };
-    DX11UpdateConstantBuffer(DX, DX->UICB0, &UIDrawParams, sizeof(UIDrawParams), true, 0, false, 0);
+        DX->Context->RSSetState(DX->MainRasterState);
+        DX->Context->OMSetDepthStencilState(DX->NoDepthNoStencilState, 0);
+        DX->Context->OMSetBlendState(DX->AlphaBlendState, NULL, 0xFFFFFFFF);
 
-    u32 PrevScissorX = 0xFFFFFFFF;
-    u32 PrevScissorY = 0xFFFFFFFF;
-    u32 PrevScissorW = 0xFFFFFFFF;
-    u32 PrevScissorH = 0xFFFFFFFF;
-    for (uint32 GuiItemIndex = 0; 
-         GuiItemIndex < DX->GuiVertexStreamItemsCount; 
-         ++GuiItemIndex)
-    {
-        gui_vstream_item Item = DX->GuiVertexStreamItems[GuiItemIndex];
-        u32 ScissorX = Item.ScissorX;
-        u32 ScissorY = Item.ScissorY;
-        u32 ScissorW = Item.ScissorW;
-        u32 ScissorH = Item.ScissorH;
-        if (ScissorX != PrevScissorX || ScissorY != PrevScissorY ||
-            ScissorW != PrevScissorW || ScissorH != PrevScissorH)
+        DX->Context->VSSetShader(DX->UIVS, NULL, 0);
+        DX->Context->PSSetShader(DX->UIPS, NULL, 0);
+
+        gui_vertex *UIVertices = DX->GuiVertexStreamStaging;
+        u32 UIVertexCount = DX->GuiVertexStreamStagingCount;
+        u32 UIVertexStride = sizeof(gui_vertex);
+        u32 UIVerticesSize = UIVertexStride * UIVertexCount;
+        u32 VStreamOffset = DX11VertexStreamAlloc(DX, &DX->UIVertexStream, UIVerticesSize, UIVertices);
+        u32 VStreamStartIndex = VStreamOffset / UIVertexStride;
+
+        dx11_mesh MeshInfo = {};
+        MeshInfo.VB = DX->UIVertexStream.Buffer;
+        MeshInfo.VertexStride = UIVertexStride;
+        MeshInfo.Layout = DX->UIIL;
+        DX11BindToInputAssembler(DX, MeshInfo);
+
+        mat4 ClipFromScreen2D = ProjectionMatrixOrthographicNoZ(0.f, (real32)PreviousBackBufferW, 
+                                                                (real32)PreviousBackBufferH, 0.f);
+
+        ui_cb0 UIDrawParams =
         {
-            D3D11_RECT Scissor;
-            Scissor.left = ScissorX;
-            Scissor.top = ScissorY;
-            Scissor.right = ScissorX + ScissorW;
-            Scissor.bottom = ScissorY + ScissorH;
-            DX->Context->RSSetScissorRects(1, &Scissor);
-            PrevScissorX = ScissorX;
-            PrevScissorY = ScissorY;
-            PrevScissorW = ScissorW;
-            PrevScissorH = ScissorH;
+            ClipFromScreen2D
+        };
+        DX11UpdateConstantBuffer(DX, DX->UICB0, &UIDrawParams, sizeof(UIDrawParams), true, 0, false, 0);
+
+        u32 PrevScissorX = 0xFFFFFFFF;
+        u32 PrevScissorY = 0xFFFFFFFF;
+        u32 PrevScissorW = 0xFFFFFFFF;
+        u32 PrevScissorH = 0xFFFFFFFF;
+        for (uint32 GuiItemIndex = 0; 
+             GuiItemIndex < DX->GuiVertexStreamItemsCount; 
+             ++GuiItemIndex)
+        {
+            gui_vstream_item Item = DX->GuiVertexStreamItems[GuiItemIndex];
+            u32 ScissorX = Item.ScissorX;
+            u32 ScissorY = Item.ScissorY;
+            u32 ScissorW = Item.ScissorW;
+            u32 ScissorH = Item.ScissorH;
+            if (ScissorX != PrevScissorX || ScissorY != PrevScissorY ||
+                ScissorW != PrevScissorW || ScissorH != PrevScissorH)
+            {
+                D3D11_RECT Scissor;
+                Scissor.left = ScissorX;
+                Scissor.top = ScissorY;
+                Scissor.right = ScissorX + ScissorW;
+                Scissor.bottom = ScissorY + ScissorH;
+                DX->Context->RSSetScissorRects(1, &Scissor);
+                PrevScissorX = ScissorX;
+                PrevScissorY = ScissorY;
+                PrevScissorW = ScissorW;
+                PrevScissorH = ScissorH;
+            }
+
+            u32 LocalVertexCount = Item.VertexCount;
+            u32 LocalIndexOffset = SafeTruncateU64(Item.OffsetBytes) / UIVertexStride;
+            DX11BindTexture2D(DX, 0, Item.ColorTexture);
+            DX->Context->Draw(LocalVertexCount, VStreamStartIndex + LocalIndexOffset);
         }
 
-        u32 LocalVertexCount = Item.VertexCount;
-        u32 LocalIndexOffset = SafeTruncateU64(Item.OffsetBytes) / UIVertexStride;
-        DX11BindTexture2D(DX, 0, Item.ColorTexture);
-        DX->Context->Draw(LocalVertexCount, VStreamStartIndex + LocalIndexOffset);
+        D3D11_RECT Scissor;
+        Scissor.left = 0;
+        Scissor.top = 0;
+        Scissor.right = PreviousBackBufferW;
+        Scissor.bottom = PreviousBackBufferH;
+        DX->Context->RSSetScissorRects(1, &Scissor);
     }
-
-    D3D11_RECT Scissor;
-    Scissor.left = 0;
-    Scissor.top = 0;
-    Scissor.right = PreviousBackBufferW;
-    Scissor.bottom = PreviousBackBufferH;
-    DX->Context->RSSetScissorRects(1, &Scissor);
 
     //
     // Presentation
     //
 
-#if SHOOTER_DEBUG_VSYNC_OFF
-    bool32 VsyncEnabled = false;
-#else
-    bool32 VsyncEnabled = true;
-#endif
-    UINT SyncInterval = VsyncEnabled ? 1 : 0;
-    UINT PresentFlags = 0;
-    if (!VsyncEnabled && DX->AllowVRRTearing)
-    {
-        PresentFlags |= DXGI_PRESENT_ALLOW_TEARING;
-    }
-
     ID3D11Texture2D *BackBuffer;
     HRESULT HR = DX->SwapChain->GetBuffer(0, IID_PPV_ARGS(&BackBuffer));
     FailDx11HRESULT(HR, "Failed to get backbuffer!", DX->Window);
     DX->Context->ResolveSubresource(BackBuffer, 0, DX->ColorTexture, 0, DX->BackBufferFormat);
-    BackBuffer->Release();
 
-    HR = DX->SwapChain->Present(SyncInterval, PresentFlags);
-    if (HR == DXGI_ERROR_DEVICE_REMOVED || HR == DXGI_ERROR_DEVICE_RESET)
+    if (DX->RenderForColorReadback)
     {
-        // NOTE(Kevin): This is if a video card has been physically removed from the computer,
-        // or a driver upgrade for the video card has occurred.
-        FailDx11HRESULT(HR, "DX11 device removed or reset! Attempting to recreate.", DX->Window, false);
+        DX->Context->CopyResource(DX->ColorReadbackTexture, BackBuffer);
 
-        Win32ReleaseRenderer((renderer *)DX);
-
-        DX11CreateDeviceAndSwapchain(DX, DX->Window);
-        DX11CreateSizeDependentResources(DX, DX->Header.BackBufferW, DX->Header.BackBufferH);
-        DX11Init(DX);
+        D3D11_MAPPED_SUBRESOURCE MappedSubResource;
+        HR = DX->Context->Map(DX->ColorReadbackTexture, 0, D3D11_MAP_READ, 0, &MappedSubResource);
+        if (HR == S_OK)
+        {
+            u8 *RowStart = (u8 *)(MappedSubResource.pData) + DX->ReadPixelY * MappedSubResource.RowPitch;
+            u8 *RGB = (u8 *)(RowStart + DX->ReadPixelX * sizeof(u32));
+            u32 RGBA = RGB[0] << 24 | RGB[1] << 16 | RGB[2] << 8 | 0xFF;
+            DX->ReadPixelRGBA = RGBA;
+            DX->Context->Unmap(DX->ColorReadbackTexture, 0);
+        }
+        else
+        {
+            FailDx11HRESULT(HR, "Present failed!", DX->Window, false);
+        }
     }
     else
     {
-        FailDx11HRESULT(HR, "Present failed!", DX->Window);
+#if SHOOTER_DEBUG_VSYNC_OFF
+        bool32 VsyncEnabled = false;
+#else
+        bool32 VsyncEnabled = true;
+#endif
+        UINT SyncInterval = VsyncEnabled ? 1 : 0;
+        UINT PresentFlags = 0;
+        if (!VsyncEnabled && DX->AllowVRRTearing)
+        {
+            PresentFlags |= DXGI_PRESENT_ALLOW_TEARING;
+        }
+
+        HR = DX->SwapChain->Present(SyncInterval, PresentFlags);
+        if (HR == DXGI_ERROR_DEVICE_REMOVED || HR == DXGI_ERROR_DEVICE_RESET)
+        {
+            // NOTE(Kevin): This is if a video card has been physically removed from the computer,
+            // or a driver upgrade for the video card has occurred.
+            FailDx11HRESULT(HR, "DX11 device removed or reset! Attempting to recreate.", DX->Window, false);
+
+            Win32ReleaseRenderer((renderer *)DX);
+
+            DX11CreateDeviceAndSwapchain(DX, DX->Window);
+            DX11CreateSizeDependentResources(DX, DX->Header.BackBufferW, DX->Header.BackBufferH);
+            DX11Init(DX);
+        }
+        else
+        {
+            FailDx11HRESULT(HR, "Present failed!", DX->Window);
+        }
     }
+
+    BackBuffer->Release();
 }
 
 void DX11GetWritablePerInstanceDataArray(dx11 *DX, static_lit_model_instance **OutArray, u32 **OutCount)
@@ -1013,7 +1062,7 @@ DX11CreateDeviceAndSwapchain(dx11 *DX, HWND Window)
     SwapChainDesc.Height = 1;
     SwapChainDesc.Format = DX->BackBufferFormat;
     SwapChainDesc.Stereo = FALSE;
-    SwapChainDesc.SampleDesc.Count = 1; // Valid range [0, ID3D11Device::CheckMultisampleQualityLevels)
+    SwapChainDesc.SampleDesc.Count = 1; // NOTE(Kevin): Must be 1 for DXGI flip model
     SwapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
     SwapChainDesc.BufferCount = 2;
     SwapChainDesc.Scaling = DXGI_SCALING_STRETCH;
@@ -1108,6 +1157,7 @@ Win32ReleaseRenderer(renderer *Renderer)
     DX11ReleaseCOM(DX->DepthTexture);
     DX11ReleaseCOM(DX->DepthSRV);
     DX11ReleaseCOM(DX->DepthStencilView);
+    DX11ReleaseCOM(DX->ColorReadbackTexture);
 
     // TODO(Kevin): DX->SwapChain->SetFullscreenState
 

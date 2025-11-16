@@ -5,6 +5,7 @@ cbuffer ConstantBuffer0 : register(b0)
 {
     float4x4 ProjFromWorld;
     float3 DirectionToSun;
+    float Gamma;
 };
 
 cbuffer ConstantBuffer1 : register(b1)

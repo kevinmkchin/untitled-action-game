@@ -259,6 +259,28 @@ texture_handle renderer::UploadTexture2DData(void *Bitmap, uint32 W, uint32 H,
     return Result;
 }
 
+u32 renderer::FlushAndReadbackPixel(u32 X, u32 Y)
+{
+    dx11 *DX = (dx11 *)this;
+
+    u32 PixelColor = 0;
+
+    if (X < BackBufferW && Y < BackBufferH)
+    {
+        DX->RenderForColorReadback = true;
+        DX->ReadPixelX = X;
+        DX->ReadPixelY = Y;
+        DX11EndFrame(DX);
+        DX->RenderForColorReadback = false;
+
+        PixelColor = DX->ReadPixelRGBA;
+    }
+
+    DX11BeginFrame(DX);
+
+    return PixelColor;
+}
+
 create_font_result renderer::DEBUGCreateBitmapFont_Monospace(void *Bitmap, u32 W, u32 H,
                                                              pixel_format Format, u32 NewLineGap)
 {

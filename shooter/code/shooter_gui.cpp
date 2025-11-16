@@ -35,8 +35,8 @@ MouseInside(gui_state *GuiState, gui_rect Rect)
     s32 Right = Left + SafeCastToS32(Rect.W);
     s32 Bottom = Top + SafeCastToS32(Rect.H);
 
-    if (Left <= GuiState->MouseX && GuiState->MouseX < Right && 
-        Top <= GuiState->MouseY && GuiState->MouseY < Bottom)
+    if (Left <= GuiState->Input.MouseX && GuiState->Input.MouseX < Right && 
+        Top <= GuiState->Input.MouseY && GuiState->Input.MouseY < Bottom)
     {
         return true;
     }
@@ -73,7 +73,7 @@ GuiBehaviourButton(gui_state *GuiState, u32 ID, gui_rect Rect)
 
     if (IsActive(GuiState, ID))
     {
-        if (GuiState->LMBWentUp)
+        if (GuiState->Input.LMBWentUp)
         {
             if (IsHovered(GuiState, ID))
             {
@@ -84,7 +84,7 @@ GuiBehaviourButton(gui_state *GuiState, u32 ID, gui_rect Rect)
     }
     else if (IsHovered(GuiState, ID))
     {
-        if (GuiState->LMBWentDown)
+        if (GuiState->Input.LMBWentDown)
         {
             SetActive(GuiState, ID);
         }
@@ -262,8 +262,8 @@ GuiText(gui_state *GuiState, s32 X, s32 Y, gui_font FontIndex, float TextScale, 
 }
 
 internal void
-GuiBeginFrame(gui_state *GuiState, u32 CanvasWidth, u32 CanvasHeight, memory_arena *Scratch,
-              s32 MouseX, s32 MouseY, game_button_state LMB, game_button_state RMB)
+GuiBeginFrame(gui_state *GuiState, u32 CanvasWidth, u32 CanvasHeight,
+              memory_arena *Scratch, kbm_input GuiInput)
 {
     GuiState->Scratch = Scratch;
     GuiState->DrawRequests = PushArray(GuiState->Scratch, MAX_GUI_DRAW_REQUESTS, gui_draw_request);
@@ -273,13 +273,7 @@ GuiBeginFrame(gui_state *GuiState, u32 CanvasWidth, u32 CanvasHeight, memory_are
 
     GuiPushScissor(GuiState, { 0, 0, CanvasWidth, CanvasHeight });
 
-    GuiState->MouseX = MouseX;
-    GuiState->MouseY = MouseY;
-    // NOTE(Kevin): Ignoring multiple clicks between frames
-    GuiState->LMBWentDown = (LMB.EndedDown && LMB.HalfTransitionCount > 0);
-    GuiState->LMBWentUp = (!LMB.EndedDown && LMB.HalfTransitionCount > 0);
-    GuiState->RMBWentDown = (RMB.EndedDown && RMB.HalfTransitionCount > 0);
-    GuiState->RMBWentUp = (!RMB.EndedDown && RMB.HalfTransitionCount > 0);
+    GuiState->Input = GuiInput;
 
     GuiState->Hovered = GuiState->HoveredNextFrame;
     GuiState->HoveredNextFrame = 0;

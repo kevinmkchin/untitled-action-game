@@ -75,6 +75,7 @@ struct alignas(16) static_lit_cb0
 {
     mat4 ProjFromWorld;
     vec3 DirectionToSun;
+    real32 Gamma;
 };
 
 struct alignas(16) static_lit_cb1
@@ -124,6 +125,7 @@ struct dx11
     ID3D11Texture2D        *DepthTexture;
     ID3D11ShaderResourceView *DepthSRV;
     ID3D11DepthStencilView *DepthStencilView;
+    ID3D11Texture2D        *ColorReadbackTexture;
 
     ID3D11RasterizerState *MainRasterState;
     ID3D11RasterizerState *NoCullingRasterState;
@@ -175,6 +177,11 @@ struct dx11
     u32                 WorldLineInstancesCount;
 
     HWND Window;
+
+    // NOTE(Kevin): Color readback
+    bool32 RenderForColorReadback;
+    u32 ReadPixelX, ReadPixelY;
+    u32 ReadPixelRGBA;
 };
 
 void DX11GetWritablePerInstanceDataArray(dx11 *DX, static_lit_model_instance **OutArray, u32 **OutCount);
@@ -198,6 +205,11 @@ void DX11DeleteTexture2D(dx11 *DX, texture_handle TextureHandle);
 
 void DX11CreateVertexStream(dx11 *DX, dx11_vertex_stream *VStream, u32 SizeBytes);
 u32 DX11VertexStreamAlloc(dx11 *DX, dx11_vertex_stream *VStream, u32 SizeBytes, void *Vertices);
+
+internal void
+DX11BeginFrame(dx11 *DX);
+internal void
+DX11EndFrame(dx11 *DX);
 
 #ifdef SHOOTER_PLATFORM_WIN32
 

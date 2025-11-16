@@ -82,9 +82,16 @@ RoundReal32ToUInt32(real32 Real32)
 }
 
 inline int32
-FloorReal32ToInt32(real32 Real32)
+FloorReal32ToS32(real32 Real32)
 {
     int32 Result = (int32)floorf(Real32);
+    return Result;
+}
+
+inline uint32
+FloorReal32ToU32(real32 Real32)
+{
+    uint32 Result = (uint32)floorf(Real32);
     return Result;
 }
 

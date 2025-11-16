@@ -300,3 +300,22 @@ struct game_state
     editor Editor;
 #endif
 };
+
+struct kbm_input
+{
+    s32 MouseX;
+    s32 MouseY;
+    vec2 ScreenMouseP; // MouseX, MouseY but in floating point
+    bool32 MouseCaptured;
+
+    bool32 LMBIsDown;
+    bool32 LMBWentDown;
+    bool32 LMBWentUp;
+    bool32 RMBIsDown;
+    bool32 RMBWentDown;
+    bool32 RMBWentUp;
+
+    // TODO(Kevin): Array of typed keys to read keyboard input from
+    game_controller_input KBController;
+};
+

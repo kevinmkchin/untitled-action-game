@@ -42,6 +42,29 @@ GameOutputSound(game_state *GameState, game_sound_output_buffer *SoundBuffer, in
     }
 }
 
+internal kbm_input
+MakeKBMInput(game_input *Input)
+{
+    game_button_state LMB = Input->MouseButtons[0];
+    game_button_state RMB = Input->MouseButtons[1];
+
+    kbm_input Result = {};
+
+    Result.MouseX = Input->MouseX;
+    Result.MouseY = Input->MouseY;
+    Result.ScreenMouseP = { (real32)Input->MouseX, (real32)Input->MouseY };
+    // NOTE(Kevin): Ignoring multiple clicks between frames
+    Result.LMBIsDown = LMB.EndedDown;
+    Result.LMBWentDown = (LMB.EndedDown && LMB.HalfTransitionCount > 0);
+    Result.LMBWentUp = (!LMB.EndedDown && LMB.HalfTransitionCount > 0);
+    Result.RMBIsDown = RMB.EndedDown;
+    Result.RMBWentDown = (RMB.EndedDown && RMB.HalfTransitionCount > 0);
+    Result.RMBWentUp = (!RMB.EndedDown && RMB.HalfTransitionCount > 0);
+    Result.KBController = Input->Controllers[0];
+
+    return Result;
+}
+
 #pragma pack(push, 1)
 struct bitmap_header
 {
@@ -813,6 +836,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     //
     // Input
     //
+    kbm_input KBMInput = MakeKBMInput(Input);
+
     for (int ControllerIndex = 0;
          ControllerIndex < ArrayCount(Input->Controllers);
          ++ControllerIndex)
@@ -839,11 +864,13 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 if (Input->MouseButtons[1].EndedDown/* && !GuiState->Hovered*/)
                 {
                     Memory->PlatformAPI.CaptureMouseCursor(true);
+                    KBMInput.MouseCaptured = true;
                     MouseLookCamera(&GameState->Camera, AdjustedMouseAxes.x, AdjustedMouseAxes.y);
                 }
                 else
                 {
                     Memory->PlatformAPI.CaptureMouseCursor(false);
+                    KBMInput.MouseCaptured = false;
                 }
             }
 #else
@@ -1132,8 +1159,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     if (CanvasW > 0 && CanvasW < UINT32_MAX && 
         CanvasH > 0 && CanvasH < UINT32_MAX)
     {
-        GuiBeginFrame(GuiState, CanvasW, CanvasH, &GameState->FrameArena,
-                      Input->MouseX, Input->MouseY, Input->MouseButtons[0], Input->MouseButtons[1]);
+        GuiBeginFrame(GuiState, CanvasW, CanvasH, &GameState->FrameArena, KBMInput);
 
         if (!GameState->EditorMode)
         {
@@ -1221,7 +1247,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 #if SHOOTER_COMPILE_WITH_EDITOR
     if (GameState->EditorMode)
     {
-        EditorUpdateAndRender(Thread, GameState, GuiState, Input, RenderAPI);
+        EditorUpdateAndRender(Thread, GameState, GuiState, &KBMInput, RenderAPI);
     }
 #endif
 }

@@ -111,13 +111,7 @@ struct gui_state
     gui_rect *ScissorStack;
     u32 ScissorStackCount;
 
-    s32 MouseX;
-    s32 MouseY;
-    bool32 LMBWentDown;
-    bool32 LMBWentUp;
-    bool32 RMBWentDown;
-    bool32 RMBWentUp;
-    // TODO(Kevin): Array of typed keys to read keyboard input from
+    kbm_input Input;
 
     char Tooltip[256];
     s32 TooltipLength;
@@ -159,9 +153,8 @@ GuiText(gui_state *GuiState, s32 X, s32 Y, gui_font FontIndex, float TextScale,
 // TODO(Kevin): internal void GuiCheckbox(u32 ID, gui_rect Rect, int32 Inset, bool32 *Value, vec4 RGBABackground, vec4 RGBAForeground);
 
 internal void
-GuiBeginFrame(gui_state *GuiState, u32 CanvasWidth, u32 CanvasHeight, memory_arena *Scratch,
-              s32 MouseX, s32 MouseY, game_button_state LMB, game_button_state RMB);
-
+GuiBeginFrame(gui_state *GuiState, u32 CanvasWidth, u32 CanvasHeight,
+              memory_arena *Scratch, kbm_input GuiInput);
 internal void
 SetGuiTooltip(gui_state *GuiState, char *Tooltip);
 

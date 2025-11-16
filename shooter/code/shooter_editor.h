@@ -7,11 +7,14 @@
 struct game_state;
 struct gui_state;
 struct renderer;
+struct kbm_input;
 
 enum editor_mode
 {
     NothingMode,
 
+    SelectEdge,
+    SelectFace,
     BlockTool,
     PolygonTool,
 };
@@ -36,14 +39,14 @@ struct editor
 
     world_mesh *World;
 
-    bool32 LMBDown;
-    bool32 LMBWentDown;
-    bool32 LMBWentUp;
-    vec2 ScreenMouseP;
+    kbm_input *Input;
     vec3 CameraDirection;
 
     editor_mode ActiveMode;
     editor_mode QueuedMode;
+
+    edge_index EdgeUnderMouse;
+    face_index FaceUnderMouse;
 
     real32 GridIncrement;
     vec3 GridOrigin;
@@ -61,6 +64,6 @@ struct editor
 
 internal void
 EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *GuiState,
-                      game_input *Input, renderer *RenderAPI);
+                      kbm_input *Input, renderer *RenderAPI);
 
 #endif // SHOOTER_EDITOR_H
