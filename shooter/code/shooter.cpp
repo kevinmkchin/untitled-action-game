@@ -620,6 +620,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         // NOTE(Kevin): White_1x1 should be loaded first to have texture handle 0
         loaded_bitmap White_1x1 = DEBUGLoadBMP(Thread, Memory->PlatformAPI.DEBUGPlatformReadEntireFile, "white_1x1.bmp");
         RenderAPI->WhiteTexture_1x1 = RenderAPI->UploadTexture2DData(White_1x1.Pixels, White_1x1.Width, White_1x1.Height, BGRA_U8, false);
+        Assert(RenderAPI->WhiteTexture_1x1 == WHITE_TEXTURE_1X1);
 
         loaded_bitmap TestBmp = DEBUGLoadBMP(Thread, Memory->PlatformAPI.DEBUGPlatformReadEntireFile, "test_1.bmp");
         texture_handle Test1Texture = RenderAPI->UploadTexture2DData(TestBmp.Pixels, TestBmp.Width, TestBmp.Height, BGRA_U8, false);
@@ -1154,13 +1155,15 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
     RenderAPI->PushRenderItems((render_item *)RenderItemsStart, RenderItemsCount);
 
+
     uint32 CanvasW, CanvasH;
     RenderAPI->GetRenderTargetDimensions(&CanvasW, &CanvasH);
+
+    GuiBeginFrame(GuiState, CanvasW, CanvasH, &GameState->FrameArena, KBMInput);
+
     if (CanvasW > 0 && CanvasW < UINT32_MAX && 
         CanvasH > 0 && CanvasH < UINT32_MAX)
     {
-        GuiBeginFrame(GuiState, CanvasW, CanvasH, &GameState->FrameArena, KBMInput);
-
         if (!GameState->EditorMode)
         {
             u32 CrosshairDotWidth = 6;
@@ -1195,61 +1198,22 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         }
         else
         {
-            // window_state Window = BeginWindow(GuiState, { 10, 80, 400, 600 });
-
-            // WindowText(&Window, "== Some Title ==");
-            // WindowText(&Window, "Hello world!");
-
-            // EndWindow(&Window);
-
-#if 0
-            GuiPanel(GuiState, { GameState->Editor.EditorMouseX-5, 
-                     GameState->Editor.EditorMouseY-5, 10, 10 }, 0);
-#endif
-#if 0
-            if (GameState->Editor.IsInitialized)
-            {
-                GuiTextFmt(GuiState, 500, 50, GuiFontCambria40, 1.4f, Align_Left, false, vec4(1,1,1,1),
-                           "SP: %d", GameState->Editor.UndoStack->StackP);
-                GuiTextFmt(GuiState, 500, 100, GuiFontCambria40, 1.4f, Align_Left, false, vec4(1,1,1,1),
-                           "HS: %d", GameState->Editor.UndoStack->HistoryStartP);
-                GuiTextFmt(GuiState, 500, 150, GuiFontCambria40, 1.4f, Align_Left, false, vec4(1,1,1,1),
-                           "MR: %d", GameState->Editor.UndoStack->MostRecentP);
-            }
-#endif
-
-            if (GuiState->TooltipTimer > 0.f)
-            {
-                GuiState->TooltipTimer -= dt;
-
-                if (GuiState->TooltipLength)
-                {
-                    real32 TextWidth, _;
-                    real32 TextScale = 2.0f;
-                    VT_GetTextBoundingBoxDimensions(GuiState->Fonts[GuiFontCambria40].FontInfo, 
-                                                    GuiState->Tooltip, TextScale, &TextWidth, &_,
-                                                    GuiState->TooltipLength);
-                    s32 X = (s32)(CanvasW - RoundReal32ToUInt32(TextWidth)) / 2;
-                    GuiText(GuiState, X, (s32)CanvasH - 100, GuiFontCambria40, TextScale,
-                            Align_Left, false, { 1.f, 1.f, 1.f, 1.f }, GuiState->Tooltip);
-                }
-            }
         }
 
 #if 0
         GuiPanel(GuiState, {99, 299, 514, 514}, GetDebugColor4(10));
         GuiPanel(GuiState, {100, 300, 512, 512}, GuiState->Fonts[GuiFontCambria40].FontAtlasHandle);
 #endif
-
-        RenderAPI->PushGuiDrawRequests(&GameState->FrameArena, GuiState->DrawRequests, GuiState->DrawRequestsCount);
     }
 
 #if SHOOTER_COMPILE_WITH_EDITOR
     if (GameState->EditorMode)
     {
-        EditorUpdateAndRender(Thread, GameState, GuiState, &KBMInput, RenderAPI);
+        EditorUpdateAndRender(Thread, GameState, GuiState, &KBMInput, RenderAPI, dt);
     }
 #endif
+
+    RenderAPI->PushGuiDrawRequests(&GameState->FrameArena, GuiState->DrawRequests, GuiState->DrawRequestsCount);
 }
 
 extern "C" GAME_GET_SOUND_SAMPLES(GameGetSoundSamples)
@@ -1257,5 +1221,4 @@ extern "C" GAME_GET_SOUND_SAMPLES(GameGetSoundSamples)
     game_state *GameState = (game_state *)Memory->PermanentStorage;
     GameOutputSound(GameState, SoundBuffer, 256);
 }
-
 

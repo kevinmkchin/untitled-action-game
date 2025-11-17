@@ -24,6 +24,7 @@ void renderer::GetViewAndProjMatrices(mat4 *ProjectionMat, mat4 *ViewMat)
     real32 AspectRatio = (real32)BackBufferW / (real32)BackBufferH;
     real32 HorizontalFOV = 90.f;
     real32 VerticalFOVRadians = HorizontalFOVToVerticalFOV(HorizontalFOV*GMATH_DEG2RAD, AspectRatio);
+    // TODO(Kevin): Far clip for editor should be further away
     ClipFromView = ClipSpaceFromCameraSpace_PerspectiveProjection(VerticalFOVRadians, AspectRatio,
                                                                   4.f, 3200.f, true);
     *ProjectionMat = ClipFromView;

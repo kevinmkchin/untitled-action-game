@@ -64,6 +64,6 @@ struct editor
 
 internal void
 EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *GuiState,
-                      kbm_input *Input, renderer *RenderAPI);
+                      kbm_input *Input, renderer *RenderAPI, real32 dt);
 
 #endif // SHOOTER_EDITOR_H

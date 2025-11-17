@@ -10,6 +10,7 @@ typedef uint32 mesh_handle;
 typedef uint32 texture_handle;
 typedef uint32 font_handle;
 #define InvalidHandle 0xFFFFFFFF
+#define WHITE_TEXTURE_1X1 0
 
 enum pixel_format
 {

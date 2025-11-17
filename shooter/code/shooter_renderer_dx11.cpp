@@ -396,7 +396,17 @@ DX11EndFrame(dx11 *DX)
 
     if (DX->RenderForColorReadback)
     {
+        // TODO(Kevin): Definitely shouldn't use MSAA render target for pixel color readback!
+        // NOTE(Kevin): When we reach the face limit, the bottleneck becomes the number of draw calls
         ClearColor = { 0, 0, 0, 1 };
+        D3D11_RECT Scissor = { SafeCastToS32(DX->ReadPixelX)-1, SafeCastToS32(DX->ReadPixelY)-1,
+                               SafeCastToS32(DX->ReadPixelX)+1, SafeCastToS32(DX->ReadPixelY)+1 };
+        DX->Context->RSSetScissorRects(1, &Scissor);
+    }
+    else
+    {
+        D3D11_RECT Scissor = { 0, 0, SafeCastToS32(PreviousBackBufferW), SafeCastToS32(PreviousBackBufferH) };
+        DX->Context->RSSetScissorRects(1, &Scissor);
     }
 
     DX->Context->ClearRenderTargetView(DX->RenderTargetView, (float *)&ClearColor);
@@ -839,10 +849,6 @@ texture_handle DX11UploadTexture2D(dx11 *DX, void *Bitmap, u32 W, u32 H,
         break;
     }
 
-    DXGI_SAMPLE_DESC MultisamplingParams;
-    MultisamplingParams.Count = 1;
-    MultisamplingParams.Quality = 0; // Valid range [0, ID3D11Device::CheckMultisampleQualityLevels)
-
     // TODO(Kevin): Mip levels?
     // https://learn.microsoft.com/en-us/windows/win32/api/d3d11/ns-d3d11-d3d11_texture2d_desc
     D3D11_TEXTURE2D_DESC TexDesc = {};
@@ -851,7 +857,7 @@ texture_handle DX11UploadTexture2D(dx11 *DX, void *Bitmap, u32 W, u32 H,
     TexDesc.MipLevels = 0; // 0 = generate full set of subtextures, 1 = for multisampled texture
     TexDesc.ArraySize = 1;
     TexDesc.Format = Texture.Format;
-    TexDesc.SampleDesc = MultisamplingParams;
+    TexDesc.SampleDesc.Count = 1;
     TexDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
     TexDesc.MiscFlags = D3D11_RESOURCE_MISC_GENERATE_MIPS;
 

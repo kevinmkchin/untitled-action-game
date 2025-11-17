@@ -111,6 +111,9 @@ struct gui_state
     gui_rect *ScissorStack;
     u32 ScissorStackCount;
 
+    u32 CanvasW;
+    u32 CanvasH;
+
     kbm_input Input;
 
     char Tooltip[256];

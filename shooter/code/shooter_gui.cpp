@@ -273,6 +273,9 @@ GuiBeginFrame(gui_state *GuiState, u32 CanvasWidth, u32 CanvasHeight,
 
     GuiPushScissor(GuiState, { 0, 0, CanvasWidth, CanvasHeight });
 
+    GuiState->CanvasW = CanvasWidth;
+    GuiState->CanvasH = CanvasHeight;
+
     GuiState->Input = GuiInput;
 
     GuiState->Hovered = GuiState->HoveredNextFrame;

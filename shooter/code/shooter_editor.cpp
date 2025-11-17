@@ -119,6 +119,9 @@ TriangulateAndUploadFaces(world_mesh *World, memory_blocks *EditorMemory, render
         {
             if (!Face->RenderMesh)
             {
+                // TODO(Kevin): The number of draw calls might get a bit out of hand...need to
+                //              test and see if storing the vertices in memory then streaming
+                //              them while coalescing faces with same texture is faster.
                 vertex_buffer FaceMesh = TriangulateEditMeshFace(EditorMemory, World, FaceIndex);
                 if (FaceMesh.IC > 2)
                 {
@@ -368,8 +371,8 @@ PickFace(editor *Editor)
                 render_item RenderItem;
                 RenderItem = {};
                 RenderItem.Descriptor.Mesh = Face->RenderMesh;
-                RenderItem.Descriptor.Albedo = 0;
-                RenderItem.Descriptor.Lightmap = 0;
+                RenderItem.Descriptor.Albedo = WHITE_TEXTURE_1X1;
+                RenderItem.Descriptor.Lightmap = WHITE_TEXTURE_1X1;
                 RenderItem.UseLightmap = true;
                 RenderItem.UseLightCubes = false;
                 RenderItem.ForcedAmbient = IndexToColor(FaceIndex);
@@ -476,6 +479,8 @@ MakeEditableRectangle(world_mesh *World, vec3 RectStartPoint, vec3 RectEndPoint,
 internal void
 DoBlockTool(editor *Editor)
 {
+    // TODO(Kevin): Can't use block tool if about to exceed face/elements limit!
+
     if (Editor->BlockToolStage == 0)
     {
         if (Editor->Input->LMBWentDown)
@@ -702,7 +707,7 @@ DoBlockTool(editor *Editor)
 
 internal void
 EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *GuiState,
-                      kbm_input *Input, renderer *RenderAPI)
+                      kbm_input *Input, renderer *RenderAPI, real32 dt)
 {
     editor *Editor = &(GameState->Editor);
     world_mesh *World = Editor->World;
@@ -854,10 +859,11 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
                 render_item RenderItem;
                 RenderItem = {};
                 RenderItem.Descriptor.Mesh = Face->RenderMesh;
-                RenderItem.Descriptor.Albedo = 0;
-                RenderItem.Descriptor.Lightmap = 0;
+                RenderItem.Descriptor.Albedo = WHITE_TEXTURE_1X1;
+                RenderItem.Descriptor.Lightmap = WHITE_TEXTURE_1X1;
                 RenderItem.UseLightmap = true;
                 RenderItem.UseLightCubes = false;
+                // TODO(Kevin): Turn off backface culling only for the hovered face...
                 RenderItem.ForcedAmbient = FaceIndex == Editor->FaceUnderMouse ?
                                            vec3(1,0,0) :
                                            GetDebugColor3(FaceIndex);
@@ -881,6 +887,50 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
             vec3 P1 = V1.P;
             vec3 LineColor = { 0, 1, 1 };
             RenderAPI->PushLine(P0, P1, LineColor, 3.f);
+        }
+    }
+
+    if (GuiState->CanvasW > 0 && GuiState->CanvasW < UINT32_MAX && 
+        GuiState->CanvasH > 0 && GuiState->CanvasH < UINT32_MAX)
+    {
+        window_state Window = BeginWindow(GuiState, { 10, 80, 400, 600 });
+
+        WindowText(&Window, "Button: Face Select");
+        WindowText(&Window, "Button: Block Tool");
+
+        EndWindow(&Window);
+
+#if 0
+        GuiPanel(GuiState, { GameState->Editor.EditorMouseX-5, 
+                 GameState->Editor.EditorMouseY-5, 10, 10 }, 0);
+#endif
+#if 0
+        if (GameState->Editor.IsInitialized)
+        {
+            GuiTextFmt(GuiState, 500, 50, GuiFontCambria40, 1.4f, Align_Left, false, vec4(1,1,1,1),
+                       "SP: %d", GameState->Editor.UndoStack->StackP);
+            GuiTextFmt(GuiState, 500, 100, GuiFontCambria40, 1.4f, Align_Left, false, vec4(1,1,1,1),
+                       "HS: %d", GameState->Editor.UndoStack->HistoryStartP);
+            GuiTextFmt(GuiState, 500, 150, GuiFontCambria40, 1.4f, Align_Left, false, vec4(1,1,1,1),
+                       "MR: %d", GameState->Editor.UndoStack->MostRecentP);
+        }
+#endif
+
+        if (GuiState->TooltipTimer > 0.f)
+        {
+            GuiState->TooltipTimer -= dt;
+
+            if (GuiState->TooltipLength)
+            {
+                real32 TextWidth, _;
+                real32 TextScale = 2.0f;
+                VT_GetTextBoundingBoxDimensions(GuiState->Fonts[GuiFontCambria40].FontInfo, 
+                                                GuiState->Tooltip, TextScale, &TextWidth, &_,
+                                                GuiState->TooltipLength);
+                s32 X = (s32)(GuiState->CanvasW - RoundReal32ToUInt32(TextWidth)) / 2;
+                GuiText(GuiState, X, (s32)GuiState->CanvasH - 100, GuiFontCambria40, TextScale,
+                        Align_Left, false, { 1.f, 1.f, 1.f, 1.f }, GuiState->Tooltip);
+            }
         }
     }
 }
