@@ -12,6 +12,6 @@ cmake-build-*/
 *.sublime-workspace
 
 CMakeSettings.json
-code/BUILDINFO.H
+**/code/BUILDINFO.H
 
-!jolt/Build/
+!**/jolt/Build/
