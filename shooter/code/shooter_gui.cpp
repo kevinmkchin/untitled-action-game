@@ -60,13 +60,6 @@ NextDrawRequest(gui_state *GuiState)
 }
 
 internal bool32
-GuiIsAnyElementActive(gui_state *GuiState)
-{
-    bool32 Result = GuiState->Active > 0;
-    return Result;
-}
-
-internal bool32
 GuiBehaviourButton(gui_state *GuiState, u32 ID, gui_rect Rect)
 {
     bool32 Result = false;
@@ -277,6 +270,8 @@ GuiBeginFrame(gui_state *GuiState, u32 CanvasWidth, u32 CanvasHeight,
     GuiState->CanvasH = CanvasHeight;
 
     GuiState->Input = GuiInput;
+
+    GuiState->WindowCount = 0;
 
     GuiState->Hovered = GuiState->HoveredNextFrame;
     GuiState->HoveredNextFrame = 0;

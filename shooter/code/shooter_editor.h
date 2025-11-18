@@ -39,7 +39,11 @@ struct editor
 
     world_mesh *World;
 
-    kbm_input *Input;
+    vec2 ViewportMouseP;
+    bool32 ViewportLMBIsDown;
+    bool32 ViewportLMBWentDown;
+    bool32 ViewportLMBWentUp;
+
     vec3 CameraDirection;
 
     editor_mode ActiveMode;

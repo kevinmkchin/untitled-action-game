@@ -120,15 +120,14 @@ struct gui_state
     s32 TooltipLength;
     real32 TooltipTimer;
 
-    // These should persist between frames!
+    u32 WindowCount;
+
     create_font_result Fonts[GuiFontCount];
     u32 Active;
     u32 Hovered;
     u32 HoveredNextFrame;
 };
 
-internal bool32
-GuiIsAnyElementActive(gui_state *GuiState);
 internal bool32
 GuiBehaviourButton(gui_state *GuiState, u32 ID, gui_rect Rect);
 

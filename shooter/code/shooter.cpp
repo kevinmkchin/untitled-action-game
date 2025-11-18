@@ -52,7 +52,6 @@ MakeKBMInput(game_input *Input)
 
     Result.MouseX = Input->MouseX;
     Result.MouseY = Input->MouseY;
-    Result.ScreenMouseP = { (real32)Input->MouseX, (real32)Input->MouseY };
     // NOTE(Kevin): Ignoring multiple clicks between frames
     Result.LMBIsDown = LMB.EndedDown;
     Result.LMBWentDown = (LMB.EndedDown && LMB.HalfTransitionCount > 0);

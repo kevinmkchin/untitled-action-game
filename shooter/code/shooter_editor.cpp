@@ -384,8 +384,8 @@ PickFace(editor *Editor)
         }
     }
 
-    u32 Pixel = Editor->RenderAPI->FlushAndReadbackPixel(FloorReal32ToU32(Editor->Input->ScreenMouseP.X),
-                                                         FloorReal32ToU32(Editor->Input->ScreenMouseP.Y));
+    u32 Pixel = Editor->RenderAPI->FlushAndReadbackPixel(FloorReal32ToU32(Editor->ViewportMouseP.X),
+                                                         FloorReal32ToU32(Editor->ViewportMouseP.Y));
     u32 Index = ColorToIndex(Pixel);
 
     return Index;
@@ -407,7 +407,7 @@ PickPointUnderMouse(editor *Editor, vec3 *PlanePoint, vec3 *PlaneNormal)
         mesh_face DrawingFace = Editor->World->Faces[PickedFace];
 
         vec3 WP, WR;
-        ScreenPointToWorldPointAndRay(Editor->Input->ScreenMouseP, Editor->RenderAPI, &WP, &WR);
+        ScreenPointToWorldPointAndRay(Editor->ViewportMouseP, Editor->RenderAPI, &WP, &WR);
 
         vert_index VertOnFace = Editor->World->Loops[DrawingFace.LoopCycleBase].Vert;
         IntersectPlaneAndLineWithDirections(Editor->World->Vertices[VertOnFace].P,
@@ -416,7 +416,7 @@ PickPointUnderMouse(editor *Editor, vec3 *PlanePoint, vec3 *PlaneNormal)
     else
     {
         vec3 WP, WR;
-        ScreenPointToWorldPointAndRay(Editor->Input->ScreenMouseP, Editor->RenderAPI, &WP, &WR);
+        ScreenPointToWorldPointAndRay(Editor->ViewportMouseP, Editor->RenderAPI, &WP, &WR);
 
         real32 f = (0.f - WP.Y) / WR.Y;
         if (f < 0.f)
@@ -483,7 +483,7 @@ DoBlockTool(editor *Editor)
 
     if (Editor->BlockToolStage == 0)
     {
-        if (Editor->Input->LMBWentDown)
+        if (Editor->ViewportLMBWentDown)
         {
             bool32 ValidPick = PickPointUnderMouse(Editor, &Editor->RectStartP,
                                                    &Editor->RectDrawPlaneN);
@@ -505,10 +505,10 @@ DoBlockTool(editor *Editor)
         Editor->GridRight = Editor->RectDrawBasisUAxis;
         Editor->GridUp = Editor->RectDrawPlaneN;
 
-        if (Editor->Input->LMBIsDown || Editor->Input->LMBWentUp)
+        if (Editor->ViewportLMBIsDown || Editor->ViewportLMBWentUp)
         {
             vec3 WP, WR;
-            ScreenPointToWorldPointAndRay(Editor->Input->ScreenMouseP, Editor->RenderAPI, &WP, &WR);
+            ScreenPointToWorldPointAndRay(Editor->ViewportMouseP, Editor->RenderAPI, &WP, &WR);
 
             vec3 Intersection;
             IntersectPlaneAndLineWithDirections(Editor->RectStartP, Editor->RectDrawPlaneN, 
@@ -540,7 +540,7 @@ DoBlockTool(editor *Editor)
                                             vec3(RGBHEXTO1(0xff8000)), 2.f);
             }
 
-            if (Editor->Input->LMBWentUp)
+            if (Editor->ViewportLMBWentUp)
             {
                 if (Magnitude(StartToEndAlongBasisU)+0.05f >= Editor->GridIncrement &&
                     Magnitude(StartToEndAlongBasisV)+0.05f >= Editor->GridIncrement)
@@ -582,7 +582,7 @@ DoBlockTool(editor *Editor)
         vec3 PlaneP = Editor->RectEndP + Editor->BlockDrawHeight;
 
         vec3 WP, WR;
-        ScreenPointToWorldPointAndRay(Editor->Input->ScreenMouseP, Editor->RenderAPI, &WP, &WR);
+        ScreenPointToWorldPointAndRay(Editor->ViewportMouseP, Editor->RenderAPI, &WP, &WR);
 
         vec3 Intersection;
         IntersectPlaneAndLineWithDirections(PlaneP, PlaneN, WP, WR, &Intersection);
@@ -636,7 +636,7 @@ DoBlockTool(editor *Editor)
         Editor->RenderAPI->PushLine(CeilPointC, CeilPointB, vec3(RGBHEXTO1(0xff8000)), 2.f);
         Editor->RenderAPI->PushLine(CeilPointC, CeilPointD, vec3(RGBHEXTO1(0xff8000)), 2.f);
 
-        if (Editor->Input->LMBWentUp)
+        if (Editor->ViewportLMBWentUp)
         {
             // TODO(Kevin): If height component is zero or too small then
             //              just default to current grid increment
@@ -760,7 +760,25 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
         Editor->IsInitialized = true;
     }
 
-    Editor->Input = Input;
+    Editor->ViewportMouseP = { (real32)Input->MouseX, (real32)Input->MouseY };
+    Editor->ViewportLMBWentDown = false;
+    if (!GuiState->Hovered)
+    {
+        Editor->ViewportLMBWentDown = Input->LMBWentDown;
+    }
+    Editor->ViewportLMBWentUp = (Editor->ViewportLMBIsDown || Editor->ViewportLMBWentDown) &&
+                                Input->LMBWentUp;
+    Editor->ViewportLMBIsDown = (Editor->ViewportLMBIsDown || Editor->ViewportLMBWentDown) &&
+                                !Input->LMBWentUp;
+    if (Editor->ViewportLMBIsDown || 
+        Editor->ViewportLMBWentDown ||
+        Editor->BlockToolStage > 0)
+    {
+        // NOTE(Kevin): UI should not be interactible while performing editor action
+        GuiState->Input.MouseX = -1000;
+        GuiState->Input.MouseY = -1000;
+    }
+
     Editor->CameraDirection = GameState->Camera.ViewForward;
     EnterNextMode(Editor);
     ResetGrid(Editor);
@@ -806,7 +824,7 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
 
     Editor->EdgeUnderMouse = 0;
     Editor->FaceUnderMouse = 0;
-    if (!Input->MouseCaptured)
+    if (!Input->MouseCaptured && !GuiState->Hovered)
     {
         switch (Editor->ActiveMode)
         {
@@ -814,15 +832,13 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
                 Editor->EdgeUnderMouse = PickEdge(Editor);
                 break;
             case SelectFace:
-            case BlockTool:
                 Editor->FaceUnderMouse = PickFace(Editor);
                 break;
+            case BlockTool:
             default:
                 break;
         }
     }
-
-    Editor->QueuedMode = BlockTool;
 
     switch (Editor->ActiveMode)
     {
@@ -832,12 +848,8 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
         // case MOVE_POINT_ENTITY:
         //     DoMovePointEntity();
         //     break;
-        // case FACE_MANIP:
-        //     DoFaceManip();
-        //     break;
-        // case VERTEX_MANIP:
-        //     DoVertexManip();
-        //     break;
+        case SelectFace:
+            break;
         case BlockTool:
             DoBlockTool(Editor);
             break;
@@ -895,8 +907,14 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
     {
         window_state Window = BeginWindow(GuiState, { 10, 80, 400, 600 });
 
-        WindowText(&Window, "Button: Face Select");
-        WindowText(&Window, "Button: Block Tool");
+        if (WindowButton(&Window, "Face Select"))
+        {
+            Editor->QueuedMode = SelectFace;
+        }
+        if (WindowButton(&Window, "Block Tool"))
+        {
+            Editor->QueuedMode = BlockTool;
+        }
 
         EndWindow(&Window);
 

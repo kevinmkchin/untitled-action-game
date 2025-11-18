@@ -1202,15 +1202,15 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                     NewInput->MouseButtons[3].EndedDown = OldInput->MouseButtons[3].EndedDown;
                     NewInput->MouseButtons[4].EndedDown = OldInput->MouseButtons[4].EndedDown;
                     Win32ProcessKeyboardMessage(&NewInput->MouseButtons[0],
-                        GetKeyState(VK_LBUTTON) & (1 << 15));
+                                                GetKeyState(VK_LBUTTON) & (1 << 15));
                     Win32ProcessKeyboardMessage(&NewInput->MouseButtons[1],
-                        GetKeyState(VK_RBUTTON) & (1 << 15));
+                                                GetKeyState(VK_RBUTTON) & (1 << 15));
                     Win32ProcessKeyboardMessage(&NewInput->MouseButtons[2],
-                        GetKeyState(VK_MBUTTON) & (1 << 15));
+                                                GetKeyState(VK_MBUTTON) & (1 << 15));
                     Win32ProcessKeyboardMessage(&NewInput->MouseButtons[3],
-                        GetKeyState(VK_XBUTTON1) & (1 << 15));
+                                                GetKeyState(VK_XBUTTON1) & (1 << 15));
                     Win32ProcessKeyboardMessage(&NewInput->MouseButtons[4],
-                        GetKeyState(VK_XBUTTON2) & (1 << 15));
+                                                GetKeyState(VK_XBUTTON2) & (1 << 15));
 
                     // TODO(Kevin): Should we poll this more frequently?
                     // TODO(Kevin): apparently XInputGetState can stall for several ms if the
