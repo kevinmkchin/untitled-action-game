@@ -131,7 +131,7 @@ struct renderer
 
     virtual void PushRenderItems(render_item *RenderItems, uint32 RenderItemsCount);
     virtual void PushGuiDrawRequests(memory_arena *Scratch, struct gui_draw_request *Requests, uint32 RequestsCount);
-    virtual void PushLine(vec3 WorldP0, vec3 WorldP1, vec3 Color, real32 PixelWidth);
+    virtual void PushLine(vec3 WorldP0, vec3 WorldP1, vec4 Color, real32 PixelWidth);
 
     virtual mesh_handle UploadMeshData(PNUV2_vertex *VB, uint32 VC, uint32 *IB, uint32 IC);
     virtual void DeleteMesh(mesh_handle Mesh);

@@ -1373,8 +1373,11 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                         // TODO(Kevin): Check results of Get/ReleaseBuffer
                         BYTE *WasapiSoundBuffer;
                         AudioRenderClient->GetBuffer(AudioFramesToRequest, &WasapiSoundBuffer);
-                        memcpy(WasapiSoundBuffer, Samples, AudioFramesToRequest * SoundOutputBufferBytesPerFrame);
-                        AudioRenderClient->ReleaseBuffer(AudioFramesToRequest, 0);
+                        if (WasapiSoundBuffer)
+                        {
+                            memcpy(WasapiSoundBuffer, Samples, AudioFramesToRequest * SoundOutputBufferBytesPerFrame);
+                            AudioRenderClient->ReleaseBuffer(AudioFramesToRequest, 0);
+                        }
                     }
 
                     //

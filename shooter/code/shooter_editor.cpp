@@ -526,18 +526,18 @@ DoBlockTool(editor *Editor)
                 // TODO(Kevin): PushDot or PushDisc
                 Editor->RenderAPI->PushLine(Editor->RectStartP-vec3(0.3f,0,0),
                                             Editor->RectEndP  +vec3(0.3f,0,0),
-                                            vec3(RGBHEXTO1(0xff8000)), 2.f);
+                                            vec4(RGBHEXTO1(0xff8000), 1), 2.f);
             }
             else
             {
                 Editor->RenderAPI->PushLine(Editor->RectStartP, Editor->RectStartP + StartToEndAlongBasisV,
-                                            vec3(RGBHEXTO1(0xff8000)), 2.f);
+                                            vec4(RGBHEXTO1(0xff8000), 1), 2.f);
                 Editor->RenderAPI->PushLine(Editor->RectStartP, Editor->RectStartP + StartToEndAlongBasisU,
-                                            vec3(RGBHEXTO1(0xff8000)), 2.f);
+                                            vec4(RGBHEXTO1(0xff8000), 1), 2.f);
                 Editor->RenderAPI->PushLine(Editor->RectEndP, Editor->RectEndP - StartToEndAlongBasisV,
-                                            vec3(RGBHEXTO1(0xff8000)), 2.f);
+                                            vec4(RGBHEXTO1(0xff8000), 1), 2.f);
                 Editor->RenderAPI->PushLine(Editor->RectEndP, Editor->RectEndP - StartToEndAlongBasisU,
-                                            vec3(RGBHEXTO1(0xff8000)), 2.f);
+                                            vec4(RGBHEXTO1(0xff8000), 1), 2.f);
             }
 
             if (Editor->ViewportLMBWentUp)
@@ -623,18 +623,18 @@ DoBlockTool(editor *Editor)
         vec3 CeilPointC = FloorPointC + Height;
         vec3 CeilPointD = FloorPointD + Height;
 
-        Editor->RenderAPI->PushLine(FloorPointA, FloorPointB, vec3(RGBHEXTO1(0xff8000)), 2.f);
-        Editor->RenderAPI->PushLine(FloorPointA, FloorPointD, vec3(RGBHEXTO1(0xff8000)), 2.f);
-        Editor->RenderAPI->PushLine(FloorPointC, FloorPointB, vec3(RGBHEXTO1(0xff8000)), 2.f);
-        Editor->RenderAPI->PushLine(FloorPointC, FloorPointD, vec3(RGBHEXTO1(0xff8000)), 2.f);
-        Editor->RenderAPI->PushLine(FloorPointA, CeilPointA, vec3(RGBHEXTO1(0xff8000)), 2.f);
-        Editor->RenderAPI->PushLine(FloorPointB, CeilPointB, vec3(RGBHEXTO1(0xff8000)), 2.f);
-        Editor->RenderAPI->PushLine(FloorPointC, CeilPointC, vec3(RGBHEXTO1(0xff8000)), 2.f);
-        Editor->RenderAPI->PushLine(FloorPointD, CeilPointD, vec3(RGBHEXTO1(0xff8000)), 2.f);
-        Editor->RenderAPI->PushLine(CeilPointA, CeilPointB, vec3(RGBHEXTO1(0xff8000)), 2.f);
-        Editor->RenderAPI->PushLine(CeilPointA, CeilPointD, vec3(RGBHEXTO1(0xff8000)), 2.f);
-        Editor->RenderAPI->PushLine(CeilPointC, CeilPointB, vec3(RGBHEXTO1(0xff8000)), 2.f);
-        Editor->RenderAPI->PushLine(CeilPointC, CeilPointD, vec3(RGBHEXTO1(0xff8000)), 2.f);
+        Editor->RenderAPI->PushLine(FloorPointA, FloorPointB, vec4(RGBHEXTO1(0xff8000), 1), 2.f);
+        Editor->RenderAPI->PushLine(FloorPointA, FloorPointD, vec4(RGBHEXTO1(0xff8000), 1), 2.f);
+        Editor->RenderAPI->PushLine(FloorPointC, FloorPointB, vec4(RGBHEXTO1(0xff8000), 1), 2.f);
+        Editor->RenderAPI->PushLine(FloorPointC, FloorPointD, vec4(RGBHEXTO1(0xff8000), 1), 2.f);
+        Editor->RenderAPI->PushLine(FloorPointA, CeilPointA, vec4(RGBHEXTO1(0xff8000), 1), 2.f);
+        Editor->RenderAPI->PushLine(FloorPointB, CeilPointB, vec4(RGBHEXTO1(0xff8000), 1), 2.f);
+        Editor->RenderAPI->PushLine(FloorPointC, CeilPointC, vec4(RGBHEXTO1(0xff8000), 1), 2.f);
+        Editor->RenderAPI->PushLine(FloorPointD, CeilPointD, vec4(RGBHEXTO1(0xff8000), 1), 2.f);
+        Editor->RenderAPI->PushLine(CeilPointA, CeilPointB, vec4(RGBHEXTO1(0xff8000), 1), 2.f);
+        Editor->RenderAPI->PushLine(CeilPointA, CeilPointD, vec4(RGBHEXTO1(0xff8000), 1), 2.f);
+        Editor->RenderAPI->PushLine(CeilPointC, CeilPointB, vec4(RGBHEXTO1(0xff8000), 1), 2.f);
+        Editor->RenderAPI->PushLine(CeilPointC, CeilPointD, vec4(RGBHEXTO1(0xff8000), 1), 2.f);
 
         if (Editor->ViewportLMBWentUp)
         {
@@ -720,30 +720,31 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
         World = Editor->World;
         World->Memory = &Editor->EditorMemory;
 
-#if 1
-        MakeEditableRectangle(World, { 100, 0, 100 }, { -100, 0, -100 }, GMATH_UP);
+// #if 1
+//         MakeEditableRectangle(World, { 100, 0, 100 }, { -100, 0, -100 }, GMATH_UP);
 
-        edge_index ToExtrude[] = { 1, 3 };
-        ExtrudeEdges(World, ToExtrude, ArrayCount(ToExtrude));
-        World->Vertices[5].P += vec3(0, 32, 0);
-        World->Vertices[6].P += vec3(0, 32, 0);
-        World->Vertices[7].P += vec3(0, 16, 0);
-        World->Vertices[8].P += vec3(0, 32, 0);
+//         edge_index ToExtrude[] = { 1, 3 };
+//         ExtrudeEdges(World, ToExtrude, ArrayCount(ToExtrude));
+//         World->Vertices[5].P += vec3(0, 32, 0);
+//         World->Vertices[6].P += vec3(0, 32, 0);
+//         World->Vertices[7].P += vec3(0, 16, 0);
+//         World->Vertices[8].P += vec3(0, 32, 0);
 
-        // SplitEdgeMakeVert(World, 1, 0.3f);
-        // SplitEdgeMakeVert(World, 2, 0.5f);
-        // SplitEdgeMakeVert(World, 3, 0.5f);
-        // SplitEdgeMakeVert(World, 4, 0.5f);
-        // ReverseFaceLoop(World, 1);
-#else
-        for (s32 I = 1; I < 10000; ++I)
-        {
-            real32 Y = ((I/1000)-5)*64.f;
-            real32 X = (((I%1000)/32)-16)*64.f;
-            real32 Z = (((I%1000)%32)-16)*64.f;
-            MakeEditableRectangle(World, { X, Y, Z }, { X+32.f, Y, Z+32.f }, GMATH_UP);
-        }
-#endif
+//         // SplitEdgeMakeVert(World, 1, 0.3f);
+//         // SplitEdgeMakeVert(World, 2, 0.5f);
+//         // SplitEdgeMakeVert(World, 3, 0.5f);
+//         // SplitEdgeMakeVert(World, 4, 0.5f);
+//         // ReverseFaceLoop(World, 1);
+// #else
+//         for (s32 I = 1; I < 10000; ++I)
+//         {
+//             real32 Y = ((I/1000)-5)*64.f;
+//             real32 X = (((I%1000)/32)-16)*64.f;
+//             real32 Z = (((I%1000)%32)-16)*64.f;
+//             MakeEditableRectangle(World, { X, Y, Z }, { X+32.f, Y, Z+32.f }, GMATH_UP);
+//         }
+// #endif
+
         Editor->UndoStack = AllocStruct(&Editor->EditorMemory, undo_stack);
         // NOTE(Kevin): Push initial world state to undo stack
         TriangulateAndUploadFaces(World, &Editor->EditorMemory, RenderAPI);
@@ -780,6 +781,7 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
     }
 
     Editor->CameraDirection = GameState->Camera.ViewForward;
+    Editor->WorldViewportP = GameState->Camera.ViewPosition;
     EnterNextMode(Editor);
     ResetGrid(Editor);
 
@@ -860,6 +862,36 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
 
     TriangulateAndUploadFaces(World, &Editor->EditorMemory, RenderAPI);
 
+    // RENDER GRID
+    vec3 GridP = vec3(SnapToGrid(Editor, Editor->WorldViewportP.X), 0.f,
+                      SnapToGrid(Editor, Editor->WorldViewportP.Z));
+    // mat3 GridR = GetGridRotationMatrix(Editor);
+
+    RenderAPI->PushLine(vec3(320000.f, 0.f, 0.f), vec3(-320000.f, 0.f, 0.f),
+                        vec4(RGB255TO1(205, 56, 9), 0.6f), 1.f);
+    RenderAPI->PushLine(vec3(0.f, 320000.f, 0.f), vec3(0.f, -320000.f, 0.f),
+                        vec4(RGB255TO1(67, 123, 9), 0.6f), 1.f);
+    RenderAPI->PushLine(vec3(0.f, 0.f, 320000.f), vec3(0.f, 0.f, -320000.f),
+                        vec4(RGB255TO1(21, 129, 205), 0.6f), 1.f);
+    for (s32 I = -2000; I <= 2000; ++I)
+    {
+        real32 LineP = (real32)I * Editor->GridIncrement;
+        real32 LineHalfLen = 32000.f;
+        if (AbsoluteValue(GridP.X + LineP) > 0.01f)
+        {
+            RenderAPI->PushLine(GridP + vec3(LineP, 0.f, -LineHalfLen),
+                                GridP + vec3(LineP, 0.f, LineHalfLen),
+                                vec4(0.6f, 0.6f, 0.6f, 0.20f), 1.f);
+        }
+        if (AbsoluteValue(GridP.Z + LineP) > 0.01f)
+        {
+            RenderAPI->PushLine(GridP + vec3(-LineHalfLen, 0.f, LineP),
+                                GridP + vec3(LineHalfLen, 0.f, LineP),
+                                vec4(0.6f, 0.6f, 0.6f, 0.20f), 1.f);
+        }
+    }
+
+    // RENDER FACES
     for (u32 FaceIndex = 0; FaceIndex < ArrayCount(World->Faces); ++FaceIndex)
     {
         mesh_face *Face = &World->Faces[FaceIndex];
@@ -887,6 +919,7 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
         }
     }
 
+    // RENDER EDGES
     for (u32 EdgeIndex = 0; EdgeIndex < ArrayCount(World->Edges); ++EdgeIndex)
     {
         mesh_edge *Edge = &World->Edges[EdgeIndex];
@@ -897,7 +930,7 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
             mesh_vert V1 = World->Vertices[Edge->B];
             vec3 P0 = V0.P;
             vec3 P1 = V1.P;
-            vec3 LineColor = { 0, 1, 1 };
+            vec4 LineColor = { 0, 1, 1, 1 };
             RenderAPI->PushLine(P0, P1, LineColor, 3.f);
         }
     }
@@ -905,7 +938,7 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
     if (GuiState->CanvasW > 0 && GuiState->CanvasW < UINT32_MAX && 
         GuiState->CanvasH > 0 && GuiState->CanvasH < UINT32_MAX)
     {
-        window_state Window = BeginWindow(GuiState, { 10, 80, 400, 600 });
+        window_state Window = BeginWindow(GuiState, { 60, 80, 400, 600 }, false);
 
         if (WindowButton(&Window, "Face Select"))
         {

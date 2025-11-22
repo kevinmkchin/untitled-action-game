@@ -3,7 +3,8 @@
 #define VERTEXT_IMPLEMENTATION
 #include "shooter_vertext.h"
 
-#define EditorBgColor1 vec4(0.05f, 0.05f, 0.05f, 1.0f)
+// #define EditorBgColor1 vec4(0.05f, 0.05f, 0.05f, 1.0f)
+#define EditorBgColor1 vec4(0.15f, 0.15f, 0.15f, 1.0f)
 #define EditorFgColor1 vec4(1,1,1,1)
 #define EditorPadL 0
 #define EditorPadR 0
@@ -32,7 +33,7 @@ GetWindowFontInfo(window_state *Window)
 
 // TODO(Kevin): User provides a unique window id or name which becomes a stable base ID
 internal window_state
-BeginWindow(gui_state *GuiState, gui_rect Rect)
+BeginWindow(gui_state *GuiState, gui_rect Rect, bool32 DrawBackground)
 {
     window_state Window = {};
 
@@ -46,12 +47,17 @@ BeginWindow(gui_state *GuiState, gui_rect Rect)
     Window.LineHeightPx = CeilReal32ToU32(GetWindowFontInfo(&Window)->LineHeight * Window.TextScale);
 
     GuiPushScissor(Window.GuiState, Window.Rect);
-    GuiPanel(Window.GuiState, Window.Rect, Window.BgColor);
 
     u32 WindowID = MakeWindowElementID(&Window);
-    if (MouseInside(GuiState, Rect))
+
+    if (DrawBackground)
     {
-        RequestSetHovered(GuiState, WindowID);
+        GuiPanel(Window.GuiState, Window.Rect, Window.BgColor);
+
+        if (MouseInside(GuiState, Rect))
+        {
+            RequestSetHovered(GuiState, WindowID);
+        }
     }
 
     GuiState->WindowCount++;

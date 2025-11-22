@@ -45,6 +45,7 @@ struct editor
     bool32 ViewportLMBWentUp;
 
     vec3 CameraDirection;
+    vec3 WorldViewportP;
 
     editor_mode ActiveMode;
     editor_mode QueuedMode;

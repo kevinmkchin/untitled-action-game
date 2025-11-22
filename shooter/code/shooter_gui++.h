@@ -19,7 +19,7 @@ struct window_state
 };
 
 internal window_state
-BeginWindow(gui_state *GuiState, gui_rect Rect);
+BeginWindow(gui_state *GuiState, gui_rect Rect, bool32 DrawBackground);
 internal void
 EndWindow(window_state *Window);
 internal void

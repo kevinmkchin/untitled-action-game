@@ -26,7 +26,9 @@ void renderer::GetViewAndProjMatrices(mat4 *ProjectionMat, mat4 *ViewMat)
     real32 VerticalFOVRadians = HorizontalFOVToVerticalFOV(HorizontalFOV*GMATH_DEG2RAD, AspectRatio);
     // TODO(Kevin): Far clip for editor should be further away
     ClipFromView = ClipSpaceFromCameraSpace_PerspectiveProjection(VerticalFOVRadians, AspectRatio,
-                                                                  4.f, 3200.f, true);
+                                                                  4.f, 
+                                                                  32000.f,
+                                                                  true);
     *ProjectionMat = ClipFromView;
     *ViewMat = ViewFromWorld;
 }
@@ -228,15 +230,33 @@ void renderer::PushGuiDrawRequests(memory_arena *Scratch, gui_draw_request *Requ
     }
 }
 
-void renderer::PushLine(vec3 WorldP0, vec3 WorldP1, vec3 Color, real32 PixelWidth)
+void renderer::PushLine(vec3 WorldP0, vec3 WorldP1, vec4 Color, real32 PixelWidth)
 {
     dx11 *DX = (dx11 *)this;
-    if (DX->WorldLineInstancesCount < ArrayCount(DX->WorldLineInstances))
+
+    if (PixelWidth > 1.0f)
     {
-        DX->WorldLineInstances[DX->WorldLineInstancesCount++] =
+        if (DX->WorldLineInstancesCount < ArrayCount(DX->WorldLineInstances))
         {
-            WorldP0, WorldP1, PixelWidth, vec4(Color, 1.0f)
-        };
+            DX->WorldLineInstances[DX->WorldLineInstancesCount++] =
+            {
+                WorldP0, WorldP1, PixelWidth, Color
+            };
+        }
+    }
+    else
+    {
+        if (DX->WorldLineVerticesCount < ArrayCount(DX->WorldLineVertices) - 1)
+        {
+            DX->WorldLineVertices[DX->WorldLineVerticesCount++] =
+            {
+                WorldP0, Color
+            };
+            DX->WorldLineVertices[DX->WorldLineVerticesCount++] =
+            {
+                WorldP1, Color
+            };
+        }
     }
 }
 

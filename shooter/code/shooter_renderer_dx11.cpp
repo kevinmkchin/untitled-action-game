@@ -140,7 +140,7 @@ DX11CreateRasterizerState(dx11 *DX, ID3D11RasterizerState **RasterState,
     RasterDesc.SlopeScaledDepthBias = 0.0f;
     RasterDesc.DepthClipEnable = TRUE;
     RasterDesc.ScissorEnable = TRUE;
-    RasterDesc.MultisampleEnable = FALSE;
+    RasterDesc.MultisampleEnable = TRUE; // NOTE(Kevin): Affects only LINELIST
     RasterDesc.AntialiasedLineEnable = FALSE;
 
     HRESULT HR = DX->Device->CreateRasterizerState(&RasterDesc, RasterState);
@@ -194,16 +194,17 @@ UseNextAvailableTextureHandle(dx11 *DX)
 }
 
 internal void
-DEBUGDX11CreateShaderSetFromFile(dx11 *DX, LPCWSTR VSFileName, ID3D11VertexShader **VS, 
+DEBUGDX11CreateShaderSetFromFile(dx11 *DX, D3D_SHADER_MACRO *DefineMacros,
+                                 LPCWSTR VSFileName, ID3D11VertexShader **VS, 
                                  LPCWSTR PSFileName, ID3D11PixelShader **PS,
                                  D3D11_INPUT_ELEMENT_DESC *ILDesc, u32 ILDescCount,
                                  ID3D11InputLayout **IL)
 {
     ComPtr<ID3DBlob> VSBlob, PSBlob, Err;
 
-    HRESULT HR = D3DCompileFromFile(VSFileName, NULL, NULL, "main", "vs_5_0", 0, 0, &VSBlob, &Err);
+    HRESULT HR = D3DCompileFromFile(VSFileName, DefineMacros, NULL, "main", "vs_5_0", 0, 0, &VSBlob, &Err);
     FailDx11HRESULT(HR, "Failed to compile from file vertex shader.", DX->Window);
-    HR = D3DCompileFromFile(PSFileName, NULL, NULL, "main", "ps_5_0", 0, 0, &PSBlob, &Err);
+    HR = D3DCompileFromFile(PSFileName, DefineMacros, NULL, "main", "ps_5_0", 0, 0, &PSBlob, &Err);
     FailDx11HRESULT(HR, "Failed to compile from file pixel shader.", DX->Window);
     // TODO(Kevin): (char *)Err->GetBufferPointer()
     HR = DX->Device->CreateVertexShader(VSBlob->GetBufferPointer(), VSBlob->GetBufferSize(), NULL, VS);
@@ -259,6 +260,7 @@ DX11Init(dx11 *DX)
     //
     // Shaders, Input Layouts, Constant Buffers
     //
+    // TODO(Kevin): For shipping, use precompiled .cso blobs. Can these cso blobs be stored in .inl?
     D3D11_INPUT_ELEMENT_DESC PNUV2_IL[] =
     {
         {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0,   D3D11_INPUT_PER_VERTEX_DATA, 0},
@@ -266,8 +268,8 @@ DX11Init(dx11 *DX)
         {"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT,    0, 24,  D3D11_INPUT_PER_VERTEX_DATA, 0},
         {"TEXCOORD", 1, DXGI_FORMAT_R32G32_FLOAT,    0, 32,  D3D11_INPUT_PER_VERTEX_DATA, 0},
     };
-    // TODO(Kevin): For shipping, use precompiled .cso blobs.
-    DEBUGDX11CreateShaderSetFromFile(DX, L"../data/hlsl/vStaticLit.hlsl", &DX->StaticLitVS,
+    DEBUGDX11CreateShaderSetFromFile(DX, 0,
+                                     L"../data/hlsl/vStaticLit.hlsl", &DX->StaticLitVS,
                                      L"../data/hlsl/pStaticLit.hlsl", &DX->StaticLitPS,
                                      PNUV2_IL, ArrayCount(PNUV2_IL), &DX->PNUV2_IL);
     DX11CreateConstantBuffer(DX, &DX->StaticLitCB0, sizeof(static_lit_cb0));
@@ -279,11 +281,17 @@ DX11Init(dx11 *DX)
         {"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT,       0, 8,  D3D11_INPUT_PER_VERTEX_DATA, 0},
         {"COLOR",    0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 16, D3D11_INPUT_PER_VERTEX_DATA, 0},
     };
-    DEBUGDX11CreateShaderSetFromFile(DX, L"../data/hlsl/vUI.hlsl", &DX->UIVS,
+    DEBUGDX11CreateShaderSetFromFile(DX, 0,
+                                     L"../data/hlsl/vUI.hlsl", &DX->UIVS,
                                      L"../data/hlsl/pUI.hlsl", &DX->UIPS,
                                      UIIL, ArrayCount(UIIL), &DX->UIIL);
     DX11CreateConstantBuffer(DX, &DX->UICB0, sizeof(ui_cb0));
 
+    D3D_SHADER_MACRO WorldLineShaderDefines[] =
+    {
+        { "THICK_LINES", 0 },
+        { 0, 0 }
+    };
     D3D11_INPUT_ELEMENT_DESC WorldLineIL[] =
     {
         {"CORNER_T_SIGN", 0, DXGI_FORMAT_R32G32_FLOAT,       0, 0,  D3D11_INPUT_PER_VERTEX_DATA,   0},
@@ -292,10 +300,21 @@ DX11Init(dx11 *DX)
         {"THICKNESS",     0, DXGI_FORMAT_R32_FLOAT,          1, 24, D3D11_INPUT_PER_INSTANCE_DATA, 1},
         {"COLOR",         0, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, 28, D3D11_INPUT_PER_INSTANCE_DATA, 1},
     };
-    DEBUGDX11CreateShaderSetFromFile(DX, L"../data/hlsl/vWorldLine.hlsl", &DX->WorldLineVS,
+    DEBUGDX11CreateShaderSetFromFile(DX, WorldLineShaderDefines,
+                                     L"../data/hlsl/vWorldLine.hlsl", &DX->WorldLineVS,
                                      L"../data/hlsl/pWorldLine.hlsl", &DX->WorldLinePS,
                                      WorldLineIL, ArrayCount(WorldLineIL), &DX->WorldLineIL);
     DX11CreateConstantBuffer(DX, &DX->WorldLineCB0, sizeof(world_line_cb0));
+
+    D3D11_INPUT_ELEMENT_DESC WorldLineIL2[] =
+    {
+        {"POSITION",      0, DXGI_FORMAT_R32G32B32_FLOAT,    0, 0,  D3D11_INPUT_PER_VERTEX_DATA, 0},
+        {"COLOR",         0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0},
+    };
+    DEBUGDX11CreateShaderSetFromFile(DX, 0,
+                                     L"../data/hlsl/vWorldLine.hlsl", &DX->WorldLineVS2,
+                                     L"../data/hlsl/pWorldLine.hlsl", &DX->WorldLinePS2,
+                                     WorldLineIL2, ArrayCount(WorldLineIL2), &DX->WorldLineIL2);
 
     //
     // World Lines Vertex Stream
@@ -307,6 +326,7 @@ DX11Init(dx11 *DX)
     };
     DX->LineCornersVB = DX11UploadVertexBuffer(DX, DX->WorldLineIL, LineCorners_t_Sign, sizeof(real32)*2, 6);
     DX11CreateVertexStream(DX, &DX->WorldLinesVertexStream, sizeof(DX->WorldLineInstances));
+    DX11CreateVertexStream(DX, &DX->WorldLinesVertexStream2, sizeof(DX->WorldLineVertices));
 
     //
     // Samplers
@@ -378,6 +398,7 @@ DX11BeginFrame(dx11 *DX)
     DX->GuiVertexStreamStagingCount = 0;
     DX->GuiVertexStreamItemsCount = 0;
     DX->WorldLineInstancesCount = 0;
+    DX->WorldLineVerticesCount = 0;
 
     if (PreviousBackBufferW != DX->Header.BackBufferW ||
         PreviousBackBufferH != DX->Header.BackBufferH)
@@ -392,7 +413,8 @@ DX11BeginFrame(dx11 *DX)
 internal void
 DX11EndFrame(dx11 *DX)
 {
-    vec4 ClearColor = { 0.10f, 0.18f, 0.30f, 1.0f };
+    // vec4 ClearColor = { 0.10f, 0.18f, 0.30f, 1.0f };
+    vec4 ClearColor = { 0.05f, 0.05f, 0.05f, 1.0f };
 
     if (DX->RenderForColorReadback)
     {
@@ -511,7 +533,8 @@ DX11EndFrame(dx11 *DX)
 
     world_line_cb0 WorldLineDrawParams =
     {
-        ProjFromWorld,
+        ViewFromWorld,
+        ClipFromView,
         { (real32)PreviousBackBufferW, (real32)PreviousBackBufferH },
         1// 0.990f
     };
@@ -520,6 +543,7 @@ DX11EndFrame(dx11 *DX)
     // DX->Context->PSSetShaderResources(8, 1, &DX->DepthSRV);
     // DX->Context->PSSetSamplers(0, 1, &DX->PointSampler);
 
+    // TODO(Kevin): BindToInputAssembler that takes multiple dx11_meshes
     DX->Context->IASetInputLayout(DX->LineCornersVB.Layout);
     ID3D11Buffer *WorldLineBufs[] = { DX->LineCornersVB.VB, DX->WorldLinesVertexStream.Buffer };
     UINT WorldLineBufStrides[] = { DX->LineCornersVB.VertexStride, sizeof(world_line_instance) };
@@ -527,6 +551,25 @@ DX11EndFrame(dx11 *DX)
     DX->Context->IASetVertexBuffers(0, 2, WorldLineBufs, WorldLineBufStrides, WorldLineBufOffsets);
     DX->Context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
     DX->Context->DrawInstanced(6, DX->WorldLineInstancesCount, 0, 0);
+
+    DX->Context->VSSetShader(DX->WorldLineVS2, NULL, 0);
+    DX->Context->PSSetShader(DX->WorldLinePS2, NULL, 0);
+    DX11UpdateConstantBuffer(DX, DX->WorldLineCB0, &WorldLineDrawParams, sizeof(WorldLineDrawParams), true, 0, true, 0);
+
+    u32 VertexCount = DX->WorldLineVerticesCount;
+    u32 VertexStride = sizeof(world_line_vertex);
+    u32 VerticesSize = VertexStride * VertexCount;
+
+    DX->WorldLinesVertexStream2.Cursor = 0;
+    DX11VertexStreamAlloc(DX, &DX->WorldLinesVertexStream2, VerticesSize, DX->WorldLineVertices);
+
+    dx11_mesh ThinLinesMesh = {};
+    ThinLinesMesh.VB = DX->WorldLinesVertexStream2.Buffer;
+    ThinLinesMesh.VertexStride = sizeof(world_line_vertex);
+    ThinLinesMesh.Layout = DX->WorldLineIL2;
+    DX11BindToInputAssembler(DX, ThinLinesMesh, true);
+
+    DX->Context->Draw(VertexCount, 0);
 
 
     //
@@ -552,7 +595,7 @@ DX11EndFrame(dx11 *DX)
         MeshInfo.VB = DX->UIVertexStream.Buffer;
         MeshInfo.VertexStride = UIVertexStride;
         MeshInfo.Layout = DX->UIIL;
-        DX11BindToInputAssembler(DX, MeshInfo);
+        DX11BindToInputAssembler(DX, MeshInfo, false);
 
         mat4 ClipFromScreen2D = ProjectionMatrixOrthographicNoZ(0.f, (real32)PreviousBackBufferW, 
                                                                 (real32)PreviousBackBufferH, 0.f);
@@ -756,7 +799,7 @@ DX11UploadMesh(dx11 *DX, PNUV2_vertex *VB, u32 VC, u32 *IB, u32 IC)
 }
 
 void
-DX11BindToInputAssembler(dx11 *DX, dx11_mesh Mesh)
+DX11BindToInputAssembler(dx11 *DX, dx11_mesh Mesh, bool32 LineList)
 {
     DX->Context->IASetInputLayout(Mesh.Layout);
     UINT StartSlot = 0;
@@ -769,7 +812,9 @@ DX11BindToInputAssembler(dx11 *DX, dx11_mesh Mesh)
         UINT IBOffset = 0;
         DX->Context->IASetIndexBuffer(Mesh.IB, DXGI_FORMAT_R32_UINT, IBOffset);
     }
-    DX->Context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    DX->Context->IASetPrimitiveTopology(LineList ?
+                                        D3D11_PRIMITIVE_TOPOLOGY_LINELIST :
+                                        D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 }
 
 void
@@ -779,7 +824,7 @@ DX11DrawMesh(dx11 *DX, mesh_handle MeshHandle)
 
     Assert(Mesh.IndicesCount > 0);
 
-    DX11BindToInputAssembler(DX, Mesh);
+    DX11BindToInputAssembler(DX, Mesh, false);
 
     UINT StartIndexLocation = 0;
     INT BaseVertexLocation = 0;
@@ -793,7 +838,7 @@ DX11DrawMeshInstanced(dx11 *DX, mesh_handle MeshHandle, u32 Count)
 
     Assert(Mesh.IndicesCount > 0);
 
-    DX11BindToInputAssembler(DX, Mesh);
+    DX11BindToInputAssembler(DX, Mesh, false);
 
     UINT StartIndexLocation = 0;
     INT BaseVertexLocation = 0;
