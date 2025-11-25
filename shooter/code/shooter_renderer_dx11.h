@@ -110,6 +110,15 @@ struct world_line_vertex
     vec4 Color;
 };
 
+struct dx11_render_target
+{
+    ID3D11Texture2D          *ColorTexture;
+    ID3D11RenderTargetView   *RenderTargetView;
+    ID3D11Texture2D          *DepthTexture;
+    ID3D11ShaderResourceView *DepthSRV;
+    ID3D11DepthStencilView   *DepthStencilView;
+};
+
 struct dx11
 {
     renderer Header;
@@ -126,12 +135,9 @@ struct dx11
     ID3D11DeviceContext *Context;
     IDXGIFactory2 *Factory2;
 
-    ID3D11Texture2D        *ColorTexture;
-    ID3D11RenderTargetView *RenderTargetView;
-    ID3D11Texture2D        *DepthTexture;
-    ID3D11ShaderResourceView *DepthSRV;
-    ID3D11DepthStencilView *DepthStencilView;
-    ID3D11Texture2D        *ColorReadbackTexture;
+    dx11_render_target DefaultTarget;
+    dx11_render_target NoMSAATarget;
+    ID3D11Texture2D   *ColorReadbackTexture;
 
     ID3D11RasterizerState *MainRasterState;
     ID3D11RasterizerState *NoCullingRasterState;

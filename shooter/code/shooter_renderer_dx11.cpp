@@ -42,32 +42,25 @@ FailDx11HRESULT(HRESULT HResult, char *Message, HWND Window, bool32 Fatal = true
 }
 
 internal void
-DX11CreateSizeDependentResources(dx11 *DX, UINT W, UINT H)
+DX11CreateRenderTarget(dx11 *DX, dx11_render_target *Target, UINT W, UINT H, u32 MSAASampleCount)
 {
-    DX->Context->OMSetRenderTargets(0, NULL, NULL);
-    DX11ReleaseCOM(DX->RenderTargetView);
-    DX11ReleaseCOM(DX->DepthStencilView);
-    DX11ReleaseCOM(DX->DepthSRV);
-    DX11ReleaseCOM(DX->DepthTexture);
-
-    UINT SwapChainFlags = DX->AllowVRRTearing ? DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING : 0;
-    HRESULT HR = DX->SwapChain->ResizeBuffers(0, W, H, DX->BackBufferFormat, SwapChainFlags);
-    FailDx11HRESULT(HR, "SwapChain->ResizeBuffers failed", DX->Window);
-
     D3D11_TEXTURE2D_DESC ColorTextureDesc = {};
     ColorTextureDesc.Width = W;
     ColorTextureDesc.Height = H;
     ColorTextureDesc.MipLevels = 1;
     ColorTextureDesc.ArraySize = 1;
     ColorTextureDesc.Format = DX->BackBufferFormat;
-    ColorTextureDesc.SampleDesc.Count = DX->MSAASampleCount;
+    ColorTextureDesc.SampleDesc.Count = MSAASampleCount;
     ColorTextureDesc.SampleDesc.Quality = 0; // NOTE(Kevin): Ignoring MSAA quality levels
     ColorTextureDesc.Usage = D3D11_USAGE_DEFAULT;
     ColorTextureDesc.BindFlags = D3D11_BIND_RENDER_TARGET;
 
-    HR = DX->Device->CreateTexture2D(&ColorTextureDesc, NULL, &DX->ColorTexture);
+    HRESULT HR;
+
+    HR = DX->Device->CreateTexture2D(&ColorTextureDesc, NULL, &Target->ColorTexture);
     FailDx11HRESULT(HR, "Failed to create color texture render target.", DX->Window);
-    HR = DX->Device->CreateRenderTargetView(DX->ColorTexture, NULL, &DX->RenderTargetView);
+
+    HR = DX->Device->CreateRenderTargetView(Target->ColorTexture, NULL, &Target->RenderTargetView);
     FailDx11HRESULT(HR, "Failed to create RenderTargetView for color texture.", DX->Window);
 
     D3D11_TEXTURE2D_DESC DepthStencilDesc = {};
@@ -76,14 +69,14 @@ DX11CreateSizeDependentResources(dx11 *DX, UINT W, UINT H)
     DepthStencilDesc.MipLevels = 1;
     DepthStencilDesc.ArraySize = 1;
     DepthStencilDesc.Format = DXGI_FORMAT_R24G8_TYPELESS;
-    DepthStencilDesc.SampleDesc.Count = DX->MSAASampleCount;
+    DepthStencilDesc.SampleDesc.Count = MSAASampleCount;
     DepthStencilDesc.SampleDesc.Quality = 0;
     DepthStencilDesc.Usage = D3D11_USAGE_DEFAULT;
     DepthStencilDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL | D3D11_BIND_SHADER_RESOURCE;
 
     D3D11_DEPTH_STENCIL_VIEW_DESC DSVDesc = {};
     DSVDesc.Format             = DXGI_FORMAT_D24_UNORM_S8_UINT;
-    DSVDesc.ViewDimension      = DX->MSAASampleCount > 1 ?
+    DSVDesc.ViewDimension      = MSAASampleCount > 1 ?
                                  D3D11_DSV_DIMENSION_TEXTURE2DMS :
                                  D3D11_DSV_DIMENSION_TEXTURE2D;
     DSVDesc.Flags              = 0;
@@ -91,18 +84,53 @@ DX11CreateSizeDependentResources(dx11 *DX, UINT W, UINT H)
 
     D3D11_SHADER_RESOURCE_VIEW_DESC SRVDesc = {};
     SRVDesc.Format                    = DXGI_FORMAT_R24_UNORM_X8_TYPELESS;
-    SRVDesc.ViewDimension             = DX->MSAASampleCount > 1 ?
+    SRVDesc.ViewDimension             = MSAASampleCount > 1 ?
                                         D3D11_SRV_DIMENSION_TEXTURE2DMS :
                                         D3D11_SRV_DIMENSION_TEXTURE2D;
     SRVDesc.Texture2D.MostDetailedMip = 0;
     SRVDesc.Texture2D.MipLevels       = 1;
 
-    HR = DX->Device->CreateTexture2D(&DepthStencilDesc, NULL, &DX->DepthTexture);
+    HR = DX->Device->CreateTexture2D(&DepthStencilDesc, NULL, &Target->DepthTexture);
     FailDx11HRESULT(HR, "Failed to create depth texture.", DX->Window);
-    HR = DX->Device->CreateDepthStencilView(DX->DepthTexture, &DSVDesc, &DX->DepthStencilView);
+
+    HR = DX->Device->CreateDepthStencilView(Target->DepthTexture, &DSVDesc, &Target->DepthStencilView);
     FailDx11HRESULT(HR, "Failed to create DepthStencilView.", DX->Window);
-    HR = DX->Device->CreateShaderResourceView(DX->DepthTexture, &SRVDesc, &DX->DepthSRV);
+
+    HR = DX->Device->CreateShaderResourceView(Target->DepthTexture, &SRVDesc, &Target->DepthSRV);
     FailDx11HRESULT(HR, "Failed to create shader resource view for depth texture.", DX->Window);
+}
+
+internal void
+DX11ReleaseRenderTarget(dx11_render_target *Target)
+{
+    DX11ReleaseCOM(Target->RenderTargetView);
+    DX11ReleaseCOM(Target->ColorTexture);
+    DX11ReleaseCOM(Target->DepthStencilView);
+    DX11ReleaseCOM(Target->DepthSRV);
+    DX11ReleaseCOM(Target->DepthTexture);
+}
+
+internal void
+DX11ClearRenderTargetViews(dx11 *DX, dx11_render_target *Target, vec4 ClearColor)
+{
+    DX->Context->ClearRenderTargetView(Target->RenderTargetView, (float *)&ClearColor);
+    DX->Context->ClearDepthStencilView(Target->DepthStencilView, 
+                                       D3D11_CLEAR_DEPTH|D3D11_CLEAR_STENCIL, 1.0f, 0);
+}
+
+internal void
+DX11CreateSizeDependentResources(dx11 *DX, UINT W, UINT H)
+{
+    DX->Context->OMSetRenderTargets(0, NULL, NULL);
+    DX11ReleaseRenderTarget(&DX->DefaultTarget);
+    DX11ReleaseRenderTarget(&DX->NoMSAATarget);
+
+    UINT SwapChainFlags = DX->AllowVRRTearing ? DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING : 0;
+    HRESULT HR = DX->SwapChain->ResizeBuffers(0, W, H, DX->BackBufferFormat, SwapChainFlags);
+    FailDx11HRESULT(HR, "SwapChain->ResizeBuffers failed", DX->Window);
+
+    DX11CreateRenderTarget(DX, &DX->DefaultTarget, W, H, DX->MSAASampleCount);
+    DX11CreateRenderTarget(DX, &DX->NoMSAATarget, W, H, 1);
 
     D3D11_TEXTURE2D_DESC ColorReadbackTexDesc = {};
     ColorReadbackTexDesc.Width = W;
@@ -424,18 +452,22 @@ DX11EndFrame(dx11 *DX)
         D3D11_RECT Scissor = { SafeCastToS32(DX->ReadPixelX)-1, SafeCastToS32(DX->ReadPixelY)-1,
                                SafeCastToS32(DX->ReadPixelX)+1, SafeCastToS32(DX->ReadPixelY)+1 };
         DX->Context->RSSetScissorRects(1, &Scissor);
+
+        DX11ClearRenderTargetViews(DX, &DX->NoMSAATarget, ClearColor);
+
+        DX->Context->OMSetRenderTargets(1, &DX->NoMSAATarget.RenderTargetView,
+                                        DX->NoMSAATarget.DepthStencilView);
     }
     else
     {
         D3D11_RECT Scissor = { 0, 0, SafeCastToS32(PreviousBackBufferW), SafeCastToS32(PreviousBackBufferH) };
         DX->Context->RSSetScissorRects(1, &Scissor);
+
+        DX11ClearRenderTargetViews(DX, &DX->DefaultTarget, ClearColor);
+
+        DX->Context->OMSetRenderTargets(1, &DX->DefaultTarget.RenderTargetView,
+                                        DX->DefaultTarget.DepthStencilView);
     }
-
-    DX->Context->ClearRenderTargetView(DX->RenderTargetView, (float *)&ClearColor);
-    DX->Context->ClearDepthStencilView(DX->DepthStencilView, D3D11_CLEAR_DEPTH|D3D11_CLEAR_STENCIL, 1.0f, 0);
-
-    // Bind and set viewport
-    DX->Context->OMSetRenderTargets(1, &DX->RenderTargetView, DX->DepthStencilView);
 
     D3D11_VIEWPORT MainViewport = {};
     MainViewport.TopLeftX = 0.0f;
@@ -651,18 +683,12 @@ DX11EndFrame(dx11 *DX)
     //
     // Presentation
     //
-
-    ID3D11Texture2D *BackBuffer;
-    HRESULT HR = DX->SwapChain->GetBuffer(0, IID_PPV_ARGS(&BackBuffer));
-    FailDx11HRESULT(HR, "Failed to get backbuffer!", DX->Window);
-    DX->Context->ResolveSubresource(BackBuffer, 0, DX->ColorTexture, 0, DX->BackBufferFormat);
-
     if (DX->RenderForColorReadback)
     {
-        DX->Context->CopyResource(DX->ColorReadbackTexture, BackBuffer);
+        DX->Context->CopyResource(DX->ColorReadbackTexture, DX->NoMSAATarget.ColorTexture);
 
         D3D11_MAPPED_SUBRESOURCE MappedSubResource;
-        HR = DX->Context->Map(DX->ColorReadbackTexture, 0, D3D11_MAP_READ, 0, &MappedSubResource);
+        HRESULT HR = DX->Context->Map(DX->ColorReadbackTexture, 0, D3D11_MAP_READ, 0, &MappedSubResource);
         if (HR == S_OK)
         {
             u8 *RowStart = (u8 *)(MappedSubResource.pData) + DX->ReadPixelY * MappedSubResource.RowPitch;
@@ -678,6 +704,14 @@ DX11EndFrame(dx11 *DX)
     }
     else
     {
+        ID3D11Texture2D *BackBuffer;
+
+        HRESULT HR = DX->SwapChain->GetBuffer(0, IID_PPV_ARGS(&BackBuffer));
+        FailDx11HRESULT(HR, "Failed to get backbuffer!", DX->Window);
+
+        DX->Context->ResolveSubresource(BackBuffer, 0, DX->DefaultTarget.ColorTexture,
+                                        0, DX->BackBufferFormat);
+
 #if SHOOTER_DEBUG_VSYNC_OFF
         bool32 VsyncEnabled = false;
 #else
@@ -691,6 +725,7 @@ DX11EndFrame(dx11 *DX)
         }
 
         HR = DX->SwapChain->Present(SyncInterval, PresentFlags);
+
         if (HR == DXGI_ERROR_DEVICE_REMOVED || HR == DXGI_ERROR_DEVICE_RESET)
         {
             // NOTE(Kevin): This is if a video card has been physically removed from the computer,
@@ -707,9 +742,9 @@ DX11EndFrame(dx11 *DX)
         {
             FailDx11HRESULT(HR, "Present failed!", DX->Window);
         }
-    }
 
-    BackBuffer->Release();
+        BackBuffer->Release();
+    }
 }
 
 void DX11GetWritablePerInstanceDataArray(dx11 *DX, static_lit_model_instance **OutArray, u32 **OutCount)
@@ -1203,11 +1238,8 @@ Win32ReleaseRenderer(renderer *Renderer)
     DX11ReleaseCOM(DX->AnisotropicSampler);
     DX11ReleaseCOM(DX->PointSampler);
 
-    DX11ReleaseCOM(DX->ColorTexture);
-    DX11ReleaseCOM(DX->RenderTargetView);
-    DX11ReleaseCOM(DX->DepthTexture);
-    DX11ReleaseCOM(DX->DepthSRV);
-    DX11ReleaseCOM(DX->DepthStencilView);
+    DX11ReleaseRenderTarget(&DX->DefaultTarget);
+    DX11ReleaseRenderTarget(&DX->NoMSAATarget);
     DX11ReleaseCOM(DX->ColorReadbackTexture);
 
     // TODO(Kevin): DX->SwapChain->SetFullscreenState

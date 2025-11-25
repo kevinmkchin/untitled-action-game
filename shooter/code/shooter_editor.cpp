@@ -405,6 +405,9 @@ PickEdge(editor *Editor)
 {
     for (u32 EdgeIndex = 0; EdgeIndex < ArrayCount(Editor->World->Edges); ++EdgeIndex)
     {
+        // TODO(Kevin): Perhaps draw a "CPU-stroked" quad per topo_loop (get px consistent
+        //              size with GetEditorHandleSize). Then, we can pick edges that are
+        //              overlapping. Highlight the quads of the radial cycle of this edge.
         vec4 ColorID = vec4(IndexToColor(EdgeIndex), 1.0f);
         DrawEdge(Editor, EdgeIndex, ColorID, 50.f);
     }
