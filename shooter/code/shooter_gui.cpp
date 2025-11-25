@@ -163,7 +163,7 @@ GuiButton(gui_state *GuiState, u32 ID, gui_rect Rect, vec4 RGBA,
 {
     bool32 Result = GuiBehaviourButton(GuiState, ID, Rect);
 
-    if (IsActive(GuiState, ID))
+    if (Result || IsActive(GuiState, ID))
     {
         GuiPanel(GuiState, Rect, RGBAActive);
     }
@@ -185,7 +185,7 @@ GuiButton(gui_state *GuiState, u32 ID, gui_rect Rect, texture_handle Image,
 {
     bool32 Result = GuiBehaviourButton(GuiState, ID, Rect);
 
-    if (IsActive(GuiState, ID))
+    if (Result || IsActive(GuiState, ID))
     {
         GuiPanel(GuiState, Rect, ImageActive);
     }

@@ -28,5 +28,7 @@ internal void
 CommitElementSize(window_state *Window);
 internal void
 WindowText(window_state *Window, char *Text);
+internal bool32
+WindowButton(window_state *Window, char *Text, bool32 *Selected = 0);
 
 #endif // SHOOTER_GUI_PP_H

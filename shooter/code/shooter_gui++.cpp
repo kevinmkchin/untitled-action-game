@@ -125,15 +125,31 @@ WindowText(window_state *Window, char *Text)
 }
 
 internal bool32
-WindowButton(window_state *Window, char *Text)
+WindowButton(window_state *Window, char *Text, bool32 *Selected)
 {
     CommitElementSize(Window);
 
     u32 ID = MakeWindowElementID(Window);
     gui_rect Rect = { Window->NextElementOffset.X, Window->NextElementOffset.Y,
                       Window->Rect.W, Window->LineHeightPx };
-    bool32 Result = GuiButton(Window->GuiState, ID, Rect, EditorButtonNormalColor,
-                              EditorButtonHoveredColor, EditorButtonActiveColor);
+
+    bool32 Result = false;
+
+    if (Selected && *Selected)
+    {
+        Result = GuiButton(Window->GuiState, ID, Rect, EditorButtonActiveColor,
+                           EditorButtonActiveColor, EditorButtonActiveColor);
+    }
+    else
+    {
+        Result = GuiButton(Window->GuiState, ID, Rect, EditorButtonNormalColor,
+                           EditorButtonHoveredColor, EditorButtonActiveColor);
+    }
+
+    if (Selected && Result)
+    {
+        *Selected = !(*Selected);
+    }
 
     vtxt_font *FontInfo = GetWindowFontInfo(Window);
 

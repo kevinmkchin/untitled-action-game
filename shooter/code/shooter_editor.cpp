@@ -332,6 +332,46 @@ SnapToGrid(editor *Editor, vec3 BeforeSnap)
     return SnapTemp;
 }
 
+internal void
+DrawEdge(editor *Editor, edge_index EdgeIndex, vec4 Color, float Thickness)
+{
+    mesh_edge *Edge = &Editor->World->Edges[EdgeIndex];
+
+    if (Edge->Alive)
+    {
+        mesh_vert V0 = Editor->World->Vertices[Edge->A];
+        mesh_vert V1 = Editor->World->Vertices[Edge->B];
+        vec3 P0 = V0.P;
+        vec3 P1 = V1.P;
+        Editor->RenderAPI->PushLine(P0, P1, Color, Thickness);
+    }
+}
+
+internal void
+DrawFace(editor *Editor, face_index FaceIndex, vec3 Color)
+{
+    mesh_face *Face = &Editor->World->Faces[FaceIndex];
+
+    if (Face->Alive)
+    {
+        if (Face->RenderMesh)
+        {
+            render_item RenderItem;
+            RenderItem = {};
+            RenderItem.Descriptor.Mesh = Face->RenderMesh;
+            RenderItem.Descriptor.Albedo = WHITE_TEXTURE_1X1;
+            RenderItem.Descriptor.Lightmap = WHITE_TEXTURE_1X1;
+            RenderItem.UseLightmap = true;
+            RenderItem.UseLightCubes = false;
+            RenderItem.ForcedAmbient = Color;
+            RenderItem.WorldPosition = vec3();
+            RenderItem.WorldRotation = quat();
+            RenderItem.WorldScale = vec3(1,1,1);
+            Editor->RenderAPI->PushRenderItems(&RenderItem, 1);
+        }
+    }
+}
+
 internal vec3
 IndexToColor(u32 Index)
 {
@@ -350,11 +390,28 @@ ColorToIndex(u32 RGBA)
     return Index;
 }
 
+internal u32
+RenderAndPickIDUnderMouse(editor *Editor)
+{
+    u32 Pixel = Editor->RenderAPI->FlushAndReadbackPixel(FloorReal32ToU32(Editor->ViewportMouseP.X),
+                                                         FloorReal32ToU32(Editor->ViewportMouseP.Y));
+    u32 Index = ColorToIndex(Pixel);
+
+    return Index;
+}
+
 internal edge_index
 PickEdge(editor *Editor)
 {
-    // TODO(Kevin): Render all the edges with their edge_index as their color
-    return 0;
+    for (u32 EdgeIndex = 0; EdgeIndex < ArrayCount(Editor->World->Edges); ++EdgeIndex)
+    {
+        vec4 ColorID = vec4(IndexToColor(EdgeIndex), 1.0f);
+        DrawEdge(Editor, EdgeIndex, ColorID, 50.f);
+    }
+
+    u32 Index = RenderAndPickIDUnderMouse(Editor);
+
+    return Index;
 }
 
 internal face_index
@@ -362,31 +419,11 @@ PickFace(editor *Editor)
 {
     for (u32 FaceIndex = 0; FaceIndex < ArrayCount(Editor->World->Faces); ++FaceIndex)
     {
-        mesh_face *Face = &Editor->World->Faces[FaceIndex];
-
-        if (Face->Alive)
-        {
-            if (Face->RenderMesh)
-            {
-                render_item RenderItem;
-                RenderItem = {};
-                RenderItem.Descriptor.Mesh = Face->RenderMesh;
-                RenderItem.Descriptor.Albedo = WHITE_TEXTURE_1X1;
-                RenderItem.Descriptor.Lightmap = WHITE_TEXTURE_1X1;
-                RenderItem.UseLightmap = true;
-                RenderItem.UseLightCubes = false;
-                RenderItem.ForcedAmbient = IndexToColor(FaceIndex);
-                RenderItem.WorldPosition = vec3();
-                RenderItem.WorldRotation = quat();
-                RenderItem.WorldScale = vec3(1,1,1);
-                Editor->RenderAPI->PushRenderItems(&RenderItem, 1);
-            }
-        }
+        vec3 ColorID = IndexToColor(FaceIndex);
+        DrawFace(Editor, FaceIndex, ColorID);
     }
 
-    u32 Pixel = Editor->RenderAPI->FlushAndReadbackPixel(FloorReal32ToU32(Editor->ViewportMouseP.X),
-                                                         FloorReal32ToU32(Editor->ViewportMouseP.Y));
-    u32 Index = ColorToIndex(Pixel);
+    u32 Index = RenderAndPickIDUnderMouse(Editor);
 
     return Index;
 }
@@ -850,6 +887,8 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
         // case MOVE_POINT_ENTITY:
         //     DoMovePointEntity();
         //     break;
+        case SelectEdge:
+            break;
         case SelectFace:
             break;
         case BlockTool:
@@ -894,45 +933,20 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
     // RENDER FACES
     for (u32 FaceIndex = 0; FaceIndex < ArrayCount(World->Faces); ++FaceIndex)
     {
-        mesh_face *Face = &World->Faces[FaceIndex];
-
-        if (Face->Alive)
-        {
-            if (Face->RenderMesh)
-            {
-                render_item RenderItem;
-                RenderItem = {};
-                RenderItem.Descriptor.Mesh = Face->RenderMesh;
-                RenderItem.Descriptor.Albedo = WHITE_TEXTURE_1X1;
-                RenderItem.Descriptor.Lightmap = WHITE_TEXTURE_1X1;
-                RenderItem.UseLightmap = true;
-                RenderItem.UseLightCubes = false;
-                // TODO(Kevin): Turn off backface culling only for the hovered face...
-                RenderItem.ForcedAmbient = FaceIndex == Editor->FaceUnderMouse ?
-                                           vec3(1,0,0) :
-                                           GetDebugColor3(FaceIndex);
-                RenderItem.WorldPosition = vec3();
-                RenderItem.WorldRotation = quat();
-                RenderItem.WorldScale = vec3(1,1,1);
-                RenderAPI->PushRenderItems(&RenderItem, 1);
-            }
-        }
+        // TODO(Kevin): Turn off backface culling only for the hovered face...
+        vec3 Color = FaceIndex == Editor->FaceUnderMouse ?
+                     vec3(1, 0, 0) :
+                     GetDebugColor3(FaceIndex);
+        DrawFace(Editor, FaceIndex, Color);
     }
 
     // RENDER EDGES
     for (u32 EdgeIndex = 0; EdgeIndex < ArrayCount(World->Edges); ++EdgeIndex)
     {
-        mesh_edge *Edge = &World->Edges[EdgeIndex];
-
-        if (Edge->Alive)
-        {
-            mesh_vert V0 = World->Vertices[Edge->A];
-            mesh_vert V1 = World->Vertices[Edge->B];
-            vec3 P0 = V0.P;
-            vec3 P1 = V1.P;
-            vec4 LineColor = { 0, 1, 1, 1 };
-            RenderAPI->PushLine(P0, P1, LineColor, 3.f);
-        }
+        bool32 Hovered = EdgeIndex == Editor->EdgeUnderMouse;
+        vec4 Color = Hovered ? vec4(1,0,0,1) : vec4(0,1,1,1);
+        real32 Thickness = Hovered ? 8.f : 3.f;
+        DrawEdge(Editor, EdgeIndex, Color, Thickness);
     }
 
     if (GuiState->CanvasW > 0 && GuiState->CanvasW < UINT32_MAX && 
@@ -940,11 +954,18 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
     {
         window_state Window = BeginWindow(GuiState, { 60, 80, 400, 600 }, false);
 
-        if (WindowButton(&Window, "Face Select"))
+        bool32 Selected = Editor->ActiveMode == SelectEdge;
+        if (WindowButton(&Window, "Edge Select", &Selected))
+        {
+            Editor->QueuedMode = SelectEdge;
+        }
+        Selected = Editor->ActiveMode == SelectFace;
+        if (WindowButton(&Window, "Face Select", &Selected))
         {
             Editor->QueuedMode = SelectFace;
         }
-        if (WindowButton(&Window, "Block Tool"))
+        Selected = Editor->ActiveMode == BlockTool;
+        if (WindowButton(&Window, "Block Tool", &Selected))
         {
             Editor->QueuedMode = BlockTool;
         }
