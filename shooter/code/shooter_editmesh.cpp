@@ -575,7 +575,7 @@ GetFaceNormal(world_mesh *Mesh, face_index FaceIndex)
         LoopIndex = Loop.Next;
     }
 
-    vec3 Result = GetFaceNormal(Points, Face.LoopCycleBase);
+    vec3 Result = GetFaceNormal(Points, Face.LoopCycleLen);
 
     FreeBlock(Mesh->Memory, Points);
 
