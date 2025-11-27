@@ -47,6 +47,7 @@ global bool32 DEBUGGlobalMouseCaptured;
 global bool32 DEBUGVariableDeltaTime;
 global HCURSOR GlobalCursorArrow;
 global WINDOWPLACEMENT GlobalWindowPosition = {sizeof(GlobalWindowPosition)};
+global debug_keyboard_input GlobalKeyboardState;
 #if HANDMADE_INTERNAL
 #include "renderdoc_app.h"
 global RENDERDOC_API_1_6_0 *RenderDocAPI = NULL;
@@ -177,6 +178,11 @@ PLATFORM_CAPTURE_MOUSECURSOR(PlatformCaptureMouseCursor)
 {
     DEBUGGlobalMouseCaptured = Capture;
     DEBUGGlobalShowCursor = !Capture;
+}
+
+PLATFORM_GET_KEYBOARD_STATE(PlatformGetKeyboardState)
+{
+    return &GlobalKeyboardState;
 }
 
 inline FILETIME
@@ -614,6 +620,13 @@ Win32ProcessPendingMessages(win32_state *State, game_controller_input *KeyboardC
     // NOTE(Kevin): Nonqueued messages are sent immediately to the main 
     // window callback and bypass the message queue.
 
+    // NOTE(Kevin): Reset per-frame keyboard state
+    GlobalKeyboardState.KeyDownCount = 0;
+    for (u32 Key = 0; Key < ArrayCount(GlobalKeyboardState.KbState); ++Key)
+    {
+        GlobalKeyboardState.KbState[Key].HalfTransitionCount = 0;
+    }
+
     BYTE RawInputBuffer[128];
     win32_raw_mouse_input RawMouseInputAccumulator = {};
 
@@ -720,6 +733,16 @@ Win32ProcessPendingMessages(win32_state *State, game_controller_input *KeyboardC
                 bool32 AltKeyDown = (Message.lParam & (1 << 29));
                 if (WasDown != IsDown)
                 {
+                    Win32ProcessKeyboardMessage(&(GlobalKeyboardState.KbState[VKCode]), IsDown);
+                    if (IsDown && !WasDown)
+                    {
+                        if (GlobalKeyboardState.KeyDownCount < ArrayCount(GlobalKeyboardState.KeyDown))
+                        {
+                            GlobalKeyboardState.KeyDown[GlobalKeyboardState.KeyDownCount++] =
+                                (shooter_kb_key)SafeTruncateU32(VKCode);
+                        }
+                    }
+
                     if (VKCode == 'W')
                     {
                         Win32ProcessKeyboardMessage(&KeyboardController->MoveUp, IsDown);
@@ -819,6 +842,7 @@ Win32ProcessPendingMessages(win32_state *State, game_controller_input *KeyboardC
                     {
                         GlobalRunning = false;
                     }
+
                     if(AltKeyDown && VKCode == VK_RETURN)
                     {
                         if(Message.hwnd)
@@ -826,6 +850,7 @@ Win32ProcessPendingMessages(win32_state *State, game_controller_input *KeyboardC
                             ToggleFullscreen(Message.hwnd);
                         }
                     }
+
                     if (VKCode == VK_F11)
                     {
                         if(Message.hwnd)
@@ -1044,6 +1069,7 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
             PlatformAPI.DEBUGPlatformReadEntireFile = DEBUGPlatformReadEntireFile;
             PlatformAPI.DEBUGPlatformWriteEntireFile = DEBUGPlatformWriteEntireFile;
             PlatformAPI.CaptureMouseCursor = PlatformCaptureMouseCursor;
+            PlatformAPI.GetKeyboardState = PlatformGetKeyboardState;
 
             game_memory GameMemory = {};
             GameMemory.PermanentStorageSize = Megabytes(256);

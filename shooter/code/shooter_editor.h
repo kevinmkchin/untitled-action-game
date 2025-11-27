@@ -39,6 +39,9 @@ struct editor
 
     world_mesh *World;
 
+    face_index FaceSelection[16];
+    u32        FaceSelectionCount;
+
     vec2 ViewportMouseP;
     bool32 ViewportLMBIsDown;
     bool32 ViewportLMBWentDown;

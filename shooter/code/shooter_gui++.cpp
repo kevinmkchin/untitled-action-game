@@ -28,6 +28,7 @@ GetWindowFontInfo(window_state *Window)
 {
     gui_font FontIndex = Window->TextFont;
     vtxt_font *FontInfo = Window->GuiState->Fonts[FontIndex].FontInfo;
+    Assert(FontInfo);
     return FontInfo;
 }
 

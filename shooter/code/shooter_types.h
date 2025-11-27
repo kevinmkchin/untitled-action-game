@@ -113,6 +113,14 @@ struct buffer
                             float((RgbInHex & 0x0000FF00) >> 8)/255.f,\
                             float(RgbInHex & 0x000000FF)/255.f
 
+inline u8
+SafeTruncateU32(u32 Value)
+{
+    Assert(Value <= 0xFF);
+    u8 Result = (u8)Value;
+    return Result;    
+}
+
 inline u32
 SafeTruncateU64(u64 Value)
 {

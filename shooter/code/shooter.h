@@ -2,6 +2,7 @@
 
 #include "shooter_types.h"
 #include "shooter_colliders.h"
+#include "shooter_keyboard.h"
 
 #define SHOOTER_COMPILE_WITH_EDITOR 1
 
@@ -73,13 +74,19 @@ struct game_controller_input
     };
 };
 
+struct debug_keyboard_input
+{
+    shooter_kb_key KeyDown[32];
+    u32 KeyDownCount;
+    game_button_state KbState[KB_KEYS_MAX];
+};
+
 struct game_input
 {
     game_button_state MouseButtons[5];
     int32 MouseX, MouseY;
     vec2 RawMouseDelta;
     vec2 ScrollDelta; // # chars, # lines
-    // TODO(Kevin): Key presses can probably come in a big array here? for GUI and things
 
     real32 dtForFrame;
 
@@ -117,6 +124,9 @@ typedef DEBUG_PLATFORM_WRITE_ENTIRE_FILE(debug_platform_write_entire_file);
 #define PLATFORM_CAPTURE_MOUSECURSOR(name) void name(bool32 Capture)
 typedef PLATFORM_CAPTURE_MOUSECURSOR(platform_capture_mousecursor);
 
+#define PLATFORM_GET_KEYBOARD_STATE(name) debug_keyboard_input *name()
+typedef PLATFORM_GET_KEYBOARD_STATE(platform_get_keyboard_state);
+
 struct platform_api
 {
 #if HANDMADE_INTERNAL
@@ -125,6 +135,7 @@ struct platform_api
     debug_platform_write_entire_file *DEBUGPlatformWriteEntireFile;
 #endif
     platform_capture_mousecursor *CaptureMouseCursor;
+    platform_get_keyboard_state *GetKeyboardState;
 };
 
 struct game_memory
@@ -314,7 +325,6 @@ struct kbm_input
     bool32 RMBWentDown;
     bool32 RMBWentUp;
 
-    // TODO(Kevin): Array of typed keys to read keyboard input from
-    game_controller_input KBController;
+    debug_keyboard_input *KeyboardState;
 };
 

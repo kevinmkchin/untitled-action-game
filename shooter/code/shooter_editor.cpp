@@ -90,17 +90,23 @@ GetDrawRectBasisAxes(vec3 FloorNormal, vec3 *RectBasisUAxis, vec3 *RectBasisVAxi
 }
 
 internal void
+DeleteFaceRenderMesh(world_mesh *World, face_index FaceIndex, renderer *RenderAPI)
+{
+    mesh_face *Face = &World->Faces[FaceIndex];
+
+    if (Face->RenderMesh)
+    {
+        RenderAPI->DeleteMesh(Face->RenderMesh);
+        Face->RenderMesh = 0;
+    }
+}
+
+internal void
 DeleteAllFaceRenderMeshes(world_mesh *World, renderer *RenderAPI)
 {
     for (u32 FaceIndex = 0; FaceIndex < ArrayCount(World->Faces); ++FaceIndex)
     {
-        mesh_face *Face = &World->Faces[FaceIndex];
-
-        if (Face->RenderMesh)
-        {
-            RenderAPI->DeleteMesh(Face->RenderMesh);
-            Face->RenderMesh = 0;
-        }
+        DeleteFaceRenderMesh(World, FaceIndex, RenderAPI);
     }
 }
 
@@ -261,37 +267,6 @@ SetGuiTooltipWithUndoState(gui_state *GuiState, undo_stack *Undo)
 }
 
 internal void
-EnterNextMode(editor *Editor)
-{
-    // NOTE(Kevin): Handle all mode switching here!
-
-    if (Editor->QueuedMode == NothingMode ||
-        Editor->QueuedMode == Editor->ActiveMode)
-    {
-        return;
-    }
-
-    // Deactivate active mode
-    switch (Editor->ActiveMode)
-    {
-        case BlockTool:
-        case PolygonTool:
-            break;
-    }
-
-    Editor->ActiveMode = Editor->QueuedMode;
-    Editor->QueuedMode = NothingMode;
-
-    // Activate new mode
-    switch (Editor->ActiveMode)
-    {
-        case BlockTool:
-        case PolygonTool:
-            break;
-    }
-}
-
-internal void
 ResetGrid(editor *Editor)
 {
     Editor->GridOrigin = vec3();
@@ -330,6 +305,63 @@ SnapToGrid(editor *Editor, vec3 BeforeSnap)
     SnapTemp = Rot * SnapTemp;
     SnapTemp = SnapTemp + Editor->GridOrigin;
     return SnapTemp;
+}
+
+internal s32
+IsFaceSelected(editor *Editor, face_index Face)
+{
+    s32 FoundIndex = -1;
+
+    for (u32 Index = 0; Index < Editor->FaceSelectionCount; ++Index)
+    {
+        if (Editor->FaceSelection[Index] == Face)
+        {
+            FoundIndex = Index;
+            break;
+        }
+    }
+
+    return FoundIndex;
+}
+
+internal void
+ClearSelection(editor *Editor)
+{
+    Editor->FaceSelectionCount = 0;
+}
+
+internal void
+EnterNextMode(editor *Editor)
+{
+    // NOTE(Kevin): Handle all mode switching here!
+
+    if (Editor->QueuedMode == NothingMode ||
+        Editor->QueuedMode == Editor->ActiveMode)
+    {
+        return;
+    }
+
+    // Deactivate active mode
+    switch (Editor->ActiveMode)
+    {
+        case SelectFace:
+            ClearSelection(Editor);
+            break;
+        case BlockTool:
+        case PolygonTool:
+            break;
+    }
+
+    Editor->ActiveMode = Editor->QueuedMode;
+    Editor->QueuedMode = NothingMode;
+
+    // Activate new mode
+    switch (Editor->ActiveMode)
+    {
+        case BlockTool:
+        case PolygonTool:
+            break;
+    }
 }
 
 internal void
@@ -450,8 +482,8 @@ PickPointUnderMouse(editor *Editor, vec3 *PlanePoint, vec3 *PlaneNormal)
         ScreenPointToWorldPointAndRay(Editor->ViewportMouseP, Editor->RenderAPI, &WP, &WR);
 
         vert_index VertOnFace = Editor->World->Loops[DrawingFace.LoopCycleBase].Vert;
-        IntersectPlaneAndLineWithDirections(Editor->World->Vertices[VertOnFace].P,
-                                            *PlaneNormal, WP, WR, PlanePoint);
+        IntersectPlaneAndLine(Editor->World->Vertices[VertOnFace].P,
+                              *PlaneNormal, WP, WR, PlanePoint);
     }
     else
     {
@@ -551,8 +583,8 @@ DoBlockTool(editor *Editor)
             ScreenPointToWorldPointAndRay(Editor->ViewportMouseP, Editor->RenderAPI, &WP, &WR);
 
             vec3 Intersection;
-            IntersectPlaneAndLineWithDirections(Editor->RectStartP, Editor->RectDrawPlaneN, 
-                                                WP, WR, &Intersection);
+            IntersectPlaneAndLine(Editor->RectStartP, Editor->RectDrawPlaneN, 
+                                  WP, WR, &Intersection);
 
             Editor->RectEndP = SnapToGrid(Editor, Intersection);
             vec3 StartToEnd = vec3(Editor->RectEndP - Editor->RectStartP);
@@ -625,7 +657,7 @@ DoBlockTool(editor *Editor)
         ScreenPointToWorldPointAndRay(Editor->ViewportMouseP, Editor->RenderAPI, &WP, &WR);
 
         vec3 Intersection;
-        IntersectPlaneAndLineWithDirections(PlaneP, PlaneN, WP, WR, &Intersection);
+        IntersectPlaneAndLine(PlaneP, PlaneN, WP, WR, &Intersection);
 
         real32 TrueHeightComp = Dot((Intersection - Editor->RectEndP), DrawingSurfaceN);
         Editor->BlockDrawHeight = TrueHeightComp * DrawingSurfaceN;
@@ -825,8 +857,8 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
     EnterNextMode(Editor);
     ResetGrid(Editor);
 
-    if (Input->KBController.ActionUp.EndedDown && 
-        Input->KBController.ActionUp.HalfTransitionCount > 0)
+    if (Input->KeyboardState->KbState[KB_UP].EndedDown && 
+        Input->KeyboardState->KbState[KB_UP].HalfTransitionCount > 0)
     {
         for (u32 VertIndex = 0; VertIndex < ArrayCount(World->Vertices); ++VertIndex)
         {
@@ -843,25 +875,38 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
         GuiState->TooltipTimer = 0.f;
     }
 
-    if (Input->KBController.ActionLeft.EndedDown &&
-        Input->KBController.ActionLeft.HalfTransitionCount > 0)
+    if (Input->KeyboardState->KbState[KB_LEFT].EndedDown &&
+        Input->KeyboardState->KbState[KB_LEFT].HalfTransitionCount > 0)
     {
         bool32 ValidUndo = UndoWorldState(Editor->UndoStack, World,
                                           &Editor->EditorMemory, RenderAPI);
+
         SetGuiTooltipWithUndoState(GuiState, Editor->UndoStack);
         GuiState->TooltipTimer = 1.f;
 
         // NOTE(Kevin): Reset tool sub-modes
         Editor->BlockToolStage = 0;
+        // TODO(Kevin): Rather than clearing selection, selection changes should
+        //              also be added to the undo stack, but without using up entire
+        //              world_mesh state.
+        ClearSelection(Editor);
     }
 
-    if (Input->KBController.ActionRight.EndedDown &&
-        Input->KBController.ActionRight.HalfTransitionCount > 0)
+    if (Input->KeyboardState->KbState[KB_RIGHT].EndedDown &&
+        Input->KeyboardState->KbState[KB_RIGHT].HalfTransitionCount > 0)
     {
         bool32 ValidRedo = RedoWorldState(Editor->UndoStack, World,
                                           &Editor->EditorMemory, RenderAPI);
+
         SetGuiTooltipWithUndoState(GuiState, Editor->UndoStack);
         GuiState->TooltipTimer = 1.f;
+
+        // NOTE(Kevin): Reset tool sub-modes
+        Editor->BlockToolStage = 0;
+        // TODO(Kevin): Rather than clearing selection, selection changes should
+        //              also be added to the undo stack, but without using up entire
+        //              world_mesh state.
+        ClearSelection(Editor);
     }
 
     Editor->EdgeUnderMouse = 0;
@@ -875,6 +920,27 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
                 break;
             case SelectFace:
                 Editor->FaceUnderMouse = PickFace(Editor);
+
+                if (Editor->ViewportLMBWentDown)
+                {
+                    if (Editor->FaceUnderMouse > 0)
+                    {
+                        s32 FoundIndex = IsFaceSelected(Editor, Editor->FaceUnderMouse);
+
+                        if (FoundIndex < 0 )
+                        {
+                            if (Editor->FaceSelectionCount < ArrayCount(Editor->FaceSelection))
+                            {
+                                Editor->FaceSelection[Editor->FaceSelectionCount++] = Editor->FaceUnderMouse;
+                            }
+                        }
+                        else
+                        {
+                            Editor->FaceSelection[FoundIndex] = Editor->FaceSelection[--Editor->FaceSelectionCount];
+                        }
+                    }
+                }
+
                 break;
             case BlockTool:
             default:
@@ -893,6 +959,23 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
         case SelectEdge:
             break;
         case SelectFace:
+
+            if (Editor->FaceSelectionCount > 0)
+            {
+                if (Input->KeyboardState->KbState[KB_P].EndedDown &&
+                    Input->KeyboardState->KbState[KB_P].HalfTransitionCount > 0)
+                {
+                    for (u32 Index = 0; Index < Editor->FaceSelectionCount; ++Index)
+                    {
+                        face_index SelectedFace = Editor->FaceSelection[Index];
+                        ReverseFaceLoop(World, SelectedFace);
+                        DeleteFaceRenderMesh(World, SelectedFace, RenderAPI);
+                    }
+
+                    PushWorldStateToUndoStack(Editor->UndoStack, World);
+                }
+            }
+
             break;
         case BlockTool:
             DoBlockTool(Editor);
@@ -937,9 +1020,20 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
     for (u32 FaceIndex = 0; FaceIndex < ArrayCount(World->Faces); ++FaceIndex)
     {
         // TODO(Kevin): Turn off backface culling only for the hovered face...
-        vec3 Color = FaceIndex == Editor->FaceUnderMouse ?
-                     vec3(1, 0, 0) :
-                     GetDebugColor3(FaceIndex);
+        vec3 Color = GetDebugColor3(FaceIndex);
+
+        s32 FoundIndex = IsFaceSelected(Editor, FaceIndex);
+
+        if (FaceIndex == Editor->FaceUnderMouse)
+        {
+            Color = vec3(1, 0, 0);
+        }
+
+        if (FoundIndex >= 0)
+        {
+            Color = vec3(0.5, 0, 0);
+        }
+
         DrawFace(Editor, FaceIndex, Color);
     }
 

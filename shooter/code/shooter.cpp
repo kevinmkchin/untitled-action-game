@@ -43,7 +43,7 @@ GameOutputSound(game_state *GameState, game_sound_output_buffer *SoundBuffer, in
 }
 
 internal kbm_input
-MakeKBMInput(game_input *Input)
+MakeKBMInput(game_input *Input, debug_keyboard_input *KeyboardState)
 {
     game_button_state LMB = Input->MouseButtons[0];
     game_button_state RMB = Input->MouseButtons[1];
@@ -59,7 +59,8 @@ MakeKBMInput(game_input *Input)
     Result.RMBIsDown = RMB.EndedDown;
     Result.RMBWentDown = (RMB.EndedDown && RMB.HalfTransitionCount > 0);
     Result.RMBWentUp = (!RMB.EndedDown && RMB.HalfTransitionCount > 0);
-    Result.KBController = Input->Controllers[0];
+
+    Result.KeyboardState = KeyboardState;
 
     return Result;
 }
@@ -836,7 +837,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     //
     // Input
     //
-    kbm_input KBMInput = MakeKBMInput(Input);
+    debug_keyboard_input *KeyboardState = Memory->PlatformAPI.GetKeyboardState();
+    kbm_input KBMInput = MakeKBMInput(Input, KeyboardState);
 
     for (int ControllerIndex = 0;
          ControllerIndex < ArrayCount(Input->Controllers);
