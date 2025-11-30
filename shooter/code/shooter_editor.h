@@ -14,15 +14,24 @@ enum editor_mode
     NothingMode,
 
     SelectEdge,
+    ExtrudeEdgesTool,
+
     SelectFace,
+
     BlockTool,
     PolygonTool,
 };
 
+struct undo_state
+{
+    world_mesh World;
+    editor_mode ActiveMode;
+    // TODO(Kevin): Undo should also contain selection info and other editor state
+};
+
 struct undo_stack
 {
-    // TODO(Kevin): Undo should also contain selection info and other editor state
-    world_mesh WorldStates[20];
+    undo_state WorldStates[20];
     u32 StackP;
     u32 MostRecentP;
     u32 HistoryStartP;
@@ -32,6 +41,13 @@ struct element_selection
 {
     u32 Selection[16];
     u32 SelectionCount;
+};
+
+struct freeable_lovec3
+{
+    freeable_block Freeable;
+    vec3 *List;
+    u32 Count;
 };
 
 struct editor
@@ -48,16 +64,19 @@ struct editor
     element_selection FaceSelection;
     element_selection EdgeSelection;
 
+    bool32 CanViewportManip;
     vec2 ViewportMouseP;
     bool32 ViewportLMBIsDown;
     bool32 ViewportLMBWentDown;
     bool32 ViewportLMBWentUp;
+    debug_keyboard_input *KeyboardState;
 
     vec3 CameraDirection;
     vec3 WorldViewportP;
 
     editor_mode ActiveMode;
     editor_mode QueuedMode;
+    editor_mode PrevMode;
 
     edge_index EdgeUnderMouse;
     face_index FaceUnderMouse;
@@ -74,10 +93,21 @@ struct editor
     vec3 RectDrawBasisUAxis;
     vec3 RectDrawBasisVAxis;
     vec3 BlockDrawHeight;
+
+    vec3 EEDragOriginP;
+    freeable_lovec3 EEVertOldPs;
+
+    freeable_loi WorkingSetVerts;
+    freeable_loi WorkingSetEdges;
+    freeable_loi WorkingSetFaces;
 };
 
 internal void
 EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *GuiState,
                       kbm_input *Input, renderer *RenderAPI, real32 dt);
+
+internal void
+EnterNextMode(editor *Editor);
+
 
 #endif // SHOOTER_EDITOR_H

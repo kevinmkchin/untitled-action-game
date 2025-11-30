@@ -143,8 +143,18 @@ ReverseFaceLoop(world_mesh *Mesh, face_index Face);
 
 */
 
+struct freeable_loi // list of indices
+{
+    freeable_block Freeable;
+    u32 *Indices;
+    u32 Count;
+};
+
 internal void
-ExtrudeEdges(world_mesh *Mesh, edge_index *Edges, u32 EdgesCount);
+ExtrudeEdges(world_mesh *Mesh, edge_index *Edges, u32 EdgesCount, 
+             freeable_loi *OutCreatedVerts,
+             freeable_loi *OutCreatedEdges,
+             freeable_loi *OutCreatedFaces);
 
 // ExtrudeFace
 // RingCut / Slice

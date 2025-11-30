@@ -134,8 +134,8 @@ TriangulateAndUploadFaces(world_mesh *World, memory_blocks *EditorMemory, render
                     Face->RenderMesh = RenderAPI->UploadMeshData(FaceMesh.VB, FaceMesh.VC,
                                                                  FaceMesh.IB, FaceMesh.IC);
                 }
-                FreeBlock(EditorMemory, FaceMesh.VB);
-                FreeBlock(EditorMemory, FaceMesh.IB);
+                FreeBlock(EditorMemory, &FaceMesh.VB);
+                FreeBlock(EditorMemory, &FaceMesh.IB);
             }
         }
     }
@@ -157,7 +157,7 @@ PrevUndoIndex(u32 Index)
 }
 
 internal bool32
-UndoWorldState(undo_stack *Undo, world_mesh *World, 
+UndoWorldState(editor *Editor, undo_stack *Undo, world_mesh *World, 
                memory_blocks *EditorMemory, renderer *RenderAPI)
 {
     if (Undo->StackP != Undo->HistoryStartP)
@@ -165,7 +165,11 @@ UndoWorldState(undo_stack *Undo, world_mesh *World,
         DeleteAllFaceRenderMeshes(World, RenderAPI);
 
         Undo->StackP = PrevUndoIndex(Undo->StackP);
-        Copy(World, &(Undo->WorldStates[Undo->StackP]), sizeof(world_mesh));
+
+        undo_state *State = &(Undo->WorldStates[Undo->StackP]);
+        Copy(World, &State->World, sizeof(world_mesh));
+        Editor->QueuedMode = State->ActiveMode;
+        EnterNextMode(Editor);
 
         TriangulateAndUploadFaces(World, EditorMemory, RenderAPI);
 
@@ -178,7 +182,7 @@ UndoWorldState(undo_stack *Undo, world_mesh *World,
 }
 
 internal bool32
-RedoWorldState(undo_stack *Undo, world_mesh *World,
+RedoWorldState(editor *Editor, undo_stack *Undo, world_mesh *World,
                memory_blocks *EditorMemory, renderer *RenderAPI)
 {
     if (Undo->StackP != Undo->MostRecentP)
@@ -186,7 +190,11 @@ RedoWorldState(undo_stack *Undo, world_mesh *World,
         DeleteAllFaceRenderMeshes(World, RenderAPI);
 
         Undo->StackP = NextUndoIndex(Undo->StackP);
-        Copy(World, &(Undo->WorldStates[Undo->StackP]), sizeof(world_mesh));
+
+        undo_state *State = &(Undo->WorldStates[Undo->StackP]);
+        Copy(World, &State->World, sizeof(world_mesh));
+        Editor->QueuedMode = State->ActiveMode;
+        EnterNextMode(Editor);
 
         TriangulateAndUploadFaces(World, EditorMemory, RenderAPI);
 
@@ -199,7 +207,7 @@ RedoWorldState(undo_stack *Undo, world_mesh *World,
 }
 
 internal void
-PushWorldStateToUndoStack(undo_stack *Undo, world_mesh *World)
+PushWorldStateToUndoStack(undo_stack *Undo, world_mesh *World, editor_mode ActiveMode)
 {
     u32 NextStackP = NextUndoIndex(Undo->StackP);
 
@@ -219,8 +227,9 @@ PushWorldStateToUndoStack(undo_stack *Undo, world_mesh *World)
     Undo->StackP = NextStackP;
     Undo->MostRecentP = NextStackP;
 
-    world_mesh *PushedState = &(Undo->WorldStates[Undo->StackP]);
-    Copy(PushedState, World, sizeof(world_mesh));
+    undo_state *PushedState = &(Undo->WorldStates[Undo->StackP]);
+    Copy(&PushedState->World, World, sizeof(world_mesh));
+    PushedState->ActiveMode = ActiveMode;
 
     // NOTE(Kevin): Rather than keeping all the hw meshes of the undo states alive
     //              (which would require lifetime management i.e. determine whether
@@ -232,9 +241,9 @@ PushWorldStateToUndoStack(undo_stack *Undo, world_mesh *World)
     //              time. Only dirty faces need to be deleted/recreated on modifications.
     //              This keeps modifications snappy, while undo/redo action takes longer.
     // NOTE(Kevin): Don't push any hw mesh handles to undo stack
-    for (u32 FaceIndex = 0; FaceIndex < ArrayCount(PushedState->Faces); ++FaceIndex)
+    for (u32 FaceIndex = 0; FaceIndex < ArrayCount(PushedState->World.Faces); ++FaceIndex)
     {
-        mesh_face *Face = &PushedState->Faces[FaceIndex];
+        mesh_face *Face = &PushedState->World.Faces[FaceIndex];
         Face->RenderMesh = 0;
     }
 }
@@ -354,22 +363,56 @@ EnterNextMode(editor *Editor)
         case SelectEdge:
             ClearSelection(&Editor->EdgeSelection);
             break;
+
         case SelectFace:
             ClearSelection(&Editor->FaceSelection);
             break;
+
+        case ExtrudeEdgesTool:
+        {
+            FreeFreeableBlock(&Editor->EEVertOldPs.Freeable);
+            Editor->EEVertOldPs.Count = 0;
+            FreeFreeableBlock(&Editor->WorkingSetVerts.Freeable);
+            Editor->WorkingSetVerts.Count = 0;
+            FreeFreeableBlock(&Editor->WorkingSetEdges.Freeable);
+            Editor->WorkingSetEdges.Count = 0;
+            FreeFreeableBlock(&Editor->WorkingSetFaces.Freeable);
+            Editor->WorkingSetFaces.Count = 0;
+        } break;
+
         case BlockTool:
-        case PolygonTool:
+            Editor->BlockToolStage = 0;
             break;
     }
 
+    Editor->PrevMode = Editor->ActiveMode;
     Editor->ActiveMode = Editor->QueuedMode;
     Editor->QueuedMode = NothingMode;
 
     // Activate new mode
     switch (Editor->ActiveMode)
     {
-        case BlockTool:
-        case PolygonTool:
+        case ExtrudeEdgesTool:
+        {
+            Assert(Editor->WorkingSetVerts.Count > 0);
+            Editor->EEVertOldPs.List = AllocArray(&Editor->EditorMemory, Editor->WorkingSetVerts.Count, vec3);
+            Editor->EEVertOldPs.Freeable.Block = Editor->EEVertOldPs.List;
+            Editor->EEVertOldPs.Freeable.Allocator = &Editor->EditorMemory;
+
+            for (u32 I = 0; I < Editor->WorkingSetVerts.Count; ++I)
+            {
+                vert_index V = Editor->WorkingSetVerts.Indices[I];
+                mesh_vert WV = Editor->World->Vertices[V];
+                Editor->EEVertOldPs.List[Editor->EEVertOldPs.Count++] = WV.P;
+            }
+
+            vec3 WP, WR;
+            ScreenPointToWorldPointAndRay(Editor->ViewportMouseP, Editor->RenderAPI, &WP, &WR);
+            IntersectPlaneAndLineWithDirections(Editor->EEVertOldPs.List[0], -Editor->CameraDirection,
+                                                WP, WR, &Editor->EEDragOriginP);
+        } break;
+
+        case NothingMode:
             break;
     }
 }
@@ -559,6 +602,85 @@ MakeEditableRectangle(world_mesh *World, vec3 RectStartPoint, vec3 RectEndPoint,
 }
 
 internal void
+DoExtrudeEdgesTool(editor *Editor, gui_state *GuiState)
+{
+    // NOTE(Kevin): Edges are already extruded and working sets populated
+
+    // TODO(Kevin): If press flip, then flip faces
+
+    if (Editor->CanViewportManip)
+    {
+        bool32 DoVerticalTranslate = Editor->KeyboardState->KbState[KB_ALT].EndedDown;
+
+        vec3 TotalTranslation = {};
+        vec3 DragOriginP = Editor->EEDragOriginP;
+
+        vec3 WP, WR;
+        ScreenPointToWorldPointAndRay(Editor->ViewportMouseP, Editor->RenderAPI, &WP, &WR);
+
+        if (DoVerticalTranslate)
+        {
+            vec3 Intersection;
+            IntersectPlaneAndLineWithDirections(DragOriginP,
+                                                vec3(-Editor->CameraDirection.X, 0.f, -Editor->CameraDirection.Z), 
+                                                WP, WR, &Intersection);
+            real32 dY = Dot((Intersection - DragOriginP), GMATH_UP);
+            TotalTranslation = { 0, dY, 0 };
+            TotalTranslation = SnapToGrid(Editor, TotalTranslation);
+        }
+        else
+        {
+            vec3 Intersection;
+            IntersectPlaneAndLine(DragOriginP, GMATH_UP, WP, WR, &Intersection);
+            TotalTranslation = Intersection - DragOriginP;
+            TotalTranslation = SnapToGrid(Editor, TotalTranslation);
+        }
+
+        if (DoVerticalTranslate)
+        {
+            Editor->RenderAPI->PushLine(DragOriginP, DragOriginP + TotalTranslation, vec4(0,0.8f,0,1), 1);
+
+            GuiTextFmt(GuiState, s32(Editor->ViewportMouseP.X+3), s32(Editor->ViewportMouseP.Y+3),
+                       GuiFontCambria40, 1.0f, Align_Left, false, vec4(1,1,1,1),
+                       "Y: %f", TotalTranslation.Y);
+        }
+        else
+        {
+            Editor->RenderAPI->PushLine(DragOriginP+TotalTranslation, DragOriginP + vec3(0,0,TotalTranslation.Z),
+                                       vec4(0.8f,0,0,1), 1);
+            Editor->RenderAPI->PushLine(DragOriginP+TotalTranslation, DragOriginP + vec3(TotalTranslation.X,0,0),
+                                       vec4(0,0,0.8f,1), 1);
+
+            GuiTextFmt(GuiState, s32(Editor->ViewportMouseP.X+3), s32(Editor->ViewportMouseP.Y+3),
+                       GuiFontCambria40, 1.0f, Align_Left, false, vec4(1,1,1,1),
+                       "X: %f\nZ:%f", TotalTranslation.X, TotalTranslation.Z);
+        }
+
+        for (u32 I = 0; I < Editor->WorkingSetVerts.Count; ++I)
+        {
+            vert_index V = Editor->WorkingSetVerts.Indices[I];
+            mesh_vert *WV = &Editor->World->Vertices[V];
+            vec3 OldP = Editor->EEVertOldPs.List[I];
+            vec3 NewP = OldP + TotalTranslation;
+            WV->P = NewP;
+        }
+
+        for (u32 Index = 0; Index < Editor->WorkingSetFaces.Count; ++Index)
+        {
+            face_index Face = Editor->WorkingSetFaces.Indices[Index];
+            DeleteFaceRenderMesh(Editor->World, Face, Editor->RenderAPI);
+        }
+
+        if (Editor->ViewportLMBWentUp)
+        {
+            Editor->QueuedMode = Editor->PrevMode;
+
+            PushWorldStateToUndoStack(Editor->UndoStack, Editor->World, Editor->PrevMode);
+        }
+    }
+}
+
+internal void
 DoBlockTool(editor *Editor)
 {
     // TODO(Kevin): Can't use block tool if about to exceed face/elements limit!
@@ -589,14 +711,18 @@ DoBlockTool(editor *Editor)
 
         if (Editor->ViewportLMBIsDown || Editor->ViewportLMBWentUp)
         {
-            vec3 WP, WR;
-            ScreenPointToWorldPointAndRay(Editor->ViewportMouseP, Editor->RenderAPI, &WP, &WR);
+            if (Editor->CanViewportManip)
+            {
+                vec3 WP, WR;
+                ScreenPointToWorldPointAndRay(Editor->ViewportMouseP, Editor->RenderAPI, &WP, &WR);
 
-            vec3 Intersection;
-            IntersectPlaneAndLine(Editor->RectStartP, Editor->RectDrawPlaneN, 
-                                  WP, WR, &Intersection);
+                vec3 Intersection;
+                IntersectPlaneAndLine(Editor->RectStartP, Editor->RectDrawPlaneN, 
+                                      WP, WR, &Intersection);
 
-            Editor->RectEndP = SnapToGrid(Editor, Intersection);
+                Editor->RectEndP = SnapToGrid(Editor, Intersection);
+            }
+
             vec3 StartToEnd = vec3(Editor->RectEndP - Editor->RectStartP);
             vec3 StartToEndAlongBasisU = Dot(StartToEnd, Editor->RectDrawBasisUAxis) *
                                          Editor->RectDrawBasisUAxis;
@@ -777,7 +903,7 @@ DoBlockTool(editor *Editor)
 
             Editor->BlockToolStage = 0;
 
-            PushWorldStateToUndoStack(Editor->UndoStack, Editor->World);
+            PushWorldStateToUndoStack(Editor->UndoStack, Editor->World, Editor->ActiveMode);
         }
 
         // if (AppState->KeysPressed[SDL_SCANCODE_ESCAPE])
@@ -855,7 +981,7 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
         Editor->UndoStack = AllocStruct(&Editor->EditorMemory, undo_stack);
         // NOTE(Kevin): Push initial world state to undo stack
         TriangulateAndUploadFaces(World, &Editor->EditorMemory, RenderAPI);
-        PushWorldStateToUndoStack(Editor->UndoStack, World);
+        PushWorldStateToUndoStack(Editor->UndoStack, World, Editor->ActiveMode);
         Editor->UndoStack->HistoryStartP = Editor->UndoStack->StackP;
 
         Editor->GridIncrement = (real32)STANDARD_LENGTH_IN_GAME_UNITS;
@@ -868,6 +994,7 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
         Editor->IsInitialized = true;
     }
 
+    Editor->CanViewportManip = !Input->MouseCaptured && !GuiState->Hovered;
     Editor->ViewportMouseP = { (real32)Input->MouseX, (real32)Input->MouseY };
     Editor->ViewportLMBWentDown = false;
     if (!GuiState->Hovered)
@@ -886,51 +1013,35 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
         GuiState->Input.MouseX = -1000;
         GuiState->Input.MouseY = -1000;
     }
+    Editor->KeyboardState = Input->KeyboardState;
 
     Editor->CameraDirection = GameState->Camera.ViewForward;
     Editor->WorldViewportP = GameState->Camera.ViewPosition;
-    EnterNextMode(Editor);
     ResetGrid(Editor);
 
-    if (Input->KeyboardState->KbState[KB_UP].EndedDown && 
-        Input->KeyboardState->KbState[KB_UP].HalfTransitionCount > 0)
-    {
-        for (u32 VertIndex = 0; VertIndex < ArrayCount(World->Vertices); ++VertIndex)
-        {
-            mesh_vert *Vert = &World->Vertices[VertIndex];
-            Vert->P += vec3(0, 16, 0);
-        }
-
-        // TODO(Kevin): Only need to delete+recreate the dirty faces, but right now its all dirty
-        DeleteAllFaceRenderMeshes(World, RenderAPI);
-        TriangulateAndUploadFaces(World, &Editor->EditorMemory, RenderAPI);
-
-        // NOTE(Kevin): Create snapshot of world after changes/modification
-        PushWorldStateToUndoStack(Editor->UndoStack, World);
-        GuiState->TooltipTimer = 0.f;
-    }
+    // NOTE(Kevin): Should EnterNextMode before undo/redo because undo/redo will overwrite QueuedMode
+    EnterNextMode(Editor);
 
     if (Input->KeyboardState->KbState[KB_LEFT].EndedDown &&
         Input->KeyboardState->KbState[KB_LEFT].HalfTransitionCount > 0)
     {
-        bool32 ValidUndo = UndoWorldState(Editor->UndoStack, World,
+        bool32 ValidUndo = UndoWorldState(Editor, Editor->UndoStack, World,
                                           &Editor->EditorMemory, RenderAPI);
 
         SetGuiTooltipWithUndoState(GuiState, Editor->UndoStack);
         GuiState->TooltipTimer = 1.f;
 
+        // TODO(Kevin): Perhaps, if we are in tool sub-mode (e.g. block tool stage > 0 or
+        //              ExtrudeEdgeTool, then instead of performing undo we can just reset?
+        //              BlockToolStage = 0 or go back to prev mode
         // NOTE(Kevin): Reset tool sub-modes
         Editor->BlockToolStage = 0;
-        // TODO(Kevin): Rather than clearing selection, selection changes should
-        //              also be added to the undo stack, but without using up entire
-        //              world_mesh state.
-        ClearAllSelection(Editor);
     }
 
     if (Input->KeyboardState->KbState[KB_RIGHT].EndedDown &&
         Input->KeyboardState->KbState[KB_RIGHT].HalfTransitionCount > 0)
     {
-        bool32 ValidRedo = RedoWorldState(Editor->UndoStack, World,
+        bool32 ValidRedo = RedoWorldState(Editor, Editor->UndoStack, World,
                                           &Editor->EditorMemory, RenderAPI);
 
         SetGuiTooltipWithUndoState(GuiState, Editor->UndoStack);
@@ -938,15 +1049,12 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
 
         // NOTE(Kevin): Reset tool sub-modes
         Editor->BlockToolStage = 0;
-        // TODO(Kevin): Rather than clearing selection, selection changes should
-        //              also be added to the undo stack, but without using up entire
-        //              world_mesh state.
-        ClearAllSelection(Editor);
     }
+
 
     Editor->EdgeUnderMouse = 0;
     Editor->FaceUnderMouse = 0;
-    if (!Input->MouseCaptured && !GuiState->Hovered)
+    if (Editor->CanViewportManip)
     {
         switch (Editor->ActiveMode)
         {
@@ -984,13 +1092,30 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
         // case MOVE_POINT_ENTITY:
         //     DoMovePointEntity();
         //     break;
+
         case SelectEdge:
+        {
+            if (Input->KeyboardState->KbState[KB_E].EndedDown &&
+                Input->KeyboardState->KbState[KB_E].HalfTransitionCount > 0)
+            {
+                if (Editor->EdgeSelection.SelectionCount > 0)
+                {
+                    PushWorldStateToUndoStack(Editor->UndoStack, Editor->World, Editor->ActiveMode);
 
-            // TODO(Kevin): Extrude edges
+                    edge_index *ToExtrude = Editor->EdgeSelection.Selection;
+                    u32 ToExtrudeCount = Editor->EdgeSelection.SelectionCount;
+                    ExtrudeEdges(World, ToExtrude, ToExtrudeCount,
+                                 &Editor->WorkingSetVerts,
+                                 &Editor->WorkingSetEdges,
+                                 &Editor->WorkingSetFaces);
 
-            break;
+                    Editor->QueuedMode = ExtrudeEdgesTool;
+                }
+            }
+        } break;
+
         case SelectFace:
-
+        {
             if (Input->KeyboardState->KbState[KB_P].EndedDown &&
                 Input->KeyboardState->KbState[KB_P].HalfTransitionCount > 0)
             {
@@ -1003,14 +1128,19 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
                         DeleteFaceRenderMesh(World, SelectedFace, RenderAPI);
                     }
 
-                    PushWorldStateToUndoStack(Editor->UndoStack, World);
+                    PushWorldStateToUndoStack(Editor->UndoStack, World, Editor->ActiveMode);
                 }
             }
+        } break;
 
+        case ExtrudeEdgesTool:
+            DoExtrudeEdgesTool(Editor, GuiState);
             break;
+
         case BlockTool:
             DoBlockTool(Editor);
             break;
+
         case NothingMode:
         default:
             break;

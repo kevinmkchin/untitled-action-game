@@ -312,8 +312,8 @@ CreateFace(world_mesh *Mesh, edge_index *Edges, u32 EdgeCount)
     Mesh->Faces[Result].Alive = true;
     Mesh->Faces[Result].RenderMesh = 0;
 
-    FreeBlock(Mesh->Memory, UnprocessedEdges);
-    FreeBlock(Mesh->Memory, OrderedEdges);
+    FreeBlock(Mesh->Memory, &UnprocessedEdges);
+    FreeBlock(Mesh->Memory, &OrderedEdges);
 
     return Result;
 }
@@ -392,7 +392,7 @@ SplitEdgeMakeVert(world_mesh *Mesh, edge_index OldEdge, float t)
         MeshFace(MeshLoop(NewLoop).Face).LoopCycleLen += 1;
     }
 
-    FreeBlock(Mesh->Memory, RadialCycleCopy);
+    FreeBlock(Mesh->Memory, &RadialCycleCopy);
 
     return CreatedVert;
 }
@@ -503,12 +503,37 @@ ExtrudeEdgesHelper_CreateEdge(world_mesh *Mesh, vert_index A, vert_index B,
 }
 
 internal void
-ExtrudeEdges(world_mesh *Mesh, edge_index *Edges, u32 EdgesCount)
+ExtrudeEdges(world_mesh *Mesh, edge_index *Edges, u32 EdgesCount,
+             freeable_loi *OutCreatedVerts,
+             freeable_loi *OutCreatedEdges,
+             freeable_loi *OutCreatedFaces)
 {
     /*  NOTE(Kevin): Take an array of edges, not necessarily connected.
                      Duplicate an edge, form edge between new and old vertices.
                      Use the 4 edges to form a new face.
     */
+
+    if (OutCreatedVerts->Freeable.Block != 0)
+    {
+        FreeBlock(OutCreatedVerts->Freeable.Allocator, &OutCreatedVerts->Freeable.Block);
+        // TODO(Kevin): Logging warning
+    }
+    if (OutCreatedEdges->Freeable.Block != 0)
+    {
+        FreeBlock(OutCreatedEdges->Freeable.Allocator, &OutCreatedEdges->Freeable.Block);
+        // TODO(Kevin): Logging warning
+    }
+    if (OutCreatedFaces->Freeable.Block != 0)
+    {
+        FreeBlock(OutCreatedFaces->Freeable.Allocator, &OutCreatedFaces->Freeable.Block);
+        // TODO(Kevin): Logging warning
+    }
+
+    Assert(OutCreatedFaces && OutCreatedFaces->Freeable.Block == 0);
+    OutCreatedFaces->Indices = AllocArray(Mesh->Memory, EdgesCount, face_index);
+    OutCreatedFaces->Count = 0;
+    OutCreatedFaces->Freeable.Block = OutCreatedFaces->Indices;
+    OutCreatedFaces->Freeable.Allocator = Mesh->Memory;
 
     vert_index *VisitedVertices = AllocArray(Mesh->Memory, EdgesCount*2, vert_index);
     u32 VisitedVerticesCount = 0;
@@ -536,11 +561,21 @@ ExtrudeEdges(world_mesh *Mesh, edge_index *Edges, u32 EdgesCount)
 
         edge_index FaceEdges[] = { EdgeAB, EdgeBB, EdgeBA, EdgeAA };
         face_index Face = CreateFace(Mesh, FaceEdges, ArrayCount(FaceEdges));
+
+        OutCreatedFaces->Indices[OutCreatedFaces->Count++] = Face;
     }
 
-    FreeBlock(Mesh->Memory, VisitedVertices);
-    FreeBlock(Mesh->Memory, CreatedVertices);
-    FreeBlock(Mesh->Memory, CreatedEdges);
+    FreeBlock(Mesh->Memory, &VisitedVertices);
+
+    OutCreatedVerts->Indices = CreatedVertices;
+    OutCreatedVerts->Count = CreatedVerticesCount;
+    OutCreatedVerts->Freeable.Block = CreatedVertices;
+    OutCreatedVerts->Freeable.Allocator = Mesh->Memory;
+
+    OutCreatedEdges->Indices = CreatedEdges;
+    OutCreatedEdges->Count = CreatedEdgesCount;
+    OutCreatedEdges->Freeable.Block = CreatedEdges;
+    OutCreatedEdges->Freeable.Allocator = Mesh->Memory;
 }
 
 internal vec3
@@ -577,7 +612,7 @@ GetFaceNormal(world_mesh *Mesh, face_index FaceIndex)
 
     vec3 Result = GetFaceNormal(Points, Face.LoopCycleLen);
 
-    FreeBlock(Mesh->Memory, Points);
+    FreeBlock(Mesh->Memory, &Points);
 
     return Result;
 }
@@ -701,7 +736,7 @@ EarClippingTriangulationCCW(memory_blocks *Memory, vec3 *Points, u32 PointCount,
     *Triangles = TriangleIndices;
     *IndicesCount = TriangleIndicesCount;
 
-    FreeBlock(Memory, Points2D);
+    FreeBlock(Memory, &Points2D);
 }
 
 internal vertex_buffer
@@ -785,8 +820,8 @@ TriangulateEditMeshFace(memory_blocks *Memory, world_mesh *World, face_index Fac
         Result.IB = Triangles;
         Result.IC = IndicesCount;
 
-        FreeBlock(Memory, Points);
-        FreeBlock(Memory, LMUVs);
+        FreeBlock(Memory, &Points);
+        FreeBlock(Memory, &LMUVs);
     }
 
     return Result;

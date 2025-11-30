@@ -147,15 +147,7 @@ SubArena(memory_arena *Result, memory_arena *Arena, memory_index Size, memory_in
     Result->TempCount = 0;
 }
 
-/*
-    Memory blocks
-
-    - Simple fixed-size general purpose memory allocator designed by me
-    - Uses doubly linked list track free blocks of memory
-    - Each block is aware of its own size and the size of the block to its left
-    - Every non-left-most block is guaranteed to have a valid block to its left
-    - Blocks merge with adjacent blocks upon freeing
-*/
+// ------------------------------------------------------------------------------------------------
 
 struct memory_blocks
 {
@@ -174,6 +166,19 @@ struct memory_blocks
     header *FreeListHead;
     header *FreeListTail;
 };
+/*
+    Memory blocks
+
+    - My simple fixed-size general purpose memory allocator
+    - Uses doubly linked list track free blocks of memory
+    - Each block is aware of its own size and the size of the block to its left
+    - Every non-left-most block is guaranteed to have a valid block to its left
+    - Blocks merge with adjacent blocks upon freeing
+
+    - O(1) allocation if all entries are same size, otherwise requires traversing free list
+    - O(1) free always
+
+*/
 
 #define MEMBLOCKALIGNMENT 16
 #define MEMBLOCKALIGN(Size) (((Size) + (MEMBLOCKALIGNMENT - 1)) & ~(MEMBLOCKALIGNMENT - 1))
@@ -183,7 +188,16 @@ struct memory_blocks
 #define AllocStruct(MemBlocks, type) (type *)MemBlocksAlloc(MemBlocks, sizeof(type))
 #define AllocArray(MemBlocks, Count, type) (type *)MemBlocksAlloc(MemBlocks, sizeof(type)*Count)
 #define AllocSize(MemBlocks, Size) MemBlocksAlloc(MemBlocks, Size)
-#define FreeBlock(MemBlocks, Ptr) MemBlocksFree(MemBlocks, Ptr)
+/* Allocation helpers for memory block allocator. */
+#define FreeBlock(MemBlocks, PPtr) do { Assert(*PPtr); MemBlocksFree(MemBlocks, *PPtr); *PPtr = 0; } while (0);
+/* Takes a pointer to an address allocated with MemBlocksAlloc. */
+
+struct freeable_block
+{
+    memory_blocks *Allocator;
+    void *Block;
+};
+#define FreeFreeableBlock(FreeableBlock) FreeBlock((FreeableBlock)->Allocator, &(FreeableBlock)->Block);
 
 inline void
 InitializeMemoryBlocks(memory_blocks *Blocks, memory_index Size, void *Base)
