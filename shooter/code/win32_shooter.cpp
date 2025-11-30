@@ -656,6 +656,7 @@ Win32ProcessPendingMessages(win32_state *State, game_controller_input *KeyboardC
                     DEBUGGlobalMouseCaptured = false;
 
                     Win32ClearKeyboardEndedDownStates(KeyboardController);
+                    GlobalKeyboardState = {};
                 }
             } break;
 

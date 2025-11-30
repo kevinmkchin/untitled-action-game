@@ -308,13 +308,13 @@ SnapToGrid(editor *Editor, vec3 BeforeSnap)
 }
 
 internal s32
-IsFaceSelected(editor *Editor, face_index Face)
+IsElementSelected(element_selection *Selection, u32 ElementID)
 {
     s32 FoundIndex = -1;
 
-    for (u32 Index = 0; Index < Editor->FaceSelectionCount; ++Index)
+    for (u32 Index = 0; Index < Selection->SelectionCount; ++Index)
     {
-        if (Editor->FaceSelection[Index] == Face)
+        if (Selection->Selection[Index] == ElementID)
         {
             FoundIndex = Index;
             break;
@@ -325,9 +325,16 @@ IsFaceSelected(editor *Editor, face_index Face)
 }
 
 internal void
-ClearSelection(editor *Editor)
+ClearSelection(element_selection *Selection)
 {
-    Editor->FaceSelectionCount = 0;
+    Selection->SelectionCount = 0;
+}
+
+internal void
+ClearAllSelection(editor *Editor)
+{
+    ClearSelection(&Editor->FaceSelection);
+    ClearSelection(&Editor->EdgeSelection);
 }
 
 internal void
@@ -344,8 +351,11 @@ EnterNextMode(editor *Editor)
     // Deactivate active mode
     switch (Editor->ActiveMode)
     {
+        case SelectEdge:
+            ClearSelection(&Editor->EdgeSelection);
+            break;
         case SelectFace:
-            ClearSelection(Editor);
+            ClearSelection(&Editor->FaceSelection);
             break;
         case BlockTool:
         case PolygonTool:
@@ -778,6 +788,31 @@ DoBlockTool(editor *Editor)
 }
 
 internal void
+SelectElementWithMouseBehaviour(element_selection *Selection, u32 ElementID)
+{
+    if (ElementID > 0)
+    {
+        s32 FoundIndex = IsElementSelected(Selection, ElementID);
+
+        if (FoundIndex < 0 )
+        {
+            if (Selection->SelectionCount < ArrayCount(Selection->Selection))
+            {
+                Selection->Selection[Selection->SelectionCount++] = ElementID;
+            }
+        }
+        else
+        {
+            Selection->Selection[FoundIndex] = Selection->Selection[--Selection->SelectionCount];
+        }
+    }
+    else
+    {
+        ClearSelection(Selection);
+    }
+}
+
+internal void
 EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *GuiState,
                       kbm_input *Input, renderer *RenderAPI, real32 dt)
 {
@@ -889,7 +924,7 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
         // TODO(Kevin): Rather than clearing selection, selection changes should
         //              also be added to the undo stack, but without using up entire
         //              world_mesh state.
-        ClearSelection(Editor);
+        ClearAllSelection(Editor);
     }
 
     if (Input->KeyboardState->KbState[KB_RIGHT].EndedDown &&
@@ -906,7 +941,7 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
         // TODO(Kevin): Rather than clearing selection, selection changes should
         //              also be added to the undo stack, but without using up entire
         //              world_mesh state.
-        ClearSelection(Editor);
+        ClearAllSelection(Editor);
     }
 
     Editor->EdgeUnderMouse = 0;
@@ -916,32 +951,25 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
         switch (Editor->ActiveMode)
         {
             case SelectEdge:
+            {
                 Editor->EdgeUnderMouse = PickEdge(Editor);
-                break;
+
+                if (Editor->ViewportLMBWentDown)
+                {
+                    SelectElementWithMouseBehaviour(&Editor->EdgeSelection, Editor->EdgeUnderMouse);
+                }
+            } break;
+
             case SelectFace:
+            {
                 Editor->FaceUnderMouse = PickFace(Editor);
 
                 if (Editor->ViewportLMBWentDown)
                 {
-                    if (Editor->FaceUnderMouse > 0)
-                    {
-                        s32 FoundIndex = IsFaceSelected(Editor, Editor->FaceUnderMouse);
-
-                        if (FoundIndex < 0 )
-                        {
-                            if (Editor->FaceSelectionCount < ArrayCount(Editor->FaceSelection))
-                            {
-                                Editor->FaceSelection[Editor->FaceSelectionCount++] = Editor->FaceUnderMouse;
-                            }
-                        }
-                        else
-                        {
-                            Editor->FaceSelection[FoundIndex] = Editor->FaceSelection[--Editor->FaceSelectionCount];
-                        }
-                    }
+                    SelectElementWithMouseBehaviour(&Editor->FaceSelection, Editor->FaceUnderMouse);
                 }
+            } break;
 
-                break;
             case BlockTool:
             default:
                 break;
@@ -957,17 +985,20 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
         //     DoMovePointEntity();
         //     break;
         case SelectEdge:
+
+            // TODO(Kevin): Extrude edges
+
             break;
         case SelectFace:
 
-            if (Editor->FaceSelectionCount > 0)
+            if (Input->KeyboardState->KbState[KB_P].EndedDown &&
+                Input->KeyboardState->KbState[KB_P].HalfTransitionCount > 0)
             {
-                if (Input->KeyboardState->KbState[KB_P].EndedDown &&
-                    Input->KeyboardState->KbState[KB_P].HalfTransitionCount > 0)
+                if (Editor->FaceSelection.SelectionCount > 0)
                 {
-                    for (u32 Index = 0; Index < Editor->FaceSelectionCount; ++Index)
+                    for (u32 Index = 0; Index < Editor->FaceSelection.SelectionCount; ++Index)
                     {
-                        face_index SelectedFace = Editor->FaceSelection[Index];
+                        face_index SelectedFace = Editor->FaceSelection.Selection[Index];
                         ReverseFaceLoop(World, SelectedFace);
                         DeleteFaceRenderMesh(World, SelectedFace, RenderAPI);
                     }
@@ -1022,7 +1053,7 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
         // TODO(Kevin): Turn off backface culling only for the hovered face...
         vec3 Color = GetDebugColor3(FaceIndex);
 
-        s32 FoundIndex = IsFaceSelected(Editor, FaceIndex);
+        s32 FoundIndex = IsElementSelected(&Editor->FaceSelection, FaceIndex);
 
         if (FaceIndex == Editor->FaceUnderMouse)
         {
@@ -1040,9 +1071,23 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
     // RENDER EDGES
     for (u32 EdgeIndex = 0; EdgeIndex < ArrayCount(World->Edges); ++EdgeIndex)
     {
-        bool32 Hovered = EdgeIndex == Editor->EdgeUnderMouse;
-        vec4 Color = Hovered ? vec4(1,0,0,1) : vec4(0,1,1,1);
-        real32 Thickness = Hovered ? 8.f : 3.f;
+        vec4 Color = vec4(0, 1, 1, 1);
+        real32 Thickness = 3.f;
+
+        s32 FoundIndex = IsElementSelected(&Editor->EdgeSelection, EdgeIndex);
+
+        if (EdgeIndex == Editor->EdgeUnderMouse)
+        {
+            Color = vec4(1, 0, 0, 1);
+            Thickness = 8.f;
+        }
+
+        if (FoundIndex >= 0)
+        {
+            Color = vec4(0.5, 0, 0, 1);
+            Thickness = 6.f;
+        }
+
         DrawEdge(Editor, EdgeIndex, Color, Thickness);
     }
 
@@ -1068,6 +1113,10 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
         }
 
         EndWindow(&Window);
+
+        GuiTextFmt(GuiState, GuiState->CanvasW - 60, 80, GuiFontCambria40, 1.0f, Align_Right, false, vec4(1,1,1,1),
+                   "Selected: %d faces %d edges", Editor->FaceSelection.SelectionCount,
+                   Editor->EdgeSelection.SelectionCount);
 
 #if 0
         GuiPanel(GuiState, { GameState->Editor.EditorMouseX-5, 

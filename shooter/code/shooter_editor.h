@@ -28,6 +28,12 @@ struct undo_stack
     u32 HistoryStartP;
 };
 
+struct element_selection
+{
+    u32 Selection[16];
+    u32 SelectionCount;
+};
+
 struct editor
 {
     bool32 IsInitialized;
@@ -39,8 +45,8 @@ struct editor
 
     world_mesh *World;
 
-    face_index FaceSelection[16];
-    u32        FaceSelectionCount;
+    element_selection FaceSelection;
+    element_selection EdgeSelection;
 
     vec2 ViewportMouseP;
     bool32 ViewportLMBIsDown;

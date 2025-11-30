@@ -899,11 +899,11 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 {
                     PositionDelta += GameState->Camera.Right * MoveIncrement;
                 }
-                if (Controller->LeftShoulder.EndedDown)
+                if (GameState->EditorMode ? KeyboardState->KbState[KB_X].EndedDown : Controller->RightShoulder.EndedDown)
                 {
                     PositionDelta += -GMATH_UP * MoveIncrement;
                 }
-                if (Controller->RightShoulder.EndedDown)
+                if (GameState->EditorMode ? KeyboardState->KbState[KB_Q].EndedDown : Controller->LeftShoulder.EndedDown)
                 {
                     PositionDelta += GMATH_UP * MoveIncrement;
                 }
