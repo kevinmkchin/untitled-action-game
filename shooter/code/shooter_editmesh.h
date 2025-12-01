@@ -120,7 +120,7 @@ internal void
 KillEdge(world_mesh *Mesh, edge_index Edge);
 
 internal face_index
-CreateFace(world_mesh *Mesh, edge_index *Edges, u32 EdgeCount);
+CreateFace(world_mesh *Mesh, edge_index *Edges, u32 EdgeCount, vert_index HintLoopStart = 0);
 internal void
 KillFace(world_mesh *Mesh, face_index Face);
 

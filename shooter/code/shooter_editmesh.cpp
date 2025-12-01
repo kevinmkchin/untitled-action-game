@@ -214,7 +214,7 @@ KillEdge(world_mesh *Mesh, edge_index Edge)
 }
 
 internal face_index
-CreateFace(world_mesh *Mesh, edge_index *Edges, u32 EdgeCount)
+CreateFace(world_mesh *Mesh, edge_index *Edges, u32 EdgeCount, vert_index HintLoopStart)
 {
     if (EdgeCount < 3)
     {
@@ -228,10 +228,19 @@ CreateFace(world_mesh *Mesh, edge_index *Edges, u32 EdgeCount)
     Copy(UnprocessedEdges, Edges + 1, sizeof(edge_index)*UnprocessedEdgesCount);
 
     edge_index *OrderedEdges = AllocArray(Mesh->Memory, EdgeCount, edge_index);
+
+    // NOTE(Kevin): The first edge in Edges list is used as the hint edge!
     OrderedEdges[0] = Edges[0];
     u32 OrderedEdgesCount = 1;
-
     edge_index LastEdgeOrdered = Edges[0];
+
+    vert_index HintLoopNext = 0;
+    if (HintLoopStart)
+    {
+        Assert(HasVert(Mesh, LastEdgeOrdered, HintLoopStart));
+        HintLoopNext = MeshEdge(LastEdgeOrdered).A == HintLoopStart ?
+                       MeshEdge(LastEdgeOrdered).B : MeshEdge(LastEdgeOrdered).A;
+    }
 
     while (UnprocessedEdgesCount)
     {
@@ -241,7 +250,19 @@ CreateFace(world_mesh *Mesh, edge_index *Edges, u32 EdgeCount)
         {
             edge_index Edge = UnprocessedEdges[Index];
 
-            if (SharesVert(Mesh, LastEdgeOrdered, Edge))
+            bool32 IsNextEdge = false;
+
+            if (HintLoopNext)
+            {
+                IsNextEdge = HasVert(Mesh, Edge, HintLoopNext);
+                HintLoopNext = false;
+            }
+            else
+            {
+                IsNextEdge = SharesVert(Mesh, Edge, LastEdgeOrdered);
+            }
+
+            if (IsNextEdge)
             {
                 OrderedEdges[OrderedEdgesCount++] = Edge;
                 LastEdgeOrdered = Edge;
@@ -547,6 +568,16 @@ ExtrudeEdges(world_mesh *Mesh, edge_index *Edges, u32 EdgesCount,
         edge_index EdgeAB = Edges[Index];
         mesh_edge Edge = MeshEdge(EdgeAB);
 
+        vert_index HintVert = 0;
+        if (Edge.RadialCycleLen > 0)
+        {
+            // NOTE(Kevin): Taking the radial cycle base loop as the hint loop. The
+            //              loop on the created face should go the other direction,
+            //              meaning it should reference the other vert of this edge.
+            topo_loop HintLoop = MeshLoop(Edge.RadialCycleBase);
+            HintVert = Edge.A == HintLoop.Vert ? Edge.B : Edge.A;
+        }
+
         vert_index DupA = ExtrudeEdgesHelper_DuplicateVertex(Mesh, Edge.A, &VisitedVertices, 
                                                              &VisitedVerticesCount, &CreatedVertices,
                                                              &CreatedVerticesCount);
@@ -560,7 +591,7 @@ ExtrudeEdges(world_mesh *Mesh, edge_index *Edges, u32 EdgesCount,
         edge_index EdgeBA = CreateEdge(Mesh, DupB, DupA);
 
         edge_index FaceEdges[] = { EdgeAB, EdgeBB, EdgeBA, EdgeAA };
-        face_index Face = CreateFace(Mesh, FaceEdges, ArrayCount(FaceEdges));
+        face_index Face = CreateFace(Mesh, FaceEdges, ArrayCount(FaceEdges), HintVert);
 
         OutCreatedFaces->Indices[OutCreatedFaces->Count++] = Face;
     }
