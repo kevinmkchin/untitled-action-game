@@ -255,6 +255,16 @@ PushWorldStateToUndoStack(undo_stack *Undo, world_mesh *World, editor_mode Activ
 }
 
 internal void
+PopUndoStack(undo_stack *Undo)
+{
+    if (Undo->StackP != Undo->HistoryStartP)
+    {
+        Undo->StackP = PrevUndoIndex(Undo->StackP);
+        Undo->MostRecentP = Undo->StackP;
+    }
+}
+
+internal void
 SetGuiTooltipWithUndoState(gui_state *GuiState, undo_stack *Undo)
 {
     s32 HowFarBack;
@@ -722,6 +732,9 @@ TranslateWorkingSetVertices(editor *Editor, gui_state *GuiState)
         {
             Editor->QueuedMode = Editor->PrevMode;
 
+            // NOTE(Kevin): Expects that we pushed the state before entering this mode,
+            //              so upon completion of the mode we replace the last pushed state.
+            PopUndoStack(Editor->UndoStack);
             PushWorldStateToUndoStack(Editor->UndoStack, Editor->World, Editor->PrevMode);
         }
     }
@@ -731,6 +744,7 @@ internal void
 DoBlockTool(editor *Editor)
 {
     // TODO(Kevin): Can't use block tool if about to exceed face/elements limit!
+    // TODO(Kevin): Deactivate tool if ESC key pressed
 
     if (Editor->BlockToolStage == 0)
     {
@@ -809,8 +823,6 @@ DoBlockTool(editor *Editor)
                 }                
             }
         }
-
-        // TODO(Kevin): Deactivate tool if ESC key pressed
     }
     else if (Editor->BlockToolStage == 2)
     {
@@ -948,11 +960,6 @@ DoBlockTool(editor *Editor)
 
             PushWorldStateToUndoStack(Editor->UndoStack, Editor->World, Editor->ActiveMode);
         }
-
-        // if (AppState->KeysPressed[SDL_SCANCODE_ESCAPE])
-        // {
-        //     simpleBrushToolState = SimpleBrushToolState::NotActive;
-        // }
     }
 }
 
@@ -1071,21 +1078,9 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
     // NOTE(Kevin): Should EnterNextMode before undo/redo because undo/redo will overwrite QueuedMode
     EnterNextMode(Editor);
 
-    if (Input->KeyboardState->KbState[KB_LEFT].EndedDown &&
-        Input->KeyboardState->KbState[KB_LEFT].HalfTransitionCount > 0)
-    {
-        bool32 ValidUndo = UndoWorldState(Editor, Editor->UndoStack, World,
-                                          &Editor->EditorMemory, RenderAPI);
-
-        SetGuiTooltipWithUndoState(GuiState, Editor->UndoStack);
-        GuiState->TooltipTimer = 1.f;
-
-        // NOTE(Kevin): Reset tool sub-modes
-        Editor->BlockToolStage = 0;
-    }
-
-    if (Input->KeyboardState->KbState[KB_RIGHT].EndedDown &&
-        Input->KeyboardState->KbState[KB_RIGHT].HalfTransitionCount > 0)
+    if (Input->KeyboardState->KbState[KB_CTRL].EndedDown && Input->KeyboardState->KbState[KB_SHIFT].EndedDown &&
+        Input->KeyboardState->KbState[KB_Z].EndedDown && Input->KeyboardState->KbState[KB_Z].HalfTransitionCount > 0 &&
+        Input->KeyboardState->KbState[KB_Z].EndedDown && Input->KeyboardState->KbState[KB_Z].HalfTransitionCount > 0)
     {
         bool32 ValidRedo = RedoWorldState(Editor, Editor->UndoStack, World,
                                           &Editor->EditorMemory, RenderAPI);
@@ -1096,7 +1091,19 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
         // NOTE(Kevin): Reset tool sub-modes
         Editor->BlockToolStage = 0;
     }
+    else if (Input->KeyboardState->KbState[KB_CTRL].EndedDown && 
+             Input->KeyboardState->KbState[KB_Z].EndedDown && Input->KeyboardState->KbState[KB_Z].HalfTransitionCount > 0 &&
+             Input->KeyboardState->KbState[KB_Z].EndedDown && Input->KeyboardState->KbState[KB_Z].HalfTransitionCount > 0)
+    {
+        bool32 ValidUndo = UndoWorldState(Editor, Editor->UndoStack, World,
+                                          &Editor->EditorMemory, RenderAPI);
 
+        SetGuiTooltipWithUndoState(GuiState, Editor->UndoStack);
+        GuiState->TooltipTimer = 1.f;
+
+        // NOTE(Kevin): Reset tool sub-modes
+        Editor->BlockToolStage = 0;
+    }
 
     Editor->EdgeUnderMouse = 0;
     Editor->FaceUnderMouse = 0;
@@ -1144,12 +1151,6 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
             {
                 if (Editor->EdgeSelection.SelectionCount > 0)
                 {
-                    // TODO(Kevin): Just reset tool submode and restore vertex positions instead of pushing
-                    // push current state to undo stack, then if action completes, just pop this state
-                    // and push the completed state (replace w action completed state)
-                    // maybe place a "marker" and simply move the undo Stack Pointer to that marker?
-                    // then
-
                     PushWorldStateToUndoStack(Editor->UndoStack, Editor->World, Editor->ActiveMode);
 
                     u32 ToTranslateCount = Editor->EdgeSelection.SelectionCount;

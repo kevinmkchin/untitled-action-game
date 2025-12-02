@@ -20,7 +20,8 @@ enum editor_mode
     SelectFace,
 
     BlockTool,
-    PolygonTool,
+
+    // PolygonTool,
 };
 
 struct undo_state
