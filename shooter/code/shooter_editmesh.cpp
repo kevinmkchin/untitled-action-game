@@ -536,32 +536,26 @@ ExtrudeEdges(world_mesh *Mesh, edge_index *Edges, u32 EdgesCount,
 
     if (OutCreatedVerts->Freeable.Block != 0)
     {
-        FreeBlock(OutCreatedVerts->Freeable.Allocator, &OutCreatedVerts->Freeable.Block);
+        FreeListOfIndices(OutCreatedVerts);
         // TODO(Kevin): Logging warning
     }
     if (OutCreatedEdges->Freeable.Block != 0)
     {
-        FreeBlock(OutCreatedEdges->Freeable.Allocator, &OutCreatedEdges->Freeable.Block);
+        FreeListOfIndices(OutCreatedEdges);
         // TODO(Kevin): Logging warning
     }
     if (OutCreatedFaces->Freeable.Block != 0)
     {
-        FreeBlock(OutCreatedFaces->Freeable.Allocator, &OutCreatedFaces->Freeable.Block);
+        FreeListOfIndices(OutCreatedFaces);
         // TODO(Kevin): Logging warning
     }
 
-    Assert(OutCreatedFaces && OutCreatedFaces->Freeable.Block == 0);
-    OutCreatedFaces->Indices = AllocArray(Mesh->Memory, EdgesCount, face_index);
-    OutCreatedFaces->Count = 0;
-    OutCreatedFaces->Freeable.Block = OutCreatedFaces->Indices;
-    OutCreatedFaces->Freeable.Allocator = Mesh->Memory;
+    freeable_loi VisitedVerts = {};
+    AllocListOfIndices(Mesh->Memory, &VisitedVerts, EdgesCount*2);
 
-    vert_index *VisitedVertices = AllocArray(Mesh->Memory, EdgesCount*2, vert_index);
-    u32 VisitedVerticesCount = 0;
-    vert_index *CreatedVertices = AllocArray(Mesh->Memory, EdgesCount*2, vert_index);
-    u32 CreatedVerticesCount = 0;
-    edge_index *CreatedEdges = AllocArray(Mesh->Memory, EdgesCount*2, edge_index);
-    u32 CreatedEdgesCount = 0;
+    AllocListOfIndices(Mesh->Memory, OutCreatedVerts, EdgesCount*2);
+    AllocListOfIndices(Mesh->Memory, OutCreatedEdges, EdgesCount*2);
+    AllocListOfIndices(Mesh->Memory, OutCreatedFaces, EdgesCount);
 
     for (u32 Index = 0; Index < EdgesCount; ++Index)
     {
@@ -578,35 +572,25 @@ ExtrudeEdges(world_mesh *Mesh, edge_index *Edges, u32 EdgesCount,
             HintVert = Edge.A == HintLoop.Vert ? Edge.B : Edge.A;
         }
 
-        vert_index DupA = ExtrudeEdgesHelper_DuplicateVertex(Mesh, Edge.A, &VisitedVertices, 
-                                                             &VisitedVerticesCount, &CreatedVertices,
-                                                             &CreatedVerticesCount);
-        vert_index DupB = ExtrudeEdgesHelper_DuplicateVertex(Mesh, Edge.B, &VisitedVertices, 
-                                                             &VisitedVerticesCount, &CreatedVertices,
-                                                             &CreatedVerticesCount);
+        vert_index DupA = ExtrudeEdgesHelper_DuplicateVertex(Mesh, Edge.A,
+                                                             &VisitedVerts.List, &VisitedVerts.Count,
+                                                             &OutCreatedVerts->List, &OutCreatedVerts->Count);
+        vert_index DupB = ExtrudeEdgesHelper_DuplicateVertex(Mesh, Edge.B,
+                                                             &VisitedVerts.List, &VisitedVerts.Count,
+                                                             &OutCreatedVerts->List, &OutCreatedVerts->Count);
         edge_index EdgeAA = ExtrudeEdgesHelper_CreateEdge(Mesh, Edge.A, DupA, 
-                                                          &CreatedEdges, &CreatedEdgesCount);
+                                                          &OutCreatedEdges->List, &OutCreatedEdges->Count);
         edge_index EdgeBB = ExtrudeEdgesHelper_CreateEdge(Mesh, Edge.B, DupB,
-                                                          &CreatedEdges, &CreatedEdgesCount);
+                                                          &OutCreatedEdges->List, &OutCreatedEdges->Count);
         edge_index EdgeBA = CreateEdge(Mesh, DupB, DupA);
 
         edge_index FaceEdges[] = { EdgeAB, EdgeBB, EdgeBA, EdgeAA };
         face_index Face = CreateFace(Mesh, FaceEdges, ArrayCount(FaceEdges), HintVert);
 
-        OutCreatedFaces->Indices[OutCreatedFaces->Count++] = Face;
+        OutCreatedFaces->List[OutCreatedFaces->Count++] = Face;
     }
 
-    FreeBlock(Mesh->Memory, &VisitedVertices);
-
-    OutCreatedVerts->Indices = CreatedVertices;
-    OutCreatedVerts->Count = CreatedVerticesCount;
-    OutCreatedVerts->Freeable.Block = CreatedVertices;
-    OutCreatedVerts->Freeable.Allocator = Mesh->Memory;
-
-    OutCreatedEdges->Indices = CreatedEdges;
-    OutCreatedEdges->Count = CreatedEdgesCount;
-    OutCreatedEdges->Freeable.Block = CreatedEdges;
-    OutCreatedEdges->Freeable.Allocator = Mesh->Memory;
+    FreeListOfIndices(&VisitedVerts);
 }
 
 internal vec3

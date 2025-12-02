@@ -14,6 +14,7 @@ enum editor_mode
     NothingMode,
 
     SelectEdge,
+    TranslateEdgesTool,
     ExtrudeEdgesTool,
 
     SelectFace,
@@ -43,12 +44,31 @@ struct element_selection
     u32 SelectionCount;
 };
 
+// TODO(Kevin): generic freeable_list type with generic access by entry size?
+
 struct freeable_lovec3
 {
     freeable_block Freeable;
     vec3 *List;
     u32 Count;
 };
+
+inline void
+AllocListOfVec3(memory_blocks *Memory, freeable_lovec3 *FreeableList, u32 Count)
+{
+    Assert(FreeableList && FreeableList->Freeable.Block == 0);
+    FreeableList->List = AllocArray(Memory, Count, vec3);
+    FreeableList->Count = 0;
+    FreeableList->Freeable.Block = FreeableList->List;
+    FreeableList->Freeable.Allocator = Memory;
+}
+
+inline void
+FreeListOfVec3(freeable_lovec3 *FreeableList)
+{
+    FreeFreeableBlock(&FreeableList->Freeable);
+    *FreeableList = {};
+}
 
 struct editor
 {
@@ -64,7 +84,8 @@ struct editor
     element_selection FaceSelection;
     element_selection EdgeSelection;
 
-    bool32 CanViewportManip;
+    bool32 MouseOverViewport;
+    bool32 MouseNotCaptured;
     vec2 ViewportMouseP;
     bool32 ViewportLMBIsDown;
     bool32 ViewportLMBWentDown;
@@ -94,8 +115,8 @@ struct editor
     vec3 RectDrawBasisVAxis;
     vec3 BlockDrawHeight;
 
-    vec3 EEDragOriginP;
-    freeable_lovec3 EEVertOldPs;
+    vec3 MouseInteractStartP;
+    freeable_lovec3 MoveVertexOldP;
 
     freeable_loi WorkingSetVerts;
     freeable_loi WorkingSetEdges;

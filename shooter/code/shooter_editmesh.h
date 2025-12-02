@@ -35,7 +35,9 @@ struct mesh_face
     loop_index LoopCycleBase;
     u32 LoopCycleLen;
 
+    // Editor helper data
     bool32 Alive;
+    bool32 Dirty;
     mesh_handle RenderMesh;
 };
 
@@ -46,6 +48,7 @@ struct mesh_edge
     loop_index RadialCycleBase;
     u32 RadialCycleLen;
 
+    // Editor helper data
     bool32 Alive;
 };
 
@@ -58,8 +61,8 @@ struct mesh_vert
     edge_index ConnectedEdges[8];
     u32 ConnectedEdgesCount;
 
-    // Editor helper data
-    // poscache
+    // Editor helper data?
+
 };
 
 struct world_mesh
@@ -146,9 +149,46 @@ ReverseFaceLoop(world_mesh *Mesh, face_index Face);
 struct freeable_loi // list of indices
 {
     freeable_block Freeable;
-    u32 *Indices;
+    u32 *List;
     u32 Count;
 };
+
+inline void
+AllocListOfIndices(memory_blocks *Memory, freeable_loi *FreeableList, u32 Count)
+{
+    Assert(FreeableList && FreeableList->Freeable.Block == 0);
+    FreeableList->List = AllocArray(Memory, Count, u32);
+    FreeableList->Count = 0;
+    FreeableList->Freeable.Block = FreeableList->List;
+    FreeableList->Freeable.Allocator = Memory;
+}
+
+inline void
+FreeListOfIndices(freeable_loi *FreeableList)
+{
+    FreeFreeableBlock(&FreeableList->Freeable);
+    *FreeableList = {};
+}
+
+inline void
+AddIndexIfUnique(u32 **Indices, u32 *IndicesCount, u32 Index)
+{
+    bool32 IsUnique = true;
+
+    for (u32 Check = 0; Check < *IndicesCount; ++Check)
+    {
+        if ((*Indices)[Check] == Index)
+        {
+            IsUnique = false;
+            break;
+        }
+    }
+
+    if (IsUnique)
+    {
+        (*Indices)[(*IndicesCount)++] = Index;
+    }
+}
 
 internal void
 ExtrudeEdges(world_mesh *Mesh, edge_index *Edges, u32 EdgesCount, 
