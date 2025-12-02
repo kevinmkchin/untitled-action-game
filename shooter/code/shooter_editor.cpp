@@ -378,8 +378,7 @@ EnterNextMode(editor *Editor)
     {
         case SelectEdge:
         {
-            if (Editor->QueuedMode != TranslateEdgesTool &&
-                Editor->QueuedMode != ExtrudeEdgesTool)
+            if (Editor->QueuedMode != TranslateEdgesTool)
             {
                 ClearSelection(&Editor->EdgeSelection);
             }
@@ -387,11 +386,13 @@ EnterNextMode(editor *Editor)
 
         case SelectFace:
         {
-            ClearSelection(&Editor->FaceSelection);
+            if (Editor->QueuedMode != TranslateEdgesTool)
+            {
+                ClearSelection(&Editor->FaceSelection);
+            }
         } break;
 
         case TranslateEdgesTool:
-        case ExtrudeEdgesTool:
         {
             if (Editor->MoveVertexOldP.List)
             {
@@ -425,7 +426,6 @@ EnterNextMode(editor *Editor)
     switch (Editor->ActiveMode)
     {
         case TranslateEdgesTool:
-        case ExtrudeEdgesTool:
         {
             Assert(Editor->WorkingSetVerts.Count > 0);
             AllocListOfVec3(&Editor->EditorMemory, &Editor->MoveVertexOldP, Editor->WorkingSetVerts.Count);
@@ -1063,8 +1063,7 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
         Editor->ViewportLMBWentDown ||
         // TODO(Kevin): Find a better way
         Editor->BlockToolStage > 0 ||
-        Editor->ActiveMode == TranslateEdgesTool || Editor->QueuedMode == TranslateEdgesTool ||
-        Editor->ActiveMode == ExtrudeEdgesTool || Editor->QueuedMode == ExtrudeEdgesTool)
+        Editor->ActiveMode == TranslateEdgesTool || Editor->QueuedMode == TranslateEdgesTool)
     {
         // NOTE(Kevin): UI should not be interactible while performing editor action
         GuiState->Input.MouseX = -1000;
@@ -1206,7 +1205,7 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
                     Copy(GuiState->Tooltip, Tooltip, GuiState->TooltipLength+1);
                     GuiState->TooltipTimer = 1.f;
 
-                    Editor->QueuedMode = ExtrudeEdgesTool;
+                    Editor->QueuedMode = TranslateEdgesTool;
                 }
             }
         } break;
@@ -1233,10 +1232,71 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
                     PushWorldStateToUndoStack(Editor->UndoStack, World, Editor->ActiveMode);
                 }
             }
+            else if (Input->KeyboardState->KbState[KB_G].EndedDown &&
+                     Input->KeyboardState->KbState[KB_G].HalfTransitionCount > 0)
+            {
+                if (Editor->FaceSelection.SelectionCount > 0)
+                {
+                    PushWorldStateToUndoStack(Editor->UndoStack, Editor->World, Editor->ActiveMode);
+
+                    u32 FacesCount = Editor->FaceSelection.SelectionCount;
+                    AllocListOfIndices(&Editor->EditorMemory, &Editor->WorkingSetVerts, FacesCount*4);
+
+                    for (u32 Index = 0; Index < FacesCount; ++Index)
+                    {
+                        face_index F = Editor->FaceSelection.Selection[Index];
+                        mesh_face Face = Editor->World->Faces[F];
+
+                        for (loop_index l = Face.LoopCycleBase, i = 0;
+                             i < Face.LoopCycleLen;
+                             l = Editor->World->Loops[l].Next, ++i)
+                        {
+                            topo_loop Loop = Editor->World->Loops[l];
+                            AddIndexIfUnique(&Editor->WorkingSetVerts.List, &Editor->WorkingSetVerts.Count, Loop.Vert);
+                        }
+                    }
+
+                    char *Tooltip = "Move faces (G)";
+                    GuiState->TooltipLength = StringLength(Tooltip);
+                    Copy(GuiState->Tooltip, Tooltip, GuiState->TooltipLength+1);
+                    GuiState->TooltipTimer = 1.f;
+
+                    Editor->QueuedMode = TranslateEdgesTool;
+                }
+            }
+            else if (Input->KeyboardState->KbState[KB_E].EndedDown &&
+                     Input->KeyboardState->KbState[KB_E].HalfTransitionCount > 0)
+            {
+                // if (Editor->FaceSelection.SelectionCount > 0)
+                // {
+                //     PushWorldStateToUndoStack(Editor->UndoStack, Editor->World, Editor->ActiveMode);
+
+                //     face_index *ToExtrude = Editor->FaceSelection.Selection;
+                //     u32 ToExtrudeCount = Editor->FaceSelection.SelectionCount;
+                //     freeable_loi OppositeEdges = {};
+
+                //     ExtrudeEdges(World, ToExtrude, ToExtrudeCount,
+                //                  &Editor->WorkingSetVerts,
+                //                  &Editor->WorkingSetEdges,
+                //                  &Editor->WorkingSetFaces,
+                //                  &OppositeEdges);
+
+                //     // Select the new edges that were "cloned" from the existing edges
+                //     Assert(Editor->FaceSelection.SelectionCount == OppositeEdges.Count);
+                //     Copy(Editor->FaceSelection.Selection, OppositeEdges.List, sizeof(u32)*OppositeEdges.Count);
+                //     FreeListOfIndices(&OppositeEdges);
+
+                //     char *Tooltip = "Extrude edges (E)";
+                //     GuiState->TooltipLength = StringLength(Tooltip);
+                //     Copy(GuiState->Tooltip, Tooltip, GuiState->TooltipLength+1);
+                //     GuiState->TooltipTimer = 1.f;
+
+                //     Editor->QueuedMode = TranslateEdgesTool;
+                // }
+            }
         } break;
 
         case TranslateEdgesTool:
-        case ExtrudeEdgesTool:
             TranslateWorkingSetVertices(Editor, GuiState);
             break;
 
