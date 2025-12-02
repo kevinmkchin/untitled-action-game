@@ -378,7 +378,8 @@ EnterNextMode(editor *Editor)
     {
         case SelectEdge:
         {
-            if (Editor->QueuedMode != TranslateEdgesTool)
+            if (Editor->QueuedMode != TranslateEdgesTool &&
+                Editor->QueuedMode != ExtrudeEdgesTool)
             {
                 ClearSelection(&Editor->EdgeSelection);
             }
@@ -1088,6 +1089,8 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
         SetGuiTooltipWithUndoState(GuiState, Editor->UndoStack);
         GuiState->TooltipTimer = 1.f;
 
+        // TODO(Kevin): Selection should probably just be part of the undo state
+        ClearAllSelection(Editor);
         // NOTE(Kevin): Reset tool sub-modes
         Editor->BlockToolStage = 0;
     }
@@ -1101,6 +1104,8 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
         SetGuiTooltipWithUndoState(GuiState, Editor->UndoStack);
         GuiState->TooltipTimer = 1.f;
 
+        // TODO(Kevin): Selection should probably just be part of the undo state
+        ClearAllSelection(Editor);
         // NOTE(Kevin): Reset tool sub-modes
         Editor->BlockToolStage = 0;
     }
@@ -1183,12 +1188,18 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
 
                     edge_index *ToExtrude = Editor->EdgeSelection.Selection;
                     u32 ToExtrudeCount = Editor->EdgeSelection.SelectionCount;
+                    freeable_loi OppositeEdges = {};
+
                     ExtrudeEdges(World, ToExtrude, ToExtrudeCount,
                                  &Editor->WorkingSetVerts,
                                  &Editor->WorkingSetEdges,
-                                 &Editor->WorkingSetFaces);
+                                 &Editor->WorkingSetFaces,
+                                 &OppositeEdges);
 
-                    // TODO(Kevin): Select the new edges that were "cloned" from the existing edges
+                    // Select the new edges that were "cloned" from the existing edges
+                    Assert(Editor->EdgeSelection.SelectionCount == OppositeEdges.Count);
+                    Copy(Editor->EdgeSelection.Selection, OppositeEdges.List, sizeof(u32)*OppositeEdges.Count);
+                    FreeListOfIndices(&OppositeEdges);
 
                     char *Tooltip = "Extrude edges (E)";
                     GuiState->TooltipLength = StringLength(Tooltip);

@@ -527,7 +527,8 @@ internal void
 ExtrudeEdges(world_mesh *Mesh, edge_index *Edges, u32 EdgesCount,
              freeable_loi *OutCreatedVerts,
              freeable_loi *OutCreatedEdges,
-             freeable_loi *OutCreatedFaces)
+             freeable_loi *OutCreatedFaces,
+             freeable_loi *OutOppositeEdges)
 {
     /*  NOTE(Kevin): Take an array of edges, not necessarily connected.
                      Duplicate an edge, form edge between new and old vertices.
@@ -556,6 +557,10 @@ ExtrudeEdges(world_mesh *Mesh, edge_index *Edges, u32 EdgesCount,
     AllocListOfIndices(Mesh->Memory, OutCreatedVerts, EdgesCount*2);
     AllocListOfIndices(Mesh->Memory, OutCreatedEdges, EdgesCount*2);
     AllocListOfIndices(Mesh->Memory, OutCreatedFaces, EdgesCount);
+    if (OutOppositeEdges)
+    {
+        AllocListOfIndices(Mesh->Memory, OutOppositeEdges, EdgesCount);
+    }
 
     for (u32 Index = 0; Index < EdgesCount; ++Index)
     {
@@ -587,6 +592,10 @@ ExtrudeEdges(world_mesh *Mesh, edge_index *Edges, u32 EdgesCount,
         edge_index FaceEdges[] = { EdgeAB, EdgeBB, EdgeBA, EdgeAA };
         face_index Face = CreateFace(Mesh, FaceEdges, ArrayCount(FaceEdges), HintVert);
 
+        if (OutOppositeEdges)
+        {
+            OutOppositeEdges->List[OutOppositeEdges->Count++] = EdgeBA;
+        }
         OutCreatedFaces->List[OutCreatedFaces->Count++] = Face;
     }
 

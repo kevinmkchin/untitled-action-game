@@ -194,7 +194,19 @@ internal void
 ExtrudeEdges(world_mesh *Mesh, edge_index *Edges, u32 EdgesCount, 
              freeable_loi *OutCreatedVerts,
              freeable_loi *OutCreatedEdges,
-             freeable_loi *OutCreatedFaces);
+             freeable_loi *OutCreatedFaces,
+             freeable_loi *OutOppositeEdges);
+/* Extrude faces from edges.
+
+    $:OutOppositeEdges  (optional) the newly created edges that are not connected to the input edges, opposite from them in the created rects
+
+    Input edges that are connected/adjacent will respect sharing of vertices.
+        .-----.-----.  => :=====:=====:
+
+    For each input edge, its newly extruded face will face the same direction as the face that owns the base
+    loop of the radial cycle of the input edge.
+
+*/
 
 // ExtrudeFace
 // RingCut / Slice
