@@ -1217,7 +1217,7 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
                 {
                     PushWorldStateToUndoStack(Editor->UndoStack, Editor->World, Editor->ActiveMode);
 
-                    freeable_loi OppositeEdges = {};
+                    freeable_list_u32 OppositeEdges = {};
 
                     ExtrudeEdges(World, Editor->EdgeSelection.Selection,
                                  Editor->EdgeSelection.SelectionCount,
@@ -1287,7 +1287,7 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
                 {
                     PushWorldStateToUndoStack(Editor->UndoStack, Editor->World, Editor->ActiveMode);
 
-                    freeable_loi OppositeFaces = {};
+                    freeable_list_u32 OppositeFaces = {};
 
                     ExtrudeFaces(Editor->World, Editor->FaceSelection.Selection,
                                  Editor->FaceSelection.SelectionCount,

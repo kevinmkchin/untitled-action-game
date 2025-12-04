@@ -146,123 +146,15 @@ ReverseFaceLoop(world_mesh *Mesh, face_index Face);
 
 */
 
-struct freeable_loi // list of indices
-{
-    freeable_block Freeable;
-    u32 *List;
-    u32 Count;
-    // Capacity
-};
-
-inline void
-AllocListOfIndices(memory_blocks *Memory, freeable_loi *FreeableList, u32 Count)
-{
-    Assert(FreeableList && FreeableList->Freeable.Block == 0);
-    FreeableList->List = AllocArray(Memory, Count, u32);
-    FreeableList->Count = 0;
-    FreeableList->Freeable.Block = FreeableList->List;
-    FreeableList->Freeable.Allocator = Memory;
-}
-
-inline void
-FreeListOfIndices(freeable_loi *FreeableList)
-{
-    FreeFreeableBlock(&FreeableList->Freeable);
-    *FreeableList = {};
-}
-
-inline s32
-GetIndexOf(u32 *Indices, u32 IndicesCount, u32 SearchFor)
-{
-    s32 Index = -1;
-
-    for (u32 Check = 0; Check < IndicesCount; ++Check)
-    {
-        if (Indices[Check] == SearchFor)
-        {
-            Index = Check;
-            break;
-        }
-    }
-
-    return Index;
-}
-
-inline bool32
-AddIndexIfUnique(u32 *Indices, u32 *IndicesCount, u32 Index, u32 *OutExistingIndex = 0)
-{
-    s32 ExistingIndex = GetIndexOf(Indices, *IndicesCount, Index);
-
-    bool32 IsUnique = ExistingIndex < 0;
-
-    if (IsUnique)
-    {
-        Indices[(*IndicesCount)++] = Index;
-    }
-    else
-    {
-        if (OutExistingIndex)
-        {
-            *OutExistingIndex = SafeCastToU32(ExistingIndex);
-        }        
-    }
-
-    return IsUnique;
-}
-
-inline void
-RemoveIndexAtSwapWithEnd(u32 *Indices, u32 *IndicesCount, u32 Index)
-{
-    Indices[Index] = Indices[--(*IndicesCount)];
-}
-
-inline u32
-AddFaceLoopCycleLengths(world_mesh *Mesh, face_index *Faces, u32 FacesCount)
-{
-    u32 TotalLoopCount = 0;
-
-    for (u32 f = 0; f < FacesCount; ++f)
-    {
-        face_index FaceIndex = Faces[f];
-        mesh_face *Face = &Mesh->Faces[FaceIndex];
-        TotalLoopCount += Face->LoopCycleLen;
-    }
-
-    return TotalLoopCount;
-}
-
-inline void
-GetFaceVertsAndEdges(world_mesh *Mesh, face_index FaceIndex,
-                     freeable_loi *OutVerts, freeable_loi *OutEdges)
-{
-    mesh_face Face = Mesh->Faces[FaceIndex];
-
-    for (loop_index l = Face.LoopCycleBase, i = 0;
-         i < Face.LoopCycleLen;
-         l = Mesh->Loops[l].Next, ++i)
-    {
-        topo_loop Loop = Mesh->Loops[l];
-
-        if (OutVerts)
-        {
-            AddIndexIfUnique(OutVerts->List, &OutVerts->Count, Loop.Vert);
-        }
-        if (OutEdges)
-        {
-            AddIndexIfUnique(OutEdges->List, &OutEdges->Count, Loop.Edge);
-        }
-    }
-}
-
 internal void
 ExtrudeEdges(world_mesh *Mesh, edge_index *Edges, u32 EdgesCount, 
-             freeable_loi *OutCreatedVerts,
-             freeable_loi *OutCreatedFaces,
-             freeable_loi *OutOppositeEdges);
-/* Extrude faces from edges.
+             freeable_list_u32 *OutCreatedVerts,
+             freeable_list_u32 *OutCreatedFaces,
+             freeable_list_u32 *OutOppositeEdges);
+/* Extrude edges to create new faces.
 
-    $:OutCreatedVerts   the new vertices created by the operation
-    $:OutCreatedFaces   the new faces created by the operation
+    $:OutCreatedVerts   the new vertices created by the operation. Memory allocated by the operation.
+    $:OutCreatedFaces   the new faces created by the operation. Memory allocated by the operation.
     $:OutOppositeEdges  (optional) the newly created edges that are not connected to the input edges, opposite from them in the created rects. Memory allocated by the operation.
 
     Input edges that are connected/adjacent will respect sharing of vertices.
@@ -272,8 +164,16 @@ ExtrudeEdges(world_mesh *Mesh, edge_index *Edges, u32 EdgesCount,
 
 internal void
 ExtrudeFaces(world_mesh *Mesh, face_index *InputFaces, u32 InputFacesCount,
-             freeable_loi *OutCreatedFaces,
-             freeable_loi *OutOppositeFaces);
+             freeable_list_u32 *OutCreatedFaces,
+             freeable_list_u32 *OutOppositeFaces);
+/* Extrude faces to create new faces.
+
+    $:OutCreatedFaces   the new faces created by the operation. Memory allocated by the operation.
+    $:OutOppositeFaces  the new extruded faces that are opposite from the input. Memory allocated by the operation.
+
+    Respects shared edges when extruding multiple faces.
+
+*/
 
 // RingCut / Slice
 
@@ -299,15 +199,43 @@ internal vertex_buffer
 TriangulateEditMeshFace(memory_blocks *Memory, world_mesh *World, face_index Face);
 
 
-/*
+inline u32
+AddFaceLoopCycleLengths(world_mesh *Mesh, face_index *Faces, u32 FacesCount)
+{
+    u32 TotalLoopCount = 0;
 
-Keep it simple! For undo/redo just serialize the entire editor/mesh state to disk!
-Or keep in memory in ring buffer
+    for (u32 f = 0; f < FacesCount; ++f)
+    {
+        face_index FaceIndex = Faces[f];
+        mesh_face *Face = &Mesh->Faces[FaceIndex];
+        TotalLoopCount += Face->LoopCycleLen;
+    }
 
-blat out entire state struct to memory/disk -> if small enough to blat out in
-reasonable time, then probably small enough to just keep a bunch in a ring buffer
-in memory
+    return TotalLoopCount;
+}
 
-*/
+inline void
+GetFaceVertsAndEdges(world_mesh *Mesh, face_index FaceIndex,
+                     freeable_list_u32 *OutVerts, freeable_list_u32 *OutEdges)
+{
+    mesh_face Face = Mesh->Faces[FaceIndex];
+
+    for (loop_index l = Face.LoopCycleBase, i = 0;
+         i < Face.LoopCycleLen;
+         l = Mesh->Loops[l].Next, ++i)
+    {
+        topo_loop Loop = Mesh->Loops[l];
+
+        if (OutVerts)
+        {
+            AddIndexIfUnique(OutVerts->List, &OutVerts->Count, Loop.Vert);
+        }
+        if (OutEdges)
+        {
+            AddIndexIfUnique(OutEdges->List, &OutEdges->Count, Loop.Edge);
+        }
+    }
+}
+
 
 #endif // SHOOTER_EDITMESH_H

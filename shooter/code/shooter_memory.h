@@ -400,4 +400,101 @@ MemBlocksRealloc()
     // TODO(Kevin): 
 }
 
+// ------------------------------------------------------------------------------------------------
+
+struct freeable_list_vec3
+{
+    freeable_block Freeable;
+    vec3 *List;
+    u32 Count;
+};
+
+inline void
+AllocListOfVec3(memory_blocks *Memory, freeable_list_vec3 *FreeableList, u32 Count)
+{
+    Assert(FreeableList && FreeableList->Freeable.Block == 0);
+    FreeableList->List = AllocArray(Memory, Count, vec3);
+    FreeableList->Count = 0;
+    FreeableList->Freeable.Block = FreeableList->List;
+    FreeableList->Freeable.Allocator = Memory;
+}
+
+inline void
+FreeListOfVec3(freeable_list_vec3 *FreeableList)
+{
+    FreeFreeableBlock(&FreeableList->Freeable);
+    *FreeableList = {};
+}
+
+struct freeable_list_u32
+{
+    freeable_block Freeable;
+    u32 *List;
+    u32 Count;
+    // TODO(Kevin): Capacity
+};
+
+inline void
+AllocListOfIndices(memory_blocks *Memory, freeable_list_u32 *FreeableList, u32 Count)
+{
+    Assert(FreeableList && FreeableList->Freeable.Block == 0);
+    FreeableList->List = AllocArray(Memory, Count, u32);
+    FreeableList->Count = 0;
+    FreeableList->Freeable.Block = FreeableList->List;
+    FreeableList->Freeable.Allocator = Memory;
+}
+
+inline void
+FreeListOfIndices(freeable_list_u32 *FreeableList)
+{
+    FreeFreeableBlock(&FreeableList->Freeable);
+    *FreeableList = {};
+}
+
+inline s32
+GetIndexOf(u32 *Indices, u32 IndicesCount, u32 SearchFor)
+{
+    s32 Index = -1;
+
+    for (u32 Check = 0; Check < IndicesCount; ++Check)
+    {
+        if (Indices[Check] == SearchFor)
+        {
+            Index = Check;
+            break;
+        }
+    }
+
+    return Index;
+}
+
+inline bool32
+AddIndexIfUnique(u32 *Indices, u32 *IndicesCount, u32 Index, u32 *OutExistingIndex = 0)
+{
+    s32 ExistingIndex = GetIndexOf(Indices, *IndicesCount, Index);
+
+    bool32 IsUnique = ExistingIndex < 0;
+
+    if (IsUnique)
+    {
+        Indices[(*IndicesCount)++] = Index;
+    }
+    else
+    {
+        if (OutExistingIndex)
+        {
+            *OutExistingIndex = SafeCastToU32(ExistingIndex);
+        }        
+    }
+
+    return IsUnique;
+}
+
+inline void
+RemoveIndexAtSwapWithEnd(u32 *Indices, u32 *IndicesCount, u32 Index)
+{
+    Indices[Index] = Indices[--(*IndicesCount)];
+}
+
+
 #endif // SHOOTER_MEMORY_H

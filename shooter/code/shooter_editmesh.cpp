@@ -535,11 +535,11 @@ ExtrudeEdgesHelper_CreateEdge(world_mesh *Mesh, vert_index A, vert_index B,
 
 internal void
 ExtrudeEdge(world_mesh *Mesh, edge_index EdgeAB,
-            freeable_loi *VisitedVerts,
-            freeable_loi *CreatedVerts,
-            freeable_loi *CreatedEdges,
-            freeable_loi *CreatedFaces,
-            freeable_loi *OppositeEdges,
+            freeable_list_u32 *VisitedVerts,
+            freeable_list_u32 *CreatedVerts,
+            freeable_list_u32 *CreatedEdges,
+            freeable_list_u32 *CreatedFaces,
+            freeable_list_u32 *OppositeEdges,
             vert_index HintVert = 0)
 {
     mesh_edge Edge = MeshEdge(EdgeAB);
@@ -569,9 +569,9 @@ ExtrudeEdge(world_mesh *Mesh, edge_index EdgeAB,
 
 internal void
 ExtrudeEdges(world_mesh *Mesh, edge_index *Edges, u32 EdgesCount,
-             freeable_loi *OutCreatedVerts,
-             freeable_loi *OutCreatedFaces,
-             freeable_loi *OutOppositeEdges)
+             freeable_list_u32 *OutCreatedVerts,
+             freeable_list_u32 *OutCreatedFaces,
+             freeable_list_u32 *OutOppositeEdges)
 {
     /*  NOTE(Kevin): Take an array of edges, not necessarily connected.
                      Duplicate an edge, form edge between new and old vertices.
@@ -594,8 +594,8 @@ ExtrudeEdges(world_mesh *Mesh, edge_index *Edges, u32 EdgesCount,
         // TODO(Kevin): Logging warning
     }
 
-    freeable_loi VisitedVerts = {};
-    freeable_loi CreatedEdges = {};
+    freeable_list_u32 VisitedVerts = {};
+    freeable_list_u32 CreatedEdges = {};
     AllocListOfIndices(Mesh->Memory, &VisitedVerts, EdgesCount*2);
     AllocListOfIndices(Mesh->Memory, &CreatedEdges, EdgesCount*3);
 
@@ -628,19 +628,19 @@ ExtrudeEdges(world_mesh *Mesh, edge_index *Edges, u32 EdgesCount,
 
 internal void
 ExtrudeFaces(world_mesh *Mesh, face_index *InputFaces, u32 InputFacesCount,
-             freeable_loi *OutCreatedFaces,
-             freeable_loi *OutOppositeFaces)
+             freeable_list_u32 *OutCreatedFaces,
+             freeable_list_u32 *OutOppositeFaces)
 {
-    freeable_loi UniqueEdges = {};
-    freeable_loi HintLoops = {};
-    freeable_loi SharedEdges = {};
-    freeable_loi OppositeEdges = {};
-    freeable_loi EdgesTableOriginal = {};
-    freeable_loi EdgesTableOpposite = {};
-    freeable_loi VisitedVerts = {};
-    freeable_loi CreatedVerts = {};
-    freeable_loi CreatedEdges = {};
-    freeable_loi CreatedFaces = {};
+    freeable_list_u32 UniqueEdges = {};
+    freeable_list_u32 HintLoops = {};
+    freeable_list_u32 SharedEdges = {};
+    freeable_list_u32 OppositeEdges = {};
+    freeable_list_u32 EdgesTableOriginal = {};
+    freeable_list_u32 EdgesTableOpposite = {};
+    freeable_list_u32 VisitedVerts = {};
+    freeable_list_u32 CreatedVerts = {};
+    freeable_list_u32 CreatedEdges = {};
+    freeable_list_u32 CreatedFaces = {};
 
     u32 PotentialEdgesCount = AddFaceLoopCycleLengths(Mesh, InputFaces, InputFacesCount);
 
@@ -737,7 +737,7 @@ ExtrudeFaces(world_mesh *Mesh, face_index *InputFaces, u32 InputFacesCount,
         mesh_face Face = Mesh->Faces[FaceIndex];
 
         // for each edge, find their opposite
-        freeable_loi NewFaceEdges = {};
+        freeable_list_u32 NewFaceEdges = {};
         AllocListOfIndices(Mesh->Memory, &NewFaceEdges, Face.LoopCycleLen);
 
         vert_index HintVert = 0;

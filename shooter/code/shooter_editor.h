@@ -45,32 +45,6 @@ struct element_selection
     u32 SelectionCount;
 };
 
-// TODO(Kevin): generic freeable_list type with generic access by entry size?
-
-struct freeable_lovec3
-{
-    freeable_block Freeable;
-    vec3 *List;
-    u32 Count;
-};
-
-inline void
-AllocListOfVec3(memory_blocks *Memory, freeable_lovec3 *FreeableList, u32 Count)
-{
-    Assert(FreeableList && FreeableList->Freeable.Block == 0);
-    FreeableList->List = AllocArray(Memory, Count, vec3);
-    FreeableList->Count = 0;
-    FreeableList->Freeable.Block = FreeableList->List;
-    FreeableList->Freeable.Allocator = Memory;
-}
-
-inline void
-FreeListOfVec3(freeable_lovec3 *FreeableList)
-{
-    FreeFreeableBlock(&FreeableList->Freeable);
-    *FreeableList = {};
-}
-
 struct editor
 {
     bool32 IsInitialized;
@@ -119,9 +93,9 @@ struct editor
     vec3 MouseInteractStartP;
     freeable_lovec3 MoveVertexOldP;
 
-    freeable_loi WorkingSetVerts;
-    freeable_loi WorkingSetEdges;
-    freeable_loi WorkingSetFaces;
+    freeable_list_u32 WorkingSetVerts;
+    freeable_list_u32 WorkingSetEdges;
+    freeable_list_u32 WorkingSetFaces;
 };
 
 internal void
