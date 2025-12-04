@@ -396,19 +396,19 @@ EnterNextMode(editor *Editor)
         {
             if (Editor->MoveVertexOldP.List)
             {
-                FreeListOfVec3(&Editor->MoveVertexOldP);
+                FreeList(&Editor->MoveVertexOldP);
             }
             if (Editor->WorkingSetVerts.List)
             {
-                FreeListOfIndices(&Editor->WorkingSetVerts);
+                FreeList(&Editor->WorkingSetVerts);
             }
             if (Editor->WorkingSetEdges.List)
             {
-                FreeListOfIndices(&Editor->WorkingSetEdges);
+                FreeList(&Editor->WorkingSetEdges);
             }
             if (Editor->WorkingSetFaces.List)
             {
-                FreeListOfIndices(&Editor->WorkingSetFaces);
+                FreeList(&Editor->WorkingSetFaces);
             }
         } break;
 
@@ -428,7 +428,7 @@ EnterNextMode(editor *Editor)
         case TranslateEdgesTool:
         {
             Assert(Editor->WorkingSetVerts.Count > 0);
-            AllocListOfVec3(&Editor->EditorMemory, &Editor->MoveVertexOldP, Editor->WorkingSetVerts.Count);
+            AllocList(&Editor->EditorMemory, &Editor->MoveVertexOldP, Editor->WorkingSetVerts.Count);
 
             for (u32 I = 0; I < Editor->WorkingSetVerts.Count; ++I)
             {
@@ -992,15 +992,11 @@ SelectElementWithMouseBehaviour(element_selection *Selection, u32 ElementID)
 internal void
 FindWorkingSetVertsFromFaceSelection(editor *Editor)
 {
-    if (Editor->WorkingSetVerts.Freeable.Block != 0)
-    {
-        FreeListOfIndices(&Editor->WorkingSetVerts);
-        // TODO(Kevin): Logging warning
-    }
+    EnsureListIsFreed(&Editor->WorkingSetVerts);
 
     u32 PotentialVertsCount = AddFaceLoopCycleLengths(Editor->World, Editor->FaceSelection.Selection,
                                                       Editor->FaceSelection.SelectionCount);
-    AllocListOfIndices(&Editor->EditorMemory, &Editor->WorkingSetVerts, PotentialVertsCount);
+    AllocList(&Editor->EditorMemory, &Editor->WorkingSetVerts, PotentialVertsCount);
 
     for (u32 Index = 0; Index < Editor->FaceSelection.SelectionCount; ++Index)
     {
@@ -1012,14 +1008,10 @@ FindWorkingSetVertsFromFaceSelection(editor *Editor)
 internal void
 FindWorkingSetVertsFromEdgeSelection(editor *Editor)
 {
-    if (Editor->WorkingSetVerts.Freeable.Block != 0)
-    {
-        FreeListOfIndices(&Editor->WorkingSetVerts);
-        // TODO(Kevin): Logging warning
-    }
+    EnsureListIsFreed(&Editor->WorkingSetVerts);
 
     u32 PotentialVertsCount = Editor->EdgeSelection.SelectionCount*2;
-    AllocListOfIndices(&Editor->EditorMemory, &Editor->WorkingSetVerts, PotentialVertsCount);
+    AllocList(&Editor->EditorMemory, &Editor->WorkingSetVerts, PotentialVertsCount);
 
     for (u32 Index = 0; Index < Editor->EdgeSelection.SelectionCount; ++Index)
     {
@@ -1228,7 +1220,7 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
                     // Select the new edges that were "cloned" from the existing edges
                     Assert(Editor->EdgeSelection.SelectionCount == OppositeEdges.Count);
                     Copy(Editor->EdgeSelection.Selection, OppositeEdges.List, sizeof(u32)*OppositeEdges.Count);
-                    FreeListOfIndices(&OppositeEdges);
+                    FreeList(&OppositeEdges);
 
                     char *Tooltip = "Extrude edges (E)";
                     GuiState->TooltipLength = StringLength(Tooltip);
@@ -1297,7 +1289,7 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
                     // Select the new faces that were "cloned" from the existing faces
                     Assert(Editor->FaceSelection.SelectionCount == OppositeFaces.Count);
                     Copy(Editor->FaceSelection.Selection, OppositeFaces.List, sizeof(u32)*OppositeFaces.Count);
-                    FreeListOfIndices(&OppositeFaces);
+                    FreeList(&OppositeFaces);
 
                     FindWorkingSetVertsFromFaceSelection(Editor);
 

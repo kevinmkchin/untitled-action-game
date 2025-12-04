@@ -578,32 +578,20 @@ ExtrudeEdges(world_mesh *Mesh, edge_index *Edges, u32 EdgesCount,
                      Use the 4 edges to form a new face.
     */
 
-    if (OutCreatedVerts->Freeable.Block != 0)
-    {
-        FreeListOfIndices(OutCreatedVerts);
-        // TODO(Kevin): Logging warning
-    }
-    if (OutCreatedFaces->Freeable.Block != 0)
-    {
-        FreeListOfIndices(OutCreatedFaces);
-        // TODO(Kevin): Logging warning
-    }
-    if (OutOppositeEdges && OutOppositeEdges->Freeable.Block != 0)
-    {
-        FreeListOfIndices(OutOppositeEdges);
-        // TODO(Kevin): Logging warning
-    }
+    EnsureListIsFreed(OutCreatedVerts);
+    EnsureListIsFreed(OutCreatedFaces);
+    EnsureListIsFreed(OutOppositeEdges);
 
     freeable_list_u32 VisitedVerts = {};
     freeable_list_u32 CreatedEdges = {};
-    AllocListOfIndices(Mesh->Memory, &VisitedVerts, EdgesCount*2);
-    AllocListOfIndices(Mesh->Memory, &CreatedEdges, EdgesCount*3);
+    AllocList(Mesh->Memory, &VisitedVerts, EdgesCount*2);
+    AllocList(Mesh->Memory, &CreatedEdges, EdgesCount*3);
 
-    AllocListOfIndices(Mesh->Memory, OutCreatedVerts, EdgesCount*2);
-    AllocListOfIndices(Mesh->Memory, OutCreatedFaces, EdgesCount);
+    AllocList(Mesh->Memory, OutCreatedVerts, EdgesCount*2);
+    AllocList(Mesh->Memory, OutCreatedFaces, EdgesCount);
     if (OutOppositeEdges)
     {
-        AllocListOfIndices(Mesh->Memory, OutOppositeEdges, EdgesCount);
+        AllocList(Mesh->Memory, OutOppositeEdges, EdgesCount);
     }
 
     for (u32 Index = 0; Index < EdgesCount; ++Index)
@@ -622,8 +610,8 @@ ExtrudeEdges(world_mesh *Mesh, edge_index *Edges, u32 EdgesCount,
                     OutCreatedFaces, OutOppositeEdges, HintVert);
     }
 
-    FreeListOfIndices(&VisitedVerts);
-    FreeListOfIndices(&CreatedEdges);
+    FreeList(&VisitedVerts);
+    FreeList(&CreatedEdges);
 }
 
 internal void
@@ -631,6 +619,9 @@ ExtrudeFaces(world_mesh *Mesh, face_index *InputFaces, u32 InputFacesCount,
              freeable_list_u32 *OutCreatedFaces,
              freeable_list_u32 *OutOppositeFaces)
 {
+    EnsureListIsFreed(OutCreatedFaces);
+    EnsureListIsFreed(OutOppositeFaces);
+
     freeable_list_u32 UniqueEdges = {};
     freeable_list_u32 HintLoops = {};
     freeable_list_u32 SharedEdges = {};
@@ -645,18 +636,18 @@ ExtrudeFaces(world_mesh *Mesh, face_index *InputFaces, u32 InputFacesCount,
     u32 PotentialEdgesCount = AddFaceLoopCycleLengths(Mesh, InputFaces, InputFacesCount);
 
     // These don't need to have exact sizes; being liberal with memory here
-    AllocListOfIndices(Mesh->Memory, &VisitedVerts, PotentialEdgesCount*2);
-    AllocListOfIndices(Mesh->Memory, &CreatedVerts, PotentialEdgesCount*2);
-    AllocListOfIndices(Mesh->Memory, &CreatedEdges, PotentialEdgesCount*3);
-    AllocListOfIndices(Mesh->Memory, &CreatedFaces, InputFacesCount*5);
-    AllocListOfIndices(Mesh->Memory, &UniqueEdges, PotentialEdgesCount);
-    AllocListOfIndices(Mesh->Memory, &HintLoops, PotentialEdgesCount);
-    AllocListOfIndices(Mesh->Memory, &SharedEdges, PotentialEdgesCount);
-    AllocListOfIndices(Mesh->Memory, &OppositeEdges, PotentialEdgesCount);
-    AllocListOfIndices(Mesh->Memory, &EdgesTableOriginal, PotentialEdgesCount);
-    AllocListOfIndices(Mesh->Memory, &EdgesTableOpposite, PotentialEdgesCount);
+    AllocList(Mesh->Memory, &VisitedVerts, PotentialEdgesCount*2);
+    AllocList(Mesh->Memory, &CreatedVerts, PotentialEdgesCount*2);
+    AllocList(Mesh->Memory, &CreatedEdges, PotentialEdgesCount*3);
+    AllocList(Mesh->Memory, &CreatedFaces, InputFacesCount*5);
+    AllocList(Mesh->Memory, &UniqueEdges, PotentialEdgesCount);
+    AllocList(Mesh->Memory, &HintLoops, PotentialEdgesCount);
+    AllocList(Mesh->Memory, &SharedEdges, PotentialEdgesCount);
+    AllocList(Mesh->Memory, &OppositeEdges, PotentialEdgesCount);
+    AllocList(Mesh->Memory, &EdgesTableOriginal, PotentialEdgesCount);
+    AllocList(Mesh->Memory, &EdgesTableOpposite, PotentialEdgesCount);
 
-    AllocListOfIndices(Mesh->Memory, OutOppositeFaces, InputFacesCount);
+    AllocList(Mesh->Memory, OutOppositeFaces, InputFacesCount);
 
     // 1. Find which edges are unique (wholey owned by one face) and which are shared
     for (u32 f = 0; f < InputFacesCount; ++f)
@@ -738,7 +729,7 @@ ExtrudeFaces(world_mesh *Mesh, face_index *InputFaces, u32 InputFacesCount,
 
         // for each edge, find their opposite
         freeable_list_u32 NewFaceEdges = {};
-        AllocListOfIndices(Mesh->Memory, &NewFaceEdges, Face.LoopCycleLen);
+        AllocList(Mesh->Memory, &NewFaceEdges, Face.LoopCycleLen);
 
         vert_index HintVert = 0;
 
@@ -775,20 +766,19 @@ ExtrudeFaces(world_mesh *Mesh, face_index *InputFaces, u32 InputFacesCount,
         // 5. This kills the shared edges if they are no longer in use by any faces
         KillFace(Mesh, FaceIndex);
 
-        FreeListOfIndices(&NewFaceEdges);
+        FreeList(&NewFaceEdges);
     }
 
-    FreeListOfIndices(&VisitedVerts);
-    FreeListOfIndices(&CreatedVerts);
-    FreeListOfIndices(&CreatedEdges);
-    // FreeListOfIndices(&CreatedFaces);
-    *OutCreatedFaces = CreatedFaces;
-    FreeListOfIndices(&HintLoops);
-    FreeListOfIndices(&UniqueEdges);
-    FreeListOfIndices(&SharedEdges);
-    FreeListOfIndices(&OppositeEdges);
-    FreeListOfIndices(&EdgesTableOriginal);
-    FreeListOfIndices(&EdgesTableOpposite);
+    FreeList(&VisitedVerts);
+    FreeList(&CreatedVerts);
+    FreeList(&CreatedEdges);
+    *OutCreatedFaces = CreatedFaces;//FreeList(&CreatedFaces);
+    FreeList(&HintLoops);
+    FreeList(&UniqueEdges);
+    FreeList(&SharedEdges);
+    FreeList(&OppositeEdges);
+    FreeList(&EdgesTableOriginal);
+    FreeList(&EdgesTableOpposite);
 }
 
 internal vec3

@@ -402,54 +402,45 @@ MemBlocksRealloc()
 
 // ------------------------------------------------------------------------------------------------
 
-struct freeable_list_vec3
-{
-    freeable_block Freeable;
-    vec3 *List;
-    u32 Count;
-};
+#define DeclareFreeableListType(Type)\
+\
+struct freeable_list_##Type\
+{\
+    freeable_block Freeable;\
+    Type *List;\
+    u32 Count;\
+};\
+\
+inline void AllocList(memory_blocks *Memory, freeable_list_##Type *FreeableList, u32 Count)\
+{\
+    Assert(FreeableList && FreeableList->Freeable.Block == 0);\
+    FreeableList->List = AllocArray(Memory, Count, Type);\
+    FreeableList->Count = 0;\
+    FreeableList->Freeable.Block = FreeableList->List;\
+    FreeableList->Freeable.Allocator = Memory;\
+}\
+\
+inline void FreeList(freeable_list_##Type *FreeableList)\
+{\
+    FreeFreeableBlock(&FreeableList->Freeable);\
+    *FreeableList = {};\
+}\
+\
+inline void EnsureListIsFreed(freeable_list_##Type *FreeableList)\
+{\
+    if (FreeableList && FreeableList->Freeable.Block != 0)\
+    {\
+        FreeList(FreeableList);\
+    }\
+}\
+// TODO(Kevin): Logging warning in EnsureListIsFreed
+// TODO(Kevin): Capacity and Accessors, Adders, Removers
 
-inline void
-AllocListOfVec3(memory_blocks *Memory, freeable_list_vec3 *FreeableList, u32 Count)
-{
-    Assert(FreeableList && FreeableList->Freeable.Block == 0);
-    FreeableList->List = AllocArray(Memory, Count, vec3);
-    FreeableList->Count = 0;
-    FreeableList->Freeable.Block = FreeableList->List;
-    FreeableList->Freeable.Allocator = Memory;
-}
-
-inline void
-FreeListOfVec3(freeable_list_vec3 *FreeableList)
-{
-    FreeFreeableBlock(&FreeableList->Freeable);
-    *FreeableList = {};
-}
-
-struct freeable_list_u32
-{
-    freeable_block Freeable;
-    u32 *List;
-    u32 Count;
-    // TODO(Kevin): Capacity
-};
-
-inline void
-AllocListOfIndices(memory_blocks *Memory, freeable_list_u32 *FreeableList, u32 Count)
-{
-    Assert(FreeableList && FreeableList->Freeable.Block == 0);
-    FreeableList->List = AllocArray(Memory, Count, u32);
-    FreeableList->Count = 0;
-    FreeableList->Freeable.Block = FreeableList->List;
-    FreeableList->Freeable.Allocator = Memory;
-}
-
-inline void
-FreeListOfIndices(freeable_list_u32 *FreeableList)
-{
-    FreeFreeableBlock(&FreeableList->Freeable);
-    *FreeableList = {};
-}
+// NOTE(Kevin): Maybe we should just expand these macros and get rid of the macros
+//              Not really that annoying to have copies of these functions for each
+//              type if I don't have very many types.
+DeclareFreeableListType(u32);
+DeclareFreeableListType(vec3);
 
 inline s32
 GetIndexOf(u32 *Indices, u32 IndicesCount, u32 SearchFor)
