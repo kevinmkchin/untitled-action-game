@@ -151,6 +151,7 @@ struct freeable_loi // list of indices
     freeable_block Freeable;
     u32 *List;
     u32 Count;
+    // Capacity
 };
 
 inline void
@@ -170,45 +171,110 @@ FreeListOfIndices(freeable_loi *FreeableList)
     *FreeableList = {};
 }
 
-inline void
-AddIndexIfUnique(u32 **Indices, u32 *IndicesCount, u32 Index)
+inline s32
+GetIndexOf(u32 *Indices, u32 IndicesCount, u32 SearchFor)
 {
-    bool32 IsUnique = true;
+    s32 Index = -1;
 
-    for (u32 Check = 0; Check < *IndicesCount; ++Check)
+    for (u32 Check = 0; Check < IndicesCount; ++Check)
     {
-        if ((*Indices)[Check] == Index)
+        if (Indices[Check] == SearchFor)
         {
-            IsUnique = false;
+            Index = Check;
             break;
         }
     }
 
+    return Index;
+}
+
+inline bool32
+AddIndexIfUnique(u32 *Indices, u32 *IndicesCount, u32 Index, u32 *OutExistingIndex = 0)
+{
+    s32 ExistingIndex = GetIndexOf(Indices, *IndicesCount, Index);
+
+    bool32 IsUnique = ExistingIndex < 0;
+
     if (IsUnique)
     {
-        (*Indices)[(*IndicesCount)++] = Index;
+        Indices[(*IndicesCount)++] = Index;
+    }
+    else
+    {
+        if (OutExistingIndex)
+        {
+            *OutExistingIndex = SafeCastToU32(ExistingIndex);
+        }        
+    }
+
+    return IsUnique;
+}
+
+inline void
+RemoveIndexAtSwapWithEnd(u32 *Indices, u32 *IndicesCount, u32 Index)
+{
+    Indices[Index] = Indices[--(*IndicesCount)];
+}
+
+inline u32
+AddFaceLoopCycleLengths(world_mesh *Mesh, face_index *Faces, u32 FacesCount)
+{
+    u32 TotalLoopCount = 0;
+
+    for (u32 f = 0; f < FacesCount; ++f)
+    {
+        face_index FaceIndex = Faces[f];
+        mesh_face *Face = &Mesh->Faces[FaceIndex];
+        TotalLoopCount += Face->LoopCycleLen;
+    }
+
+    return TotalLoopCount;
+}
+
+inline void
+GetFaceVertsAndEdges(world_mesh *Mesh, face_index FaceIndex,
+                     freeable_loi *OutVerts, freeable_loi *OutEdges)
+{
+    mesh_face Face = Mesh->Faces[FaceIndex];
+
+    for (loop_index l = Face.LoopCycleBase, i = 0;
+         i < Face.LoopCycleLen;
+         l = Mesh->Loops[l].Next, ++i)
+    {
+        topo_loop Loop = Mesh->Loops[l];
+
+        if (OutVerts)
+        {
+            AddIndexIfUnique(OutVerts->List, &OutVerts->Count, Loop.Vert);
+        }
+        if (OutEdges)
+        {
+            AddIndexIfUnique(OutEdges->List, &OutEdges->Count, Loop.Edge);
+        }
     }
 }
 
 internal void
 ExtrudeEdges(world_mesh *Mesh, edge_index *Edges, u32 EdgesCount, 
              freeable_loi *OutCreatedVerts,
-             freeable_loi *OutCreatedEdges,
              freeable_loi *OutCreatedFaces,
              freeable_loi *OutOppositeEdges);
 /* Extrude faces from edges.
 
-    $:OutOppositeEdges  (optional) the newly created edges that are not connected to the input edges, opposite from them in the created rects
+    $:OutCreatedVerts   the new vertices created by the operation
+    $:OutCreatedFaces   the new faces created by the operation
+    $:OutOppositeEdges  (optional) the newly created edges that are not connected to the input edges, opposite from them in the created rects. Memory allocated by the operation.
 
     Input edges that are connected/adjacent will respect sharing of vertices.
         .-----.-----.  => :=====:=====:
 
-    For each input edge, its newly extruded face will face the same direction as the face that owns the base
-    loop of the radial cycle of the input edge.
-
 */
 
-// ExtrudeFace
+internal void
+ExtrudeFaces(world_mesh *Mesh, face_index *InputFaces, u32 InputFacesCount,
+             freeable_loi *OutCreatedFaces,
+             freeable_loi *OutOppositeFaces);
+
 // RingCut / Slice
 
 internal vec3

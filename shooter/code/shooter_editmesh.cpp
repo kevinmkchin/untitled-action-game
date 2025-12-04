@@ -85,7 +85,7 @@ RadialCycleRemoveLoop(world_mesh *Mesh, edge_index Edge, loop_index ToRemove)
                 --E->RadialCycleLen;
                 Assert(E->RadialCycleLen == 0);
 
-                return;
+                break;
             }
 
             Mesh->Loops[CurrentLoop->RadialPrev].RadialNext = CurrentLoop->RadialNext;
@@ -94,14 +94,20 @@ RadialCycleRemoveLoop(world_mesh *Mesh, edge_index Edge, loop_index ToRemove)
             E->RadialCycleBase = CurrentLoop->RadialPrev;
             --E->RadialCycleLen;
 
-            return;
+            break;
         }
 
         Current = CurrentLoop->RadialNext;
     }
     while (Current != E->RadialCycleBase && Current);
 
-    Assert(0);
+    // NOTE(Kevin): I'm letting this handle edge deletion. Once no more faces use this edge
+    //              the edge is deleted.
+    if (E->RadialCycleLen == 0)
+    {
+        // No more faces use this edge anymore!
+        KillEdge(Mesh, L->Edge);
+    }
 }
 
 internal void
@@ -129,9 +135,10 @@ DiskCycleRemoveEdge(world_mesh *Mesh, vert_index DiskCycle, edge_index ToRemove)
     {
         if (Vert->ConnectedEdges[Index] == ToRemove)
         {
-            Vert->ConnectedEdges[Index] = Vert->ConnectedEdges[Vert->ConnectedEdgesCount-1];
-            Vert->ConnectedEdges[Vert->ConnectedEdgesCount-1] = 0;
-            --Vert->ConnectedEdgesCount;
+            Vert->ConnectedEdges[Index] = Vert->ConnectedEdges[--Vert->ConnectedEdgesCount];
+
+            // TODO(Kevin): Probably kill the vertex here if it is no longer used by any edges
+
             return;
         }
     }
@@ -207,7 +214,10 @@ CreateEdge(world_mesh *Mesh, vert_index V1, vert_index V2)
 internal void
 KillEdge(world_mesh *Mesh, edge_index Edge)
 {
-    // TODO(Kevin): remove edge from vertices disk link
+    vert_index VA = Mesh->Edges[Edge].A;
+    vert_index VB = Mesh->Edges[Edge].B;
+    DiskCycleRemoveEdge(Mesh, VA, Edge);
+    DiskCycleRemoveEdge(Mesh, VB, Edge);
 
     Mesh->Edges[Edge] = {};
     Mesh->FreeEdgeHandles[Mesh->FreeEdgeHandlesCount++] = Edge;
@@ -398,8 +408,8 @@ SplitEdgeMakeVert(world_mesh *Mesh, edge_index OldEdge, float t)
             Assert(MeshLoop(OldLoop).Vert == ToSplit->B);
 
             MeshLoop(NewLoop).Edge = OldEdge;
-            RadialCycleRemoveLoop(Mesh, OldEdge, OldLoop);
             RadialCycleInsertLoop(Mesh, OldEdge, NewLoop);
+            RadialCycleRemoveLoop(Mesh, OldEdge, OldLoop);
             RadialCycleInsertLoop(Mesh, CreatedEdge, OldLoop);
         }
 
@@ -524,9 +534,42 @@ ExtrudeEdgesHelper_CreateEdge(world_mesh *Mesh, vert_index A, vert_index B,
 }
 
 internal void
+ExtrudeEdge(world_mesh *Mesh, edge_index EdgeAB,
+            freeable_loi *VisitedVerts,
+            freeable_loi *CreatedVerts,
+            freeable_loi *CreatedEdges,
+            freeable_loi *CreatedFaces,
+            freeable_loi *OppositeEdges,
+            vert_index HintVert = 0)
+{
+    mesh_edge Edge = MeshEdge(EdgeAB);
+
+    vert_index DupA = ExtrudeEdgesHelper_DuplicateVertex(Mesh, Edge.A,
+                                                         &VisitedVerts->List, &VisitedVerts->Count,
+                                                         &CreatedVerts->List, &CreatedVerts->Count);
+    vert_index DupB = ExtrudeEdgesHelper_DuplicateVertex(Mesh, Edge.B,
+                                                         &VisitedVerts->List, &VisitedVerts->Count,
+                                                         &CreatedVerts->List, &CreatedVerts->Count);
+    edge_index EdgeAA = ExtrudeEdgesHelper_CreateEdge(Mesh, Edge.A, DupA, 
+                                                      &CreatedEdges->List, &CreatedEdges->Count);
+    edge_index EdgeBB = ExtrudeEdgesHelper_CreateEdge(Mesh, Edge.B, DupB,
+                                                      &CreatedEdges->List, &CreatedEdges->Count);
+    edge_index EdgeBA = ExtrudeEdgesHelper_CreateEdge(Mesh, DupB, DupA,
+                                                      &CreatedEdges->List, &CreatedEdges->Count);
+
+    edge_index FaceEdges[] = { EdgeAB, EdgeBB, EdgeBA, EdgeAA };
+    face_index Face = CreateFace(Mesh, FaceEdges, ArrayCount(FaceEdges), HintVert);
+
+    if (OppositeEdges)
+    {
+        OppositeEdges->List[OppositeEdges->Count++] = EdgeBA;
+    }
+    CreatedFaces->List[CreatedFaces->Count++] = Face;
+}
+
+internal void
 ExtrudeEdges(world_mesh *Mesh, edge_index *Edges, u32 EdgesCount,
              freeable_loi *OutCreatedVerts,
-             freeable_loi *OutCreatedEdges,
              freeable_loi *OutCreatedFaces,
              freeable_loi *OutOppositeEdges)
 {
@@ -540,22 +583,23 @@ ExtrudeEdges(world_mesh *Mesh, edge_index *Edges, u32 EdgesCount,
         FreeListOfIndices(OutCreatedVerts);
         // TODO(Kevin): Logging warning
     }
-    if (OutCreatedEdges->Freeable.Block != 0)
-    {
-        FreeListOfIndices(OutCreatedEdges);
-        // TODO(Kevin): Logging warning
-    }
     if (OutCreatedFaces->Freeable.Block != 0)
     {
         FreeListOfIndices(OutCreatedFaces);
         // TODO(Kevin): Logging warning
     }
+    if (OutOppositeEdges && OutOppositeEdges->Freeable.Block != 0)
+    {
+        FreeListOfIndices(OutOppositeEdges);
+        // TODO(Kevin): Logging warning
+    }
 
     freeable_loi VisitedVerts = {};
+    freeable_loi CreatedEdges = {};
     AllocListOfIndices(Mesh->Memory, &VisitedVerts, EdgesCount*2);
+    AllocListOfIndices(Mesh->Memory, &CreatedEdges, EdgesCount*3);
 
     AllocListOfIndices(Mesh->Memory, OutCreatedVerts, EdgesCount*2);
-    AllocListOfIndices(Mesh->Memory, OutCreatedEdges, EdgesCount*2);
     AllocListOfIndices(Mesh->Memory, OutCreatedFaces, EdgesCount);
     if (OutOppositeEdges)
     {
@@ -570,36 +614,181 @@ ExtrudeEdges(world_mesh *Mesh, edge_index *Edges, u32 EdgesCount,
         vert_index HintVert = 0;
         if (Edge.RadialCycleLen > 0)
         {
-            // NOTE(Kevin): Taking the radial cycle base loop as the hint loop. The
-            //              loop on the created face should go the other direction,
-            //              meaning it should reference the other vert of this edge.
             topo_loop HintLoop = MeshLoop(Edge.RadialCycleBase);
             HintVert = Edge.A == HintLoop.Vert ? Edge.B : Edge.A;
         }
 
-        vert_index DupA = ExtrudeEdgesHelper_DuplicateVertex(Mesh, Edge.A,
-                                                             &VisitedVerts.List, &VisitedVerts.Count,
-                                                             &OutCreatedVerts->List, &OutCreatedVerts->Count);
-        vert_index DupB = ExtrudeEdgesHelper_DuplicateVertex(Mesh, Edge.B,
-                                                             &VisitedVerts.List, &VisitedVerts.Count,
-                                                             &OutCreatedVerts->List, &OutCreatedVerts->Count);
-        edge_index EdgeAA = ExtrudeEdgesHelper_CreateEdge(Mesh, Edge.A, DupA, 
-                                                          &OutCreatedEdges->List, &OutCreatedEdges->Count);
-        edge_index EdgeBB = ExtrudeEdgesHelper_CreateEdge(Mesh, Edge.B, DupB,
-                                                          &OutCreatedEdges->List, &OutCreatedEdges->Count);
-        edge_index EdgeBA = CreateEdge(Mesh, DupB, DupA);
-
-        edge_index FaceEdges[] = { EdgeAB, EdgeBB, EdgeBA, EdgeAA };
-        face_index Face = CreateFace(Mesh, FaceEdges, ArrayCount(FaceEdges), HintVert);
-
-        if (OutOppositeEdges)
-        {
-            OutOppositeEdges->List[OutOppositeEdges->Count++] = EdgeBA;
-        }
-        OutCreatedFaces->List[OutCreatedFaces->Count++] = Face;
+        ExtrudeEdge(Mesh, EdgeAB, &VisitedVerts, OutCreatedVerts, &CreatedEdges,
+                    OutCreatedFaces, OutOppositeEdges, HintVert);
     }
 
     FreeListOfIndices(&VisitedVerts);
+    FreeListOfIndices(&CreatedEdges);
+}
+
+internal void
+ExtrudeFaces(world_mesh *Mesh, face_index *InputFaces, u32 InputFacesCount,
+             freeable_loi *OutCreatedFaces,
+             freeable_loi *OutOppositeFaces)
+{
+    freeable_loi UniqueEdges = {};
+    freeable_loi HintLoops = {};
+    freeable_loi SharedEdges = {};
+    freeable_loi OppositeEdges = {};
+    freeable_loi EdgesTableOriginal = {};
+    freeable_loi EdgesTableOpposite = {};
+    freeable_loi VisitedVerts = {};
+    freeable_loi CreatedVerts = {};
+    freeable_loi CreatedEdges = {};
+    freeable_loi CreatedFaces = {};
+
+    u32 PotentialEdgesCount = AddFaceLoopCycleLengths(Mesh, InputFaces, InputFacesCount);
+
+    // These don't need to have exact sizes; being liberal with memory here
+    AllocListOfIndices(Mesh->Memory, &VisitedVerts, PotentialEdgesCount*2);
+    AllocListOfIndices(Mesh->Memory, &CreatedVerts, PotentialEdgesCount*2);
+    AllocListOfIndices(Mesh->Memory, &CreatedEdges, PotentialEdgesCount*3);
+    AllocListOfIndices(Mesh->Memory, &CreatedFaces, InputFacesCount*5);
+    AllocListOfIndices(Mesh->Memory, &UniqueEdges, PotentialEdgesCount);
+    AllocListOfIndices(Mesh->Memory, &HintLoops, PotentialEdgesCount);
+    AllocListOfIndices(Mesh->Memory, &SharedEdges, PotentialEdgesCount);
+    AllocListOfIndices(Mesh->Memory, &OppositeEdges, PotentialEdgesCount);
+    AllocListOfIndices(Mesh->Memory, &EdgesTableOriginal, PotentialEdgesCount);
+    AllocListOfIndices(Mesh->Memory, &EdgesTableOpposite, PotentialEdgesCount);
+
+    AllocListOfIndices(Mesh->Memory, OutOppositeFaces, InputFacesCount);
+
+    // 1. Find which edges are unique (wholey owned by one face) and which are shared
+    for (u32 f = 0; f < InputFacesCount; ++f)
+    {
+        face_index FaceIndex = InputFaces[f];
+        mesh_face Face = Mesh->Faces[FaceIndex];
+
+        for (loop_index l = Face.LoopCycleBase, i = 0;
+             i < Face.LoopCycleLen;
+             l = Mesh->Loops[l].Next, ++i)
+        {
+            topo_loop Loop = Mesh->Loops[l];
+
+            u32 ExistingIndex;
+            bool32 Unique = AddIndexIfUnique(UniqueEdges.List, &UniqueEdges.Count, Loop.Edge, &ExistingIndex);
+            if (Unique)
+            {
+                AddIndexIfUnique(HintLoops.List, &HintLoops.Count, l);
+            }
+            else
+            {
+                RemoveIndexAtSwapWithEnd(UniqueEdges.List, &UniqueEdges.Count, ExistingIndex);
+                RemoveIndexAtSwapWithEnd(HintLoops.List, &HintLoops.Count, ExistingIndex);
+
+                AddIndexIfUnique(SharedEdges.List, &SharedEdges.Count, Loop.Edge);
+            }
+        }
+    }
+
+    Assert(UniqueEdges.Count == HintLoops.Count);
+
+    // 2. Extrude the unique edges using their hint loops from their owner faces
+    for (u32 i = 0; i < UniqueEdges.Count; ++i)
+    {
+        edge_index EdgeIndex = UniqueEdges.List[i];
+        loop_index HintLoop = HintLoops.List[i];
+
+        mesh_edge Edge = MeshEdge(EdgeIndex);
+        vert_index HintVert = Edge.A == MeshLoop(HintLoop).Vert ? Edge.A : Edge.B;
+
+        ExtrudeEdge(Mesh, EdgeIndex, &VisitedVerts, &CreatedVerts,
+                    &CreatedEdges, &CreatedFaces, &OppositeEdges, HintVert);
+
+        edge_index Opposite = OppositeEdges.List[OppositeEdges.Count-1];
+
+        // map unique edge to its opposite
+        EdgesTableOriginal.List[EdgesTableOriginal.Count++] = EdgeIndex;
+        EdgesTableOpposite.List[EdgesTableOpposite.Count++] = Opposite;
+    }
+
+    // 3. Create the opposite edges for the shared edges
+    for (u32 i = 0; i < SharedEdges.Count; ++i)
+    {
+        edge_index SharedEdgeIndex = SharedEdges.List[i];
+        mesh_edge SharedEdge = MeshEdge(SharedEdgeIndex);
+
+        vert_index DupA = ExtrudeEdgesHelper_DuplicateVertex(Mesh, SharedEdge.A,
+                                                             &VisitedVerts.List, &VisitedVerts.Count,
+                                                             &CreatedVerts.List, &CreatedVerts.Count);
+        vert_index DupB = ExtrudeEdgesHelper_DuplicateVertex(Mesh, SharedEdge.B,
+                                                             &VisitedVerts.List, &VisitedVerts.Count,
+                                                             &CreatedVerts.List, &CreatedVerts.Count);
+        edge_index OppositeSharedEdgeIndex = CreateEdge(Mesh, DupB, DupA);
+
+        OppositeEdges.List[OppositeEdges.Count++] = OppositeSharedEdgeIndex;
+
+        // map shared edge to its opposite
+        EdgesTableOriginal.List[EdgesTableOriginal.Count++] = SharedEdgeIndex;
+        EdgesTableOpposite.List[EdgesTableOpposite.Count++] = OppositeSharedEdgeIndex;
+    }
+
+    // 4. Iterate each original face loop cycle to find the corresponding opposites.
+    //    The set of opposites for each original face forms the new extruded face.
+    //    Then, the original faces are killed.
+    for (u32 f = 0; f < InputFacesCount; ++f)
+    {
+        face_index FaceIndex = InputFaces[f];
+        mesh_face Face = Mesh->Faces[FaceIndex];
+
+        // for each edge, find their opposite
+        freeable_loi NewFaceEdges = {};
+        AllocListOfIndices(Mesh->Memory, &NewFaceEdges, Face.LoopCycleLen);
+
+        vert_index HintVert = 0;
+
+        for (loop_index l = Face.LoopCycleBase, i = 0;
+             i < Face.LoopCycleLen;
+             l = Mesh->Loops[l].Next, ++i)
+        {
+            topo_loop Loop = Mesh->Loops[l];
+
+            s32 TableEntryIndex = GetIndexOf(EdgesTableOriginal.List, EdgesTableOriginal.Count, Loop.Edge);
+            Assert(TableEntryIndex >= 0);
+
+            edge_index OppositeEdgeIndex = EdgesTableOpposite.List[TableEntryIndex];
+
+            NewFaceEdges.List[NewFaceEdges.Count++] = OppositeEdgeIndex;
+
+            if (HintVert == 0)
+            {
+                mesh_edge LoopEdge = MeshEdge(Loop.Edge);
+                mesh_edge OppositeEdge = MeshEdge(OppositeEdgeIndex);
+                // NOTE(Kevin): This relies on the order of vertices for opposite edge creation.
+                //              We pick B because we use DupA (opposite of original A) as vert B
+                //              of the opposite edge.
+                HintVert = LoopEdge.A == Loop.Vert ? OppositeEdge.B : OppositeEdge.A;
+            }
+        }
+
+        // create new face with the set of opposites
+        face_index NewFaceIndex = CreateFace(Mesh, NewFaceEdges.List, NewFaceEdges.Count, HintVert);        
+        CreatedFaces.List[CreatedFaces.Count++] = NewFaceIndex;
+        OutOppositeFaces->List[OutOppositeFaces->Count++] = NewFaceIndex;
+
+        // delete original face
+        // 5. This kills the shared edges if they are no longer in use by any faces
+        KillFace(Mesh, FaceIndex);
+
+        FreeListOfIndices(&NewFaceEdges);
+    }
+
+    FreeListOfIndices(&VisitedVerts);
+    FreeListOfIndices(&CreatedVerts);
+    FreeListOfIndices(&CreatedEdges);
+    // FreeListOfIndices(&CreatedFaces);
+    *OutCreatedFaces = CreatedFaces;
+    FreeListOfIndices(&HintLoops);
+    FreeListOfIndices(&UniqueEdges);
+    FreeListOfIndices(&SharedEdges);
+    FreeListOfIndices(&OppositeEdges);
+    FreeListOfIndices(&EdgesTableOriginal);
+    FreeListOfIndices(&EdgesTableOpposite);
 }
 
 internal vec3

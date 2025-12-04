@@ -990,6 +990,49 @@ SelectElementWithMouseBehaviour(element_selection *Selection, u32 ElementID)
 }
 
 internal void
+FindWorkingSetVertsFromFaceSelection(editor *Editor)
+{
+    if (Editor->WorkingSetVerts.Freeable.Block != 0)
+    {
+        FreeListOfIndices(&Editor->WorkingSetVerts);
+        // TODO(Kevin): Logging warning
+    }
+
+    u32 PotentialVertsCount = AddFaceLoopCycleLengths(Editor->World, Editor->FaceSelection.Selection,
+                                                      Editor->FaceSelection.SelectionCount);
+    AllocListOfIndices(&Editor->EditorMemory, &Editor->WorkingSetVerts, PotentialVertsCount);
+
+    for (u32 Index = 0; Index < Editor->FaceSelection.SelectionCount; ++Index)
+    {
+        face_index Face = Editor->FaceSelection.Selection[Index];
+        GetFaceVertsAndEdges(Editor->World, Face, &Editor->WorkingSetVerts, NULL);
+    }
+}
+
+internal void
+FindWorkingSetVertsFromEdgeSelection(editor *Editor)
+{
+    if (Editor->WorkingSetVerts.Freeable.Block != 0)
+    {
+        FreeListOfIndices(&Editor->WorkingSetVerts);
+        // TODO(Kevin): Logging warning
+    }
+
+    u32 PotentialVertsCount = Editor->EdgeSelection.SelectionCount*2;
+    AllocListOfIndices(&Editor->EditorMemory, &Editor->WorkingSetVerts, PotentialVertsCount);
+
+    for (u32 Index = 0; Index < Editor->EdgeSelection.SelectionCount; ++Index)
+    {
+        edge_index E = Editor->EdgeSelection.Selection[Index];
+        mesh_edge Edge = Editor->World->Edges[E];
+        // TODO(Kevin): Put a bit flag in mesh_vert to indicate its already been added to working set
+        //              then unflip the bit after creating the full working set of unique vertices.
+        AddIndexIfUnique(Editor->WorkingSetVerts.List, &Editor->WorkingSetVerts.Count, Edge.A);
+        AddIndexIfUnique(Editor->WorkingSetVerts.List, &Editor->WorkingSetVerts.Count, Edge.B);
+    }
+}
+
+internal void
 EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *GuiState,
                       kbm_input *Input, renderer *RenderAPI, real32 dt)
 {
@@ -1157,18 +1200,7 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
                 {
                     PushWorldStateToUndoStack(Editor->UndoStack, Editor->World, Editor->ActiveMode);
 
-                    u32 ToTranslateCount = Editor->EdgeSelection.SelectionCount;
-                    AllocListOfIndices(&Editor->EditorMemory, &Editor->WorkingSetVerts, ToTranslateCount*2);
-
-                    for (u32 Index = 0; Index < ToTranslateCount; ++Index)
-                    {
-                        edge_index E = Editor->EdgeSelection.Selection[Index];
-                        mesh_edge Edge = Editor->World->Edges[E];
-                        // TODO(Kevin): Put a bit flag in mesh_vert to indicate its already been added to working set
-                        //              then unflip the bit after creating the full working set of unique vertices.
-                        AddIndexIfUnique(&Editor->WorkingSetVerts.List, &Editor->WorkingSetVerts.Count, Edge.A);
-                        AddIndexIfUnique(&Editor->WorkingSetVerts.List, &Editor->WorkingSetVerts.Count, Edge.B);
-                    }
+                    FindWorkingSetVertsFromEdgeSelection(Editor);
 
                     char *Tooltip = "Move edges (G)";
                     GuiState->TooltipLength = StringLength(Tooltip);
@@ -1185,13 +1217,11 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
                 {
                     PushWorldStateToUndoStack(Editor->UndoStack, Editor->World, Editor->ActiveMode);
 
-                    edge_index *ToExtrude = Editor->EdgeSelection.Selection;
-                    u32 ToExtrudeCount = Editor->EdgeSelection.SelectionCount;
                     freeable_loi OppositeEdges = {};
 
-                    ExtrudeEdges(World, ToExtrude, ToExtrudeCount,
+                    ExtrudeEdges(World, Editor->EdgeSelection.Selection,
+                                 Editor->EdgeSelection.SelectionCount,
                                  &Editor->WorkingSetVerts,
-                                 &Editor->WorkingSetEdges,
                                  &Editor->WorkingSetFaces,
                                  &OppositeEdges);
 
@@ -1219,9 +1249,10 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
                 {
                     for (u32 Index = 0; Index < Editor->FaceSelection.SelectionCount; ++Index)
                     {
-                        face_index SelectedFace = Editor->FaceSelection.Selection[Index];
-                        ReverseFaceLoop(World, SelectedFace);
-                        DeleteFaceRenderMesh(World, SelectedFace, RenderAPI);
+                        face_index SelectedFaceIndex = Editor->FaceSelection.Selection[Index];
+                        ReverseFaceLoop(World, SelectedFaceIndex);
+                        mesh_face *SelectedFace = &Editor->World->Faces[SelectedFaceIndex];
+                        SelectedFace->Dirty = true;
                     }
 
                     char *Tooltip = "Flip faces (F)";
@@ -1239,22 +1270,7 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
                 {
                     PushWorldStateToUndoStack(Editor->UndoStack, Editor->World, Editor->ActiveMode);
 
-                    u32 FacesCount = Editor->FaceSelection.SelectionCount;
-                    AllocListOfIndices(&Editor->EditorMemory, &Editor->WorkingSetVerts, FacesCount*4);
-
-                    for (u32 Index = 0; Index < FacesCount; ++Index)
-                    {
-                        face_index F = Editor->FaceSelection.Selection[Index];
-                        mesh_face Face = Editor->World->Faces[F];
-
-                        for (loop_index l = Face.LoopCycleBase, i = 0;
-                             i < Face.LoopCycleLen;
-                             l = Editor->World->Loops[l].Next, ++i)
-                        {
-                            topo_loop Loop = Editor->World->Loops[l];
-                            AddIndexIfUnique(&Editor->WorkingSetVerts.List, &Editor->WorkingSetVerts.Count, Loop.Vert);
-                        }
-                    }
+                    FindWorkingSetVertsFromFaceSelection(Editor);
 
                     char *Tooltip = "Move faces (G)";
                     GuiState->TooltipLength = StringLength(Tooltip);
@@ -1267,32 +1283,31 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
             else if (Input->KeyboardState->KbState[KB_E].EndedDown &&
                      Input->KeyboardState->KbState[KB_E].HalfTransitionCount > 0)
             {
-                // if (Editor->FaceSelection.SelectionCount > 0)
-                // {
-                //     PushWorldStateToUndoStack(Editor->UndoStack, Editor->World, Editor->ActiveMode);
+                if (Editor->FaceSelection.SelectionCount > 0)
+                {
+                    PushWorldStateToUndoStack(Editor->UndoStack, Editor->World, Editor->ActiveMode);
 
-                //     face_index *ToExtrude = Editor->FaceSelection.Selection;
-                //     u32 ToExtrudeCount = Editor->FaceSelection.SelectionCount;
-                //     freeable_loi OppositeEdges = {};
+                    freeable_loi OppositeFaces = {};
 
-                //     ExtrudeEdges(World, ToExtrude, ToExtrudeCount,
-                //                  &Editor->WorkingSetVerts,
-                //                  &Editor->WorkingSetEdges,
-                //                  &Editor->WorkingSetFaces,
-                //                  &OppositeEdges);
+                    ExtrudeFaces(Editor->World, Editor->FaceSelection.Selection,
+                                 Editor->FaceSelection.SelectionCount,
+                                 &Editor->WorkingSetFaces,
+                                 &OppositeFaces);
 
-                //     // Select the new edges that were "cloned" from the existing edges
-                //     Assert(Editor->FaceSelection.SelectionCount == OppositeEdges.Count);
-                //     Copy(Editor->FaceSelection.Selection, OppositeEdges.List, sizeof(u32)*OppositeEdges.Count);
-                //     FreeListOfIndices(&OppositeEdges);
+                    // Select the new faces that were "cloned" from the existing faces
+                    Assert(Editor->FaceSelection.SelectionCount == OppositeFaces.Count);
+                    Copy(Editor->FaceSelection.Selection, OppositeFaces.List, sizeof(u32)*OppositeFaces.Count);
+                    FreeListOfIndices(&OppositeFaces);
 
-                //     char *Tooltip = "Extrude edges (E)";
-                //     GuiState->TooltipLength = StringLength(Tooltip);
-                //     Copy(GuiState->Tooltip, Tooltip, GuiState->TooltipLength+1);
-                //     GuiState->TooltipTimer = 1.f;
+                    FindWorkingSetVertsFromFaceSelection(Editor);
 
-                //     Editor->QueuedMode = TranslateEdgesTool;
-                // }
+                    char *Tooltip = "Extrude faces (E)";
+                    GuiState->TooltipLength = StringLength(Tooltip);
+                    Copy(GuiState->Tooltip, Tooltip, GuiState->TooltipLength+1);
+                    GuiState->TooltipTimer = 1.f;
+
+                    Editor->QueuedMode = TranslateEdgesTool;
+                }
             }
         } break;
 
