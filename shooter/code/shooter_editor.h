@@ -91,7 +91,7 @@ struct editor
     vec3 BlockDrawHeight;
 
     vec3 MouseInteractStartP;
-    freeable_lovec3 MoveVertexOldP;
+    freeable_list_vec3 MoveVertexOldP;
 
     freeable_list_u32 WorkingSetVerts;
     freeable_list_u32 WorkingSetEdges;
