@@ -80,11 +80,9 @@ RadialCycleRemoveLoop(world_mesh *Mesh, edge_index Edge, loop_index ToRemove)
         {
             if (Current == CurrentLoop->RadialPrev)
             {
-                // Do I want to allow edges to exist by themselves?
                 E->RadialCycleBase = 0;
                 --E->RadialCycleLen;
                 Assert(E->RadialCycleLen == 0);
-
                 break;
             }
 
@@ -100,22 +98,6 @@ RadialCycleRemoveLoop(world_mesh *Mesh, edge_index Edge, loop_index ToRemove)
         Current = CurrentLoop->RadialNext;
     }
     while (Current != E->RadialCycleBase && Current);
-
-    // NOTE(Kevin): I'm letting this handle edge deletion. Once no more faces use this edge
-    //              the edge is deleted.
-    if (E->RadialCycleLen == 0)
-    {
-        // No more faces use this edge anymore!
-        KillEdge(Mesh, L->Edge);
-    }
-}
-
-internal void
-RadialCycleRemoveLoop(world_mesh *Mesh, loop_index ToRemove)
-{
-    Assert(ToRemove);
-    Assert(MeshLoop(ToRemove).Edge);
-    RadialCycleRemoveLoop(Mesh, MeshLoop(ToRemove).Edge, ToRemove);
 }
 
 internal void
@@ -136,8 +118,6 @@ DiskCycleRemoveEdge(world_mesh *Mesh, vert_index DiskCycle, edge_index ToRemove)
         if (Vert->ConnectedEdges[Index] == ToRemove)
         {
             Vert->ConnectedEdges[Index] = Vert->ConnectedEdges[--Vert->ConnectedEdgesCount];
-
-            // TODO(Kevin): Probably kill the vertex here if it is no longer used by any edges
 
             return;
         }
@@ -186,13 +166,6 @@ CreateVert(world_mesh *Mesh, vec3 P)
     return Result;
 }
 
-internal void
-KillVert(world_mesh *Mesh, vert_index Vertex)
-{
-    // TODO(Kevin): Should this kill the edges too? no, I don't think so...
-    // that should be the responsibility of the caller...not sure
-}
-
 internal edge_index
 CreateEdge(world_mesh *Mesh, vert_index V1, vert_index V2)
 {
@@ -209,18 +182,6 @@ CreateEdge(world_mesh *Mesh, vert_index V1, vert_index V2)
     DiskCycleInsertEdge(Mesh, V2, Result);
 
     return Result;
-}
-
-internal void
-KillEdge(world_mesh *Mesh, edge_index Edge)
-{
-    vert_index VA = Mesh->Edges[Edge].A;
-    vert_index VB = Mesh->Edges[Edge].B;
-    DiskCycleRemoveEdge(Mesh, VA, Edge);
-    DiskCycleRemoveEdge(Mesh, VB, Edge);
-
-    Mesh->Edges[Edge] = {};
-    Mesh->FreeEdgeHandles[Mesh->FreeEdgeHandlesCount++] = Edge;
 }
 
 internal face_index
@@ -353,18 +314,76 @@ CreateFace(world_mesh *Mesh, edge_index *Edges, u32 EdgeCount, vert_index HintLo
 }
 
 internal void
+KillVert(world_mesh *Mesh, vert_index Vertex)
+{
+    // NOTE(Kevin): Kill the edges in the disk cycle
+    for (u32 i = 0; i < MeshVert(Vertex).ConnectedEdgesCount; ++i)
+    {
+        edge_index ConnectedEdgeIndex = MeshVert(Vertex).ConnectedEdges[i];
+        KillEdge(Mesh, ConnectedEdgeIndex);
+    }
+
+    Mesh->Vertices[Vertex] = {};
+    Mesh->FreeVertexHandles[Mesh->FreeVertexHandlesCount++] = Vertex;
+}
+
+internal void
+KillEdge(world_mesh *Mesh, edge_index Edge)
+{
+    vert_index VA = Mesh->Edges[Edge].A;
+    vert_index VB = Mesh->Edges[Edge].B;
+
+    // NOTE(Kevin): Remove edge from the vertex disk cycles
+    DiskCycleRemoveEdge(Mesh, VA, Edge);
+    DiskCycleRemoveEdge(Mesh, VB, Edge);
+
+    // NOTE(Kevin): Check disk cycles, if empty delete those verts
+    if (MeshVert(VA).ConnectedEdgesCount == 0)
+    {
+        KillVert(Mesh, VA);
+    }
+    if (MeshVert(VB).ConnectedEdgesCount == 0)
+    {
+        KillVert(Mesh, VB);
+    }
+
+    Mesh->Edges[Edge].InDeletion = true;
+
+    // NOTE(Kevin): Delete the faces in the radial cycle
+    for (u32 i = 0, c = Mesh->Edges[Edge].RadialCycleLen; i < c; ++i)
+    {
+        // KillFace removes this loop from the radial cycle and updates the base
+        loop_index Loop = Mesh->Edges[Edge].RadialCycleBase;
+        KillFace(Mesh, MeshLoop(Loop).Face);
+    }
+
+    Mesh->Edges[Edge] = {};
+    Mesh->FreeEdgeHandles[Mesh->FreeEdgeHandlesCount++] = Edge;
+}
+
+internal void
 KillFace(world_mesh *Mesh, face_index Face)
 {
-    loop_index Head = Mesh->Faces[Face].LoopCycleBase;
-    loop_index Current = Head;
-    do
+    // NOTE(Kevin): Remove loop cycle loops from edge radial cycles
+    for (loop_index l = Mesh->Faces[Face].LoopCycleBase, i = 0;
+         i < Mesh->Faces[Face].LoopCycleLen;
+         l = Mesh->Loops[l].Next, ++i)
     {
-        RadialCycleRemoveLoop(Mesh, Current);
-        Mesh->FreeTopoLoopHandles[Mesh->FreeTopoLoopHandlesCount++] = Current;
+        edge_index EdgeIndex = MeshLoop(l).Edge;
+        mesh_edge *Edge = &MeshEdge(EdgeIndex);
 
-        Current = Mesh->Loops[Current].Next;
+        RadialCycleRemoveLoop(Mesh, EdgeIndex, l);
+        Mesh->FreeTopoLoopHandles[Mesh->FreeTopoLoopHandlesCount++] = l;
+
+        // NOTE(Kevin): Once no more faces use this edge the edge is deleted
+        if (Edge->RadialCycleLen == 0 && !Edge->InDeletion)
+        {
+            KillEdge(Mesh, EdgeIndex);
+        }
     }
-    while (Current != Head);
+
+    // NOTE(Kevin): Must delete the GPU render mesh
+    DeleteFaceRenderMesh(Mesh, Face, Mesh->RenderAPI);
 
     Mesh->Faces[Face] = {};
     Mesh->FreeFaceHandles[Mesh->FreeFaceHandlesCount++] = Face;

@@ -50,6 +50,7 @@ struct mesh_edge
 
     // Editor helper data
     bool32 Alive;
+    bool32 InDeletion;
 };
 
 struct mesh_vert
@@ -73,6 +74,7 @@ struct world_mesh
     */
 
     memory_blocks *Memory;
+    renderer *RenderAPI;
 
     mesh_face Faces[10000];
     face_index FreeFaceHandles[10000];
@@ -201,6 +203,17 @@ struct vertex_buffer
 internal vertex_buffer
 TriangulateEditMeshFace(memory_blocks *Memory, world_mesh *World, face_index Face);
 
+inline void
+DeleteFaceRenderMesh(world_mesh *World, face_index FaceIndex, renderer *RenderAPI)
+{
+    mesh_face *Face = &World->Faces[FaceIndex];
+
+    if (Face->RenderMesh)
+    {
+        RenderAPI->DeleteMesh(Face->RenderMesh);
+        Face->RenderMesh = 0;
+    }
+}
 
 inline u32
 AddFaceLoopCycleLengths(world_mesh *Mesh, face_index *Faces, u32 FacesCount)

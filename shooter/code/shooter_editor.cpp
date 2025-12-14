@@ -90,18 +90,6 @@ GetDrawRectBasisAxes(vec3 FloorNormal, vec3 *RectBasisUAxis, vec3 *RectBasisVAxi
 }
 
 internal void
-DeleteFaceRenderMesh(world_mesh *World, face_index FaceIndex, renderer *RenderAPI)
-{
-    mesh_face *Face = &World->Faces[FaceIndex];
-
-    if (Face->RenderMesh)
-    {
-        RenderAPI->DeleteMesh(Face->RenderMesh);
-        Face->RenderMesh = 0;
-    }
-}
-
-internal void
 DeleteAllFaceRenderMeshes(world_mesh *World, renderer *RenderAPI)
 {
     for (u32 FaceIndex = 0; FaceIndex < ArrayCount(World->Faces); ++FaceIndex)
@@ -1130,6 +1118,7 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
         InitializeWorldMesh(Editor->World);
         World = Editor->World;
         World->Memory = &Editor->EditorMemory;
+        World->RenderAPI = RenderAPI;
 
 // #if 1
 //         MakeEditableRectangle(World, { 100, 0, 100 }, { -100, 0, -100 }, GMATH_UP);
@@ -1339,6 +1328,27 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
                     SetGuiTooltip(Editor->GuiState, "Not enough points to form a face!", 1.0f);
                 }
             }
+            if (KeyWentDownMod(Input, KB_DEL, KB_DEL))
+            {
+                if (Editor->EdgeSelection.SelectionCount > 0)
+                {
+                    for (u32 Index = 0; Index < Editor->EdgeSelection.SelectionCount; ++Index)
+                    {
+                        edge_index SelectedEdgeIndex = Editor->EdgeSelection.Selection[Index];
+                        // Selected edge might already be killed by the time we get to it
+                        if (World->Edges[SelectedEdgeIndex].Alive)
+                        {
+                            KillEdge(World, SelectedEdgeIndex);
+                        }
+                    }
+
+                    ClearAllSelection(Editor);
+
+                    SetGuiTooltip(GuiState, "Deleted N edges", 1.0f);
+
+                    PushWorldStateToUndoStack(Editor->UndoStack, Editor->World, Editor->ActiveMode);
+                }
+            }
         } break;
 
         case SelectFace:
@@ -1396,6 +1406,23 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
                     SetGuiTooltip(GuiState, "Extrude faces (E)", 1.0f);
 
                     Editor->QueuedMode = TranslateEdgesTool;
+                }
+            }
+            if (KeyWentDownMod(Input, KB_DEL, KB_DEL))
+            {
+                if (Editor->FaceSelection.SelectionCount > 0)
+                {
+                    for (u32 Index = 0; Index < Editor->FaceSelection.SelectionCount; ++Index)
+                    {
+                        face_index SelectedFaceIndex = Editor->FaceSelection.Selection[Index];
+                        KillFace(World, SelectedFaceIndex);
+                    }
+
+                    ClearAllSelection(Editor);
+
+                    SetGuiTooltip(GuiState, "Deleted N faces", 1.0f);
+
+                    PushWorldStateToUndoStack(Editor->UndoStack, Editor->World, Editor->ActiveMode);
                 }
             }
         } break;
@@ -1539,6 +1566,9 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
         GuiTextFmt(GuiState, GuiState->CanvasW - 60, 80, GuiFontCambria40, 1.0f, Align_Right, false, vec4(1,1,1,1),
                    "Selected: %d faces %d edges", Editor->FaceSelection.SelectionCount,
                    Editor->EdgeSelection.SelectionCount);
+
+        // TODO(Kevin): Show how many render meshes are in use, how many face handles are in use, etc.
+        //              to verify no leaks
 
 #if 0
         GuiPanel(GuiState, { GameState->Editor.EditorMouseX-5, 
