@@ -8,7 +8,7 @@ set ts=%ts: =0%%time:~3,2%%time:~6,2%
 
 IF NOT EXIST build mkdir build
 pushd build
-del *.pdb > NUL 2> NUL
+del shooter*.pdb > NUL 2> NUL
 REM Optimization switches /O2 /Oi /fp:fast
 echo WAITING FOR PDB > lock.tmp
 cl %CommonCompilerFlags% -LD ..\code\shooter.cpp -Fmshooter.map /link -incremental:no -PDB:shooter_%ts%.pdb -EXPORT:GameUpdateAndRender -EXPORT:GameGetSoundSamples
