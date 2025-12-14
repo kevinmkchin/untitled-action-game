@@ -21,7 +21,7 @@ InitializeWorldMesh(world_mesh *Mesh)
 inline loop_index
 UseNextAvailableLoop(world_mesh *Mesh)
 {
-    Assert(Mesh->FreeTopoLoopHandlesCount > 0);
+    AssertEditor(Mesh->FreeTopoLoopHandlesCount > 0);
     loop_index FreeHandle = Mesh->FreeTopoLoopHandles[--Mesh->FreeTopoLoopHandlesCount];
     return FreeHandle;
 }
@@ -36,9 +36,9 @@ UseNextAvailableLoop(world_mesh *Mesh)
 internal void
 RadialCycleInsertLoop(world_mesh *Mesh, edge_index Edge, loop_index ToInsert)
 {
-    Assert(ToInsert);
+    AssertEditor(ToInsert);
     topo_loop *L = &Mesh->Loops[ToInsert];
-    Assert(Edge);
+    AssertEditor(Edge);
     mesh_edge *E = &Mesh->Edges[Edge];
 
     if (E->RadialCycleBase)
@@ -64,12 +64,12 @@ RadialCycleInsertLoop(world_mesh *Mesh, edge_index Edge, loop_index ToInsert)
 internal void
 RadialCycleRemoveLoop(world_mesh *Mesh, edge_index Edge, loop_index ToRemove)
 {
-    Assert(ToRemove);
+    AssertEditor(ToRemove);
     topo_loop *L = &Mesh->Loops[ToRemove];
-    Assert(L->Edge);
-    Assert(L->Edge == Edge);
+    AssertEditor(L->Edge);
+    AssertEditor(L->Edge == Edge);
     mesh_edge *E = &Mesh->Edges[L->Edge];
-    Assert(E->RadialCycleBase);
+    AssertEditor(E->RadialCycleBase);
 
     loop_index Current = E->RadialCycleBase;
     do
@@ -82,7 +82,7 @@ RadialCycleRemoveLoop(world_mesh *Mesh, edge_index Edge, loop_index ToRemove)
             {
                 E->RadialCycleBase = 0;
                 --E->RadialCycleLen;
-                Assert(E->RadialCycleLen == 0);
+                AssertEditor(E->RadialCycleLen == 0);
                 break;
             }
 
@@ -123,7 +123,7 @@ DiskCycleRemoveEdge(world_mesh *Mesh, vert_index DiskCycle, edge_index ToRemove)
         }
     }
 
-    Assert(0);
+    AssertEditor(0);
 }
 
 internal bool32
@@ -156,7 +156,7 @@ SharesVert(world_mesh *Mesh, edge_index A, edge_index B)
 internal vert_index
 CreateVert(world_mesh *Mesh, vec3 P)
 {
-    Assert(Mesh->FreeVertexHandlesCount > 0);
+    AssertEditor(Mesh->FreeVertexHandlesCount > 0);
 
     vert_index Result = Mesh->FreeVertexHandles[--Mesh->FreeVertexHandlesCount];
 
@@ -169,7 +169,7 @@ CreateVert(world_mesh *Mesh, vec3 P)
 internal edge_index
 CreateEdge(world_mesh *Mesh, vert_index V1, vert_index V2)
 {
-    Assert(Mesh->FreeEdgeHandlesCount > 0);
+    AssertEditor(Mesh->FreeEdgeHandlesCount > 0);
 
     edge_index Result = Mesh->FreeEdgeHandles[--Mesh->FreeEdgeHandlesCount];
 
@@ -207,7 +207,7 @@ CreateFace(world_mesh *Mesh, edge_index *Edges, u32 EdgeCount, vert_index HintLo
     vert_index HintLoopNext = 0;
     if (HintLoopStart)
     {
-        Assert(HasVert(Mesh, LastEdgeOrdered, HintLoopStart));
+        AssertEditor(HasVert(Mesh, LastEdgeOrdered, HintLoopStart));
         HintLoopNext = MeshEdge(LastEdgeOrdered).A == HintLoopStart ?
                        MeshEdge(LastEdgeOrdered).B : MeshEdge(LastEdgeOrdered).A;
     }
@@ -258,7 +258,7 @@ CreateFace(world_mesh *Mesh, edge_index *Edges, u32 EdgeCount, vert_index HintLo
     if (OrderedEdgesCount > 0)
     {
         // Create face and loops
-        Assert(Mesh->FreeFaceHandlesCount > 0);
+        AssertEditor(Mesh->FreeFaceHandlesCount > 0);
 
         Result = Mesh->FreeFaceHandles[--Mesh->FreeFaceHandlesCount];
 
@@ -268,12 +268,12 @@ CreateFace(world_mesh *Mesh, edge_index *Edges, u32 EdgeCount, vert_index HintLo
         {
             edge_index Edge = OrderedEdges[Index];
 
-            Assert(Mesh->FreeTopoLoopHandlesCount > 0);
+            AssertEditor(Mesh->FreeTopoLoopHandlesCount > 0);
 
             loop_index Loop = UseNextAvailableLoop(Mesh);
             vert_index SharedVert = LastLoop ? SharesVert(Mesh, Mesh->Loops[LastLoop].Edge, Edge)
                                              : SharesVert(Mesh, OrderedEdges[OrderedEdgesCount-1], Edge);
-            Assert(SharedVert);
+            AssertEditor(SharedVert);
 
             // Store references to base vertex, corresponding edge, and corresponding face
             Mesh->Loops[Loop] = {};
@@ -392,7 +392,7 @@ KillFace(world_mesh *Mesh, face_index Face)
 internal vert_index
 SplitEdgeMakeVert(world_mesh *Mesh, edge_index OldEdge, float t)
 {
-    Assert(OldEdge);
+    AssertEditor(OldEdge);
     mesh_edge *ToSplit = &MeshEdge(OldEdge);
     vec3 VertP = ((MeshVert(ToSplit->B).P - MeshVert(ToSplit->A).P) * GMATH_Clamp01(t)) + 
                  MeshVert(ToSplit->A).P;
@@ -427,7 +427,7 @@ SplitEdgeMakeVert(world_mesh *Mesh, edge_index OldEdge, float t)
         }
         else
         {
-            Assert(MeshLoop(OldLoop).Vert == ToSplit->B);
+            AssertEditor(MeshLoop(OldLoop).Vert == ToSplit->B);
 
             MeshLoop(NewLoop).Edge = OldEdge;
             RadialCycleInsertLoop(Mesh, OldEdge, NewLoop);
@@ -461,7 +461,7 @@ JoinEdgeKillVert(world_mesh *Mesh, edge_index Edge, vert_index Vert)
     // oe is traversed and all of its face loops are updated. Note that in order
     // for this euler to work, kv must have exactly only two edges coincident 
     // upon it (valance of 2). 
-    Assert(0);
+    AssertEditor(0);
     return 0;
 }
 
@@ -469,7 +469,7 @@ internal face_index
 SplitFaceMakeEdge(world_mesh *Mesh, face_index Face, vert_index V1, vert_index V2)
 {
     // TODO(Kevin): 
-    Assert(0);
+    AssertEditor(0);
     return 0;
 }
 
@@ -477,7 +477,7 @@ internal face_index
 JoinFaceKillEdge()
 {
     // TODO(Kevin): 
-    Assert(0);
+    AssertEditor(0);
     return 0;
 }
 
@@ -485,8 +485,8 @@ internal void
 ReverseFaceLoop(world_mesh *Mesh, face_index Face)
 {
     mesh_face *F = &MeshFace(Face);
-    Assert(F->LoopCycleLen > 2);
-    Assert(F->LoopCycleBase);
+    AssertEditor(F->LoopCycleLen > 2);
+    AssertEditor(F->LoopCycleBase);
 
     vert_index BaseVert = MeshLoop(F->LoopCycleBase).Vert;
     loop_index CurrentLoop = F->LoopCycleBase;
@@ -655,7 +655,7 @@ ExtrudeFaces(world_mesh *Mesh, face_index *InputFaces, u32 InputFacesCount,
     AllocList(Mesh->Memory, &VisitedVerts, PotentialEdgesCount*2);
     AllocList(Mesh->Memory, &CreatedVerts, PotentialEdgesCount*2);
     AllocList(Mesh->Memory, &CreatedEdges, PotentialEdgesCount*3);
-    AllocList(Mesh->Memory, &CreatedFaces, InputFacesCount*5);
+    AllocList(Mesh->Memory, &CreatedFaces, PotentialEdgesCount+1);
     AllocList(Mesh->Memory, &UniqueEdges, PotentialEdgesCount);
     AllocList(Mesh->Memory, &HintLoops, PotentialEdgesCount);
     AllocList(Mesh->Memory, &SharedEdges, PotentialEdgesCount);
@@ -693,7 +693,7 @@ ExtrudeFaces(world_mesh *Mesh, face_index *InputFaces, u32 InputFacesCount,
         }
     }
 
-    Assert(UniqueEdges.Count == HintLoops.Count);
+    AssertEditor(UniqueEdges.Count == HintLoops.Count);
 
     // 2. Extrude the unique edges using their hint loops from their owner faces
     for (u32 i = 0; i < UniqueEdges.Count; ++i)
@@ -756,7 +756,7 @@ ExtrudeFaces(world_mesh *Mesh, face_index *InputFaces, u32 InputFacesCount,
             topo_loop Loop = Mesh->Loops[l];
 
             s32 TableEntryIndex = GetIndexOf(EdgesTableOriginal.List, EdgesTableOriginal.Count, Loop.Edge);
-            Assert(TableEntryIndex >= 0);
+            AssertEditor(TableEntryIndex >= 0);
 
             edge_index OppositeEdgeIndex = EdgesTableOpposite.List[TableEntryIndex];
 
@@ -1009,7 +1009,7 @@ TriangulateEditMeshFace(memory_blocks *Memory, world_mesh *World, face_index Fac
         if (IndicesCount > 2)
         {
             vec3 WorldN = GetFaceNormal(Points, PointCount);
-            Assert(ZeroWithEpsilon1(Length(WorldN)) > 0);
+            AssertEditor(ZeroWithEpsilon1(Length(WorldN)) > 0);
 
             for (u32 PointIndex = 0; PointIndex < PointCount; ++PointIndex)
             {

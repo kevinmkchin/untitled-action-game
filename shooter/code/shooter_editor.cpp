@@ -1,5 +1,19 @@
 #include "shooter_editor.h"
 
+internal void
+AssertEditor(bool32 Expression)
+{
+    if (!Expression)
+    {
+        // TODO(Kevin): Save to disk the world_mesh state before crashing
+        //              so I can recover and debug.
+        // TODO(Kevin): General "dump world_mesh state" and "recover" functions
+        //              so I can debug any issues or bugs.
+
+        Assert(0);
+    }
+}
+
 #include "shooter_editmesh.cpp"
 
 internal void
@@ -404,7 +418,7 @@ EnterNextMode(editor *Editor)
     {
         case TranslateEdgesTool:
         {
-            Assert(Editor->WorkingSetVerts.Count > 0);
+            AssertEditor(Editor->WorkingSetVerts.Count > 0);
             AllocList(&Editor->EditorMemory, &Editor->MoveVertexOldP, Editor->WorkingSetVerts.Count);
 
             for (u32 I = 0; I < Editor->WorkingSetVerts.Count; ++I)
@@ -1290,7 +1304,7 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
                                  &OppositeEdges);
 
                     // Select the new edges that were "cloned" from the existing edges
-                    Assert(Editor->EdgeSelection.SelectionCount == OppositeEdges.Count);
+                    AssertEditor(Editor->EdgeSelection.SelectionCount == OppositeEdges.Count);
                     Copy(Editor->EdgeSelection.Selection, OppositeEdges.List, sizeof(u32)*OppositeEdges.Count);
                     FreeList(&OppositeEdges);
 
@@ -1397,7 +1411,7 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
                                  &OppositeFaces);
 
                     // Select the new faces that were "cloned" from the existing faces
-                    Assert(Editor->FaceSelection.SelectionCount == OppositeFaces.Count);
+                    AssertEditor(Editor->FaceSelection.SelectionCount == OppositeFaces.Count);
                     Copy(Editor->FaceSelection.Selection, OppositeFaces.List, sizeof(u32)*OppositeFaces.Count);
                     FreeList(&OppositeFaces);
 
