@@ -158,6 +158,6 @@ internal void
 GuiBeginFrame(gui_state *GuiState, u32 CanvasWidth, u32 CanvasHeight,
               memory_arena *Scratch, kbm_input GuiInput);
 internal void
-SetGuiTooltip(gui_state *GuiState, char *Tooltip);
+SetGuiTooltip(gui_state *GuiState, char *Tooltip, real32 Timer);
 
 #endif // SHOOTER_GUI_H

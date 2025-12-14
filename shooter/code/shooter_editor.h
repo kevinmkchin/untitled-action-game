@@ -15,13 +15,12 @@ enum editor_mode
 
     SelectEdge,
     TranslateEdgesTool,
-    ExtrudeEdgesTool,
 
     SelectFace,
 
     BlockTool,
 
-    // PolygonTool,
+    PolygonTool,
 };
 
 struct undo_state
@@ -50,7 +49,8 @@ struct editor
     bool32 IsInitialized;
 
     memory_blocks EditorMemory;
-    renderer *RenderAPI;    
+    renderer *RenderAPI;
+    gui_state *GuiState;
 
     undo_stack *UndoStack;
 
@@ -82,7 +82,7 @@ struct editor
     vec3 GridUp;
     vec3 GridRight;
 
-    u32 BlockToolStage;
+    u32 ToolStage; // NOTE(Kevin): Tool Stage and editor Mode are orthogonal.
     vec3 RectStartP;
     vec3 RectEndP;
     vec3 RectDrawPlaneN;

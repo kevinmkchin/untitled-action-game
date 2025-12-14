@@ -280,14 +280,13 @@ SetGuiTooltipWithUndoState(gui_state *GuiState, undo_stack *Undo)
 
     if (HowFarBack == 0)
     {
-        char *Tooltip = "Viewing world state (Most Recent)";
-        GuiState->TooltipLength = StringLength(Tooltip);
-        Copy(GuiState->Tooltip, Tooltip, GuiState->TooltipLength+1);
+        SetGuiTooltip(GuiState, "Viewing world state (Most Recent)", 1.0f);
     }
     else
     {
         GuiState->TooltipLength = stbsp_sprintf(GuiState->Tooltip,
                                                 "Viewing world state (%d)", HowFarBack);
+        GuiState->TooltipTimer = 1.0f;
     }
 }
 
@@ -394,30 +393,20 @@ EnterNextMode(editor *Editor)
 
         case TranslateEdgesTool:
         {
-            if (Editor->MoveVertexOldP.List)
-            {
-                FreeList(&Editor->MoveVertexOldP);
-            }
-            if (Editor->WorkingSetVerts.List)
-            {
-                FreeList(&Editor->WorkingSetVerts);
-            }
-            if (Editor->WorkingSetEdges.List)
-            {
-                FreeList(&Editor->WorkingSetEdges);
-            }
-            if (Editor->WorkingSetFaces.List)
-            {
-                FreeList(&Editor->WorkingSetFaces);
-            }
+            EnsureListIsFreed(&Editor->MoveVertexOldP);
+            EnsureListIsFreed(&Editor->WorkingSetVerts);
+            EnsureListIsFreed(&Editor->WorkingSetEdges);
+            EnsureListIsFreed(&Editor->WorkingSetFaces);
         } break;
 
-        case BlockTool:
+        case PolygonTool:
         {
-            Editor->BlockToolStage = 0;
+            EnsureListIsFreed(&Editor->WorkingSetVerts);
+            EnsureListIsFreed(&Editor->WorkingSetEdges);
         } break;
     }
 
+    Editor->ToolStage = 0;
     Editor->PrevMode = Editor->ActiveMode;
     Editor->ActiveMode = Editor->QueuedMode;
     Editor->QueuedMode = NothingMode;
@@ -742,30 +731,55 @@ TranslateWorkingSetVertices(editor *Editor, gui_state *GuiState)
 }
 
 internal void
+SetStartPointOnDrawPlaneAndProgressStage(editor *Editor)
+{
+    if (Editor->MouseNotCaptured)
+    {
+        bool32 ValidPick = PickPointUnderMouse(Editor, &Editor->RectStartP,
+                                               &Editor->RectDrawPlaneN);
+
+        if (ValidPick)
+        {
+            Editor->RectStartP = SnapToGrid(Editor, Editor->RectStartP);
+
+            GetDrawRectBasisAxes(Editor->RectDrawPlaneN, &Editor->RectDrawBasisUAxis,
+                                 &Editor->RectDrawBasisVAxis);
+
+            Editor->ToolStage = 1;
+        }
+    }
+}
+
+internal void
+UpdateHotPointOnDrawPlane(editor *Editor)
+{
+    if (Editor->MouseNotCaptured)
+    {
+        vec3 WP, WR;
+        ScreenPointToWorldPointAndRay(Editor->ViewportMouseP, Editor->RenderAPI, &WP, &WR);
+
+        vec3 Intersection;
+        IntersectPlaneAndLine(Editor->RectStartP, Editor->RectDrawPlaneN, 
+                              WP, WR, &Intersection);
+
+        Editor->RectEndP = SnapToGrid(Editor, Intersection);
+    }
+}
+
+internal void
 DoBlockTool(editor *Editor)
 {
     // TODO(Kevin): Can't use block tool if about to exceed face/elements limit!
     // TODO(Kevin): Deactivate tool if ESC key pressed
 
-    if (Editor->BlockToolStage == 0)
+    if (Editor->ToolStage == 0)
     {
         if (Editor->ViewportLMBWentDown)
         {
-            bool32 ValidPick = PickPointUnderMouse(Editor, &Editor->RectStartP,
-                                                   &Editor->RectDrawPlaneN);
-
-            if (ValidPick)
-            {
-                Editor->RectStartP = SnapToGrid(Editor, Editor->RectStartP);
-
-                GetDrawRectBasisAxes(Editor->RectDrawPlaneN, &Editor->RectDrawBasisUAxis,
-                                     &Editor->RectDrawBasisVAxis);
-
-                Editor->BlockToolStage = 1;
-            }
+            SetStartPointOnDrawPlaneAndProgressStage(Editor);
         }
     }
-    else if (Editor->BlockToolStage == 1)
+    else if (Editor->ToolStage == 1)
     {
         Editor->GridOrigin = Editor->RectStartP;
         Editor->GridRight = Editor->RectDrawBasisUAxis;
@@ -773,17 +787,7 @@ DoBlockTool(editor *Editor)
 
         if (Editor->ViewportLMBIsDown || Editor->ViewportLMBWentUp)
         {
-            if (Editor->MouseNotCaptured)
-            {
-                vec3 WP, WR;
-                ScreenPointToWorldPointAndRay(Editor->ViewportMouseP, Editor->RenderAPI, &WP, &WR);
-
-                vec3 Intersection;
-                IntersectPlaneAndLine(Editor->RectStartP, Editor->RectDrawPlaneN, 
-                                      WP, WR, &Intersection);
-
-                Editor->RectEndP = SnapToGrid(Editor, Intersection);
-            }
+            UpdateHotPointOnDrawPlane(Editor);
 
             vec3 StartToEnd = vec3(Editor->RectEndP - Editor->RectStartP);
             vec3 StartToEndAlongBasisU = Dot(StartToEnd, Editor->RectDrawBasisUAxis) *
@@ -815,17 +819,17 @@ DoBlockTool(editor *Editor)
                 if (Magnitude(StartToEndAlongBasisU)+0.05f >= Editor->GridIncrement &&
                     Magnitude(StartToEndAlongBasisV)+0.05f >= Editor->GridIncrement)
                 {
-                    Editor->BlockToolStage = 2;
+                    Editor->ToolStage = 2;
                     Editor->BlockDrawHeight = {};
                 }
                 else
                 {
-                    Editor->BlockToolStage = 0;
+                    Editor->ToolStage = 0;
                 }                
             }
         }
     }
-    else if (Editor->BlockToolStage == 2)
+    else if (Editor->ToolStage == 2)
     {
         vec3 StartToEnd = vec3(Editor->RectEndP - Editor->RectStartP);
         real32 UComponent = Dot(StartToEnd, Editor->RectDrawBasisUAxis);
@@ -957,9 +961,96 @@ DoBlockTool(editor *Editor)
             CreateFace(Editor->World, Side2Edges, ArrayCount(Side2Edges));
             CreateFace(Editor->World, Side3Edges, ArrayCount(Side3Edges));
 
-            Editor->BlockToolStage = 0;
+            Editor->ToolStage = 0;
 
             PushWorldStateToUndoStack(Editor->UndoStack, Editor->World, Editor->ActiveMode);
+        }
+    }
+}
+
+internal void
+DoPolygonTool(editor *Editor)
+{
+    // TODO(Kevin): Can't use polygon tool if about to exceed face/elements limit!
+    // TODO(Kevin): Deactivate tool if ESC key pressed
+
+    u32 MaxPolygonVertices = 64;
+
+    if (Editor->ToolStage == 0)
+    {
+        if (Editor->ViewportLMBWentUp)
+        {
+            SetStartPointOnDrawPlaneAndProgressStage(Editor);
+
+            EnsureListIsFreed(&Editor->WorkingSetVerts);
+            AllocList(&Editor->EditorMemory, &Editor->WorkingSetVerts, MaxPolygonVertices);
+
+            vert_index NewV = CreateVert(Editor->World, Editor->RectStartP);
+            ListPut(&Editor->WorkingSetVerts, NewV);
+        }
+    }
+    else if (Editor->ToolStage == 1)
+    {
+        UpdateHotPointOnDrawPlane(Editor);
+
+        for (u32 i = 0; i < Editor->WorkingSetVerts.Count; ++i)
+        {
+            vert_index Av = Editor->WorkingSetVerts.List[i];
+            vec3 AP = Editor->World->Vertices[Av].P;
+            vec3 BP = Editor->RectEndP;
+            if (i+1 < Editor->WorkingSetVerts.Count)
+            {
+                vert_index Bv = Editor->WorkingSetVerts.List[i+1];
+                BP = Editor->World->Vertices[Bv].P;
+            }
+
+            Editor->RenderAPI->PushLine(AP, BP, vec4(RGBHEXTO1(0xff8000), 1), 2.f);
+        }
+
+        if (Editor->ViewportLMBWentUp)
+        {
+            if (Editor->RectStartP != Editor->RectEndP)
+            {
+                if (Editor->WorkingSetVerts.Count < MaxPolygonVertices)
+                {
+                    vert_index NewV = CreateVert(Editor->World, Editor->RectEndP);
+                    ListPut(&Editor->WorkingSetVerts, NewV);
+                }
+                else
+                {
+                    SetGuiTooltip(Editor->GuiState, "Can't have more than 64 points for polygon.", 1.0f);
+                }
+            }
+            else
+            {
+                if (Editor->WorkingSetVerts.Count > 2)
+                {
+                    AllocList(&Editor->EditorMemory, &Editor->WorkingSetEdges, Editor->WorkingSetVerts.Count);
+
+                    for (u32 i = 0; i < Editor->WorkingSetVerts.Count; ++i)
+                    {
+                        vert_index Av = Editor->WorkingSetVerts.List[i];
+                        vert_index Bv = Editor->WorkingSetVerts.List[(i+1)%Editor->WorkingSetVerts.Count];
+                        edge_index NewE = CreateEdge(Editor->World, Av, Bv);
+                        ListPut(&Editor->WorkingSetEdges, NewE);
+                    }
+
+                    face_index NewF = CreateFace(Editor->World, Editor->WorkingSetEdges.List,
+                                                 Editor->WorkingSetEdges.Count);
+
+                    PushWorldStateToUndoStack(Editor->UndoStack, Editor->World, Editor->ActiveMode);
+
+                    FreeList(&Editor->WorkingSetEdges);
+                }
+                else
+                {
+                    SetGuiTooltip(Editor->GuiState, "Not enough points to form a face!", 1.0f);
+                }
+
+                Editor->ToolStage = 0;
+
+                FreeList(&Editor->WorkingSetVerts);
+            }
         }
     }
 }
@@ -1031,6 +1122,7 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
     editor *Editor = &(GameState->Editor);
     world_mesh *World = Editor->World;
     Editor->RenderAPI = RenderAPI;
+    Editor->GuiState = GuiState;
 
     if (!Editor->IsInitialized)
     {
@@ -1097,7 +1189,7 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
     if (Editor->ViewportLMBIsDown || 
         Editor->ViewportLMBWentDown ||
         // TODO(Kevin): Find a better way
-        Editor->BlockToolStage > 0 ||
+        Editor->ToolStage > 0 ||
         Editor->ActiveMode == TranslateEdgesTool || Editor->QueuedMode == TranslateEdgesTool)
     {
         // NOTE(Kevin): UI should not be interactible while performing editor action
@@ -1121,12 +1213,12 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
                                           &Editor->EditorMemory, RenderAPI);
 
         SetGuiTooltipWithUndoState(GuiState, Editor->UndoStack);
-        GuiState->TooltipTimer = 1.f;
 
         // TODO(Kevin): Selection should probably just be part of the undo state
         ClearAllSelection(Editor);
-        // NOTE(Kevin): Reset tool sub-modes
-        Editor->BlockToolStage = 0;
+        // TODO(Kevin): ToolStage should probably just be part of the undo state, so
+        //              we can do undo within the same Stage
+        Editor->ToolStage = 0;
     }
     else if (Input->KeyboardState->KbState[KB_CTRL].EndedDown && 
              Input->KeyboardState->KbState[KB_Z].EndedDown && Input->KeyboardState->KbState[KB_Z].HalfTransitionCount > 0 &&
@@ -1136,12 +1228,12 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
                                           &Editor->EditorMemory, RenderAPI);
 
         SetGuiTooltipWithUndoState(GuiState, Editor->UndoStack);
-        GuiState->TooltipTimer = 1.f;
 
         // TODO(Kevin): Selection should probably just be part of the undo state
         ClearAllSelection(Editor);
-        // NOTE(Kevin): Reset tool sub-modes
-        Editor->BlockToolStage = 0;
+        // TODO(Kevin): ToolStage should probably just be part of the undo state, so
+        //              we can do undo within the same Stage
+        Editor->ToolStage = 0;
     }
 
     Editor->EdgeUnderMouse = 0;
@@ -1194,10 +1286,7 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
 
                     FindWorkingSetVertsFromEdgeSelection(Editor);
 
-                    char *Tooltip = "Move edges (G)";
-                    GuiState->TooltipLength = StringLength(Tooltip);
-                    Copy(GuiState->Tooltip, Tooltip, GuiState->TooltipLength+1);
-                    GuiState->TooltipTimer = 1.f;
+                    SetGuiTooltip(GuiState, "Move edges (G)", 1.0f);
 
                     Editor->QueuedMode = TranslateEdgesTool;
                 }
@@ -1222,10 +1311,7 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
                     Copy(Editor->EdgeSelection.Selection, OppositeEdges.List, sizeof(u32)*OppositeEdges.Count);
                     FreeList(&OppositeEdges);
 
-                    char *Tooltip = "Extrude edges (E)";
-                    GuiState->TooltipLength = StringLength(Tooltip);
-                    Copy(GuiState->Tooltip, Tooltip, GuiState->TooltipLength+1);
-                    GuiState->TooltipTimer = 1.f;
+                    SetGuiTooltip(GuiState, "Extrude edges (E)", 1.0f);
 
                     Editor->QueuedMode = TranslateEdgesTool;
                 }
@@ -1247,10 +1333,7 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
                         SelectedFace->Dirty = true;
                     }
 
-                    char *Tooltip = "Flip faces (F)";
-                    GuiState->TooltipLength = StringLength(Tooltip);
-                    Copy(GuiState->Tooltip, Tooltip, GuiState->TooltipLength+1);
-                    GuiState->TooltipTimer = 1.f;
+                    SetGuiTooltip(GuiState, "Flip faces (F)", 1.0f);
 
                     PushWorldStateToUndoStack(Editor->UndoStack, World, Editor->ActiveMode);
                 }
@@ -1264,10 +1347,7 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
 
                     FindWorkingSetVertsFromFaceSelection(Editor);
 
-                    char *Tooltip = "Move faces (G)";
-                    GuiState->TooltipLength = StringLength(Tooltip);
-                    Copy(GuiState->Tooltip, Tooltip, GuiState->TooltipLength+1);
-                    GuiState->TooltipTimer = 1.f;
+                    SetGuiTooltip(GuiState, "Move faces (G)", 1.0f);
 
                     Editor->QueuedMode = TranslateEdgesTool;
                 }
@@ -1293,10 +1373,7 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
 
                     FindWorkingSetVertsFromFaceSelection(Editor);
 
-                    char *Tooltip = "Extrude faces (E)";
-                    GuiState->TooltipLength = StringLength(Tooltip);
-                    Copy(GuiState->Tooltip, Tooltip, GuiState->TooltipLength+1);
-                    GuiState->TooltipTimer = 1.f;
+                    SetGuiTooltip(GuiState, "Extrude faces (E)", 1.0f);
 
                     Editor->QueuedMode = TranslateEdgesTool;
                 }
@@ -1309,6 +1386,10 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
 
         case BlockTool:
             DoBlockTool(Editor);
+            break;
+
+        case PolygonTool:
+            DoPolygonTool(Editor);
             break;
 
         case NothingMode:
@@ -1397,19 +1478,25 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
         window_state Window = BeginWindow(GuiState, { 60, 80, 400, 600 }, false);
 
         bool32 Selected = Editor->ActiveMode == SelectEdge;
-        if (WindowButton(&Window, "Edge Select", &Selected))
+        if (WindowButton(&Window, "Select Edge", &Selected))
         {
             Editor->QueuedMode = SelectEdge;
         }
         Selected = Editor->ActiveMode == SelectFace;
-        if (WindowButton(&Window, "Face Select", &Selected))
+        if (WindowButton(&Window, "Select Face", &Selected))
         {
             Editor->QueuedMode = SelectFace;
         }
         Selected = Editor->ActiveMode == BlockTool;
-        if (WindowButton(&Window, "Block Tool", &Selected))
+        if (WindowButton(&Window, "Make Block", &Selected))
         {
             Editor->QueuedMode = BlockTool;
+        }
+        Selected = Editor->ActiveMode == PolygonTool;
+        if (WindowButton(&Window, "Make Polygon", &Selected))
+        {
+            Editor->QueuedMode = PolygonTool;
+            PushWorldStateToUndoStack(Editor->UndoStack, Editor->World, PolygonTool);
         }
 
         EndWindow(&Window);

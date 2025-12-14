@@ -422,8 +422,14 @@ inline void AllocList(memory_blocks *Memory, freeable_list_##Type *FreeableList,
 \
 inline void FreeList(freeable_list_##Type *FreeableList)\
 {\
-    FreeFreeableBlock(&FreeableList->Freeable);\
-    *FreeableList = {};\
+    if (FreeableList && FreeableList->Freeable.Block)\
+    {\
+        FreeFreeableBlock(&FreeableList->Freeable);\
+        *FreeableList = {};\
+    }\
+    else\
+    {\
+    }\
 }\
 \
 inline void EnsureListIsFreed(freeable_list_##Type *FreeableList)\
@@ -433,7 +439,13 @@ inline void EnsureListIsFreed(freeable_list_##Type *FreeableList)\
         FreeList(FreeableList);\
     }\
 }\
-// TODO(Kevin): Logging warning in EnsureListIsFreed
+\
+inline void ListPut(freeable_list_##Type *FreeableList, Type Value)\
+{\
+    FreeableList->List[FreeableList->Count++] = Value;\
+}\
+
+// TODO(Kevin): Logging warning in FreeList
 // TODO(Kevin): Capacity and Accessors, Adders, Removers
 
 // NOTE(Kevin): Maybe we should just expand these macros and get rid of the macros
