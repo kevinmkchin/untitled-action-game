@@ -177,6 +177,9 @@ ExtrudeFaces(world_mesh *Mesh, face_index *InputFaces, u32 InputFacesCount,
 
 // RingCut / Slice
 
+internal vert_index
+FindHintVertexFromRadialLoopBase(world_mesh *Mesh, edge_index EdgeIndex);
+
 internal vec3
 GetFaceNormal(vec3 *Points, u32 PointCount);
 internal vec3
@@ -218,6 +221,8 @@ inline void
 GetFaceVertsAndEdges(world_mesh *Mesh, face_index FaceIndex,
                      freeable_list_u32 *OutVerts, freeable_list_u32 *OutEdges)
 {
+    Assert(FaceIndex < ArrayCount(Mesh->Faces));
+
     mesh_face Face = Mesh->Faces[FaceIndex];
 
     for (loop_index l = Face.LoopCycleBase, i = 0;

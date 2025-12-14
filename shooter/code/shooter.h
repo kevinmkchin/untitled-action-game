@@ -314,6 +314,8 @@ struct game_state
 
 struct kbm_input
 {
+    // NOTE(Kevin): This is not for game input! Only UI and Editor!
+
     s32 MouseX;
     s32 MouseY;
     bool32 MouseCaptured;
@@ -328,3 +330,19 @@ struct kbm_input
     debug_keyboard_input *KeyboardState;
 };
 
+inline bool32
+KeyWentDownMod(kbm_input *KbmInput, shooter_kb_key Mod1, shooter_kb_key Mod2, shooter_kb_key Key)
+{
+    bool32 Result = KbmInput->KeyboardState->KbState[Mod1].EndedDown &&
+                    KbmInput->KeyboardState->KbState[Mod2].EndedDown &&
+                    KbmInput->KeyboardState->KbState[Key].EndedDown &&
+                    KbmInput->KeyboardState->KbState[Key].HalfTransitionCount > 0;
+    return Result;
+}
+
+inline bool32
+KeyWentDownMod(kbm_input *KbmInput, shooter_kb_key Mod1, shooter_kb_key Key)
+{
+    bool32 Result = KeyWentDownMod(KbmInput, Mod1, Mod1, Key);
+    return Result;
+}

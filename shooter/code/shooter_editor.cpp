@@ -1205,9 +1205,7 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
     // NOTE(Kevin): Should EnterNextMode before undo/redo because undo/redo will overwrite QueuedMode
     EnterNextMode(Editor);
 
-    if (Input->KeyboardState->KbState[KB_CTRL].EndedDown && Input->KeyboardState->KbState[KB_SHIFT].EndedDown &&
-        Input->KeyboardState->KbState[KB_Z].EndedDown && Input->KeyboardState->KbState[KB_Z].HalfTransitionCount > 0 &&
-        Input->KeyboardState->KbState[KB_Z].EndedDown && Input->KeyboardState->KbState[KB_Z].HalfTransitionCount > 0)
+    if (KeyWentDownMod(Input, KB_CTRL, KB_SHIFT, KB_Z))
     {
         bool32 ValidRedo = RedoWorldState(Editor, Editor->UndoStack, World,
                                           &Editor->EditorMemory, RenderAPI);
@@ -1220,9 +1218,7 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
         //              we can do undo within the same Stage
         Editor->ToolStage = 0;
     }
-    else if (Input->KeyboardState->KbState[KB_CTRL].EndedDown && 
-             Input->KeyboardState->KbState[KB_Z].EndedDown && Input->KeyboardState->KbState[KB_Z].HalfTransitionCount > 0 &&
-             Input->KeyboardState->KbState[KB_Z].EndedDown && Input->KeyboardState->KbState[KB_Z].HalfTransitionCount > 0)
+    else if (KeyWentDownMod(Input, KB_CTRL, KB_Z))
     {
         bool32 ValidUndo = UndoWorldState(Editor, Editor->UndoStack, World,
                                           &Editor->EditorMemory, RenderAPI);
@@ -1277,8 +1273,7 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
 
         case SelectEdge:
         {
-            if (Input->KeyboardState->KbState[KB_G].EndedDown &&
-                Input->KeyboardState->KbState[KB_G].HalfTransitionCount > 0)
+            if (KeyWentDownMod(Input, KB_G, KB_G))
             {
                 if (Editor->EdgeSelection.SelectionCount > 0)
                 {
@@ -1291,8 +1286,7 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
                     Editor->QueuedMode = TranslateEdgesTool;
                 }
             }
-            else if (Input->KeyboardState->KbState[KB_E].EndedDown &&
-                     Input->KeyboardState->KbState[KB_E].HalfTransitionCount > 0)
+            if (KeyWentDownMod(Input, KB_E, KB_E))
             {
                 if (Editor->EdgeSelection.SelectionCount > 0)
                 {
@@ -1316,12 +1310,40 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
                     Editor->QueuedMode = TranslateEdgesTool;
                 }
             }
+            if (KeyWentDownMod(Input, KB_CTRL, KB_N))
+            {
+                if (Editor->EdgeSelection.SelectionCount > 2)
+                {
+                    vert_index HintV = FindHintVertexFromRadialLoopBase(World, Editor->EdgeSelection.Selection[0]);
+
+                    face_index NewF = CreateFace(World, Editor->EdgeSelection.Selection,
+                                                 Editor->EdgeSelection.SelectionCount, HintV);
+
+                    if (NewF)
+                    {
+                        ClearAllSelection(Editor);
+                        Editor->FaceSelection.Selection[Editor->FaceSelection.SelectionCount++] = NewF;
+                        Editor->QueuedMode = SelectFace;
+
+                        SetGuiTooltip(Editor->GuiState, "Face created from edges", 1.0f);
+
+                        PushWorldStateToUndoStack(Editor->UndoStack, Editor->World, Editor->ActiveMode);
+                    }
+                    else
+                    {
+                        SetGuiTooltip(Editor->GuiState, "Edges not valid to form face!", 1.0f);
+                    }
+                }
+                else
+                {
+                    SetGuiTooltip(Editor->GuiState, "Not enough points to form a face!", 1.0f);
+                }
+            }
         } break;
 
         case SelectFace:
         {
-            if (Input->KeyboardState->KbState[KB_F].EndedDown &&
-                Input->KeyboardState->KbState[KB_F].HalfTransitionCount > 0)
+            if (KeyWentDownMod(Input, KB_F, KB_F))
             {
                 if (Editor->FaceSelection.SelectionCount > 0)
                 {
@@ -1338,8 +1360,7 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
                     PushWorldStateToUndoStack(Editor->UndoStack, World, Editor->ActiveMode);
                 }
             }
-            else if (Input->KeyboardState->KbState[KB_G].EndedDown &&
-                     Input->KeyboardState->KbState[KB_G].HalfTransitionCount > 0)
+            if (KeyWentDownMod(Input, KB_G, KB_G))
             {
                 if (Editor->FaceSelection.SelectionCount > 0)
                 {
@@ -1352,8 +1373,7 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
                     Editor->QueuedMode = TranslateEdgesTool;
                 }
             }
-            else if (Input->KeyboardState->KbState[KB_E].EndedDown &&
-                     Input->KeyboardState->KbState[KB_E].HalfTransitionCount > 0)
+            if (KeyWentDownMod(Input, KB_E, KB_E))
             {
                 if (Editor->FaceSelection.SelectionCount > 0)
                 {
@@ -1475,31 +1495,46 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
     if (GuiState->CanvasW > 0 && GuiState->CanvasW < UINT32_MAX && 
         GuiState->CanvasH > 0 && GuiState->CanvasH < UINT32_MAX)
     {
-        window_state Window = BeginWindow(GuiState, { 60, 80, 400, 600 }, false);
+        window_state ToolsWindow = BeginWindow(GuiState, { 60, 80, 400, 600 }, false);
 
         bool32 Selected = Editor->ActiveMode == SelectEdge;
-        if (WindowButton(&Window, "Select Edge", &Selected))
+        if (WindowButton(&ToolsWindow, "Select Edge", &Selected))
         {
             Editor->QueuedMode = SelectEdge;
         }
         Selected = Editor->ActiveMode == SelectFace;
-        if (WindowButton(&Window, "Select Face", &Selected))
+        if (WindowButton(&ToolsWindow, "Select Face", &Selected))
         {
             Editor->QueuedMode = SelectFace;
         }
         Selected = Editor->ActiveMode == BlockTool;
-        if (WindowButton(&Window, "Make Block", &Selected))
+        if (WindowButton(&ToolsWindow, "Make Block", &Selected))
         {
             Editor->QueuedMode = BlockTool;
         }
         Selected = Editor->ActiveMode == PolygonTool;
-        if (WindowButton(&Window, "Make Polygon", &Selected))
+        if (WindowButton(&ToolsWindow, "Make Polygon", &Selected))
         {
             Editor->QueuedMode = PolygonTool;
             PushWorldStateToUndoStack(Editor->UndoStack, Editor->World, PolygonTool);
         }
 
-        EndWindow(&Window);
+        EndWindow(&ToolsWindow);
+
+        // TODO(Kevin): Display a window with actions like extrude or form faces with selected edges
+#if 0
+        window_state ToolActionsWindow = BeginWindow(GuiState, { 460, 80, 400, 600 }, false);
+
+        if (WindowButton(&ToolActionsWindow, "Extrude Edge"))
+        {
+        }
+        if (WindowButton(&ToolActionsWindow, "Form Face"))
+        {
+        }
+
+        EndWindow(&ToolActionsWindow);
+#endif
+
 
         GuiTextFmt(GuiState, GuiState->CanvasW - 60, 80, GuiFontCambria40, 1.0f, Align_Right, false, vec4(1,1,1,1),
                    "Selected: %d faces %d edges", Editor->FaceSelection.SelectionCount,

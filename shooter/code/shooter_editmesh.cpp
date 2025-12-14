@@ -228,7 +228,6 @@ CreateFace(world_mesh *Mesh, edge_index *Edges, u32 EdgeCount, vert_index HintLo
 {
     if (EdgeCount < 3)
     {
-        Assert(0);
         return 0;
     }
 
@@ -288,60 +287,64 @@ CreateFace(world_mesh *Mesh, edge_index *Edges, u32 EdgeCount, vert_index HintLo
 
         if (!Processed)
         {
-            // TODO(Kevin): Logging error "Failed to create face from provided edges."
-            Assert(0);
-            return 0;
+            OrderedEdgesCount = 0;
+            break;
         }
     }
 
-    // Create face and loops
-    Assert(Mesh->FreeFaceHandlesCount > 0);
+    face_index Result = 0;
 
-    face_index Result = Mesh->FreeFaceHandles[--Mesh->FreeFaceHandlesCount];
-
-    loop_index LastLoop = 0;
-    loop_index FirstLoop = 0;
-    for (u32 Index = 0; Index < OrderedEdgesCount; ++Index)
+    if (OrderedEdgesCount > 0)
     {
-        edge_index Edge = OrderedEdges[Index];
+        // Create face and loops
+        Assert(Mesh->FreeFaceHandlesCount > 0);
 
-        Assert(Mesh->FreeTopoLoopHandlesCount > 0);
+        Result = Mesh->FreeFaceHandles[--Mesh->FreeFaceHandlesCount];
 
-        loop_index Loop = UseNextAvailableLoop(Mesh);
-        vert_index SharedVert = LastLoop ? SharesVert(Mesh, Mesh->Loops[LastLoop].Edge, Edge)
-                                         : SharesVert(Mesh, OrderedEdges[OrderedEdgesCount-1], Edge);
-        Assert(SharedVert);
-
-        // Store references to base vertex, corresponding edge, and corresponding face
-        Mesh->Loops[Loop] = {};
-        Mesh->Loops[Loop].Vert = SharedVert;
-        Mesh->Loops[Loop].Edge = Edge;
-        Mesh->Loops[Loop].Face = Result;
-
-        // Insert loop into Radial Cycle of this edge
-        RadialCycleInsertLoop(Mesh, Edge, Loop);
-
-        // Form Loop Cycle of this face
-        if (LastLoop)
+        loop_index LastLoop = 0;
+        loop_index FirstLoop = 0;
+        for (u32 Index = 0; Index < OrderedEdgesCount; ++Index)
         {
-            Mesh->Loops[Loop].Prev = LastLoop;
-            Mesh->Loops[LastLoop].Next = Loop;
-        }
-        else
-        {
-            FirstLoop = Loop;
-        }
+            edge_index Edge = OrderedEdges[Index];
 
-        LastLoop = Loop;
+            Assert(Mesh->FreeTopoLoopHandlesCount > 0);
+
+            loop_index Loop = UseNextAvailableLoop(Mesh);
+            vert_index SharedVert = LastLoop ? SharesVert(Mesh, Mesh->Loops[LastLoop].Edge, Edge)
+                                             : SharesVert(Mesh, OrderedEdges[OrderedEdgesCount-1], Edge);
+            Assert(SharedVert);
+
+            // Store references to base vertex, corresponding edge, and corresponding face
+            Mesh->Loops[Loop] = {};
+            Mesh->Loops[Loop].Vert = SharedVert;
+            Mesh->Loops[Loop].Edge = Edge;
+            Mesh->Loops[Loop].Face = Result;
+
+            // Insert loop into Radial Cycle of this edge
+            RadialCycleInsertLoop(Mesh, Edge, Loop);
+
+            // Form Loop Cycle of this face
+            if (LastLoop)
+            {
+                Mesh->Loops[Loop].Prev = LastLoop;
+                Mesh->Loops[LastLoop].Next = Loop;
+            }
+            else
+            {
+                FirstLoop = Loop;
+            }
+
+            LastLoop = Loop;
+        }
+        Mesh->Loops[FirstLoop].Prev = LastLoop;
+        Mesh->Loops[LastLoop].Next = FirstLoop;
+
+        Mesh->Faces[Result] = {};
+        Mesh->Faces[Result].LoopCycleBase = FirstLoop;
+        Mesh->Faces[Result].LoopCycleLen = EdgeCount;
+        Mesh->Faces[Result].Alive = true;
+        Mesh->Faces[Result].RenderMesh = 0;
     }
-    Mesh->Loops[FirstLoop].Prev = LastLoop;
-    Mesh->Loops[LastLoop].Next = FirstLoop;
-
-    Mesh->Faces[Result] = {};
-    Mesh->Faces[Result].LoopCycleBase = FirstLoop;
-    Mesh->Faces[Result].LoopCycleLen = EdgeCount;
-    Mesh->Faces[Result].Alive = true;
-    Mesh->Faces[Result].RenderMesh = 0;
 
     FreeBlock(Mesh->Memory, &UnprocessedEdges);
     FreeBlock(Mesh->Memory, &OrderedEdges);
@@ -597,14 +600,8 @@ ExtrudeEdges(world_mesh *Mesh, edge_index *Edges, u32 EdgesCount,
     for (u32 Index = 0; Index < EdgesCount; ++Index)
     {
         edge_index EdgeAB = Edges[Index];
-        mesh_edge Edge = MeshEdge(EdgeAB);
 
-        vert_index HintVert = 0;
-        if (Edge.RadialCycleLen > 0)
-        {
-            topo_loop HintLoop = MeshLoop(Edge.RadialCycleBase);
-            HintVert = Edge.A == HintLoop.Vert ? Edge.B : Edge.A;
-        }
+        vert_index HintVert = FindHintVertexFromRadialLoopBase(Mesh, EdgeAB);
 
         ExtrudeEdge(Mesh, EdgeAB, &VisitedVerts, OutCreatedVerts, &CreatedEdges,
                     OutCreatedFaces, OutOppositeEdges, HintVert);
@@ -779,6 +776,21 @@ ExtrudeFaces(world_mesh *Mesh, face_index *InputFaces, u32 InputFacesCount,
     FreeList(&OppositeEdges);
     FreeList(&EdgesTableOriginal);
     FreeList(&EdgesTableOpposite);
+}
+
+internal vert_index
+FindHintVertexFromRadialLoopBase(world_mesh *Mesh, edge_index EdgeIndex)
+{
+    vert_index HintVert = 0;
+
+    mesh_edge Edge = Mesh->Edges[EdgeIndex];
+    if (Edge.RadialCycleLen > 0)
+    {
+        topo_loop HintLoop = Mesh->Loops[Edge.RadialCycleBase];
+        HintVert = Edge.A == HintLoop.Vert ? Edge.B : Edge.A;
+    }
+
+    return HintVert;
 }
 
 internal vec3
