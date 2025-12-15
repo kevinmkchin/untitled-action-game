@@ -246,7 +246,9 @@ CreateFace(world_mesh *Mesh, edge_index *Edges, u32 EdgeCount, vert_index HintLo
             }
         }
 
-        if (!Processed)
+        bool32 FirstAndLastEdgesUnconnected = UnprocessedEdgesCount == 0 &&
+                                              !SharesVert(Mesh, OrderedEdges[0], OrderedEdges[OrderedEdgesCount-1]);
+        if (!Processed || FirstAndLastEdgesUnconnected)
         {
             OrderedEdgesCount = 0;
             break;
