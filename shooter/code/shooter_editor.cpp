@@ -104,6 +104,16 @@ GetDrawRectBasisAxes(vec3 FloorNormal, vec3 *RectBasisUAxis, vec3 *RectBasisVAxi
 }
 
 internal void
+RemoveTransientStateFromWorldMesh(world_mesh *World)
+{
+    for (u32 FaceIndex = 0; FaceIndex < ArrayCount(World->Faces); ++FaceIndex)
+    {
+        mesh_face *Face = &World->Faces[FaceIndex];
+        Face->RenderMesh = 0;
+    }
+}
+
+internal void
 DeleteAllFaceRenderMeshes(world_mesh *World, renderer *RenderAPI)
 {
     for (u32 FaceIndex = 0; FaceIndex < ArrayCount(World->Faces); ++FaceIndex)
@@ -249,11 +259,7 @@ PushWorldStateToUndoStack(undo_stack *Undo, world_mesh *World, editor_mode Activ
     //              time. Only dirty faces need to be deleted/recreated on modifications.
     //              This keeps modifications snappy, while undo/redo action takes longer.
     // NOTE(Kevin): Don't push any hw mesh handles to undo stack
-    for (u32 FaceIndex = 0; FaceIndex < ArrayCount(PushedState->World.Faces); ++FaceIndex)
-    {
-        mesh_face *Face = &PushedState->World.Faces[FaceIndex];
-        Face->RenderMesh = 0;
-    }
+    RemoveTransientStateFromWorldMesh(&(PushedState->World));
 }
 
 internal void
@@ -1118,8 +1124,33 @@ FindWorkingSetVertsFromEdgeSelection(editor *Editor)
 }
 
 internal void
+WriteEntireEditorWorldState(thread_context *Thread, editor *Editor, platform_api *PlatformAPI)
+{
+    void *TempMesh = AllocStruct(&Editor->EditorMemory, world_mesh);
+    Assert(sizeof(world_mesh) == sizeof(*(Editor->World)));
+    Copy(TempMesh, Editor->World, sizeof(*(Editor->World)));
+
+    RemoveTransientStateFromWorldMesh((world_mesh *)TempMesh);
+
+    PlatformAPI->DEBUGPlatformWriteEntireFile(Thread, "shooter_editor_worldstate", sizeof(world_mesh), TempMesh);
+
+    FreeBlock(&Editor->EditorMemory, &TempMesh);
+}
+
+internal void
+ReadEntireEditorWorldState(thread_context *Thread, editor *Editor, platform_api *PlatformAPI)
+{
+    DeleteAllFaceRenderMeshes(Editor->World, Editor->RenderAPI);
+
+    debug_read_file_result Result = PlatformAPI->DEBUGPlatformReadEntireFile(Thread, "shooter_editor_worldstate");
+    Copy(Editor->World, Result.Contents, Result.ContentsSize);
+
+    PlatformAPI->DEBUGPlatformFreeFileMemory(Thread, Result.Contents);
+}
+
+internal void
 EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *GuiState,
-                      kbm_input *Input, renderer *RenderAPI, real32 dt)
+                      kbm_input *Input, renderer *RenderAPI, platform_api *PlatformAPI, real32 dt)
 {
     editor *Editor = &(GameState->Editor);
     world_mesh *World = Editor->World;
@@ -1558,6 +1589,15 @@ EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *
         {
             Editor->QueuedMode = PolygonTool;
             PushWorldStateToUndoStack(Editor->UndoStack, Editor->World, PolygonTool);
+        }
+
+        if (WindowButton(&ToolsWindow, "DEBUG Save World"))
+        {
+            WriteEntireEditorWorldState(Thread, Editor, PlatformAPI);
+        }
+        if (WindowButton(&ToolsWindow, "DEBUG Load World"))
+        {
+            ReadEntireEditorWorldState(Thread, Editor, PlatformAPI);
         }
 
         EndWindow(&ToolsWindow);

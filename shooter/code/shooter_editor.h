@@ -100,7 +100,7 @@ struct editor
 
 internal void
 EditorUpdateAndRender(thread_context *Thread, game_state *GameState, gui_state *GuiState,
-                      kbm_input *Input, renderer *RenderAPI, real32 dt);
+                      kbm_input *Input, renderer *RenderAPI, platform_api *PlatformAPI, real32 dt);
 
 internal void
 EnterNextMode(editor *Editor);

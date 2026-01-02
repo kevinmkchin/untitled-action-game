@@ -1210,7 +1210,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 #if SHOOTER_COMPILE_WITH_EDITOR
     if (GameState->EditorMode)
     {
-        EditorUpdateAndRender(Thread, GameState, GuiState, &KBMInput, RenderAPI, dt);
+        EditorUpdateAndRender(Thread, GameState, GuiState, &KBMInput, RenderAPI, &(Memory->PlatformAPI), dt);
     }
 #endif
 
