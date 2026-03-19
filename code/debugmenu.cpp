@@ -374,7 +374,7 @@ void ShowDebugConsole()
         ApplicationState.GameState->GameLoopCanRun = !ApplicationState.GameState->GameLoopCanRun;
     }
 
-    static DEBUG_MODES LastDebugMode = DEBUG_MODE_CONSOLE;
+    static DEBUG_MODES LastDebugMode = DEBUG_MODE_MENU;
     if (KeysPressed[SDL_SCANCODE_GRAVE])
     {
         switch (CurrentDebugMode)

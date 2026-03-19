@@ -214,21 +214,21 @@ static bool InitializeApplication()
     _getcwd(CurrentWorkingDirectory, 128);
 
 #if INTERNAL_BUILD
-    // === RENDER DOC API ===
-    LoadLibrary("renderdoc.dll");
-    if (HMODULE mod = GetModuleHandleA("renderdoc.dll"))
-    {
-        pRENDERDOC_GetAPI RENDERDOC_GetAPI =
-            (pRENDERDOC_GetAPI)GetProcAddress(mod, "RENDERDOC_GetAPI");
-        int ret = RENDERDOC_GetAPI(eRENDERDOC_API_Version_1_1_2, (void **)&RDOCAPI);
-        ASSERT(ret == 1);
-        // rdoc_api->SetCaptureFilePathTemplate(...);
-        LogMessage("Loaded renderdoc.dll");
-    }
-    else
-    {
-        LogWarning("Failed to load renderdoc.dll");
-    }
+    // // === RENDER DOC API ===
+    // LoadLibrary("renderdoc.dll");
+    // if (HMODULE mod = GetModuleHandleA("renderdoc.dll"))
+    // {
+    //     pRENDERDOC_GetAPI RENDERDOC_GetAPI =
+    //         (pRENDERDOC_GetAPI)GetProcAddress(mod, "RENDERDOC_GetAPI");
+    //     int ret = RENDERDOC_GetAPI(eRENDERDOC_API_Version_1_1_2, (void **)&RDOCAPI);
+    //     ASSERT(ret == 1);
+    //     // rdoc_api->SetCaptureFilePathTemplate(...);
+    //     LogMessage("Loaded renderdoc.dll");
+    // }
+    // else
+    // {
+    //     LogWarning("Failed to load renderdoc.dll");
+    // }
 #endif
 
     ProgramShutdownRequested = false;
@@ -244,8 +244,8 @@ static bool InitializeApplication()
     SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
 
     SDLMainWindow = SDL_CreateWindow("game",
-                                     1920,
-                                     1080,
+                                     2560,
+                                     1440,
                                      SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE);
     ApplicationState.SDLMainWindow = SDLMainWindow;
 
@@ -390,9 +390,9 @@ int main(int argc, char* argv[])
     // BuildGameMap(wd_path(ApplicationState.LevelEditor, "buildtest.map").c_str());
     // LoadLevel(wd_path("buildtest.map").c_str());
 
-    SDL_SetWindowRelativeMouseMode(SDLMainWindow, true);
-    LoadLevel(wd_path("buildtest.map").c_str());
-    // SwitchToLevelEditor();
+    // SDL_SetWindowRelativeMouseMode(SDLMainWindow, true);
+    // LoadLevel(wd_path("buildtest.map").c_str());
+    SwitchToLevelEditor();
 
     while (!ProgramShutdownRequested)
     {

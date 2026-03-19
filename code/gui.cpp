@@ -1626,6 +1626,7 @@ static const char* main_ui_shader_fs =
         "        colour = uiColour;\n"
         "    } else {\n"
         "        colour = texture(textureSampler0, texUV);\n"
+        "        colour.rgb = pow(colour.rgb, vec3(1.0/2.6));\n"
         "    }\n"
         "}\n";
 

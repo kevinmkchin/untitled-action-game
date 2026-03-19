@@ -51,6 +51,7 @@ const char* __editor_scene_shader_fs =
     "    vec3 COLOR = texture(texture0, uv).xyz;\n"
     "    vec3 TOTAL = COLOR * LIGHT;\n"
     "    out_colour = vec4(TOTAL, 1.0);\n"
+    "    out_colour.rgb = pow(out_colour.rgb, vec3(1.0/2.6));\n"
     "}";
 
 const char* __editor_scene_wireframe_shader_vs =
